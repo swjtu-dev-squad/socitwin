@@ -1,40 +1,52 @@
+#!/usr/bin/env python3
 """
-OASIS Engine Integration for OASIS Dashboard
+Real OASIS Engine V2 - Production Ready
+真实 OASIS 引擎 V2 - 生产就绪版本
 
-This module integrates the real OASIS (Open-ended Autonomous Social Intelligence Simulation)
-engine with the OASIS Dashboard backend. It provides a Python-based simulation engine
-that uses local LLM models (e.g., Qwen2.5-3B via Ollama) for agent decision-making.
-
-Key Features:
-- Real OASIS engine integration (not a simulator)
-- Local LLM support via Ollama
-- Async/await support for non-blocking operations
-- RESTful API endpoints for dashboard control
+解决导入卡住问题的优化版本
 """
 
-import asyncio
 import os
+import sys
+
+# 解决 torch 和其他依赖加载慢的问题
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 解决torch常见警告
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # 减少内存碎片
+
+print("✅ 开始导入真实OASIS...", flush=True)
+
+import time
 import json
+import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-# Lazy imports to speed up startup
-# These will be imported when actually needed
-# from camel.models import ModelFactory
-# from camel.types import ModelPlatformType, ModelType
-# import oasis
-# from oasis import (...)
+# 监控导入时间
+start = time.time()
+
+from camel.models import ModelFactory
+from camel.types import ModelPlatformType, ModelType
+
+import oasis
+from oasis import (
+    ActionType,
+    AgentGraph,
+    LLMAction,
+    ManualAction,
+    SocialAgent,
+    UserInfo,
+    make,
+    DefaultPlatformType,
+)
+
+print(f"✅ OASIS导入完成，耗时 {time.time() - start:.2f}秒", flush=True)
 
 
-class OASISEngine:
+class RealOASISEngine:
     """
-    OASIS Engine wrapper for dashboard integration.
+    真实 OASIS 引擎（非模拟器）
     
-    This class manages the OASIS simulation lifecycle, including:
-    - Agent initialization and management
-    - Environment setup and configuration
-    - Simulation execution (step-by-step or continuous)
-    - State tracking and reporting
+    使用 CAMEL-AI OASIS 框架和本地 Qwen2.5-3B 模型
     """
     
     def __init__(
@@ -43,19 +55,12 @@ class OASISEngine:
         model_type: str = "qwen2.5:3b",
         db_path: str = "./oasis_simulation.db",
     ):
-        """
-        Initialize the OASIS Engine.
-        
-        Args:
-            model_platform: LLM platform (e.g., "ollama", "openai")
-            model_type: Model type (e.g., "qwen2.5:3b", "gpt-4o-mini")
-            db_path: Path to the simulation database
-        """
+        """初始化真实 OASIS 引擎"""
         self.model_platform = model_platform
         self.model_type = model_type
         self.db_path = db_path
         
-        self.agent_graph: Optional[Any] = None  # AgentGraph
+        self.agent_graph: Optional[Any] = None
         self.env: Optional[Any] = None
         self.model: Optional[Any] = None
         
@@ -64,75 +69,60 @@ class OASISEngine:
         self.active_agents = 0
         self.is_running = False
         
-        self.agents: List[Any] = []  # List[SocialAgent]
+        self.agents: List[Any] = []
         self.logs: List[Dict] = []
         
+        print("✅ RealOASISEngine 实例已创建", flush=True)
+    
     async def initialize(
         self,
         agent_count: int = 10,
         platform: str = "reddit",
-        available_actions: Optional[List] = None,
+        recsys: str = "hot-score",
+        topic: str = "general",
     ) -> Dict:
-        """
-        Initialize the OASIS simulation environment.
-        
-        Args:
-            agent_count: Number of agents to create
-            platform: Social platform type (e.g., "reddit", "twitter")
-            available_actions: List of available action types for agents
-            
-        Returns:
-            Status dictionary with initialization results
-        """
+        """初始化真实 OASIS 模拟环境"""
         try:
-            # Lazy import OASIS libraries
-            from camel.models import ModelFactory
-            from camel.types import ModelPlatformType, ModelType
-            import oasis
-            from oasis import (
-                ActionType,
-                AgentGraph,
-                LLMAction,
-                ManualAction,
-                SocialAgent,
-                UserInfo,
-            )
+            print(f"🚀 开始初始化真实OASIS: {agent_count} agents, platform={platform}", flush=True)
+            init_start = time.time()
             
-            # Create the model
+            # 创建模型
             if self.model_platform.lower() == "ollama":
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OLLAMA,
                     model_type=self.model_type,
                     model_config_dict={"temperature": 0.7},
                 )
+                print(f"✅ Ollama 模型已创建: {self.model_type}", flush=True)
             else:
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OPENAI,
                     model_type=ModelType.GPT_4O_MINI,
                 )
+                print(f"✅ OpenAI 模型已创建", flush=True)
             
-            # Define available actions
-            if available_actions is None:
-                available_actions = [
-                    ActionType.LIKE_POST,
-                    ActionType.CREATE_POST,
-                    ActionType.CREATE_COMMENT,
-                    ActionType.FOLLOW,
-                ]
+            # 定义可用动作
+            available_actions = [
+                ActionType.LIKE_POST,
+                ActionType.CREATE_POST,
+                ActionType.CREATE_COMMENT,
+                ActionType.FOLLOW,
+            ]
             
-            # Initialize agent graph
+            # 初始化 agent graph
             self.agent_graph = AgentGraph()
+            print(f"✅ AgentGraph 已创建", flush=True)
             
-            # Create agents
+            # 创建 agents
             for i in range(agent_count):
                 agent = SocialAgent(
                     agent_id=i,
                     user_info=UserInfo(
                         user_name=f"agent_{i}",
                         name=f"Agent {i}",
-                        description=f"AI agent {i} in OASIS simulation",
+                        description=f"AI agent {i} in OASIS simulation - Topic: {topic}",
                         profile=None,
-                        recsys_type=platform,
+                        recsys_type=recsys,
                     ),
                     agent_graph=self.agent_graph,
                     model=self.model,
@@ -141,106 +131,117 @@ class OASISEngine:
                 self.agent_graph.add_agent(agent)
                 self.agents.append(agent)
             
-            # Set database path
+            print(f"✅ 已创建 {agent_count} 个 SocialAgent", flush=True)
+            
+            # 设置数据库路径
             os.environ["OASIS_DB_PATH"] = os.path.abspath(self.db_path)
             
-            # Delete old database if exists
+            # 删除旧数据库
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
+                print(f"🗑️  已删除旧数据库: {self.db_path}", flush=True)
             
-            # Create environment
+            # 创建环境
             platform_type = (
-                oasis.DefaultPlatformType.REDDIT
+                DefaultPlatformType.REDDIT
                 if platform.lower() == "reddit"
-                else oasis.DefaultPlatformType.TWITTER
+                else DefaultPlatformType.TWITTER
             )
             
-            self.env = oasis.make(
+            self.env = make(
                 agent_graph=self.agent_graph,
                 platform=platform_type,
                 database_path=self.db_path,
             )
+            print(f"✅ OASIS 环境已创建: {platform_type}", flush=True)
             
-            # Reset environment
+            # 重置环境
             await self.env.reset()
+            print(f"✅ 环境已重置", flush=True)
             
             self.active_agents = agent_count
             self.is_running = True
             self.current_step = 0
             
+            init_time = time.time() - init_start
+            print(f"🎉 真实OASIS初始化完成！耗时 {init_time:.3f}秒", flush=True)
+            
             return {
                 "status": "ok",
-                "message": f"Initialized {agent_count} agents successfully",
+                "message": f"真实OASIS已初始化 {agent_count} 个agents",
                 "agent_count": agent_count,
                 "platform": platform,
+                "recsys": recsys,
+                "topic": topic,
+                "init_time": init_time,
             }
             
         except Exception as e:
+            print(f"❌ 初始化失败: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
             return {
                 "status": "error",
-                "message": f"Initialization failed: {str(e)}",
+                "message": f"初始化失败: {str(e)}",
             }
     
     async def step(self) -> Dict:
-        """
-        Execute one simulation step.
-        
-        Returns:
-            Status dictionary with step results
-        """
+        """执行一步真实 OASIS 模拟"""
         if not self.is_running or self.env is None:
             return {
                 "status": "error",
-                "message": "Simulation not initialized or not running",
+                "message": "模拟未初始化或未运行",
             }
         
         try:
-            # Lazy import LLMAction
-            from oasis import LLMAction
+            step_start = time.time()
+            print(f"⚙️  执行第 {self.current_step + 1} 步...", flush=True)
             
-            # Define LLM actions for all agents
+            # 为所有 agents 定义 LLM actions
             all_agents_llm_actions = {
                 agent: LLMAction()
                 for agent in self.agents
             }
             
-            # Execute step
+            # 执行步骤
             await self.env.step(all_agents_llm_actions)
             
             self.current_step += 1
+            self.total_posts += len(self.agents)  # 简化统计
             
-            # Update statistics (placeholder - actual implementation would query the database)
-            self.total_posts += len(self.agents)  # Simplified
+            step_time = time.time() - step_start
             
-            # Log the step
+            # 记录日志
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "step": self.current_step,
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
+                "step_time": step_time,
             }
             self.logs.append(log_entry)
+            
+            print(f"✅ 第 {self.current_step} 步完成，耗时 {step_time:.3f}秒", flush=True)
             
             return {
                 "status": "ok",
                 "current_step": self.current_step,
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
+                "step_time": step_time,
             }
             
         except Exception as e:
+            print(f"❌ 步骤执行失败: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
             return {
                 "status": "error",
-                "message": f"Step execution failed: {str(e)}",
+                "message": f"步骤执行失败: {str(e)}",
             }
     
     async def reset(self) -> Dict:
-        """
-        Reset the simulation to initial state.
-        
-        Returns:
-            Status dictionary with reset results
-        """
+        """重置模拟"""
         if self.env is not None:
             await self.env.close()
         
@@ -249,18 +250,15 @@ class OASISEngine:
         self.is_running = False
         self.logs = []
         
+        print("🔄 模拟已重置", flush=True)
+        
         return {
             "status": "ok",
-            "message": "Simulation reset successfully",
+            "message": "模拟已重置",
         }
     
     def get_status(self) -> Dict:
-        """
-        Get current simulation status.
-        
-        Returns:
-            Status dictionary with current state
-        """
+        """获取当前模拟状态"""
         return {
             "status": "ok",
             "data": {
@@ -273,61 +271,35 @@ class OASISEngine:
         }
     
     async def close(self) -> Dict:
-        """
-        Close the simulation environment and cleanup resources.
-        
-        Returns:
-            Status dictionary with close results
-        """
+        """关闭模拟环境"""
         if self.env is not None:
             await self.env.close()
         
         self.is_running = False
         
+        print("🛑 模拟已关闭", flush=True)
+        
         return {
             "status": "ok",
-            "message": "Simulation closed successfully",
+            "message": "模拟已关闭",
         }
 
 
-# Global engine instance
-_engine: Optional[OASISEngine] = None
+# 全局引擎实例
+_engine: Optional[RealOASISEngine] = None
 
 
-def get_engine() -> OASISEngine:
-    """Get or create the global OASIS engine instance."""
+def get_engine() -> RealOASISEngine:
+    """获取或创建全局 OASIS 引擎实例"""
     global _engine
     if _engine is None:
-        _engine = OASISEngine()
+        _engine = RealOASISEngine()
     return _engine
 
 
-# Example usage
-async def main():
-    """Example usage of the OASIS Engine."""
-    engine = get_engine()
-    
-    # Initialize with 5 agents
-    init_result = await engine.initialize(agent_count=5, platform="reddit")
-    print(f"Initialization: {init_result}")
-    
-    # Run 3 simulation steps
-    for i in range(3):
-        step_result = await engine.step()
-        print(f"Step {i+1}: {step_result}")
-    
-    # Get status
-    status = engine.get_status()
-    print(f"Status: {status}")
-    
-    # Close
-    close_result = await engine.close()
-    print(f"Close: {close_result}")
-
-
-# JSON-RPC Server for stdin/stdout communication
+# JSON-RPC 服务器
 async def handle_rpc_request(request: Dict) -> Dict:
-    """Handle a single JSON-RPC request."""
+    """处理单个 JSON-RPC 请求"""
     engine = get_engine()
     
     method = request.get("method")
@@ -338,6 +310,8 @@ async def handle_rpc_request(request: Dict) -> Dict:
             result = await engine.initialize(
                 agent_count=params.get("agentCount", 5),
                 platform=params.get("platform", "reddit"),
+                recsys=params.get("recsys", "hot-score"),
+                topic=params.get("topic", "general"),
             )
         elif method == "step":
             result = await engine.step()
@@ -348,7 +322,7 @@ async def handle_rpc_request(request: Dict) -> Dict:
         elif method == "close":
             result = await engine.close()
         else:
-            result = {"status": "error", "message": f"Unknown method: {method}"}
+            result = {"status": "error", "message": f"未知方法: {method}"}
         
         return {
             "jsonrpc": "2.0",
@@ -356,6 +330,9 @@ async def handle_rpc_request(request: Dict) -> Dict:
             "result": result,
         }
     except Exception as e:
+        print(f"❌ RPC 请求处理失败: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
         return {
             "jsonrpc": "2.0",
             "id": request.get("id"),
@@ -367,11 +344,10 @@ async def handle_rpc_request(request: Dict) -> Dict:
 
 
 async def run_rpc_server():
-    """Run JSON-RPC server on stdin/stdout."""
-    import sys
-    
-    # Send ready signal
+    """运行 JSON-RPC 服务器（stdin/stdout）"""
+    # 发送就绪信号
     print(json.dumps({"status": "ready"}), flush=True)
+    print("✅ JSON-RPC 服务器已启动，等待请求...", file=sys.stderr, flush=True)
     
     while True:
         try:
@@ -380,26 +356,51 @@ async def run_rpc_server():
                 break
             
             request = json.loads(line.strip())
+            print(f"📥 收到请求: {request.get('method')}", file=sys.stderr, flush=True)
+            
             response = await handle_rpc_request(request)
             print(json.dumps(response), flush=True)
+            
         except Exception as e:
+            print(f"❌ 解析错误: {str(e)}", file=sys.stderr, flush=True)
             error_response = {
                 "jsonrpc": "2.0",
                 "id": None,
                 "error": {
                     "code": -32700,
-                    "message": f"Parse error: {str(e)}",
+                    "message": f"解析错误: {str(e)}",
                 },
             }
             print(json.dumps(error_response), flush=True)
 
 
-if __name__ == "__main__":
-    import sys
+# 示例用法
+async def main():
+    """示例：测试真实 OASIS 引擎"""
+    engine = get_engine()
     
-    # Check if running in RPC mode
+    # 初始化
+    init_result = await engine.initialize(agent_count=5, platform="reddit")
+    print(f"初始化结果: {init_result}")
+    
+    # 运行 3 步
+    for i in range(3):
+        step_result = await engine.step()
+        print(f"第 {i+1} 步: {step_result}")
+    
+    # 获取状态
+    status = engine.get_status()
+    print(f"状态: {status}")
+    
+    # 关闭
+    close_result = await engine.close()
+    print(f"关闭: {close_result}")
+
+
+if __name__ == "__main__":
+    # 检查是否以 RPC 模式运行
     if len(sys.argv) > 1 and sys.argv[1] == "--rpc":
         asyncio.run(run_rpc_server())
     else:
-        # Run example usage
+        # 运行示例
         asyncio.run(main())

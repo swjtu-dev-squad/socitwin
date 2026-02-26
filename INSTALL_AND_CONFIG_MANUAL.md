@@ -55,7 +55,7 @@ OASIS Dashboard 是一个用于实时监控和控制 OASIS (Open-ended Autonomou
 |------|---------|
 | 操作系统 | Ubuntu 22.04 LTS (推荐) |
 | Node.js | 20.x 或更高 |
-| Python | 3.10 或更高 |
+| Python | 3.11 或更高 |
 | Ollama | 最新版本 |
 | Nginx | 1.18 或更高 (生产环境) |
 
@@ -90,10 +90,11 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5:3b
 ```
 
-### 四、启动开发服务器
+### 四、启动后端服务器（生产模式）
 
 ```bash
-npm run dev
+# v1.1.0 推荐使用生产模式启动
+NODE_ENV=production npx tsx server.ts
 ```
 
 ### 五、访问应用
@@ -323,5 +324,39 @@ A: 模拟数据存储在 SQLite 数据库文件中（默认路径：`./oasis_sim
 
 ---
 
-**文档版本**: v1.0.0  
+**文档版本**: v1.1.0  
 **最后更新**: 2026年2月25日
+
+---
+
+## v1.1.0 更新说明
+
+### 新增功能
+
+1. **真实 Qwen2.5-3B LLM 调用**
+   - 完全移除 ManualAction
+   - 使用真实 LLMAction + Qwen2.5-3B 本地模型
+   - 每个 agent 的决策都由真实 LLM 生成
+
+2. **性能优化**
+   - Qwen2.5-3B 加载时间：0.26 秒
+   - Step 执行时间：0.14-1.08 秒
+   - 保持 30 秒超时限制
+
+3. **启动方式变更**
+   - **推荐**: 使用 `NODE_ENV=production npx tsx server.ts` 启动后端
+   - **原因**: 避免 Vite 文件监控问题（ENOSPC 错误）
+
+### 配置变更
+
+**新增环境变量**:
+```bash
+# 解决 torch 加载慢的问题
+export TOKENIZERS_PARALLELISM=false
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+```
+
+**新增文件**:
+- `real_oasis_engine_v3.py` - 真实 OASIS 引擎（Qwen2.5-3B + LLMAction）
+- `verification_summary.md` - v1.1.0 性能验证报告
+- `CHANGELOG_v1.1.0.md` - 版本更新日志

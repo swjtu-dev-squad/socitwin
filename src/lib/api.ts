@@ -2,7 +2,7 @@ import axios from 'axios';
 import { SimulationStatus, GenerateUsersRequest, GenerateUsersResponse } from './types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://3000-ijgxvyou3aujd04xdhd8y-99d67713.us2.manus.computer/api',
   timeout: 60000,
 });
 
