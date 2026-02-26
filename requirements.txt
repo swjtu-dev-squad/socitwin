@@ -1,0 +1,10 @@
+# OASIS Dashboard - Python Dependencies
+
+# Core OASIS Framework
+camel-ai[all]>=0.2.0
+
+# Database
+neo4j>=5.0.0
+
+# Utilities
+python-dotenv>=1.0.0
