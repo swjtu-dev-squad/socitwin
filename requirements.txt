@@ -1,7 +1,12 @@
 # OASIS Dashboard - Python Dependencies
+#
+# ⚠️ Python 版本要求: 3.10 或 3.11
+# camel-oasis 不支持 Python 3.12+
+# 创建虚拟环境: python3.11 -m venv venv
 
 # Core OASIS Framework
-camel-ai[all]>=0.2.0
+# 注意：camel-oasis 会自动安装兼容的 camel-ai 版本，不要手动指定 camel-ai 版本
+camel-oasis>=0.2.0
 
 # Database
 neo4j>=5.0.0

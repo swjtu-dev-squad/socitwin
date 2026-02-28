@@ -11,3 +11,20 @@ screenshots/
 page_texts/
 *.db
 *.db-journal
+
+# Python virtual environments
+venv/
+env/
+.venv/
+ENV/
+virtualenv/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
