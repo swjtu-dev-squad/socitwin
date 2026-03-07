@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 """
-Real OASIS Engine V3 - Speed Optimized
-真实 OASIS 引擎 V3 - 速度优化版
+Real OASIS Engine V2 - Production Ready
+真实 OASIS 引擎 V2 - 生产就绪版本
 
-优化 Qwen2.5-3B 调用速度，确保 step 在 30 秒内完成
+解决导入卡住问题的优化版本
 """
 
 import os
 import sys
-import time
 
 # 解决 torch 和其他依赖加载慢的问题
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 解决torch常见警告
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"  # 减少内存碎片
 
 print("✅ 开始导入真实OASIS...", flush=True)
 
+import time
 import json
 import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 # 监控导入时间
-import_start = time.time()
+start = time.time()
 
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
@@ -39,22 +39,20 @@ from oasis import (
     DefaultPlatformType,
 )
 
-print(f"✅ OASIS导入完成，耗时 {time.time() - import_start:.2f}秒", flush=True)
+print(f"✅ OASIS导入完成，耗时 {time.time() - start:.2f}秒", flush=True)
 
 
-class RealOASISEngineV3:
+class RealOASISEngine:
     """
-    真实 OASIS 引擎 V3（速度优化版）
+    真实 OASIS 引擎（非模拟器）
     
-    - 强制最小化执行（1个agent）
-    - 使用 ManualAction 快速验证
-    - 优化 Qwen2.5-3B 调用速度
+    使用 CAMEL-AI OASIS 框架和本地 Qwen3-8B 模型
     """
     
     def __init__(
         self,
         model_platform: str = "ollama",
-        model_type: str = "qwen2.5:3b",
+        model_type: str = "qwen3:8b",
         db_path: str = "./oasis_simulation.db",
     ):
         """初始化真实 OASIS 引擎"""
@@ -74,10 +72,7 @@ class RealOASISEngineV3:
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
         
-        # 使用真实 LLMAction 模式
-        self.use_llm_action = True
-        
-        print("✅ RealOASISEngineV3 实例已创建", flush=True)
+        print("✅ RealOASISEngine 实例已创建", flush=True)
     
     async def initialize(
         self,
@@ -88,28 +83,17 @@ class RealOASISEngineV3:
     ) -> Dict:
         """初始化真实 OASIS 模拟环境"""
         try:
-            print(f"🚀 开始初始化真实OASIS（速度优化版）", flush=True)
+            print(f"🚀 开始初始化真实OASIS: {agent_count} agents, platform={platform}", flush=True)
             init_start = time.time()
             
-            # 速度优化：强制使用 1 个 agent 进行测试
-            agent_count = 1
-            print(f"⚡ 速度优化：强制使用 {agent_count} 个 agent（真实Qwen LLM调用）", flush=True)
-            
             # 创建模型
-            model_load_start = time.time()
-            print(f"正在加载 Qwen2.5-3B 本地模型...", flush=True)
-            
             if self.model_platform.lower() == "ollama":
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OLLAMA,
                     model_type=self.model_type,
-                    model_config_dict={
-                        "temperature": 0.7,
-                        "max_tokens": 100,  # 限制输出长度以加快速度
-                    },
+                    model_config_dict={"temperature": 0.7},
                 )
-                model_load_time = time.time() - model_load_start
-                print(f"Qwen2.5-3B 加载完成，耗时 {model_load_time:.2f} 秒", flush=True)
+                print(f"✅ Ollama 模型已创建: {self.model_type}", flush=True)
             else:
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OPENAI,
@@ -117,24 +101,26 @@ class RealOASISEngineV3:
                 )
                 print(f"✅ OpenAI 模型已创建", flush=True)
             
-            # 定义可用动作（最小化）
+            # 定义可用动作
             available_actions = [
-                ActionType.CREATE_POST,
                 ActionType.LIKE_POST,
+                ActionType.CREATE_POST,
+                ActionType.CREATE_COMMENT,
+                ActionType.FOLLOW,
             ]
             
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
             print(f"✅ AgentGraph 已创建", flush=True)
             
-            # 创建 agents（只创建 1 个）
+            # 创建 agents
             for i in range(agent_count):
                 agent = SocialAgent(
                     agent_id=i,
                     user_info=UserInfo(
                         user_name=f"agent_{i}",
                         name=f"Agent {i}",
-                        description=f"AI agent {i} - Topic: {topic}",
+                        description=f"AI agent {i} in OASIS simulation - Topic: {topic}",
                         profile=None,
                         recsys_type=recsys,
                     ),
@@ -153,7 +139,7 @@ class RealOASISEngineV3:
             # 删除旧数据库
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
-                print(f"🗑️  已删除旧数据库", flush=True)
+                print(f"🗑️  已删除旧数据库: {self.db_path}", flush=True)
             
             # 创建环境
             platform_type = (
@@ -182,7 +168,7 @@ class RealOASISEngineV3:
             
             return {
                 "status": "ok",
-                "message": f"真实OASIS已初始化 {agent_count} 个agents（速度优化版）",
+                "message": f"真实OASIS已初始化 {agent_count} 个agents",
                 "agent_count": agent_count,
                 "platform": platform,
                 "recsys": recsys,
@@ -200,7 +186,7 @@ class RealOASISEngineV3:
             }
     
     async def step(self) -> Dict:
-        """执行一步真实 OASIS 模拟（速度优化版）"""
+        """执行一步真实 OASIS 模拟"""
         if not self.is_running or self.env is None:
             return {
                 "status": "error",
@@ -209,20 +195,19 @@ class RealOASISEngineV3:
         
         try:
             step_start = time.time()
-            print(f"⚙️  执行第 {self.current_step + 1} 步（速度优化版）...", flush=True)
+            print(f"⚙️  执行第 {self.current_step + 1} 步...", flush=True)
             
-            # 恢复真实 LLMAction + Qwen2.5-3B 模型调用
-            print(f"🤖 使用真实 LLMAction + Qwen2.5-3B 模型", flush=True)
-            all_agents_actions = {
+            # 为所有 agents 定义 LLM actions
+            all_agents_llm_actions = {
                 agent: LLMAction()
                 for agent in self.agents
             }
             
             # 执行步骤
-            await self.env.step(all_agents_actions)
+            await self.env.step(all_agents_llm_actions)
             
             self.current_step += 1
-            self.total_posts += len(self.agents)
+            self.total_posts += len(self.agents)  # 简化统计
             
             step_time = time.time() - step_start
             
@@ -301,14 +286,14 @@ class RealOASISEngineV3:
 
 
 # 全局引擎实例
-_engine: Optional[RealOASISEngineV3] = None
+_engine: Optional[RealOASISEngine] = None
 
 
-def get_engine() -> RealOASISEngineV3:
+def get_engine() -> RealOASISEngine:
     """获取或创建全局 OASIS 引擎实例"""
     global _engine
     if _engine is None:
-        _engine = RealOASISEngineV3()
+        _engine = RealOASISEngine()
     return _engine
 
 
@@ -323,7 +308,7 @@ async def handle_rpc_request(request: Dict) -> Dict:
     try:
         if method == "initialize":
             result = await engine.initialize(
-                agent_count=params.get("agentCount", 1),
+                agent_count=params.get("agentCount", 5),
                 platform=params.get("platform", "reddit"),
                 recsys=params.get("recsys", "hot-score"),
                 topic=params.get("topic", "general"),
@@ -395,11 +380,11 @@ async def main():
     engine = get_engine()
     
     # 初始化
-    init_result = await engine.initialize(agent_count=1, platform="reddit")
+    init_result = await engine.initialize(agent_count=5, platform="reddit")
     print(f"初始化结果: {init_result}")
     
-    # 运行 5 步
-    for i in range(5):
+    # 运行 3 步
+    for i in range(3):
         step_result = await engine.step()
         print(f"第 {i+1} 步: {step_result}")
     

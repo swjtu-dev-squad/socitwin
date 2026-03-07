@@ -1,35 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSimulationStore } from '@/lib/store';
 import { simulationApi } from '@/lib/api';
-import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge } from '@/components/ui';
+import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge, Progress } from '@/components/ui';
 import { cn } from '@/lib/utils';
-import { 
-  Play, 
-  Pause, 
-  StepForward, 
-  Square, 
+import {
+  Play,
+  Pause,
+  StepForward,
+  Square,
   RotateCcw,
   Settings2,
   ArrowRight,
   Save,
-  Zap,
   MessageSquare,
   CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ScrollArea } from '@/components/ui';
+import { io } from 'socket.io-client';
 
 export default function Control() {
-  const { status, setRunning, logs, clearLogs } = useSimulationStore();
+  const { status, setRunning, logs, clearLogs, setStatus } = useSimulationStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [platform, setPlatform] = useState(location.state?.platform || 'REDDIT');
   const [recsys, setRecsys] = useState('HOT');
-  const [agentCount, setAgentCount] = useState([location.state?.agentCount || 1000]);
-  const [speed, setSpeed] = useState([10]);
+  const [agentCount, setAgentCount] = useState([location.state?.agentCount || 100]); // 修改默认值为100
   const [topic, setTopic] = useState(location.state?.topic || 'POLITICS');
   const [region, setRegion] = useState(location.state?.region || 'THAILAND');
+  const [stepProgress, setStepProgress] = useState({ current: 0, total: 0, percentage: 0 });
+  const [isStepping, setIsStepping] = useState(false);
+
+  // WebSocket 连接，监听进度
+  useEffect(() => {
+    const socket = io('http://localhost:3000');
+
+    socket.on('step_progress', (progress) => {
+      setStepProgress(progress);
+    });
+
+    socket.on('step_complete', () => {
+      setIsStepping(false);
+      setStepProgress({ current: 0, total: 0, percentage: 0 });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  // 同步后端状态（修复刷新后状态丢失问题）
+  useEffect(() => {
+    const syncStatus = async () => {
+      try {
+        const res = await simulationApi.getStatus();
+        if (res.data) {
+          setStatus(res.data);
+        }
+      } catch (error) {
+        console.error('Failed to sync status:', error);
+      }
+    };
+
+    syncStatus();
+    const interval = setInterval(syncStatus, 2000); // 每2秒同步
+    return () => clearInterval(interval);
+  }, [setStatus]);
 
   const handleStart = async () => {
     try {
@@ -38,7 +75,6 @@ export default function Control() {
         platform,
         recsys,
         agentCount: agentCount[0],
-        speed: speed[0],
         topics: [topic],
         regions: [region],
       });
@@ -58,10 +94,14 @@ export default function Control() {
 
   const handleStep = async () => {
     try {
+      setIsStepping(true);
+      setStepProgress({ current: 0, total: agentCount[0], percentage: 0 });
       await simulationApi.step();
-      toast.info("执行单步模拟");
+      toast.info("执行单步模拟完成");
+      setIsStepping(false);
     } catch (error) {
       toast.error("步进执行失败");
+      setIsStepping(false);
     }
   };
 
@@ -92,13 +132,19 @@ export default function Control() {
         </div>
         <div className={cn(
           "px-6 py-3 rounded-2xl border flex items-center gap-3 transition-all duration-500",
-          status.running 
-            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]" 
+          status.running && !status.paused
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+            : status.paused
+            ? "bg-amber-500/10 border-amber-500/30 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.1)]"
             : "bg-zinc-900 border-zinc-800 text-zinc-500"
         )}>
-          <div className={cn("w-3 h-3 rounded-full", status.running ? "bg-emerald-500 animate-pulse" : "bg-zinc-600")}></div>
+          <div className={cn(
+            "w-3 h-3 rounded-full",
+            status.running && !status.paused ? "bg-emerald-500 animate-pulse" :
+            status.paused ? "bg-amber-500" : "bg-zinc-600"
+          )}></div>
           <span className="text-sm font-bold uppercase tracking-widest font-mono">
-            {status.running ? 'System Running' : 'Ready to Initialize'}
+            {status.running && !status.paused ? 'System Running' : status.paused ? 'System Paused' : 'Ready to Initialize'}
           </span>
         </div>
       </header>
@@ -117,8 +163,7 @@ export default function Control() {
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">平台类型</label>
                 <Select value={platform} onValueChange={setPlatform}>
                   <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                    <SelectValue placeholder="选择平台" />
-                    <span className="text-zinc-400">{platform}</span>
+                    <SelectValue placeholder="选择平台" value={platform} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="REDDIT">Reddit (社区驱动)</SelectItem>
@@ -135,8 +180,7 @@ export default function Control() {
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">推荐算法</label>
                 <Select value={recsys} onValueChange={setRecsys}>
                   <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                    <SelectValue placeholder="选择算法" />
-                    <span className="text-zinc-400">{recsys}</span>
+                    <SelectValue placeholder="选择算法" value={recsys} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HOT">Hot-score (Reddit/Facebook)</SelectItem>
@@ -154,8 +198,7 @@ export default function Control() {
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">Topic 标签</label>
                 <Select value={topic} onValueChange={setTopic}>
                   <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                    <SelectValue placeholder="选择Topic" />
-                    <span className="text-zinc-400">{topic}</span>
+                    <SelectValue placeholder="选择Topic" value={topic} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="POLITICS">Politics</SelectItem>
@@ -172,8 +215,7 @@ export default function Control() {
                 <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">国际地区</label>
                 <Select value={region} onValueChange={setRegion}>
                   <SelectTrigger className="bg-zinc-950 border-zinc-800 h-12 rounded-xl">
-                    <SelectValue placeholder="选择地区" />
-                    <span className="text-zinc-400">{region}</span>
+                    <SelectValue placeholder="选择地区" value={region} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="THAILAND">Thailand</SelectItem>
@@ -195,42 +237,17 @@ export default function Control() {
                   <p className="text-[10px] text-zinc-600 font-bold uppercase">Agents</p>
                 </div>
               </div>
-              <Slider 
-                value={agentCount} 
-                onValueChange={setAgentCount} 
-                min={100} 
-                max={100000} 
-                step={100}
+              <Slider
+                value={agentCount}
+                onValueChange={setAgentCount}
+                min={10}
+                max={100000}
+                step={10}
                 className="py-4"
               />
               <div className="flex justify-between text-[10px] text-zinc-700 font-bold">
-                <span>100</span>
-                <span>1,000,000 (MAX)</span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold uppercase tracking-wider text-zinc-500">时间加速倍数</label>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-emerald-500 font-mono tracking-tighter">{speed[0]}x</span>
-                  <p className="text-[10px] text-zinc-600 font-bold uppercase">Speed</p>
-                </div>
-              </div>
-              <Slider 
-                value={speed} 
-                onValueChange={setSpeed} 
-                min={1} 
-                max={100} 
-                step={1}
-                className="py-4"
-              />
-              <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-3 h-3 text-yellow-500" />
-                  <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">预计单步耗时</span>
-                </div>
-                <span className="text-xs font-mono text-emerald-500 font-bold">≈ {(12 / speed[0]).toFixed(1)} 秒</span>
+                <span>10</span>
+                <span>100,000 (MAX)</span>
               </div>
             </div>
           </div>
@@ -288,28 +305,51 @@ export default function Control() {
           <h2 className="text-xl font-bold border-b border-zinc-800 pb-4 mb-8">模拟执行控制</h2>
           
           <div className="grid grid-cols-2 gap-6 flex-1">
-            <Button 
-              onClick={handleStart}
-              disabled={status.running}
+            <Button
+              onClick={async () => {
+                if (status.paused) {
+                  // 恢复模拟
+                  try {
+                    await simulationApi.resume();
+                    toast.success("模拟已恢复");
+                  } catch (error) {
+                    toast.error("恢复失败");
+                  }
+                } else {
+                  // 启动新模拟
+                  handleStart();
+                }
+              }}
+              disabled={status.running && !status.paused}
               className={cn(
                 "h-40 rounded-3xl flex flex-col gap-4 text-xl font-black shadow-2xl transition-all active:scale-95",
-                status.running 
-                  ? "bg-zinc-800 text-zinc-500 border border-zinc-700 shadow-none" 
+                status.running && !status.paused
+                  ? "bg-zinc-800 text-zinc-500 border border-zinc-700 shadow-none"
+                  : status.paused
+                  ? "bg-amber-600 hover:bg-amber-700 shadow-amber-500/20"
                   : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20"
               )}
             >
               <div className={cn(
                 "w-12 h-12 rounded-full flex items-center justify-center",
-                status.running ? "bg-zinc-700" : "bg-white/20"
+                status.running && !status.paused ? "bg-zinc-700" : "bg-white/20"
               )}>
-                {status.running ? <CheckCircle2 className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
+                {status.running && !status.paused ? <CheckCircle2 className="w-6 h-6 fill-current" /> :
+                 status.paused ? <Play className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
               </div>
-              {status.running ? '模拟运行中' : '启动模拟'}
+              {status.running && !status.paused ? '模拟运行中' : status.paused ? '恢复模拟' : '启动模拟'}
             </Button>
             
-            <Button 
-              onClick={() => setRunning(false)}
-              disabled={!status.running}
+            <Button
+              onClick={async () => {
+                try {
+                  await simulationApi.pause();
+                  toast.success("模拟已暂停");
+                } catch (error) {
+                  toast.error("暂停失败");
+                }
+              }}
+              disabled={!status.running || status.paused}
               variant="outline"
               className="h-40 rounded-3xl border-zinc-800 hover:bg-zinc-800 flex flex-col gap-4 text-xl font-black disabled:opacity-30 transition-all active:scale-95"
             >
@@ -319,16 +359,27 @@ export default function Control() {
               暂停模拟
             </Button>
 
-            <Button 
+            <Button
               onClick={handleStep}
-              disabled={!status.running}
+              disabled={(!status.running && !status.paused) || isStepping}
               variant="secondary"
               className="h-24 rounded-2xl bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center gap-4 text-lg font-bold col-span-2 group"
             >
               <StepForward className="w-6 h-6 group-active:translate-x-1 transition-transform" />
-              单步执行 (Step)
+              {isStepping ? '执行中...' : '单步执行 (Step)'}
               <span className="text-[10px] bg-zinc-900 px-2 py-1 rounded border border-zinc-700 text-zinc-500 ml-2">Ctrl + Enter</span>
             </Button>
+
+            {/* 进度条 */}
+            {isStepping && stepProgress.total > 0 && (
+              <div className="col-span-2 space-y-2">
+                <div className="flex justify-between text-xs text-zinc-500">
+                  <span>Agent 进度</span>
+                  <span>{stepProgress.current} / {stepProgress.total} ({stepProgress.percentage}%)</span>
+                </div>
+                <Progress value={stepProgress.percentage} className="h-2 bg-zinc-800" />
+              </div>
+            )}
 
             <Button 
               variant="destructive"
@@ -359,14 +410,14 @@ export default function Control() {
               <div className="flex items-center gap-3">
                 <div className={cn("w-2 h-2 rounded-full", status.running ? "bg-emerald-500 animate-pulse" : "bg-zinc-600")}></div>
                 <span className="text-xs font-mono font-bold text-zinc-400 uppercase tracking-widest">
-                  {status.running ? 'Engine Active' : 'Engine Standby'}
+                  {status.paused ? 'Engine Paused' : status.running ? 'Engine Active' : 'Engine Standby'}
                 </span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-[10px] text-zinc-600 font-mono">STEP: {status.currentStep}</span>
-                {status.running && (
-                  <Button 
-                    variant="ghost" 
+                {(status.running || status.paused) && (
+                  <Button
+                    variant="ghost"
                     className="h-6 px-2 text-[10px] text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 gap-1"
                     onClick={() => navigate('/agents')}
                   >

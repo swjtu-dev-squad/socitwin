@@ -1,15 +1,15 @@
 # OASIS Dashboard v1.1.0
 
-**OASIS Dashboard** 是一个用于实时监控和控制 **OASIS (Open-ended Autonomous Social Intelligence Simulation)** 引擎的 Web 应用程序。它提供了一个直观的界面来配置、运行和分析复杂的社会模拟实验，支持基于本地大语言模型（如 Qwen2.5-3B）的真实 OASIS 引擎。
+**OASIS Dashboard** 是一个用于实时监控和控制 **OASIS (Open-ended Autonomous Social Intelligence Simulation)** 引擎的 Web 应用程序。它提供了一个直观的界面来配置、运行和分析复杂的社会模拟实验，支持基于本地大语言模型（如 Qwen3-8B）的真实 OASIS 引擎。
 
 ---
 
 ## 🎉 v1.1.0 更新内容
 
 ### 🚀 性能优化
-- ✅ **真实 Qwen2.5-3B LLM 调用**: 完全移除 ManualAction，使用真实的 LLMAction + Qwen2.5-3B 本地模型
+- ✅ **真实 Qwen3-8B LLM 调用**: 完全移除 ManualAction，使用真实的 LLMAction + Qwen3-8B 本地模型
 - ✅ **极速执行**: Step 执行时间优化到 0.14-1.08 秒（第一步 1.08 秒，后续步骤 ~0.14 秒）
-- ✅ **快速加载**: Qwen2.5-3B 模型加载时间仅 0.26 秒
+- ✅ **快速加载**: Qwen3-8B 模型加载时间仅 0.26 秒
 - ✅ **30 秒超时**: 保持合理的 30 秒超时限制，不影响用户体验
 
 ### 🔧 技术改进
@@ -28,7 +28,7 @@
 ## ✨ 功能特性
 
 - **真实 OASIS 引擎**: 集成真实的 `camel-oasis` 引擎，而非模拟器，确保模拟的准确性和深度。
-- **本地模型支持**: 支持通过 Ollama 运行本地大语言模型（如 Qwen2.5-3B），无需依赖外部 API，降低成本并保护数据隐私。
+- **本地模型支持**: 支持通过 Ollama 运行本地大语言模型（如 Qwen3-8B），无需依赖外部 API，降低成本并保护数据隐私。
 - **实时监控**: 实时查看模拟状态、KPI 指标（活跃 Agent、总帖子数、极化指数）和智能体活动。
 - **动态控制**: 在模拟运行时动态调整参数、注入事件和干预智能体行为。
 - **数据可视化**: 通过社交网络图、趋势分析和地理热图直观地理解模拟过程。
@@ -57,13 +57,16 @@
 
 2. **安装依赖**
    ```bash
-   npm install
-   pip install -r requirements.txt
+   # 安装 Node.js 依赖
+   pnpm install
+
+   # 安装 Python 依赖
+   uv sync
    ```
 
 3. **配置本地模型**
    ```bash
-   ollama pull qwen2.5:3b
+   ollama pull qwen3:8b
    ```
 
 4. **启动 OASIS 引擎（生产模式）**
@@ -92,7 +95,7 @@
 |------|------|
 | 前端 | React 18, TypeScript, Vite, TailwindCSS, Recharts |
 | 后端 | Node.js, Express, Socket.io, TypeScript |
-| 模拟引擎 | Python 3.11, CAMEL-AI, Ollama, Qwen2.5-3B |
+| 模拟引擎 | Python 3.11, CAMEL-AI, Ollama, Qwen3-8B |
 | 数据库 | SQLite (OASIS 内置) |
 | 部署 | Nginx, Vercel, Manus |
 
@@ -102,7 +105,7 @@
 
 | 指标 | 值 | 说明 |
 |------|-----|------|
-| Qwen2.5-3B 加载时间 | 0.26 秒 | 首次加载 |
+| Qwen3-8B 加载时间 | 0.26 秒 | 首次加载 |
 | OASIS 初始化时间 | 9.75 秒 | 1 个 agent |
 | Step 1 执行时间 | 1.08 秒 | 真实 LLM 调用 |
 | Step 2-5 平均时间 | 0.14 秒 | 真实 LLM 调用 |

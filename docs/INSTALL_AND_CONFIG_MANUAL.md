@@ -74,10 +74,10 @@ cd oasis-dashboard
 
 ```bash
 # 安装 Node.js 依赖
-npm install
+pnpm install
 
 # 安装 Python 依赖
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 三、配置本地模型
@@ -86,8 +86,8 @@ pip install -r requirements.txt
 # 安装 Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 下载 Qwen2.5-3B 模型
-ollama pull qwen2.5:3b
+# 下载 Qwen3-8B 模型
+ollama pull qwen3:8b
 ```
 
 ### 四、启动后端服务器（生产模式）
@@ -130,10 +130,10 @@ curl -fsSL https://ollama.com/install.sh | sh
 sudo systemctl status ollama  # 验证服务状态
 ```
 
-### 步骤 4：下载 Qwen2.5-3B 模型
+### 步骤 4：下载 Qwen3-8B 模型
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen3:8b
 ollama list  # 验证模型已下载
 ```
 
@@ -142,8 +142,8 @@ ollama list  # 验证模型已下载
 ```bash
 git clone https://github.com/SWJTU-AI-Lab/oasis-dashboard.git
 cd oasis-dashboard
-npm install
-pip install -r requirements.txt
+pnpm install
+uv sync
 ```
 
 ### 步骤 6：构建前端
@@ -212,7 +212,7 @@ sudo cp -r dist/* /var/www/html/
 
 ```bash
 sudo npm install -g pm2
-pm2 start "npm run dev" --name oasis-backend
+pm2 start "pnpm dev" --name oasis-backend
 pm2 startup
 pm2 save
 ```
@@ -228,7 +228,7 @@ pm2 save
 ```bash
 # Ollama 配置
 OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:3b
+OLLAMA_MODEL=qwen3:8b
 
 # 数据库配置
 OASIS_DB_PATH=./oasis_simulation.db
@@ -299,11 +299,11 @@ sudo kill -9 <PID>
 ping ollama.com
 
 # 重试下载
-ollama pull qwen2.5:3b
+ollama pull qwen3:8b
 
 # 或使用代理
 export https_proxy=http://your_proxy:port
-ollama pull qwen2.5:3b
+ollama pull qwen3:8b
 ```
 
 ---
@@ -333,13 +333,13 @@ A: 模拟数据存储在 SQLite 数据库文件中（默认路径：`./oasis_sim
 
 ### 新增功能
 
-1. **真实 Qwen2.5-3B LLM 调用**
+1. **真实 Qwen3-8B LLM 调用**
    - 完全移除 ManualAction
-   - 使用真实 LLMAction + Qwen2.5-3B 本地模型
+   - 使用真实 LLMAction + Qwen3-8B 本地模型
    - 每个 agent 的决策都由真实 LLM 生成
 
 2. **性能优化**
-   - Qwen2.5-3B 加载时间：0.26 秒
+   - Qwen3-8B 加载时间：0.26 秒
    - Step 执行时间：0.14-1.08 秒
    - 保持 30 秒超时限制
 
@@ -357,6 +357,6 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 ```
 
 **新增文件**:
-- `real_oasis_engine_v3.py` - 真实 OASIS 引擎（Qwen2.5-3B + LLMAction）
+- `real_oasis_engine_v3.py` - 真实 OASIS 引擎（Qwen3-8B + LLMAction）
 - `verification_summary.md` - v1.1.0 性能验证报告
 - `CHANGELOG_v1.1.0.md` - 版本更新日志

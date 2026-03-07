@@ -1,23 +1,60 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { 
+import {
   Card,
   Button,
   Input,
   ScrollArea,
   Badge
 } from '@/components/ui';
-import { 
-  MessageSquare, 
-  Download, 
-  Pause, 
-  Play, 
+import {
+  MessageSquare,
+  Download,
+  Pause,
+  Play,
   Search,
   FileText,
   Zap
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+
+// 格式化时间戳显示
+const formatTimestamp = (timestamp: string): string => {
+  try {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(Math.abs(diffMs) / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    // 处理未来时间（时间戳比当前时间快）
+    const isFuture = diffMs < 0;
+    const suffix = isFuture ? '后' : '前';
+
+    if (diffSecs < 60) {
+      return `${diffSecs}秒${suffix}`;
+    } else if (diffMins < 60) {
+      return `${diffMins}分钟${suffix}`;
+    } else if (diffHours < 24) {
+      return `${diffHours}小时${suffix}`;
+    } else if (diffDays < 7) {
+      return `${diffDays}天${suffix}`;
+    } else {
+      // 超过一周显示完整日期
+      return date.toLocaleDateString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+  } catch {
+    return timestamp;
+  }
+};
 
 export default function Logs() {
   const { logs, status } = useSimulationStore();
@@ -84,9 +121,12 @@ export default function Logs() {
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-2">
-              <div className={cn("w-2 h-2 rounded-full", status.running ? "bg-emerald-500 animate-pulse" : "bg-zinc-600")}></div>
+              <div className={cn("w-2 h-2 rounded-full",
+                status.running && !status.paused ? "bg-emerald-500 animate-pulse" :
+                status.paused ? "bg-amber-500" : "bg-zinc-600"
+              )}></div>
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                {status.running ? '实时模式' : '已停止'}
+                {status.running && !status.paused ? '实时模式' : status.paused ? '已暂停' : '已停止'}
               </span>
             </div>
             <p className="text-[10px] text-zinc-600 font-mono mt-0.5">已接收 {logs.length} 条日志 · 1s/次</p>
@@ -179,7 +219,9 @@ export default function Logs() {
                     log.actionType === 'LIKE_POST' ? "bg-blue-500" :
                     log.actionType === 'FOLLOW' ? "bg-purple-500" : "bg-rose-500"
                   )}></div>
-                  <div className="w-20 shrink-0 text-[10px] font-mono text-zinc-500 pt-1">{log.timestamp}</div>
+                  <div className="w-24 shrink-0 text-[10px] font-mono text-zinc-500 pt-1" title={log.timestamp}>
+                    {formatTimestamp(log.timestamp)}
+                  </div>
                   <div className="flex-1 space-y-2">
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-bold text-emerald-400 font-mono">{log.agentId}</span>

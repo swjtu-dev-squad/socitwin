@@ -5,6 +5,8 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
+import { watch } from "fs";
+import { existsSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,10 +14,11 @@ const __dirname = path.dirname(__filename);
 // Python OASIS Engine Process
 let oasisProcess: any = null;
 let oasisReady = false;
+let restartTimeout: NodeJS.Timeout | null = null;
 
-function startOasisEngine() {
+function startOasisEngine(io?: any) {
   console.log("Starting OASIS Engine...");
-  oasisProcess = spawn("python3", [path.join(__dirname, "real_oasis_engine_v3.py"), "--rpc"], {
+  oasisProcess = spawn(path.join(__dirname, ".venv", "bin", "python"), [path.join(__dirname, "oasis_dashboard", "real_oasis_engine_v3.py"), "--rpc"], {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -30,12 +33,76 @@ function startOasisEngine() {
   });
 
   oasisProcess.stderr.on("data", (data: Buffer) => {
-    console.error(`[OASIS Engine Error] ${data.toString()}`);
+    const output = data.toString();
+
+    // 解析进度信息
+    const progressMatch = output.match(/📊 Progress: (\d+)\/(\d+) \((\d+)%\)/);
+    if (progressMatch && io) {
+      const [, current, total, percentage] = progressMatch;
+      io.emit("step_progress", {
+        current: parseInt(current),
+        total: parseInt(total),
+        percentage: parseInt(percentage),
+      });
+    }
+
+    // 解析完成信号
+    if (output.includes("✅ Step complete") && io) {
+      io.emit("step_complete");
+    }
+
+    // 智能分类输出类型
+    if (output.toLowerCase().includes("warning")) {
+      console.warn(`\x1b[33m[OASIS Engine Warning]\x1b[0m ${output.trim()}`);
+    } else if (output.includes("✅") || output.toLowerCase().includes("ready") || output.toLowerCase().includes("成功") || output.toLowerCase().includes("已启动")) {
+      console.log(`\x1b[36m[OASIS Engine]\x1b[0m ${output.trim()}`);
+    } else if (output.toLowerCase().includes("error") || output.toLowerCase().includes("exception") || output.toLowerCase().includes("failed")) {
+      console.error(`\x1b[31m[OASIS Engine Error]\x1b[0m ${output.trim()}`);
+    } else {
+      console.log(`\x1b[90m[OASIS Engine Info]\x1b[0m ${output.trim()}`);
+    }
   });
 
   oasisProcess.on("close", (code: number) => {
     console.log(`OASIS Engine process exited with code ${code}`);
     oasisReady = false;
+  });
+}
+
+function restartOasisEngine() {
+  console.log("\x1b[35m🔄 Restarting OASIS Engine due to Python file changes...\x1b[0m");
+
+  // 清除之前的重启定时器
+  if (restartTimeout) {
+    clearTimeout(restartTimeout);
+  }
+
+  // 防抖：1秒后重启，避免频繁重启
+  restartTimeout = setTimeout(() => {
+    if (oasisProcess) {
+      oasisProcess.kill();
+    }
+    oasisReady = false;
+    startOasisEngine();
+  }, 1000);
+}
+
+function watchPythonFiles() {
+  const pythonDir = path.join(__dirname, "oasis_dashboard");
+
+  if (!existsSync(pythonDir)) {
+    console.warn(`[Python Watch] Directory not found: ${pythonDir}`);
+    return;
+  }
+
+  console.log(`\x1b[35m🐍 Watching Python files in: ${pythonDir}\x1b[0m`);
+
+  // 监听整个oasis_dashboard目录
+  watch(pythonDir, { recursive: true }, (eventType, filename) => {
+    if (filename && filename.endsWith('.py')) {
+      console.log(`\x1b[35m[Python Watch] Detected change in: ${filename}\x1b[0m`);
+      restartOasisEngine();
+    }
   });
 }
 
@@ -90,7 +157,7 @@ async function callOasisEngine(method: string, params: any = {}): Promise<any> {
     setTimeout(() => {
       oasisProcess.stdout.removeListener("data", dataHandler);
       reject(new Error("OASIS Engine timeout"));
-    }, 30000); // 30 seconds timeout
+    }, 300000); // 300 seconds (5 minutes) timeout - supports large-scale simulations
   });
 }
 
@@ -107,12 +174,16 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Start OASIS Engine
-  startOasisEngine();
+  // Start OASIS Engine (pass io for progress updates)
+  startOasisEngine(io);
+
+  // Watch Python files for hot reload
+  watchPythonFiles();
 
   // Simulation State (cached from OASIS)
   let simulationState = {
     running: false,
+    paused: false,
     currentStep: 0,
     activeAgents: 0,
     totalPosts: 0,
@@ -144,6 +215,7 @@ async function startServer() {
         ...simulationState,
         activeAgents: result.agent_count || agentCount,
         running: true,
+        paused: false,
         currentStep: 0,
         agents: result.agents || [],
         platform: result.platform || platform,
@@ -173,9 +245,21 @@ async function startServer() {
       simulationState.polarization = result.polarization || simulationState.polarization;
       simulationState.activeAgents = result.active_agents || simulationState.activeAgents;
       
-      if (result.new_log) {
+      // 处理多条日志（兼容单个 new_log 和 new_logs 数组）
+      if (result.new_logs && Array.isArray(result.new_logs)) {
+        result.new_logs.forEach((log: any) => {
+          io.emit("new_log", {
+            timestamp: log.timestamp || new Date().toISOString(),
+            agentId: log.agent_id,
+            actionType: log.action_type,
+            content: log.content,
+            reason: log.reason,
+          });
+        });
+      } else if (result.new_log) {
+        // 兼容旧格式（单个日志）
         io.emit("new_log", {
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: result.new_log.timestamp || new Date().toISOString(),
           agentId: result.new_log.agent_id,
           actionType: result.new_log.action_type,
           content: result.new_log.content,
@@ -208,12 +292,39 @@ async function startServer() {
     });
   });
 
+  app.post("/api/sim/pause", async (req, res) => {
+    try {
+      simulationState.running = false;
+      simulationState.paused = true;
+      io.emit("stats_update", simulationState);
+      console.log("⏸️  模拟已暂停");
+      res.json({ status: "paused", ...simulationState });
+    } catch (error: any) {
+      console.error("Error pausing simulation:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.post("/api/sim/resume", async (req, res) => {
+    try {
+      simulationState.running = true;
+      simulationState.paused = false;
+      io.emit("stats_update", simulationState);
+      console.log("▶️  模拟已恢复");
+      res.json({ status: "resumed", ...simulationState });
+    } catch (error: any) {
+      console.error("Error resuming simulation:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
   app.post("/api/sim/reset", async (req, res) => {
     try {
       await callOasisEngine("reset", {});
       
       simulationState = {
         running: false,
+        paused: false,
         currentStep: 0,
         activeAgents: 0,
         totalPosts: 0,
@@ -308,6 +419,9 @@ async function startServer() {
   // Cleanup on exit
   process.on("SIGINT", () => {
     console.log("Shutting down...");
+    if (restartTimeout) {
+      clearTimeout(restartTimeout);
+    }
     if (oasisProcess) {
       oasisProcess.kill();
     }

@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
       host: true,                    // 允许所有主机
       port: 3000,
       strictPort: true,
-      
+
       // 关键修复：添加Manus当前具体域名 + 通配符
       allowedHosts: [
         'all',                                           // 保留 all
@@ -32,12 +32,40 @@ export default defineConfig(({ mode }) => {
         'localhost',
         '127.0.0.1'
       ],
-      
-      hmr: false,   // AI Studio 必须禁用
+
+      hmr: true,   // 启用热模块替换
+
+      // 严格限制文件监视范围，避免监视 venv 目录
+      fs: {
+        allow: [
+          path.resolve(__dirname, './src'),
+          path.resolve(__dirname, './public'),
+          path.resolve(__dirname, './node_modules'),
+          path.resolve(__dirname),  // 项目根目录（用于 index.html）
+        ],
+      },
+      watch: {
+        // 显式忽略这些目录
+        ignored: [
+          '**/venv/**',
+          '**/.venv/**',
+          '**/env/**',
+          '**/__pycache__/**',
+          '**/*.pyc',
+        ],
+      },
     },
-    
+
     optimizeDeps: {
       exclude: ['torch', 'better-sqlite3'],
     },
+
+    // 忽略不需要监听的目录
+    ignore: [
+      '**/venv/**',
+      '**/.venv/**',
+      '**/env/**',
+      '**/node_modules/**',
+    ],
   };
 });
