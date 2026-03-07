@@ -115,10 +115,10 @@ cd oasis-dashboard
 
 ```bash
 # Node.js 依赖
-npm install
+pnpm install
 
 # Python 依赖
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 3. 配置本地 LLM

@@ -74,10 +74,10 @@ cd oasis-dashboard
 
 ```bash
 # 安装 Node.js 依赖
-npm install
+pnpm install
 
 # 安装 Python 依赖
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 三、配置本地模型
@@ -142,8 +142,8 @@ ollama list  # 验证模型已下载
 ```bash
 git clone https://github.com/SWJTU-AI-Lab/oasis-dashboard.git
 cd oasis-dashboard
-npm install
-pip install -r requirements.txt
+pnpm install
+uv sync
 ```
 
 ### 步骤 6：构建前端
@@ -212,7 +212,7 @@ sudo cp -r dist/* /var/www/html/
 
 ```bash
 sudo npm install -g pm2
-pm2 start "npm run dev" --name oasis-backend
+pm2 start "pnpm dev" --name oasis-backend
 pm2 startup
 pm2 save
 ```

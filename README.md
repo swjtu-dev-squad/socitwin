@@ -57,8 +57,11 @@
 
 2. **安装依赖**
    ```bash
-   npm install
-   pip install -r requirements.txt
+   # 安装 Node.js 依赖
+   pnpm install
+
+   # 安装 Python 依赖
+   uv sync
    ```
 
 3. **配置本地模型**

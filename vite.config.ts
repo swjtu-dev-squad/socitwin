@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
         '127.0.0.1'
       ],
 
-      hmr: false,   // AI Studio 必须禁用
+      hmr: true,   // 启用热模块替换
 
       // 严格限制文件监视范围，避免监视 venv 目录
       fs: {
