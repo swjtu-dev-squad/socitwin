@@ -3,7 +3,7 @@ OASIS Engine Integration for OASIS Dashboard
 
 This module integrates the real OASIS (Open-ended Autonomous Social Intelligence Simulation)
 engine with the OASIS Dashboard backend. It provides a Python-based simulation engine
-that uses local LLM models (e.g., Qwen2.5-3B via Ollama) for agent decision-making.
+that uses local LLM models (e.g., Qwen3-8B via Ollama) for agent decision-making.
 
 Key Features:
 - Real OASIS engine integration (not a simulator)
@@ -40,7 +40,7 @@ class OASISEngine:
     def __init__(
         self,
         model_platform: str = "ollama",
-        model_type: str = "qwen2.5:3b",
+        model_type: str = "qwen3:8b",
         db_path: str = "./oasis_simulation.db",
     ):
         """
@@ -48,7 +48,7 @@ class OASISEngine:
         
         Args:
             model_platform: LLM platform (e.g., "ollama", "openai")
-            model_type: Model type (e.g., "qwen2.5:3b", "gpt-4o-mini")
+            model_type: Model type (e.g., "qwen3:8b", "gpt-4o-mini")
             db_path: Path to the simulation database
         """
         self.model_platform = model_platform

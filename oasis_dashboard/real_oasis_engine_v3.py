@@ -3,18 +3,17 @@
 Real OASIS Engine V3 - Speed Optimized
 真实 OASIS 引擎 V3 - 速度优化版
 
-优化 Qwen2.5-3B 调用速度，确保 step 在 30 秒内完成
+优化 Qwen3-8B 调用速度，确保 step 在 30 秒内完成
 """
 
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 # 解决 torch 和其他依赖加载慢的问题
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
-print("✅ 开始导入真实OASIS...", flush=True)
 
 import json
 import asyncio
@@ -39,22 +38,56 @@ from oasis import (
     DefaultPlatformType,
 )
 
-print(f"✅ OASIS导入完成，耗时 {time.time() - import_start:.2f}秒", flush=True)
-
 
 class RealOASISEngineV3:
     """
     真实 OASIS 引擎 V3（速度优化版）
-    
+
     - 强制最小化执行（1个agent）
     - 使用 ManualAction 快速验证
-    - 优化 Qwen2.5-3B 调用速度
+    - 优化 Qwen3-8B 调用速度
     """
-    
+
+    @staticmethod
+    def _format_timestamp(ts) -> str:
+        """将时间戳转换为 ISO 8601 格式字符串，修正未来时间"""
+        if ts is None:
+            return datetime.now(timezone.utc).isoformat()
+
+        # 如果是字符串，尝试解析并修正
+        if isinstance(ts, str):
+            try:
+                dt = datetime.fromisoformat(ts)
+                now = datetime.now(timezone.utc)
+
+                # 检测是否为未来时间（允许1分钟的时钟偏差）
+                if dt.tzinfo is None:
+                    # 无时区信息，当作本地时间
+                    dt_utc = dt.astimezone(timezone.utc)
+                else:
+                    dt_utc = dt
+
+                # 如果时间在未来5分钟以上，使用当前时间
+                if (dt_utc - now).total_seconds() > 300:
+                    print(f"⚠️  检测到未来时间 {ts}，修正为当前时间", flush=True)
+                    return now.isoformat()
+
+                return ts
+            except:
+                # 解析失败，直接返回原字符串
+                return ts
+
+        # 如果是数字（Unix 时间戳）
+        if isinstance(ts, (int, float)):
+            return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+
+        # 其他情况，返回当前时间
+        return datetime.now(timezone.utc).isoformat()
+
     def __init__(
         self,
         model_platform: str = "ollama",
-        model_type: str = "qwen2.5:3b",
+        model_type: str = "qwen3:8b",
         db_path: str = "./oasis_simulation.db",
     ):
         """初始化真实 OASIS 引擎"""
@@ -76,67 +109,123 @@ class RealOASISEngineV3:
         
         # 使用真实 LLMAction 模式
         self.use_llm_action = True
-        
-        print("✅ RealOASISEngineV3 实例已创建", flush=True)
-    
+
+    def _get_topic_instructions(self, topic: str, region: str) -> str:
+        """
+        根据主题和地区生成具体的内容生成指令
+        确保LLM生成的内容符合主题
+        """
+        # 简化的主题指令，减少token消耗
+        topic_instructions = {
+            "POLITICS": "Discuss politics, government policies, and current events.",
+            "AI": "Discuss AI, technology, and digital innovation.",
+            "ENTERTAINMENT": "Discuss movies, music, celebrities, and pop culture.",
+            "HEALTH": "Discuss health, wellness, fitness, and medical topics.",
+            "TRAVEL": "Discuss travel destinations and cultural experiences.",
+            "FOOD": "Discuss recipes, restaurants, and food culture.",
+        }
+
+        base_instruction = topic_instructions.get(
+            topic.upper(),
+            f"Discuss {topic.lower()} topics."
+        )
+
+        # 简化的地区背景
+        region_suffix = f" from {region.title()}."
+        return base_instruction + region_suffix
+
     async def initialize(
         self,
         agent_count: int = 10,
         platform: str = "reddit",
         recsys: str = "hot-score",
         topic: str = "general",
+        topics: Optional[List[str]] = None,
+        regions: Optional[List[str]] = None,
     ) -> Dict:
-        """初始化真实 OASIS 模拟环境"""
+        """
+        初始化真实 OASIS 模拟环境
+
+        Args:
+            agent_count: Agent数量（最多100个以保证性能）
+            platform: 社交平台类型
+            recsys: 推荐算法类型
+            topic: 单个话题（向后兼容）
+            topics: 话题列表（新参数，优先使用）
+            regions: 地区列表（新参数）
+        """
         try:
-            print(f"🚀 开始初始化真实OASIS（速度优化版）", flush=True)
             init_start = time.time()
-            
-            # 速度优化：强制使用 1 个 agent 进行测试
-            agent_count = 1
-            print(f"⚡ 速度优化：强制使用 {agent_count} 个 agent（真实Qwen LLM调用）", flush=True)
-            
+            print(f"🚀 初始化 OASIS: {agent_count} agents, {platform}, {topics[0] if topics else 'general'}", flush=True)
+
+            # 处理topics和regions参数
+            if topics and len(topics) > 0:
+                primary_topic = topics[0]
+            else:
+                primary_topic = topic
+                topics = [topic]
+
+            if regions and len(regions) > 0:
+                pass  # 使用提供的regions
+            else:
+                regions = ["General"]
+
             # 创建模型
-            model_load_start = time.time()
-            print(f"正在加载 Qwen2.5-3B 本地模型...", flush=True)
-            
             if self.model_platform.lower() == "ollama":
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OLLAMA,
                     model_type=self.model_type,
                     model_config_dict={
-                        "temperature": 0.7,
-                        "max_tokens": 100,  # 限制输出长度以加快速度
+                        "temperature": 0.4,  # 降低温度使内容更聚焦主题
                     },
                 )
-                model_load_time = time.time() - model_load_start
-                print(f"Qwen2.5-3B 加载完成，耗时 {model_load_time:.2f} 秒", flush=True)
             else:
                 self.model = ModelFactory.create(
                     model_platform=ModelPlatformType.OPENAI,
                     model_type=ModelType.GPT_4O_MINI,
                 )
-                print(f"✅ OpenAI 模型已创建", flush=True)
-            
-            # 定义可用动作（最小化）
+
+            # 定义可用动作
+            # REFRESH 是必须的，让agents获取推荐内容
             available_actions = [
                 ActionType.CREATE_POST,
                 ActionType.LIKE_POST,
+                ActionType.REFRESH,  # ✅ 关键：允许agents刷新推荐内容
+                ActionType.DO_NOTHING,  # 允许agents选择不做任何事
             ]
-            
+
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
-            print(f"✅ AgentGraph 已创建", flush=True)
-            
-            # 创建 agents（只创建 1 个）
+
+            # 创建 agents
             for i in range(agent_count):
+                # 为不同agent分配不同的topics（如果有多个）
+                agent_topic = topics[i % len(topics)] if len(topics) > 1 else primary_topic
+                agent_region = regions[i % len(regions)] if len(regions) > 1 else regions[0]
+
+                # 创建增强的主题指令
+                topic_instructions = self._get_topic_instructions(agent_topic, agent_region)
+
+                # 构建符合OASIS要求的profile结构
+                # OASIS的to_system_message()使用profile['other_info']['user_profile']
+                agent_profile = {
+                    "other_info": {
+                        "user_profile": topic_instructions,  # 主题指令放在这里
+                        "gender": "unknown",
+                        "age": 25,
+                        "mbti": "UNKNOWN",
+                        "country": agent_region.title(),
+                    }
+                }
+
                 agent = SocialAgent(
                     agent_id=i,
                     user_info=UserInfo(
                         user_name=f"agent_{i}",
                         name=f"Agent {i}",
-                        description=f"AI agent {i} - Topic: {topic}",
-                        profile=None,
-                        recsys_type=recsys,
+                        description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
+                        profile=agent_profile,  # 设置正确的profile
+                        recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
                     ),
                     agent_graph=self.agent_graph,
                     model=self.model,
@@ -144,52 +233,57 @@ class RealOASISEngineV3:
                 )
                 self.agent_graph.add_agent(agent)
                 self.agents.append(agent)
-            
-            print(f"✅ 已创建 {agent_count} 个 SocialAgent", flush=True)
-            
+
             # 设置数据库路径
             os.environ["OASIS_DB_PATH"] = os.path.abspath(self.db_path)
-            
+
             # 删除旧数据库
             if os.path.exists(self.db_path):
                 os.remove(self.db_path)
-                print(f"🗑️  已删除旧数据库", flush=True)
-            
+
             # 创建环境
             platform_type = (
                 DefaultPlatformType.REDDIT
                 if platform.lower() == "reddit"
                 else DefaultPlatformType.TWITTER
             )
-            
+
             self.env = make(
                 agent_graph=self.agent_graph,
                 platform=platform_type,
                 database_path=self.db_path,
             )
-            print(f"✅ OASIS 环境已创建: {platform_type}", flush=True)
-            
+
             # 重置环境
             await self.env.reset()
-            print(f"✅ 环境已重置", flush=True)
-            
+
             self.active_agents = agent_count
             self.is_running = True
             self.current_step = 0
-            
+
             init_time = time.time() - init_start
-            print(f"🎉 真实OASIS初始化完成！耗时 {init_time:.3f}秒", flush=True)
-            
+            print(f"✅ OASIS初始化完成 (耗时 {init_time:.2f}秒)", flush=True)
+
             return {
                 "status": "ok",
-                "message": f"真实OASIS已初始化 {agent_count} 个agents（速度优化版）",
+                "message": f"真实OASIS已初始化 {agent_count} 个agents",
                 "agent_count": agent_count,
                 "platform": platform,
                 "recsys": recsys,
-                "topic": topic,
+                "topics": topics,
+                "regions": regions,
+                "topic": primary_topic,  # 向后兼容
                 "init_time": init_time,
+                "agents": [
+                    {
+                        "id": i,
+                        "name": f"Agent {i}",
+                        "description": f"AI agent {i} - Topic: {topics[i % len(topics)]}, Region: {regions[i % len(regions)]}",
+                    }
+                    for i in range(min(agent_count, 10))  # 返回前10个agent信息
+                ]
             }
-            
+
         except Exception as e:
             print(f"❌ 初始化失败: {str(e)}", flush=True)
             import traceback
@@ -198,7 +292,7 @@ class RealOASISEngineV3:
                 "status": "error",
                 "message": f"初始化失败: {str(e)}",
             }
-    
+
     async def step(self) -> Dict:
         """执行一步真实 OASIS 模拟（速度优化版）"""
         if not self.is_running or self.env is None:
@@ -206,27 +300,50 @@ class RealOASISEngineV3:
                 "status": "error",
                 "message": "模拟未初始化或未运行",
             }
-        
+
         try:
             step_start = time.time()
-            print(f"⚙️  执行第 {self.current_step + 1} 步（速度优化版）...", flush=True)
-            
-            # 恢复真实 LLMAction + Qwen2.5-3B 模型调用
-            print(f"🤖 使用真实 LLMAction + Qwen2.5-3B 模型", flush=True)
-            all_agents_actions = {
-                agent: LLMAction()
-                for agent in self.agents
-            }
-            
-            # 执行步骤
-            await self.env.step(all_agents_actions)
-            
+            print(f"⚙️  Step {self.current_step + 1} 开始", flush=True)
+
+            # 按照OASIS官方文档：从环境中获取agents
+            all_agents = list(self.env.agent_graph.get_agents())
+
+            # 输出进度信息（用于前端显示）
+            total_agents = len(all_agents)
+            print(f"📊 Progress: 0/{total_agents} (0%)", file=sys.stderr, flush=True)
+
+            # 分批执行agents以显示实时进度
+            batch_size = max(1, total_agents // 5)  # 分成约5批（平衡速度和进度显示）
+            completed = 0
+
+            for i in range(0, total_agents, batch_size):
+                batch_agents = all_agents[i:i + batch_size]
+
+                # 为当前批的agents创建LLMAction
+                batch_actions = {
+                    agent: LLMAction()
+                    for _, agent in batch_agents
+                }
+
+                # 执行当前批
+                await self.env.step(batch_actions)
+
+                # 更新进度
+                completed += len(batch_agents)
+                percentage = int((completed / total_agents) * 100)
+                print(f"📊 Progress: {completed}/{total_agents} ({percentage}%)", file=sys.stderr, flush=True)
+
+            # 完成进度
+            print(f"✅ Step complete", file=sys.stderr, flush=True)
+
             self.current_step += 1
-            self.total_posts += len(self.agents)
-            
+
+            # 从数据库读取真实的帖子数
+            self.total_posts = self._get_actual_post_count()
+
             step_time = time.time() - step_start
-            
-            # 记录日志
+
+            # 记录内部日志
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "step": self.current_step,
@@ -235,15 +352,17 @@ class RealOASISEngineV3:
                 "step_time": step_time,
             }
             self.logs.append(log_entry)
-            
-            print(f"✅ 第 {self.current_step} 步完成，耗时 {step_time:.3f}秒", flush=True)
-            
+
+            # 从 OASIS 数据库读取真实的 agent 行为日志
+            new_logs = self._get_real_agent_actions()
+
             return {
                 "status": "ok",
                 "current_step": self.current_step,
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
+                "new_logs": new_logs,  # ← 返回所有日志
             }
             
         except Exception as e:
@@ -284,16 +403,169 @@ class RealOASISEngineV3:
                 "running": self.is_running,
             },
         }
-    
+
+    def _get_real_agent_actions(self) -> List[Dict]:
+        """从 OASIS 数据库读取真实的 agent 行为"""
+        import sqlite3
+        import os
+
+        logs = []
+
+        # 检查数据库是否存在
+        if not os.path.exists(self.db_path):
+            return self._get_fallback_logs("Database not yet created")
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 检查数据库中有哪些表
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in cursor.fetchall()]
+
+            # 尝试读取不同可能的表结构
+            logs.extend(self._read_posts_table(cursor, tables))
+            logs.extend(self._read_interactions_table(cursor, tables))
+
+            conn.close()
+
+            # 如果没有找到任何日志，返回基本信息
+            if not logs:
+                return self._get_fallback_logs("No data found in database")
+            return logs[:100]  # 最多返回100条
+
+        except Exception as e:
+            print(f"❌ 读取数据库失败: {str(e)}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return self._get_fallback_logs(f"Error: {str(e)}")
+
+    def _read_posts_table(self, cursor, tables) -> List[Dict]:
+        """尝试读取posts相关表"""
+        logs = []
+
+        # OASIS使用小写的 'post' 表
+        if 'post' not in tables:
+            return logs
+
+        try:
+            # 读取最新的帖子
+            cursor.execute("""
+                SELECT
+                    p.post_id,
+                    p.user_id,
+                    p.content,
+                    p.created_at,
+                    p.num_likes,
+                    u.user_name
+                FROM post p
+                LEFT JOIN user u ON p.user_id = u.user_id
+                ORDER BY p.post_id DESC
+                LIMIT 50
+            """)
+
+            rows = cursor.fetchall()
+            for row in rows:
+                post_id, user_id, content, created_at, num_likes, user_name = row
+
+                logs.append({
+                    "timestamp": self._format_timestamp(created_at),
+                    "agent_id": user_name or f"Agent {user_id}",
+                    "action_type": "CREATE_POST",
+                    "content": content[:200] + "..." if len(content) > 200 else content,
+                    "reason": f"Post {post_id} | {num_likes} likes"
+                })
+
+        except Exception as e:
+            print(f"⚠️  读取post表失败: {e}", flush=True)
+
+        return logs
+
+    def _read_interactions_table(self, cursor, tables) -> List[Dict]:
+        """尝试读取interactions/likes相关表"""
+        logs = []
+
+        # 读取like表
+        if 'like' not in tables and 'likes' not in tables:
+            return logs
+
+        table_name = 'like' if 'like' in tables else 'likes'
+
+        try:
+            cursor.execute(f"""
+                SELECT
+                    l.like_id,
+                    l.user_id,
+                    l.post_id,
+                    l.created_at,
+                    u.user_name
+                FROM {table_name} l
+                LEFT JOIN user u ON l.user_id = u.user_id
+                ORDER BY l.like_id DESC
+                LIMIT 20
+            """)
+
+            rows = cursor.fetchall()
+            for row in rows:
+                like_id, user_id, post_id, created_at, user_name = row
+
+                logs.append({
+                    "timestamp": self._format_timestamp(created_at),
+                    "agent_id": user_name or f"Agent {user_id}",
+                    "action_type": "LIKE_POST",
+                    "content": f"Liked post {post_id}",
+                    "reason": f"Like {like_id}"
+                })
+
+        except Exception as e:
+            pass  # 静默忽略读取错误
+
+        return logs
+
+    def _get_fallback_logs(self, reason: str) -> List[Dict]:
+        """当无法读取数据库时返回备用日志"""
+        logs = []
+        current_time = datetime.now(timezone.utc).isoformat()
+        for agent in self.agents[:10]:  # 只返回前10个
+            logs.append({
+                "timestamp": current_time,
+                "agent_id": f"Agent {agent.agent_id}",
+                "action_type": "CREATE_POST",
+                "content": f"Agent action - {reason}",
+                "reason": "Simulation running, check database for details"
+            })
+        return logs
+
+    def _get_actual_post_count(self) -> int:
+        """从数据库读取真实的帖子数量"""
+        import sqlite3
+        import os
+
+        if not os.path.exists(self.db_path):
+            return len(self.agents)
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 统计帖子数量
+            cursor.execute("SELECT COUNT(*) FROM post")
+            post_count = cursor.fetchone()[0]
+
+            conn.close()
+
+            return post_count
+
+        except Exception as e:
+            return len(self.agents)
+
     async def close(self) -> Dict:
         """关闭模拟环境"""
         if self.env is not None:
             await self.env.close()
-        
+
         self.is_running = False
-        
-        print("🛑 模拟已关闭", flush=True)
-        
+
         return {
             "status": "ok",
             "message": "模拟已关闭",
@@ -323,10 +595,12 @@ async def handle_rpc_request(request: Dict) -> Dict:
     try:
         if method == "initialize":
             result = await engine.initialize(
-                agent_count=params.get("agentCount", 1),
+                agent_count=params.get("agent_count", 1),
                 platform=params.get("platform", "reddit"),
                 recsys=params.get("recsys", "hot-score"),
                 topic=params.get("topic", "general"),
+                topics=params.get("topics"),
+                regions=params.get("regions"),
             )
         elif method == "step":
             result = await engine.step()
@@ -362,17 +636,15 @@ async def run_rpc_server():
     """运行 JSON-RPC 服务器（stdin/stdout）"""
     # 发送就绪信号
     print(json.dumps({"status": "ready"}), flush=True)
-    print("✅ JSON-RPC 服务器已启动，等待请求...", file=sys.stderr, flush=True)
-    
+
     while True:
         try:
             line = sys.stdin.readline()
             if not line:
                 break
-            
+
             request = json.loads(line.strip())
-            print(f"📥 收到请求: {request.get('method')}", file=sys.stderr, flush=True)
-            
+
             response = await handle_rpc_request(request)
             print(json.dumps(response), flush=True)
             

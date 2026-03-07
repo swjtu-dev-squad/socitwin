@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export const Card = ({ className, children, ...props }: { className?: string, children: React.ReactNode, [key: string]: any }) => (
@@ -62,14 +62,142 @@ export const ScrollArea = ({ className, children }: { className?: string, childr
 );
 
 export const Select = ({ children, value, onValueChange }: any) => {
-  return <div className="relative w-full">{children}</div>;
+  const [isOpen, setIsOpen] = useState(false);
+  const selectRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Deep clone children to pass down props to nested components
+  const enhanceChildren = (children: any): any => {
+    return React.Children.map(children, (child) => {
+      if (!React.isValidElement(child)) return child;
+
+      const childType = child.type as any;
+      const childName = childType.displayName || childType.name;
+
+      // Pass props to specific component types
+      if (childName === 'SelectTrigger' || childType === SelectTrigger) {
+        return React.cloneElement(child, {
+          isOpen,
+          setIsOpen,
+        } as any);
+      }
+
+      if (childName === 'SelectValue' || childType === SelectValue) {
+        return React.cloneElement(child, {
+          value,
+          isOpen,
+        } as any);
+      }
+
+      if (childName === 'SelectContent' || childType === SelectContent) {
+        const enhancedContentChildren = enhanceChildren(child.props.children);
+        return React.cloneElement(child, {
+          isOpen,
+          children: enhancedContentChildren,
+        } as any);
+      }
+
+      if (childName === 'SelectItem' || childType === SelectItem) {
+        return React.cloneElement(child, {
+          onValueChange,
+          setIsOpen,
+        } as any);
+      }
+
+      // Recursively enhance nested children
+      if (child.props && child.props.children) {
+        return React.cloneElement(child, {
+          children: enhanceChildren(child.props.children),
+        } as any);
+      }
+
+      return child;
+    });
+  };
+
+  return (
+    <div ref={selectRef} className="relative w-full">
+      {enhanceChildren(children)}
+    </div>
+  );
 };
-export const SelectTrigger = ({ className, children }: any) => (
-  <div className={cn("flex h-10 w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm", className)}>{children}</div>
+Select.displayName = 'Select';
+
+export const SelectTrigger = ({ className, children, isOpen, setIsOpen }: any) => (
+  <div
+    className={cn(
+      "flex h-10 w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm cursor-pointer hover:border-zinc-700 transition-colors",
+      isOpen && "ring-2 ring-emerald-500 border-emerald-500",
+      className
+    )}
+    onClick={() => setIsOpen(!isOpen)}
+  >
+    {children}
+    <svg
+      className={cn(
+        "w-4 h-4 text-zinc-500 transition-transform",
+        isOpen && "transform rotate-180"
+      )}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  </div>
 );
-export const SelectValue = ({ placeholder }: any) => <span>{placeholder}</span>;
-export const SelectContent = ({ children }: any) => <div className="hidden">{children}</div>;
-export const SelectItem = ({ children }: any) => <div>{children}</div>;
+SelectTrigger.displayName = 'SelectTrigger';
+
+export const SelectValue = ({ placeholder, value, isOpen }: any) => (
+  <span className={value ? "text-zinc-100" : "text-zinc-500"}>
+    {value || placeholder}
+  </span>
+);
+SelectValue.displayName = 'SelectValue';
+
+export const SelectContent = ({ children, isOpen, className }: any) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className={cn(
+      "absolute z-50 w-full mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl max-h-60 overflow-auto",
+      className
+    )}>
+      {children}
+    </div>
+  );
+};
+SelectContent.displayName = 'SelectContent';
+
+export const SelectItem = ({ children, value, onValueChange, setIsOpen }: any) => (
+  <div
+    className="px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 hover:text-emerald-500 cursor-pointer transition-colors first:rounded-t-xl last:rounded-b-xl"
+    onClick={(e) => {
+      e.stopPropagation();
+      onValueChange(value);
+      setIsOpen(false);
+    }}
+  >
+    {children}
+  </div>
+);
+SelectItem.displayName = 'SelectItem';
 
 export const Slider = ({ value, onValueChange, min, max, step, className }: any) => (
   <input 
@@ -99,7 +227,7 @@ export const DrawerFooter = ({ children, className }: any) => <div className={cn
 export const DrawerClose = ({ children }: any) => children;
 
 export const Switch = ({ checked, onCheckedChange, className }: any) => (
-  <button 
+  <button
     role="switch"
     aria-checked={checked}
     onClick={() => onCheckedChange?.(!checked)}
@@ -114,4 +242,13 @@ export const Switch = ({ checked, onCheckedChange, className }: any) => (
       checked ? "translate-x-5" : "translate-x-0"
     )} />
   </button>
+);
+
+export const Progress = ({ value, className }: any) => (
+  <div className={cn("relative w-full h-2 overflow-hidden rounded-full bg-zinc-800", className)}>
+    <div
+      className="h-full bg-emerald-500 transition-all duration-300 ease-in-out"
+      style={{ width: `${value}%` }}
+    />
+  </div>
 );

@@ -69,10 +69,14 @@ export default function Overview() {
               <h1 className="text-4xl font-bold tracking-tight">系统概览</h1>
               <div className={cn(
                 "flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest",
-                status.running ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-zinc-800 border-zinc-700 text-zinc-500"
+                status.running && !status.paused ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" :
+                status.paused ? "bg-amber-500/10 border-amber-500/20 text-amber-500" : "bg-zinc-800 border-zinc-700 text-zinc-500"
               )}>
-                <div className={cn("w-1.5 h-1.5 rounded-full", status.running ? "bg-emerald-500 animate-pulse" : "bg-zinc-600")}></div>
-                {status.running ? 'Running' : 'Paused'}
+                <div className={cn("w-1.5 h-1.5 rounded-full",
+                  status.running && !status.paused ? "bg-emerald-500 animate-pulse" :
+                  status.paused ? "bg-amber-500" : "bg-zinc-600"
+                )}></div>
+                {status.running && !status.paused ? 'Running' : status.paused ? 'Paused' : 'Stopped'}
               </div>
               {status.platform && (
                 <Badge variant="outline" className="bg-zinc-900 border-zinc-800 text-zinc-400 gap-1.5 h-7 px-3 rounded-full">

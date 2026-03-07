@@ -46,13 +46,13 @@ class RealOASISEngine:
     """
     真实 OASIS 引擎（非模拟器）
     
-    使用 CAMEL-AI OASIS 框架和本地 Qwen2.5-3B 模型
+    使用 CAMEL-AI OASIS 框架和本地 Qwen3-8B 模型
     """
     
     def __init__(
         self,
         model_platform: str = "ollama",
-        model_type: str = "qwen2.5:3b",
+        model_type: str = "qwen3:8b",
         db_path: str = "./oasis_simulation.db",
     ):
         """初始化真实 OASIS 引擎"""

@@ -127,8 +127,8 @@ uv sync
 # 安装 Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 下载 Qwen2.5-3B 模型
-ollama pull qwen2.5:3b
+# 下载 Qwen3-8B 模型
+ollama pull qwen3:8b
 ```
 
 ### 4. 启动开发服务器

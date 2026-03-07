@@ -58,9 +58,13 @@ export default function Agents() {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-            <div className={cn("w-2 h-2 rounded-full bg-emerald-500", status.running && "animate-pulse")}></div>
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              status.running && !status.paused ? "bg-emerald-500 animate-pulse" :
+              status.paused ? "bg-amber-500" : "bg-zinc-600"
+            )}></div>
             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-              {status.running ? '实时更新中 (每 3s)' : '引擎已停止'}
+              {status.running && !status.paused ? '实时更新中 (每 3s)' : status.paused ? '已暂停' : '引擎已停止'}
             </span>
           </div>
           <Link to="/control">

@@ -22,6 +22,7 @@ export interface LogEntry {
 
 export interface SimulationStatus {
   running: boolean;
+  paused: boolean;
   currentStep: number;
   activeAgents: number;
   totalPosts: number;

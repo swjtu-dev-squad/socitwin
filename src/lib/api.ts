@@ -3,7 +3,7 @@ import { SimulationStatus, GenerateUsersRequest, GenerateUsersResponse } from '.
 
 const api = axios.create({
   baseURL: '/api',  // 使用相对路径，自动适配本地开发和部署环境
-  timeout: 60000,
+  timeout: 600000,  // 10分钟超时 - 支持大规模agent的LLM调用
 });
 
 export const simulationApi = {
@@ -11,7 +11,6 @@ export const simulationApi = {
     platform: string;
     recsys: string;
     agentCount: number;
-    speed: number;
     topics?: string[];
     regions?: string[];
   }) => api.post('/sim/config', config),
@@ -19,6 +18,10 @@ export const simulationApi = {
   getStatus: () => api.get<SimulationStatus>('/sim/status'),
 
   step: () => api.post<SimulationStatus>('/sim/step'),
+
+  pause: () => api.post<SimulationStatus>('/sim/pause'),
+
+  resume: () => api.post<SimulationStatus>('/sim/resume'),
 
   reset: () => api.post('/sim/reset'),
 
