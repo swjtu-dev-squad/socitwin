@@ -1,0 +1,6 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://github.com/SWJTU-AI-Lab/oasis-dashboard/sitemap.xml

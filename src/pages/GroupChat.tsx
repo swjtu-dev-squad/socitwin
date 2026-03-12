@@ -39,24 +39,24 @@ export default function GroupChat() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <MessageCircle className="w-10 h-10 text-emerald-500" />
+            <MessageCircle className="w-10 h-10 text-accent" />
             群聊监控
           </h1>
-          <p className="text-zinc-500 mt-1">实时观测群体讨论、意见形成与共谋行为</p>
+          <p className="text-text-tertiary mt-1">实时观测群体讨论、意见形成与共谋行为</p>
         </div>
-        <div className="text-emerald-400 font-mono text-sm bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/20">
+        <div className="text-accent font-mono text-sm bg-accent/5 px-4 py-2 rounded-full border border-accent/20">
           活跃群聊: {groups.length} 个 | 总消息: 18,942 条
         </div>
       </header>
 
       <div className="grid grid-cols-12 gap-6 flex-1 min-h-0">
         {/* Group List */}
-        <Card className="col-span-4 bg-zinc-900 border-zinc-800 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+        <Card className="col-span-4 bg-bg-secondary border-border-default flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border-default flex justify-between items-center bg-bg-secondary/50">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary flex items-center gap-2">
               <Users className="w-4 h-4" /> 群聊列表
             </h2>
-            <Button variant="outline" className="h-8 w-8 p-0 rounded-lg border-zinc-800">
+            <Button variant="outline" className="h-8 w-8 p-0 rounded-lg border-border-default">
               <Plus className="w-4 h-4" />
             </Button>
           </div>
@@ -68,37 +68,37 @@ export default function GroupChat() {
                 className={cn(
                   "p-4 rounded-2xl cursor-pointer transition-all duration-200 border",
                   activeGroup.id === group.id 
-                    ? "bg-emerald-500/10 border-emerald-500/50" 
-                    : "bg-zinc-950 border-transparent hover:bg-zinc-800"
+                    ? "bg-accent-subtle border-accent/50" 
+                    : "bg-bg-primary border-transparent hover:bg-bg-tertiary"
                 )}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-zinc-100">{group.name}</h4>
+                  <h4 className="font-bold text-text-primary">{group.name}</h4>
                   <Badge variant={group.polarization > 0.8 ? 'destructive' : 'secondary'}>
                     {group.polarization.toFixed(2)}
                   </Badge>
                 </div>
-                <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                <div className="flex justify-between text-[10px] text-text-tertiary font-mono">
                   <span>{group.memberCount} 成员</span>
                   <span>{group.lastTime}</span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-2 line-clamp-1 italic">“{group.lastMessage}”</p>
+                <p className="text-xs text-text-secondary mt-2 line-clamp-1 italic">“{group.lastMessage}”</p>
               </div>
             ))}
           </ScrollArea>
         </Card>
 
         {/* Chat Window */}
-        <Card className="col-span-5 bg-zinc-900 border-zinc-800 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-center">
+        <Card className="col-span-5 bg-bg-secondary border-border-default flex flex-col overflow-hidden">
+          <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center text-emerald-500">💬</div>
+              <div className="w-8 h-8 bg-accent/20 rounded-lg flex items-center justify-center text-accent">💬</div>
               <div>
                 <h2 className="text-sm font-bold">{activeGroup.name}</h2>
-                <p className="text-[10px] text-emerald-400 font-mono uppercase tracking-widest">Live Stream</p>
+                <p className="text-[10px] text-accent font-mono uppercase tracking-widest">Live Stream</p>
               </div>
             </div>
-            <Badge variant="outline" className="border-zinc-800 text-zinc-500">
+            <Badge variant="outline" className="border-border-default text-text-tertiary">
               {activeGroup.memberCount} 人在线
             </Badge>
           </div>
@@ -106,19 +106,19 @@ export default function GroupChat() {
           <ScrollArea className="flex-1 p-6 space-y-6 font-mono text-sm">
             {groupMessages.map((msg, i) => (
               <div key={i} className="flex gap-4 group animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="font-bold text-emerald-400 w-24 shrink-0 text-right pt-1">{msg.agentName}</div>
+                <div className="font-bold text-accent w-24 shrink-0 text-right pt-1">{msg.agentName}</div>
                 <div className="flex-1 space-y-2">
-                  <div className="bg-zinc-950/50 border border-zinc-800 p-4 rounded-2xl rounded-tl-none group-hover:border-zinc-700 transition-colors">
-                    <div className="text-zinc-200 leading-relaxed">{msg.content}</div>
+                  <div className="bg-bg-primary/50 border border-border-default p-4 rounded-2xl rounded-tl-none group-hover:border-border-strong transition-colors">
+                    <div className="text-text-primary leading-relaxed">{msg.content}</div>
                     {msg.reason && (
-                      <div className="mt-3 pt-3 border-t border-zinc-800/50 text-[10px] text-zinc-500 italic flex items-center gap-2">
-                        <span className="text-zinc-600 font-bold uppercase tracking-tighter">Reason:</span>
+                      <div className="mt-3 pt-3 border-t border-border-default/50 text-[10px] text-text-tertiary italic flex items-center gap-2">
+                        <span className="text-text-muted font-bold uppercase tracking-tighter">Reason:</span>
                         {msg.reason}
                       </div>
                     )}
                   </div>
                 </div>
-                <div className="text-[10px] text-zinc-700 shrink-0 pt-1">{msg.timestamp}</div>
+                <div className="text-[10px] text-text-muted shrink-0 pt-1">{msg.timestamp}</div>
               </div>
             ))}
             {/* Thinking Animation */}
@@ -135,24 +135,24 @@ export default function GroupChat() {
               </div>
             )}
             {groupMessages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-800 py-20">
+              <div className="h-full flex flex-col items-center justify-center text-text-muted py-20">
                 <MessageCircle className="w-12 h-12 mb-4 opacity-10" />
                 <p className="text-xs uppercase tracking-widest font-bold">Waiting for messages...</p>
               </div>
             )}
           </ScrollArea>
 
-          <div className="p-4 border-t border-zinc-800 bg-zinc-950/50 flex gap-3">
+          <div className="p-4 border-t border-border-default bg-bg-primary/50 flex gap-3">
             <Input 
               placeholder="注入群消息 (ManualAction)..." 
-              className="bg-zinc-900 border-zinc-800 rounded-xl h-12"
+              className="bg-bg-secondary border-border-default rounded-xl h-12"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
             />
             <Button 
               onClick={handleSendMessage}
-              className="w-12 h-12 p-0 rounded-xl bg-emerald-600 hover:bg-emerald-700"
+              className="w-12 h-12 p-0 rounded-xl bg-accent hover:bg-accent-hover"
             >
               <Send className="w-5 h-5" />
             </Button>
@@ -161,27 +161,27 @@ export default function GroupChat() {
 
         {/* Group Stats */}
         <div className="col-span-3 space-y-6">
-          <Card className="bg-zinc-900 border-zinc-800 p-6 space-y-8">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+          <Card className="bg-bg-secondary border-border-default p-6 space-y-8">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> 群聊统计
             </h3>
             <div className="space-y-6">
               <div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">极化指数</p>
+                <p className="text-[10px] text-text-tertiary uppercase font-bold tracking-wider">极化指数</p>
                 <p className="text-5xl font-bold text-rose-400 mt-2 font-mono">{activeGroup.polarization}</p>
               </div>
               <div>
-                <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">消息速度</p>
-                <p className="text-3xl font-bold mt-2 font-mono">47 <span className="text-xs font-normal text-zinc-500">条/分</span></p>
+                <p className="text-[10px] text-text-tertiary uppercase font-bold tracking-wider">消息速度</p>
+                <p className="text-3xl font-bold mt-2 font-mono">47 <span className="text-xs font-normal text-text-tertiary">条/分</span></p>
               </div>
             </div>
           </Card>
 
           <div className="space-y-3">
-            <Button className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-base font-bold shadow-lg shadow-emerald-500/20">
+            <Button className="w-full h-14 rounded-2xl bg-accent hover:bg-accent-hover text-base font-bold shadow-lg shadow-accent-glow">
               创建新群聊
             </Button>
-            <Button variant="outline" className="w-full h-14 rounded-2xl border-zinc-800 hover:bg-zinc-800 text-base font-bold">
+            <Button variant="outline" className="w-full h-14 rounded-2xl border-border-default hover:bg-bg-tertiary text-base font-bold">
               导出群聊记录
             </Button>
           </div>
