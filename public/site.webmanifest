@@ -1,0 +1,23 @@
+{
+  "name": "OASIS Dashboard - 社会智能模拟实时监控平台",
+  "short_name": "OASIS",
+  "description": "OASIS Dashboard 是一个用于实时监控和控制 OASIS 引擎的 Web 应用程序。支持基于本地大语言模型的真实社会模拟实验。",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#10b981",
+  "background_color": "#09090b",
+  "display": "standalone",
+  "orientation": "portrait",
+  "start_url": "/",
+  "scope": "/"
+}

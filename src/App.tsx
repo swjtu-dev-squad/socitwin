@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { initSocket, disconnectSocket } from './lib/socket';
 import DashboardLayout from './components/DashboardLayout';
+import Home from './pages/Home';
 import Overview from './pages/Overview';
 import Control from './pages/Control';
 import Profiles from './pages/Profiles';
@@ -21,18 +22,52 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" theme="dark" richColors />
-      <DashboardLayout>
-        <Routes>
-          <Route path="/" element={<Overview />} />
-          <Route path="/control" element={<Control />} />
-          <Route path="/profiles" element={<Profiles />} />
-          <Route path="/agents" element={<Agents />} />
-          <Route path="/logs" element={<Logs />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/groupchat" element={<GroupChat />} />
-        </Routes>
-      </DashboardLayout>
+      <Routes>
+        {/* Landing page without dashboard layout */}
+        <Route path="/" element={<Home />} />
+
+        {/* Dashboard pages with layout */}
+        <Route path="/overview" element={
+          <DashboardLayout>
+            <Overview />
+          </DashboardLayout>
+        } />
+        <Route path="/control" element={
+          <DashboardLayout>
+            <Control />
+          </DashboardLayout>
+        } />
+        <Route path="/profiles" element={
+          <DashboardLayout>
+            <Profiles />
+          </DashboardLayout>
+        } />
+        <Route path="/agents" element={
+          <DashboardLayout>
+            <Agents />
+          </DashboardLayout>
+        } />
+        <Route path="/logs" element={
+          <DashboardLayout>
+            <Logs />
+          </DashboardLayout>
+        } />
+        <Route path="/analytics" element={
+          <DashboardLayout>
+            <Analytics />
+          </DashboardLayout>
+        } />
+        <Route path="/settings" element={
+          <DashboardLayout>
+            <Settings />
+          </DashboardLayout>
+        } />
+        <Route path="/groupchat" element={
+          <DashboardLayout>
+            <GroupChat />
+          </DashboardLayout>
+        } />
+      </Routes>
     </BrowserRouter>
   );
 }

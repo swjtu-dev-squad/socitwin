@@ -32,6 +32,13 @@ export interface SimulationStatus {
   recsys?: string;
   topics?: string[];
   regions?: string[];
+  // Future analytics fields
+  stepTime?: number;  // Time taken for last step (ms)
+  opinionDistribution?: {
+    farLeft: number;
+    neutral: number;
+    farRight: number;
+  };
 }
 
 export interface StatsHistoryEntry extends SimulationStatus {
