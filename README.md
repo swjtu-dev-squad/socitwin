@@ -1,147 +1,143 @@
-# OASIS Dashboard v1.1.0
+<div align="center">
 
-**OASIS Dashboard** 是一个用于实时监控和控制 **OASIS (Open-ended Autonomous Social Intelligence Simulation)** 引擎的 Web 应用程序。它提供了一个直观的界面来配置、运行和分析复杂的社会模拟实验，支持基于本地大语言模型（如 Qwen3-8B）的真实 OASIS 引擎。
+<img src="public/logo.png" alt="OASIS Dashboard" width="200" height="200"/>
 
----
+# OASIS Dashboard
 
-## 🎉 v1.1.0 更新内容
+**A Professional Web Platform for OASIS Simulation Engine Monitoring and Control**
 
-### 🚀 性能优化
-- ✅ **真实 Qwen3-8B LLM 调用**: 完全移除 ManualAction，使用真实的 LLMAction + Qwen3-8B 本地模型
-- ✅ **极速执行**: Step 执行时间优化到 0.14-1.08 秒（第一步 1.08 秒，后续步骤 ~0.14 秒）
-- ✅ **快速加载**: Qwen3-8B 模型加载时间仅 0.26 秒
-- ✅ **30 秒超时**: 保持合理的 30 秒超时限制，不影响用户体验
-
-### 🔧 技术改进
-- ✅ **真实 OASIS 引擎集成**: 使用 `real_oasis_engine_v3.py`，完全基于 CAMEL-AI 框架
-- ✅ **JSON-RPC 通信**: server.ts 通过 stdin/stdout 与 Python OASIS 引擎通信
-- ✅ **逐行解析优化**: 修复 JSON-RPC 响应解析问题，支持多行日志输出
-- ✅ **生产模式部署**: 使用 `NODE_ENV=production` 避免 Vite 文件监控问题
-
-### 📊 验证结果
-- ✅ **CAMEL agent 日志**: 确认真实 LLM 调用（有 token 预算警告）
-- ✅ **Agent 执行成功**: 每步都创建真实的社交媒体帖子
-- ✅ **性能达标**: 所有步骤执行时间均在 30 秒以内
+</div>
 
 ---
 
-## ✨ 功能特性
+## Overview
 
-- **真实 OASIS 引擎**: 集成真实的 `camel-oasis` 引擎，而非模拟器，确保模拟的准确性和深度。
-- **本地模型支持**: 支持通过 Ollama 运行本地大语言模型（如 Qwen3-8B），无需依赖外部 API，降低成本并保护数据隐私。
-- **实时监控**: 实时查看模拟状态、KPI 指标（活跃 Agent、总帖子数、极化指数）和智能体活动。
-- **动态控制**: 在模拟运行时动态调整参数、注入事件和干预智能体行为。
-- **数据可视化**: 通过社交网络图、趋势分析和地理热图直观地理解模拟过程。
-- **用户画像生成**: 基于真实世界数据集（如 Reddit）生成具有文化背景的智能体画像。
-- **日志分析**: 详细记录和分析每个智能体的决策过程和交互行为。
-- **群聊监控**: 观测群体讨论、意见形成和共谋行为。
-- **模块化设计**: 前后端分离，易于扩展和二次开发。
+**OASIS Dashboard** is an enterprise-grade web application designed for real-time monitoring and control of the **OASIS (Open-ended Autonomous Social Intelligence Simulation)** engine. It provides an intuitive interface for configuring, executing, and analyzing complex social simulation experiments with support for local large language models (e.g., Qwen3-8B).
 
 ---
 
-## 🚀 快速开始
+## Features
 
-### 环境要求
+### 🎯 Core Capabilities
 
-- **操作系统**: Ubuntu 22.04 LTS (推荐)
-- **硬件**: 至少 4核 CPU, 8GB 内存, 40GB 硬盘
-- **软件**: Node.js 20+, Python 3.11+, Ollama, Nginx
+- **Real OASIS Engine Integration**: Built on the authentic `camel-oasis` framework, ensuring simulation accuracy and depth
+- **Local Model Support**: Run local LLMs via Ollama (Qwen3-8B) without external API dependencies, reducing costs and protecting data privacy
+- **Real-time Monitoring**: Live tracking of simulation status, KPI metrics (active agents, total posts, polarization index), and agent activities
+- **Dynamic Control**: Adjust parameters, inject events, and intervene in agent behaviors during simulation runtime
+- **Advanced Visualization**: Social network graphs, trend analysis, and geospatial heatmaps for intuitive data understanding
+- **User Persona Generation**: Create culturally nuanced agent profiles based on real-world datasets (e.g., Reddit)
+- **Comprehensive Logging**: Detailed recording and analysis of each agent's decision-making process and interactions
+- **Group Chat Monitoring**: Observe group discussions, opinion formation, and coordination behaviors
+- **Modular Architecture**: Clean separation of frontend and backend for easy extension and development
 
-### 本地开发
+---
 
-1. **克隆仓库**
+## Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Recharts, Framer Motion |
+| **Backend** | Node.js, Express, Socket.io, TypeScript |
+| **Simulation Engine** | Python 3.11+, CAMEL-AI, Ollama, Qwen3-8B |
+| **Database** | SQLite (built-in with OASIS) |
+| **State Management** | Zustand, TanStack Query |
+| **UI Components** | Lucide Icons, Sonner |
+
+---
+
+## Performance
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| Qwen3-8B Load Time | 0.26s | Initial model loading |
+| OASIS Initialization | 9.75s | Per agent |
+| Step 1 Execution | 1.08s | With real LLM calls |
+| Step 2-5 Average | 0.14s | With real LLM calls |
+| Timeout Limit | 30s | Optimized for UX |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Operating System**: Ubuntu 22.04 LTS (recommended)
+- **Hardware**: 4+ core CPU, 8GB+ RAM, 40GB+ storage
+- **Software**: Node.js 20+, Python 3.11+, Ollama
+
+### Installation
+
+1. **Clone Repository**
    ```bash
-   git clone https://github.com/SWJTU-AI-Lab/oasis-dashboard.git
+   git clone https://github.com/swjtu-dev-squad/oasis-dashboard.git
    cd oasis-dashboard
    ```
 
-2. **安装依赖**
+2. **Install Dependencies**
    ```bash
-   # 安装 Node.js 依赖
+   # Install Node.js dependencies
    pnpm install
 
-   # 安装 Python 依赖
+   # Install Python dependencies
    uv sync
    ```
 
-3. **配置本地模型**
+3. **Configure Local Model**
    ```bash
    ollama pull qwen3:8b
    ```
 
-4. **启动 OASIS 引擎（生产模式）**
+4. **Start Development Server**
    ```bash
+   pnpm dev
+   ```
+
+5. **Build for Production**
+   ```bash
+   pnpm build
    NODE_ENV=production npx tsx server.ts
    ```
 
-5. **访问**
-   - 前端: https://oasis-dashboard-silk.vercel.app
-   - 后端: http://localhost:3000
+---
+
+## Documentation
+
+- **[Installation & Configuration Guide](docs/INSTALL_AND_CONFIG_MANUAL.md)**: Detailed setup instructions
+- **[Developer Guide](docs/DEVELOPER_MANUAL.md)**: Code structure, API documentation, and development guidelines
+- **[OASIS Architecture](docs/OASIS_AND_ARCHITECTURE.md)**: System architecture and design principles
 
 ---
 
-## 📚 文档
+## Scripts
 
-- **[安装和配置手册](INSTALL_AND_CONFIG_MANUAL.md)**: 详细的安装和配置步骤
-- **[开发者手册](DEVELOPER_MANUAL.md)**: 代码结构、API 文档和开发指南
-- **[代码完整性检查](CODE_COMPLETENESS_CHECK.md)**: 代码质量和完整性验证报告
-- **[验证总结](verification_summary.md)**: v1.1.0 性能验证和测试结果
-
----
-
-## 🛠️ 技术栈
-
-| 类别 | 技术 |
-|------|------|
-| 前端 | React 18, TypeScript, Vite, TailwindCSS, Recharts |
-| 后端 | Node.js, Express, Socket.io, TypeScript |
-| 模拟引擎 | Python 3.11, CAMEL-AI, Ollama, Qwen3-8B |
-| 数据库 | SQLite (OASIS 内置) |
-| 部署 | Nginx, Vercel, Manus |
+```bash
+# Development
+pnpm dev              # Start development server
+pnpm dev:log          # Start with logging enabled
+pnpm build            # Build for production
+pnpm preview          # Preview production build
+pnpm lint             # Run TypeScript checks
+pnpm clean            # Clean build artifacts
+```
 
 ---
 
-## 📊 性能指标 (v1.1.0)
+## Project Status
 
-| 指标 | 值 | 说明 |
-|------|-----|------|
-| Qwen3-8B 加载时间 | 0.26 秒 | 首次加载 |
-| OASIS 初始化时间 | 9.75 秒 | 1 个 agent |
-| Step 1 执行时间 | 1.08 秒 | 真实 LLM 调用 |
-| Step 2-5 平均时间 | 0.14 秒 | 真实 LLM 调用 |
-| 超时限制 | 30 秒 | 用户体验优化 |
+This project is currently under active development and has not yet been deployed to production environments.
 
 ---
 
-## 🚀 在线演示
+## Resources
 
-- **前端 Dashboard**: https://oasis-dashboard-silk.vercel.app
-- **后端 API**: https://3000-ijgxvyou3aujd04xdhd8y-99d67713.us2.manus.computer
-
----
-
-## 🤝 贡献
-
-我们欢迎任何形式的贡献！请在提交 Pull Request 前阅读 `CONTRIBUTING.md`。
+- **[CAMEL-AI OASIS](https://github.com/camel-ai/oasis)**: Core simulation framework
+- **[Ollama](https://ollama.ai)**: Local LLM runtime
+- **[Qwen](https://github.com/QwenLM/Qwen)**: Large language model
 
 ---
 
-## 📄 许可证
+<div align="center">
 
-本项目采用 [MIT 许可证](LICENSE)。
+**Built with ❤️ by SWJTU Development Squad**
 
----
-
-## 🔗 相关链接
-
-- **CAMEL-AI OASIS**: https://github.com/camel-ai/oasis
-- **Ollama**: https://ollama.ai
-- **Qwen2.5**: https://github.com/QwenLM/Qwen2.5
-
----
-
-## 📧 联系我们
-
-如有问题或建议，请通过以下方式联系：
-- GitHub Issues: https://github.com/SWJTU-AI-Lab/oasis-dashboard/issues
-- Email: oasis@swjtu.edu.cn
+</div>
