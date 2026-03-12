@@ -1,10 +1,18 @@
 <div align="center">
 
-<img src="public/banner.png" alt="OASIS Dashboard Banner"/>
+<img src="public/banner.png" alt="OASIS Dashboard Banner" width="500"/>
 
 # OASIS Dashboard
 
 **A Professional Web Platform for OASIS Simulation Engine Monitoring and Control**
+
+![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Node](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)
+![React](https://img.shields.io/badge/React-19-61DAFB)
+![Python](https://img.shields.io/badge/Python-3.11%2B-yellow)
+![License](https://img.shields.io/badge/license-Proprietary-red)
+![Status](https://img.shields.io/badge/status-Active%20Development-yellow)
 
 </div>
 
@@ -33,6 +41,25 @@
 ---
 
 ## Tech Stack
+
+### Frontend
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+
+### Backend
+![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white)
+
+### Simulation Engine
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Ollama](https://img.shields.io/badge/Ollama-000000?style=for-the-badge&logo=ollama&logoColor=white)
+
+### Tools & Platforms
+![Git](https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white)
+![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)
 
 | Category | Technology |
 |----------|-----------|
@@ -124,11 +151,27 @@ pnpm clean            # Clean build artifacts
 
 ## Project Status
 
+![Development Status](https://img.shields.io/badge/status-Active%20Development-yellow)
+![Environment](https://img.shields.io/badge/environment-Development-orange)
+![Deployment](https://img.shields.io/badge/deployment-Not%20Deployed-red)
+
 This project is currently under active development and has not yet been deployed to production environments.
 
 ---
 
+## Metrics
+
+![GitHub commit activity](https://img.shields.io/github/commit-activity/t/swjtu-dev-squad/oasis-dashboard)
+![GitHub last commit](https://img.shields.io/github/last-commit/swjtu-dev-squad/oasis-dashboard)
+![GitHub repo size](https://img.shields.io/github/repo-size/swjtu-dev-squad/oasis-dashboard)
+
+---
+
 ## Resources
+
+![CAMEL-AI](https://img.shields.io/badge/CAMEL--AI-OASIS-blue?logo=python)
+![Ollama](https://img.shields.io/badge/Ollama-LLM-black?logo=ollama)
+![Qwen](https://img.shields.io/badge/Qwen-Model-green)
 
 - **[CAMEL-AI OASIS](https://github.com/camel-ai/oasis)**: Core simulation framework
 - **[Ollama](https://ollama.ai)**: Local LLM runtime
@@ -137,6 +180,9 @@ This project is currently under active development and has not yet been deployed
 ---
 
 <div align="center">
+
+![Made with](https://img.shields.io/badge/Made%20with-❤️-red)
+![Team](https://img.shields.io/badge/Team-SWJTU%20Development%20Squad-blue)
 
 **Built with ❤️ by SWJTU Development Squad**
 
