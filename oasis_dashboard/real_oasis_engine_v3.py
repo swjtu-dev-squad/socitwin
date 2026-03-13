@@ -23,8 +23,7 @@ from datetime import datetime
 # 监控导入时间
 import_start = time.time()
 
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
+from camel.messages import BaseMessage
 
 import oasis
 from oasis import (
@@ -32,11 +31,18 @@ from oasis import (
     AgentGraph,
     LLMAction,
     ManualAction,
-    SocialAgent,
     UserInfo,
     make,
     DefaultPlatformType,
 )
+
+from oasis_dashboard.context import (
+    ContextRuntimeSettings,
+    ContextSocialAgent,
+    ModelRuntimeSpec,
+    build_shared_model,
+)
+from oasis_dashboard.context.config import compression_config_for_platform
 
 
 class RealOASISEngineV3:
@@ -134,6 +140,48 @@ class RealOASISEngineV3:
         region_suffix = f" from {region.title()}."
         return base_instruction + region_suffix
 
+    def _build_model_runtime_spec(self) -> ModelRuntimeSpec | list[ModelRuntimeSpec]:
+        generation_max_tokens = int(
+            os.environ.get("OASIS_MODEL_GENERATION_MAX_TOKENS", "512")
+        )
+        declared_context_window = os.environ.get("OASIS_MODEL_CONTEXT_WINDOW")
+        context_token_limit = os.environ.get("OASIS_CONTEXT_TOKEN_LIMIT")
+        timeout = os.environ.get("OASIS_MODEL_TIMEOUT")
+        max_retries = int(os.environ.get("OASIS_MODEL_MAX_RETRIES", "3"))
+        api_key = os.environ.get("OASIS_MODEL_API_KEY")
+        url = os.environ.get("OASIS_MODEL_URL")
+        urls = [
+            item.strip()
+            for item in os.environ.get("OASIS_MODEL_URLS", "").split(",")
+            if item.strip()
+        ]
+
+        default_model_config: dict[str, Any] = {}
+        if self.model_platform.lower() == "ollama":
+            default_model_config["temperature"] = 0.4
+
+        base_kwargs = dict(
+            model_platform=self.model_platform,
+            model_type=self.model_type,
+            model_config_dict=default_model_config,
+            api_key=api_key,
+            timeout=float(timeout) if timeout else None,
+            max_retries=max_retries,
+            generation_max_tokens=generation_max_tokens,
+            declared_context_window=(
+                int(declared_context_window)
+                if declared_context_window
+                else None
+            ),
+            context_token_limit=(
+                int(context_token_limit) if context_token_limit else None
+            ),
+        )
+
+        if urls:
+            return [ModelRuntimeSpec(url=item, **base_kwargs) for item in urls]
+        return ModelRuntimeSpec(url=url, **base_kwargs)
+
     async def initialize(
         self,
         agent_count: int = 10,
@@ -170,20 +218,8 @@ class RealOASISEngineV3:
             else:
                 regions = ["General"]
 
-            # 创建模型
-            if self.model_platform.lower() == "ollama":
-                self.model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OLLAMA,
-                    model_type=self.model_type,
-                    model_config_dict={
-                        "temperature": 0.4,  # 降低温度使内容更聚焦主题
-                    },
-                )
-            else:
-                self.model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OPENAI,
-                    model_type=ModelType.GPT_4O_MINI,
-                )
+            resolved_model = build_shared_model(self._build_model_runtime_spec())
+            self.model = resolved_model.model
 
             # 定义可用动作
             # REFRESH 是必须的，让agents获取推荐内容
@@ -196,6 +232,8 @@ class RealOASISEngineV3:
 
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
+
+            compression = compression_config_for_platform(platform)
 
             # 创建 agents
             for i in range(agent_count):
@@ -218,18 +256,36 @@ class RealOASISEngineV3:
                     }
                 }
 
-                agent = SocialAgent(
-                    agent_id=i,
-                    user_info=UserInfo(
-                        user_name=f"agent_{i}",
-                        name=f"Agent {i}",
-                        description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
-                        profile=agent_profile,  # 设置正确的profile
-                        recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
+                user_info = UserInfo(
+                    user_name=f"agent_{i}",
+                    name=f"Agent {i}",
+                    description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
+                    profile=agent_profile,  # 设置正确的profile
+                    recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
+                )
+                system_message = BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content=user_info.to_system_message(),
+                )
+                context_settings = ContextRuntimeSettings(
+                    token_counter=resolved_model.token_counter,
+                    system_message=system_message,
+                    context_token_limit=resolved_model.context_token_limit,
+                    observation_soft_limit=max(
+                        1024, int(resolved_model.context_token_limit * 0.75)
                     ),
+                    observation_hard_limit=resolved_model.context_token_limit,
+                    compression=compression,
+                )
+                context_settings.validate()
+
+                agent = ContextSocialAgent(
+                    agent_id=i,
+                    user_info=user_info,
                     agent_graph=self.agent_graph,
                     model=self.model,
                     available_actions=available_actions,
+                    context_settings=context_settings,
                 )
                 self.agent_graph.add_agent(agent)
                 self.agents.append(agent)
