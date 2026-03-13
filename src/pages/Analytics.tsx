@@ -41,44 +41,92 @@ export default function Analytics() {
     }));
   }, [history]);
 
-  const distributionData = [
-    { name: '极左', value: 15, color: '#f43f5e' },
-    { name: '中立', value: 45, color: '#71717a' },
-    { name: '极右', value: 40, color: '#3b82f6' },
-  ];
+  // Calculate polarization trend from history data
+  const polarizationTrend = useMemo(() => {
+    if (history.length < 2) return '0%';
+    const prev = history[history.length - 2].polarization;
+    const curr = status.polarization;
+    const change = ((curr - prev) / (prev || 1)) * 100;
+    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
+  }, [history, status.polarization]);
+
+  // Calculate information velocity from posts and time
+  const informationVelocity = useMemo(() => {
+    if (history.length === 0) return { value: '0 msg/s', trend: '0%' };
+
+    // Calculate posts per second from last step
+    const lastEntry = history[history.length - 1];
+    const prevEntry = history[history.length - 2] || { timestamp: Date.now(), totalPosts: 0 };
+
+    const timeDiff = (lastEntry.timestamp - prevEntry.timestamp) / 1000; // seconds
+    const postsDiff = lastEntry.totalPosts - prevEntry.totalPosts;
+
+    if (timeDiff <= 0) return { value: '0 msg/s', trend: '0%' };
+
+    const velocity = Math.round(postsDiff / timeDiff);
+
+    // Calculate trend (compare with previous)
+    const prevPrevEntry = history[history.length - 3] || prevEntry;
+    const prevTimeDiff = (prevEntry.timestamp - prevPrevEntry.timestamp) / 1000;
+    const prevPostsDiff = prevEntry.totalPosts - (prevPrevEntry.totalPosts || 0);
+    const prevVelocity = prevTimeDiff > 0 ? prevPostsDiff / prevTimeDiff : 0;
+
+    const trendPercent = prevVelocity > 0
+      ? ((velocity - prevVelocity) / prevVelocity) * 100
+      : 0;
+
+    return {
+      value: `${velocity} msg/s`,
+      trend: `${trendPercent > 0 ? '+' : ''}${trendPercent.toFixed(0)}%`,
+    };
+  }, [history]);
+
+  // Opinion distribution - zeros until agents have ideology attributes
+  // TODO: Calculate from agent ideology when available
+  // Currently agents don't have ideology/political leaning attributes
+  // Leave as zeros until backend adds this data
+  const opinionDistribution = useMemo(() => {
+    return [
+      { name: '极左', value: 0, color: '#f43f5e' },
+      { name: '中立', value: 0, color: '#71717a' },
+      { name: '极右', value: 0, color: '#3b82f6' },
+    ];
+  }, []);
 
   const metrics = [
-    { 
-      label: '群体极化率', 
-      value: `${(status.polarization * 100).toFixed(1)}%`, 
-      trend: '+2.4%', 
-      up: true,
+    {
+      label: '群体极化率',
+      value: `${(status.polarization * 100).toFixed(1)}%`,
+      trend: polarizationTrend,
+      up: !polarizationTrend.startsWith('-'),
       icon: Zap,
       color: 'text-rose-500'
     },
-    { 
-      label: '信息传播速度', 
-      value: '142 msg/s', 
-      trend: '+12%', 
-      up: true,
+    {
+      label: '信息传播速度',
+      value: informationVelocity.value,
+      trend: informationVelocity.trend,
+      up: !informationVelocity.trend.startsWith('-'),
       icon: TrendingUp,
       color: 'text-emerald-500'
     },
-    { 
-      label: '从众效应指数', 
-      value: '0.64', 
-      trend: '-0.05', 
-      up: false,
+    {
+      label: '从众效应指数',
+      value: 'Coming Soon',
+      trend: null,
+      up: null,
       icon: Users,
-      color: 'text-blue-500'
+      color: 'text-text-muted',
+      disabled: true,
     },
-    { 
-      label: 'A/B 测试偏差', 
-      value: '1.2%', 
-      trend: '稳定', 
+    {
+      label: 'A/B 测试偏差',
+      value: 'Coming Soon',
+      trend: null,
       up: null,
       icon: Activity,
-      color: 'text-zinc-500'
+      color: 'text-text-muted',
+      disabled: true,
     },
   ];
 
@@ -87,18 +135,18 @@ export default function Analytics() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <BarChart3 className="w-10 h-10 text-emerald-500" />
+            <BarChart3 className="w-10 h-10 text-accent" />
             分析仪表板
           </h1>
-          <p className="text-zinc-500 mt-1">深度解析模拟数据，洞察群体行为规律</p>
+          <p className="text-text-tertiary mt-1">深度解析模拟数据，洞察群体行为规律</p>
         </div>
         <div className="flex gap-4">
-          <Button variant="outline" className="rounded-xl border-zinc-800 h-10 text-xs gap-2">
+          <Button variant="outline" className="rounded-xl border-border-default h-10 text-xs gap-2">
             <Share2 className="w-4 h-4" />
             生成报告
           </Button>
           <Link to="/control">
-            <Button className="bg-emerald-600 hover:bg-emerald-700 rounded-xl h-10 text-xs font-bold px-6">
+            <Button className="bg-accent hover:bg-accent-hover rounded-xl h-10 text-xs font-bold px-6">
               调整模拟参数
             </Button>
           </Link>
@@ -106,16 +154,16 @@ export default function Analytics() {
       </header>
 
       {history.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-zinc-900/30 rounded-3xl border border-zinc-800 border-dashed">
-          <div className="w-32 h-32 bg-zinc-900 rounded-full flex items-center justify-center mb-8 opacity-20">
-            <Activity className="w-12 h-12 text-emerald-500" />
+        <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-bg-secondary/30 rounded-3xl border border-border-default border-dashed">
+          <div className="w-32 h-32 bg-bg-secondary rounded-full flex items-center justify-center mb-8 opacity-20">
+            <Activity className="w-12 h-12 text-accent" />
           </div>
-          <h3 className="text-2xl font-bold text-zinc-400 mb-2">暂无分析数据</h3>
-          <p className="text-sm text-zinc-600 max-w-sm mb-8">
+          <h3 className="text-2xl font-bold text-text-secondary mb-2">暂无分析数据</h3>
+          <p className="text-sm text-text-muted max-w-sm mb-8">
             模拟尚未启动或正在初始化中。启动模拟后，系统将实时收集并分析智能体的行为数据，为您呈现多维度的洞察图表。
           </p>
           <Link to="/control">
-            <Button className="bg-emerald-600 hover:bg-emerald-700 rounded-xl px-10 h-12 font-bold gap-2">
+            <Button className="bg-accent hover:bg-accent-hover rounded-xl px-10 h-12 font-bold gap-2">
               <Zap className="w-4 h-4" />
               立即启动模拟
             </Button>
@@ -124,12 +172,21 @@ export default function Analytics() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {metrics.map((m, i) => (
-            <Card key={i} className="p-6 bg-zinc-900 border-zinc-800 hover:border-zinc-700 transition-all group">
+            <Card
+              key={i}
+              className={cn(
+                "p-6 bg-bg-secondary border-border-default transition-all group",
+                m.disabled ? "opacity-50" : "hover:border-border-strong"
+              )}
+            >
               <div className="flex justify-between items-start mb-4">
-                <div className="p-2 bg-zinc-950 rounded-lg border border-zinc-800 group-hover:border-zinc-700 transition-colors">
+                <div className={cn(
+                  "p-2 rounded-lg border transition-colors",
+                  m.disabled ? "bg-bg-primary border-border-default" : "bg-bg-primary border-border-default group-hover:border-border-strong"
+                )}>
                   <m.icon className={cn("w-5 h-5", m.color)} />
                 </div>
-                {m.up !== null && (
+                {!m.disabled && m.up !== null && (
                   <Badge variant="outline" className={cn(
                     "text-[10px] gap-1",
                     m.up ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/5" : "text-rose-500 border-rose-500/20 bg-rose-500/5"
@@ -139,17 +196,20 @@ export default function Analytics() {
                   </Badge>
                 )}
               </div>
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">{m.label}</p>
-              <h3 className="text-3xl font-bold tracking-tighter text-zinc-100">{m.value}</h3>
+              <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-1">{m.label}</p>
+              <h3 className={cn(
+                "text-3xl font-bold tracking-tighter",
+                m.disabled ? "text-text-muted" : "text-text-primary"
+              )}>{m.value}</h3>
             </Card>
           ))}
 
           {/* Polarization Trend */}
-          <Card className="md:col-span-2 lg:col-span-3 p-6 bg-zinc-900 border-zinc-800 flex flex-col h-[400px]">
+          <Card className="md:col-span-2 lg:col-span-3 p-6 bg-bg-secondary border-border-default flex flex-col h-[400px]">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-rose-500" />
-                <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">群体极化演化趋势</h3>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">群体极化演化趋势</h3>
               </div>
               <div className="flex gap-2">
                 <Badge variant="outline" className="bg-rose-500/10 border-rose-500/20 text-rose-500 text-[10px]">实时监控</Badge>
@@ -158,35 +218,35 @@ export default function Analytics() {
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={polarizationData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#18181b" vertical={false} />
-                  <XAxis 
-                    dataKey="time" 
-                    stroke="#3f3f46" 
-                    fontSize={10} 
-                    tickLine={false} 
+                  <CartesianGrid strokeDasharray="3 3" stroke="#24201E" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
                     axisLine={false}
                     minTickGap={30}
                   />
-                  <YAxis 
-                    stroke="#3f3f46" 
-                    fontSize={10} 
-                    tickLine={false} 
-                    axisLine={false} 
+                  <YAxis
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
                     domain={[0, 1]}
                     tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
                   />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
-                    itemStyle={{ color: '#f43f5e', fontSize: '12px', fontWeight: 'bold' }}
-                    labelStyle={{ color: '#71717a', fontSize: '10px', marginBottom: '4px' }}
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
+                    itemStyle={{ color: '#D72638', fontSize: '12px', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#1A1A1A', fontSize: '10px', marginBottom: '4px' }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#f43f5e" 
-                    strokeWidth={3} 
-                    dot={false} 
-                    activeDot={{ r: 6, strokeWidth: 0, fill: '#f43f5e' }}
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#D72638"
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: '#D72638' }}
                     animationDuration={1000}
                   />
                 </LineChart>
@@ -195,30 +255,30 @@ export default function Analytics() {
           </Card>
 
           {/* Opinion Distribution */}
-          <Card className="p-6 bg-zinc-900 border-zinc-800 flex flex-col h-[400px]">
+          <Card className="p-6 bg-bg-secondary border-border-default flex flex-col h-[400px]">
             <div className="flex items-center gap-2 mb-6">
-              <PieChartIcon className="w-4 h-4 text-emerald-500" />
-              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">观点分布矩阵</h3>
+              <PieChartIcon className="w-4 h-4 text-accent" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">观点分布矩阵</h3>
             </div>
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={distributionData} layout="vertical">
+                <BarChart data={opinionDistribution} layout="vertical">
                   <XAxis type="number" hide />
-                  <YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    stroke="#71717a" 
-                    fontSize={10} 
-                    tickLine={false} 
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    stroke="#1A1A1A"
+                    fontSize={10}
+                    tickLine={false}
                     axisLine={false}
                     width={40}
                   />
-                  <Tooltip 
+                  <Tooltip
                     cursor={{ fill: 'transparent' }}
-                    contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                    contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
                   />
                   <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={32}>
-                    {distributionData.map((entry, index) => (
+                    {opinionDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Bar>
@@ -226,82 +286,56 @@ export default function Analytics() {
               </ResponsiveContainer>
             </div>
             <div className="mt-4 space-y-2">
-              {distributionData.map((d, i) => (
+              {opinionDistribution.map((d, i) => (
                 <div key={i} className="flex justify-between items-center text-[10px]">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }}></div>
-                    <span className="text-zinc-400 font-bold">{d.name}</span>
+                    <span className="text-text-secondary font-bold">{d.name}</span>
                   </div>
-                  <span className="text-zinc-100 font-mono">{d.value}%</span>
+                  <span className="text-text-primary font-mono">{d.value}%</span>
                 </div>
               ))}
             </div>
           </Card>
 
           {/* Propagation Analysis */}
-          <Card className="md:col-span-2 p-6 bg-zinc-900 border-zinc-800">
+          <Card className="md:col-span-2 p-6 bg-bg-secondary border-border-default">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-emerald-500" />
-                <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">传播节点分析</h3>
+                <Zap className="w-4 h-4 text-accent" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">传播节点分析</h3>
               </div>
-              <Button variant="ghost" className="h-8 text-[10px] text-zinc-500 hover:text-zinc-300">查看完整拓扑</Button>
             </div>
-            <div className="space-y-4">
-              {[1, 2, 3].map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800/50 hover:border-emerald-500/30 transition-colors cursor-pointer group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-zinc-900 flex items-center justify-center text-xs font-bold text-zinc-600 group-hover:text-emerald-500 transition-colors">
-                      #{i + 1}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-zinc-200">Agent_X{i * 42}</p>
-                      <p className="text-[10px] text-zinc-600">影响力指数: 0.9{8-i}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-emerald-500">关键传播者</p>
-                    <p className="text-[9px] text-zinc-700">触达 1.2k 节点</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-center h-48 text-text-tertiary">
+              <div className="text-center">
+                <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">传播节点分析</p>
+                <p className="text-xs mt-1 opacity-70">Coming Soon</p>
+                <p className="text-[9px] mt-2 text-text-muted max-w-xs mx-auto">
+                  需要后端实现社交网络分析算法
+                </p>
+              </div>
             </div>
           </Card>
 
           {/* A/B Test Results */}
-          <Card className="md:col-span-2 p-6 bg-zinc-900 border-zinc-800">
+          <Card className="md:col-span-2 p-6 bg-bg-secondary border-border-default">
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
                 <Info className="w-4 h-4 text-blue-500" />
-                <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">A/B 测试对比 (算法干预)</h3>
-              </div>
-              <Badge variant="outline" className="text-[10px] border-blue-500/20 text-blue-500">进行中</Badge>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800">
-                <p className="text-[10px] font-bold text-zinc-600 uppercase mb-2">组 A (对照组)</p>
-                <div className="flex items-end gap-2 mb-1">
-                  <span className="text-2xl font-bold text-zinc-200">0.42</span>
-                  <span className="text-[10px] text-zinc-600 mb-1">极化率</span>
-                </div>
-                <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden">
-                  <div className="bg-zinc-600 h-full" style={{ width: '42%' }}></div>
-                </div>
-              </div>
-              <div className="p-4 bg-zinc-950 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
-                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-2">组 B (干预组)</p>
-                <div className="flex items-end gap-2 mb-1">
-                  <span className="text-2xl font-bold text-emerald-500">0.28</span>
-                  <span className="text-[10px] text-emerald-600 mb-1">极化率</span>
-                </div>
-                <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full" style={{ width: '28%' }}></div>
-                </div>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">A/B 测试对比 (算法干预)</h3>
               </div>
             </div>
-            <p className="mt-4 text-[10px] text-zinc-600 leading-relaxed italic">
-              * 算法干预组通过调整推荐权重，成功将极化增长率降低了 33.3%。
-            </p>
+            <div className="flex items-center justify-center h-48 text-text-tertiary">
+              <div className="text-center">
+                <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">A/B 测试对比</p>
+                <p className="text-xs mt-1 opacity-70">Coming Soon</p>
+                <p className="text-[9px] mt-2 text-text-muted max-w-xs mx-auto">
+                  需要后端实现分组测试基础设施
+                </p>
+              </div>
+            </div>
           </Card>
         </div>
       )}

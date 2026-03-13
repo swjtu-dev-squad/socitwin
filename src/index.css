@@ -1,1 +1,92 @@
 @import "tailwindcss";
+
+@theme {
+  /* Base Backgrounds */
+  --color-bg-primary: #0D0D0D;
+  --color-bg-secondary: #1A1614;
+  --color-bg-tertiary: #1A1A1A;
+  --color-bg-elevated: #24201E;
+
+  /* Primary Accents */
+  --color-accent: #D72638;
+  --color-accent-hover: #E63946;
+  --color-accent-light: #FF8C42;
+  --color-accent-subtle: rgba(215, 38, 56, 0.1);
+  --color-accent-glow: rgba(244, 96, 54, 0.3);
+
+  /* Text Colors */
+  --color-text-primary: rgba(255, 255, 255, 0.95);
+  --color-text-secondary: rgba(255, 255, 255, 0.70);
+  --color-text-tertiary: rgba(255, 255, 255, 0.50);
+  --color-text-muted: rgba(255, 255, 255, 0.30);
+
+  /* Border Colors */
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
+
+  /* Status Colors (Preserved for semantic meaning) */
+  --color-status-success: #10B981;
+  --color-status-warning: #F59E0B;
+  --color-status-error: #EF4444;
+  --color-status-info: #3B82F6;
+}
+
+/* Global Utility Classes */
+.glass-effect {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.glow-effect {
+  box-shadow: 0 0 15px rgba(255, 140, 66, 0.3);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #D72638 0%, #F46036 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #D72638 0%, #F46036 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-bg-primary);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}

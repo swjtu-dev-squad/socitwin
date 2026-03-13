@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch server.ts",
+    "dev:log": "mkdir -p dev-logs && tsx watch server.ts 2>&1 | tee \"dev-logs/dev-$(date +%Y%m%d-%H%M).log\"",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",

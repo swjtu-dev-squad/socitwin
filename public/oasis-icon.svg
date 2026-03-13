@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- 极简 OASIS 图标 - 绿洲网络概念 -->
+  <!-- 外圆 - 代表社区完整性 -->
+  <circle cx="50" cy="50" r="45" fill="currentColor"/>
+
+  <!-- 中心空白圆 - 代表绿洲中心 -->
+  <circle cx="50" cy="50" r="20" fill="white"/>
+
+  <!-- 水滴形状 - 代表生命之源 -->
+  <path d="M50 35 Q58 42 58 50 Q58 58 50 58 Q42 58 42 50 Q42 42 50 35Z" fill="white"/>
+
+  <!-- 四个外围节点 - 代表社交网络连接 -->
+  <circle cx="50" cy="15" r="6" fill="white"/>
+  <circle cx="50" cy="85" r="6" fill="white"/>
+  <circle cx="15" cy="50" r="6" fill="white"/>
+  <circle cx="85" cy="50" r="6" fill="white"/>
+</svg>
