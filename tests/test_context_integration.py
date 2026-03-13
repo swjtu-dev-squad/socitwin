@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import patch
 import unittest
 
 from camel.messages import BaseMessage
@@ -17,6 +18,7 @@ from oasis_dashboard.context import (
 from oasis_dashboard.context.config import compression_config_for_platform
 from oasis_dashboard.context.environment import ContextSocialEnvironment
 from oasis_dashboard.context.tokens import HeuristicUnicodeTokenCounter
+from oasis_dashboard.context_smoke import build_parser, run_context_smoke
 from oasis_dashboard.real_oasis_engine_v3 import RealOASISEngineV3
 
 
@@ -320,6 +322,163 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(result["context_metrics"]["avg_context_tokens"], 111)
         self.assertEqual(len(engine.logs), 1)
         self.assertIn("context_metrics", engine.logs[0])
+
+    def test_engine_initialize_and_multi_step_with_stub_runtime(self):
+        class FakeEnv:
+            def __init__(self, agent_graph):
+                self.agent_graph = agent_graph
+
+            async def reset(self):
+                return None
+
+            async def step(self, batch_actions):
+                return None
+
+        stub_model = ModelFactory.create(
+            model_platform=ModelPlatformType.OPENAI,
+            model_type=ModelType.STUB,
+            token_counter=HeuristicUnicodeTokenCounter(),
+        )
+        fake_runtime = type(
+            "ResolvedRuntime",
+            (),
+            {
+                "model": stub_model,
+                "token_counter": HeuristicUnicodeTokenCounter(),
+                "context_token_limit": 4096,
+                "generation_max_tokens": 512,
+            },
+        )()
+
+        def fake_make(agent_graph, platform, database_path):
+            del platform, database_path
+            return FakeEnv(agent_graph)
+
+        engine = RealOASISEngineV3(db_path="/tmp/oasis-dashboard-test.db")
+        with patch(
+            "oasis_dashboard.real_oasis_engine_v3.build_shared_model",
+            return_value=fake_runtime,
+        ), patch(
+            "oasis_dashboard.real_oasis_engine_v3.make",
+            side_effect=fake_make,
+        ):
+            init_result = asyncio.run(
+                engine.initialize(
+                    agent_count=2,
+                    platform="reddit",
+                    topics=["AI"],
+                    regions=["General"],
+                )
+            )
+
+        self.assertEqual(init_result["status"], "ok")
+        self.assertEqual(init_result["context_token_limit"], 4096)
+        self.assertEqual(init_result["generation_max_tokens"], 512)
+        self.assertEqual(len(engine.agents), 2)
+        self.assertTrue(all(isinstance(agent, ContextSocialAgent) for agent in engine.agents))
+
+        for agent in engine.agents:
+            agent.env.last_render_stats = {
+                "chars_before": 600,
+                "chars_after": 240,
+                "truncated_field_count": 1,
+                "placeholder_field_count": 0,
+                "comments_omitted_count": 2,
+                "groups_omitted_count": 0,
+            }
+
+        engine._get_actual_post_count = lambda: 5
+        engine._get_real_agent_actions = lambda: [{"kind": "noop"}]
+
+        first = asyncio.run(engine.step())
+        second = asyncio.run(engine.step())
+
+        self.assertEqual(first["status"], "ok")
+        self.assertEqual(second["status"], "ok")
+        self.assertEqual(first["current_step"], 1)
+        self.assertEqual(second["current_step"], 2)
+        self.assertEqual(first["context_metrics"]["agent_count"], 2)
+        self.assertEqual(second["context_metrics"]["agent_count"], 2)
+        self.assertEqual(second["context_metrics"]["avg_chars_after"], 240)
+        self.assertEqual(len(engine.logs), 2)
+
+    def test_context_smoke_runner_collects_steps(self):
+        class FakeEngine:
+            def __init__(self, model_platform, model_type, db_path):
+                self.model_platform = model_platform
+                self.model_type = model_type
+                self.db_path = db_path
+                self.reset_called = False
+                self.step_count = 0
+
+            async def initialize(
+                self,
+                agent_count,
+                platform,
+                recsys,
+                topic,
+                topics,
+                regions,
+            ):
+                return {
+                    "status": "ok",
+                    "agent_count": agent_count,
+                    "platform": platform,
+                    "topics": topics or [topic],
+                    "regions": regions or ["General"],
+                    "context_token_limit": 4096,
+                    "generation_max_tokens": 512,
+                }
+
+            async def step(self):
+                self.step_count += 1
+                return {
+                    "status": "ok",
+                    "current_step": self.step_count,
+                    "total_posts": 10 + self.step_count,
+                    "step_time": 0.25,
+                    "context_metrics": {
+                        "avg_context_tokens": 222,
+                        "max_context_tokens": 333,
+                        "avg_memory_records": 4,
+                        "avg_retrieve_ms": 1.25,
+                    },
+                }
+
+            async def reset(self):
+                self.reset_called = True
+                return {"status": "ok"}
+
+        args = build_parser().parse_args(
+            [
+                "--model-platform",
+                "ollama",
+                "--model-type",
+                "qwen3:8b",
+                "--agent-count",
+                "2",
+                "--steps",
+                "2",
+                "--platform",
+                "reddit",
+                "--topics",
+                "AI",
+                "--regions",
+                "General",
+            ]
+        )
+        with patch(
+            "oasis_dashboard.context_smoke.RealOASISEngineV3",
+            FakeEngine,
+        ):
+            result = asyncio.run(run_context_smoke(args))
+
+        self.assertEqual(result["init"]["agent_count"], 2)
+        self.assertEqual(len(result["steps"]), 2)
+        self.assertEqual(result["steps"][1]["step"], 2)
+        self.assertEqual(
+            result["steps"][1]["context_metrics"]["avg_context_tokens"], 222
+        )
 
 
 if __name__ == "__main__":
