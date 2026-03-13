@@ -109,6 +109,8 @@ class RealOASISEngineV3:
         self.total_posts = 0
         self.active_agents = 0
         self.is_running = False
+        self.context_token_limit: Optional[int] = None
+        self.generation_max_tokens: Optional[int] = None
         
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
@@ -220,6 +222,8 @@ class RealOASISEngineV3:
 
             resolved_model = build_shared_model(self._build_model_runtime_spec())
             self.model = resolved_model.model
+            self.context_token_limit = resolved_model.context_token_limit
+            self.generation_max_tokens = resolved_model.generation_max_tokens
 
             # 定义可用动作
             # REFRESH 是必须的，让agents获取推荐内容
@@ -330,6 +334,8 @@ class RealOASISEngineV3:
                 "regions": regions,
                 "topic": primary_topic,  # 向后兼容
                 "init_time": init_time,
+                "context_token_limit": self.context_token_limit,
+                "generation_max_tokens": self.generation_max_tokens,
                 "agents": [
                     {
                         "id": i,
@@ -400,12 +406,14 @@ class RealOASISEngineV3:
             step_time = time.time() - step_start
 
             # 记录内部日志
+            context_metrics = self._collect_context_metrics()
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "step": self.current_step,
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
+                "context_metrics": context_metrics,
             }
             self.logs.append(log_entry)
 
@@ -418,6 +426,7 @@ class RealOASISEngineV3:
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
+                "context_metrics": context_metrics,
                 "new_logs": new_logs,  # ← 返回所有日志
             }
             
@@ -495,6 +504,105 @@ class RealOASISEngineV3:
             import traceback
             traceback.print_exc()
             return self._get_fallback_logs(f"Error: {str(e)}")
+
+    def _collect_context_metrics(self) -> Dict[str, Any]:
+        metrics: Dict[str, Any] = {
+            "agent_count": len(self.agents),
+            "avg_chars_before": 0,
+            "avg_chars_after": 0,
+            "max_chars_before": 0,
+            "max_chars_after": 0,
+            "total_truncated_fields": 0,
+            "total_placeholder_fields": 0,
+            "total_comments_omitted": 0,
+            "total_groups_omitted": 0,
+            "avg_context_tokens": 0,
+            "max_context_tokens": 0,
+            "avg_memory_records": 0,
+            "max_memory_records": 0,
+            "avg_get_context_ms": 0.0,
+            "max_get_context_ms": 0.0,
+            "avg_retrieve_ms": 0.0,
+            "max_retrieve_ms": 0.0,
+            "context_token_errors": 0,
+            "memory_retrieve_errors": 0,
+        }
+        if not self.agents:
+            return metrics
+
+        chars_before = []
+        chars_after = []
+        context_tokens = []
+        memory_records = []
+        get_context_timings = []
+        retrieve_timings = []
+
+        for agent in self.agents:
+            render_stats = getattr(getattr(agent, "env", None), "last_render_stats", None)
+            if isinstance(render_stats, dict):
+                chars_before.append(render_stats.get("chars_before", 0))
+                chars_after.append(render_stats.get("chars_after", 0))
+                metrics["total_truncated_fields"] += render_stats.get(
+                    "truncated_field_count", 0
+                )
+                metrics["total_placeholder_fields"] += render_stats.get(
+                    "placeholder_field_count", 0
+                )
+                metrics["total_comments_omitted"] += render_stats.get(
+                    "comments_omitted_count", 0
+                )
+                metrics["total_groups_omitted"] += render_stats.get(
+                    "groups_omitted_count", 0
+                )
+
+            memory = getattr(agent, "memory", None)
+            if memory is None:
+                continue
+            try:
+                start = time.perf_counter()
+                _, token_count = memory.get_context()
+                get_context_timings.append(
+                    (time.perf_counter() - start) * 1000
+                )
+                context_tokens.append(token_count)
+            except Exception:
+                metrics["context_token_errors"] += 1
+
+            try:
+                start = time.perf_counter()
+                memory_records.append(len(memory.retrieve()))
+                retrieve_timings.append((time.perf_counter() - start) * 1000)
+            except Exception:
+                metrics["memory_retrieve_errors"] += 1
+
+        if chars_before:
+            metrics["avg_chars_before"] = int(sum(chars_before) / len(chars_before))
+            metrics["max_chars_before"] = max(chars_before)
+        if chars_after:
+            metrics["avg_chars_after"] = int(sum(chars_after) / len(chars_after))
+            metrics["max_chars_after"] = max(chars_after)
+        if context_tokens:
+            metrics["avg_context_tokens"] = int(
+                sum(context_tokens) / len(context_tokens)
+            )
+            metrics["max_context_tokens"] = max(context_tokens)
+        if memory_records:
+            metrics["avg_memory_records"] = int(
+                sum(memory_records) / len(memory_records)
+            )
+            metrics["max_memory_records"] = max(memory_records)
+        if get_context_timings:
+            metrics["avg_get_context_ms"] = round(
+                sum(get_context_timings) / len(get_context_timings), 3
+            )
+            metrics["max_get_context_ms"] = round(max(get_context_timings), 3)
+        if retrieve_timings:
+            metrics["avg_retrieve_ms"] = round(
+                sum(retrieve_timings) / len(retrieve_timings), 3
+            )
+            metrics["max_retrieve_ms"] = round(max(retrieve_timings), 3)
+
+        return metrics
 
     def _read_posts_table(self, cursor, tables) -> List[Dict]:
         """尝试读取posts相关表"""

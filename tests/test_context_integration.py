@@ -17,6 +17,7 @@ from oasis_dashboard.context import (
 from oasis_dashboard.context.config import compression_config_for_platform
 from oasis_dashboard.context.environment import ContextSocialEnvironment
 from oasis_dashboard.context.tokens import HeuristicUnicodeTokenCounter
+from oasis_dashboard.real_oasis_engine_v3 import RealOASISEngineV3
 
 
 class FakeAction:
@@ -222,6 +223,103 @@ class ContextIntegrationTests(unittest.TestCase):
             if record.memory_record.role_at_backend == OpenAIBackendRole.USER
         ]
         self.assertEqual(len(user_records), 2)
+
+    def test_engine_collects_context_metrics(self):
+        class FakeMemory:
+            def get_context(self):
+                return [], 321
+
+            def retrieve(self):
+                return [object(), object(), object()]
+
+        class FakeAgent:
+            def __init__(self):
+                self.env = type(
+                    "Env",
+                    (),
+                    {
+                        "last_render_stats": {
+                            "chars_before": 1200,
+                            "chars_after": 400,
+                            "truncated_field_count": 2,
+                            "placeholder_field_count": 1,
+                            "comments_omitted_count": 3,
+                            "groups_omitted_count": 4,
+                        }
+                    },
+                )()
+                self.memory = FakeMemory()
+
+        engine = RealOASISEngineV3()
+        engine.agents = [FakeAgent(), FakeAgent()]
+        metrics = engine._collect_context_metrics()
+        self.assertEqual(metrics["agent_count"], 2)
+        self.assertEqual(metrics["avg_chars_before"], 1200)
+        self.assertEqual(metrics["avg_chars_after"], 400)
+        self.assertEqual(metrics["avg_context_tokens"], 321)
+        self.assertEqual(metrics["avg_memory_records"], 3)
+        self.assertGreaterEqual(metrics["avg_get_context_ms"], 0.0)
+        self.assertGreaterEqual(metrics["avg_retrieve_ms"], 0.0)
+        self.assertEqual(metrics["context_token_errors"], 0)
+        self.assertEqual(metrics["memory_retrieve_errors"], 0)
+
+    def test_engine_step_returns_context_metrics(self):
+        class FakeMemory:
+            def get_context(self):
+                return [], 111
+
+            def retrieve(self):
+                return [object(), object()]
+
+        class FakeAgent:
+            def __init__(self):
+                self.env = type(
+                    "Env",
+                    (),
+                    {
+                        "last_render_stats": {
+                            "chars_before": 900,
+                            "chars_after": 300,
+                            "truncated_field_count": 1,
+                            "placeholder_field_count": 0,
+                            "comments_omitted_count": 2,
+                            "groups_omitted_count": 0,
+                        }
+                    },
+                )()
+                self.memory = FakeMemory()
+
+        class FakeAgentGraph:
+            def __init__(self, agent):
+                self._agent = agent
+
+            def get_agents(self):
+                return [(0, self._agent)]
+
+        class FakeEnv:
+            def __init__(self, agent):
+                self.agent_graph = FakeAgentGraph(agent)
+
+            async def step(self, batch_actions):
+                return None
+
+        engine = RealOASISEngineV3()
+        fake_agent = FakeAgent()
+        engine.env = FakeEnv(fake_agent)
+        engine.agents = [fake_agent]
+        engine.active_agents = 1
+        engine.is_running = True
+        engine._get_actual_post_count = lambda: 7
+        engine._get_real_agent_actions = lambda: [{"kind": "noop"}]
+
+        result = asyncio.run(engine.step())
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["current_step"], 1)
+        self.assertEqual(result["total_posts"], 7)
+        self.assertIn("context_metrics", result)
+        self.assertEqual(result["context_metrics"]["avg_context_tokens"], 111)
+        self.assertEqual(len(engine.logs), 1)
+        self.assertIn("context_metrics", engine.logs[0])
 
 
 if __name__ == "__main__":
