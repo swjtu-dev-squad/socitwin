@@ -102,6 +102,11 @@ def main() -> int:
             f"context_max={metrics['max_context_tokens']}",
             f"memory_avg={metrics['avg_memory_records']}",
             f"retrieve_avg_ms={metrics['avg_retrieve_ms']}",
+            f"user={metrics.get('total_user_records', 0)}",
+            f"assistant={metrics.get('total_assistant_records', 0)}",
+            f"assistant_fn={metrics.get('total_assistant_function_call_records', 0)}",
+            f"function={metrics.get('total_function_records', 0)}",
+            f"tool={metrics.get('total_tool_records', 0)}",
         )
     return 0
 

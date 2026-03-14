@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 import time
 from typing import Any, Optional, Union
 
@@ -17,6 +18,9 @@ from oasis.social_platform.typing import ActionType
 from .config import ContextRuntimeSettings
 from .environment import ContextSocialEnvironment
 from .memory import build_chat_history_memory
+
+
+THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 
 class ContextSocialAgent(SocialAgent):
@@ -89,8 +93,18 @@ class ContextSocialAgent(SocialAgent):
         if not isinstance(message, BaseMessage) or role is None:
             return parent_method(*args, **kwargs)
 
+        message = self._sanitize_message_for_memory(message, role)
+
         if not self._message_fits_context_limit(message, role):
-            return parent_method(*args, **kwargs)
+            delegated_kwargs = {}
+            for key in bound.arguments:
+                if key == "message":
+                    delegated_kwargs[key] = message
+                elif key == "role":
+                    delegated_kwargs[key] = role
+                elif key == "timestamp":
+                    delegated_kwargs[key] = timestamp
+            return parent_method(**delegated_kwargs)
 
         self.memory.write_record(
             MemoryRecord(
@@ -129,6 +143,23 @@ class ContextSocialAgent(SocialAgent):
         except Exception:
             return False
         return tokens <= self.context_settings.context_token_limit
+
+    def _sanitize_message_for_memory(
+        self,
+        message: BaseMessage,
+        role: OpenAIBackendRole,
+    ) -> BaseMessage:
+        if role != OpenAIBackendRole.ASSISTANT:
+            return message
+        if not isinstance(message.content, str):
+            return message
+        if "<think>" not in message.content:
+            return message
+
+        sanitized_content = THINK_BLOCK_RE.sub("", message.content).strip()
+        if sanitized_content == message.content:
+            return message
+        return message.create_new_instance(sanitized_content)
 
     def _ensure_system_message_in_memory(self) -> None:
         records = self.memory.retrieve()

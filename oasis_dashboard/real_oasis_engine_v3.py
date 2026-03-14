@@ -24,6 +24,7 @@ from datetime import datetime
 import_start = time.time()
 
 from camel.messages import BaseMessage
+from camel.types import OpenAIBackendRole
 
 import oasis
 from oasis import (
@@ -535,6 +536,12 @@ class RealOASISEngineV3:
             "max_retrieve_ms": 0.0,
             "context_token_errors": 0,
             "memory_retrieve_errors": 0,
+            "total_system_records": 0,
+            "total_user_records": 0,
+            "total_assistant_records": 0,
+            "total_function_records": 0,
+            "total_tool_records": 0,
+            "total_assistant_function_call_records": 0,
         }
         if not self.agents:
             return metrics
@@ -579,8 +586,13 @@ class RealOASISEngineV3:
 
             try:
                 start = time.perf_counter()
-                memory_records.append(len(memory.retrieve()))
+                retrieved_records = memory.retrieve()
                 retrieve_timings.append((time.perf_counter() - start) * 1000)
+                memory_records.append(len(retrieved_records))
+                self._accumulate_memory_record_metrics(
+                    metrics,
+                    retrieved_records,
+                )
             except Exception:
                 metrics["memory_retrieve_errors"] += 1
 
@@ -612,6 +624,37 @@ class RealOASISEngineV3:
             metrics["max_retrieve_ms"] = round(max(retrieve_timings), 3)
 
         return metrics
+
+    @staticmethod
+    def _accumulate_memory_record_metrics(
+        metrics: Dict[str, Any],
+        retrieved_records: List[Any],
+    ) -> None:
+        for record in retrieved_records:
+            memory_record = getattr(record, "memory_record", None)
+            if memory_record is None:
+                continue
+
+            role = getattr(memory_record, "role_at_backend", None)
+            message = getattr(memory_record, "message", None)
+            message_class = (
+                message.__class__.__name__
+                if message is not None
+                else None
+            )
+
+            if role == OpenAIBackendRole.SYSTEM:
+                metrics["total_system_records"] += 1
+            elif role == OpenAIBackendRole.USER:
+                metrics["total_user_records"] += 1
+            elif role == OpenAIBackendRole.ASSISTANT:
+                metrics["total_assistant_records"] += 1
+                if message_class == "FunctionCallingMessage":
+                    metrics["total_assistant_function_call_records"] += 1
+            elif role == OpenAIBackendRole.FUNCTION:
+                metrics["total_function_records"] += 1
+            elif role == OpenAIBackendRole.TOOL:
+                metrics["total_tool_records"] += 1
 
     def _read_posts_table(self, cursor, tables) -> List[Dict]:
         """尝试读取posts相关表"""
