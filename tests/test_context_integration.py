@@ -371,12 +371,56 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(second_pass_count, 2)
 
     def test_engine_collects_context_metrics(self):
+        assistant_role_type = BaseMessage.make_assistant_message(
+            role_name="assistant",
+            content="",
+        ).role_type
+
+        def context_record(message, role):
+            return type(
+                "ContextRecordStub",
+                (),
+                {
+                    "memory_record": MemoryRecord(
+                        message=message,
+                        role_at_backend=role,
+                    )
+                },
+            )()
+
         class FakeMemory:
             def get_context(self):
                 return [], 321
 
             def retrieve(self):
-                return [object(), object(), object()]
+                return [
+                    context_record(
+                        BaseMessage.make_assistant_message(
+                            role_name="system",
+                            content="system prompt",
+                        ),
+                        OpenAIBackendRole.SYSTEM,
+                    ),
+                    context_record(
+                        BaseMessage.make_user_message(
+                            role_name="User",
+                            content="hello",
+                        ),
+                        OpenAIBackendRole.USER,
+                    ),
+                    context_record(
+                        FunctionCallingMessage(
+                            role_name="assistant",
+                            role_type=assistant_role_type,
+                            meta_dict=None,
+                            content="",
+                            func_name="refresh",
+                            args={"limit": 5},
+                            tool_call_id="tool-1",
+                        ),
+                        OpenAIBackendRole.ASSISTANT,
+                    ),
+                ]
 
         class FakeAgent:
             def __init__(self):
@@ -404,18 +448,51 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(metrics["avg_chars_after"], 400)
         self.assertEqual(metrics["avg_context_tokens"], 321)
         self.assertEqual(metrics["avg_memory_records"], 3)
+        self.assertEqual(metrics["total_system_records"], 2)
+        self.assertEqual(metrics["total_user_records"], 2)
+        self.assertEqual(metrics["total_assistant_records"], 2)
+        self.assertEqual(metrics["total_assistant_function_call_records"], 2)
+        self.assertEqual(metrics["total_function_records"], 0)
+        self.assertEqual(metrics["total_tool_records"], 0)
         self.assertGreaterEqual(metrics["avg_get_context_ms"], 0.0)
         self.assertGreaterEqual(metrics["avg_retrieve_ms"], 0.0)
         self.assertEqual(metrics["context_token_errors"], 0)
         self.assertEqual(metrics["memory_retrieve_errors"], 0)
 
     def test_engine_step_returns_context_metrics(self):
+        def context_record(message, role):
+            return type(
+                "ContextRecordStub",
+                (),
+                {
+                    "memory_record": MemoryRecord(
+                        message=message,
+                        role_at_backend=role,
+                    )
+                },
+            )()
+
         class FakeMemory:
             def get_context(self):
                 return [], 111
 
             def retrieve(self):
-                return [object(), object()]
+                return [
+                    context_record(
+                        BaseMessage.make_assistant_message(
+                            role_name="system",
+                            content="system prompt",
+                        ),
+                        OpenAIBackendRole.SYSTEM,
+                    ),
+                    context_record(
+                        BaseMessage.make_assistant_message(
+                            role_name="assistant",
+                            content="Final answer",
+                        ),
+                        OpenAIBackendRole.ASSISTANT,
+                    ),
+                ]
 
         class FakeAgent:
             def __init__(self):
@@ -464,6 +541,8 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(result["total_posts"], 7)
         self.assertIn("context_metrics", result)
         self.assertEqual(result["context_metrics"]["avg_context_tokens"], 111)
+        self.assertEqual(result["context_metrics"]["total_system_records"], 1)
+        self.assertEqual(result["context_metrics"]["total_assistant_records"], 1)
         self.assertEqual(len(engine.logs), 1)
         self.assertIn("context_metrics", engine.logs[0])
 
