@@ -228,6 +228,66 @@ class ContextIntegrationTests(unittest.TestCase):
         ]
         self.assertEqual(len(user_records), 2)
 
+    def test_update_memory_strips_assistant_think_blocks(self):
+        model = ModelFactory.create(
+            model_platform=ModelPlatformType.OPENAI,
+            model_type=ModelType.STUB,
+            token_counter=HeuristicUnicodeTokenCounter(),
+        )
+        user_info = UserInfo(
+            user_name="agent_think",
+            name="Agent Think",
+            description="desc",
+            profile={
+                "other_info": {
+                    "user_profile": "profile",
+                    "gender": "unknown",
+                    "age": 25,
+                    "mbti": "UNKNOWN",
+                    "country": "General",
+                }
+            },
+            recsys_type="reddit",
+        )
+        settings = ContextRuntimeSettings(
+            token_counter=HeuristicUnicodeTokenCounter(),
+            system_message=BaseMessage.make_assistant_message(
+                role_name="system",
+                content=user_info.to_system_message(),
+            ),
+            context_token_limit=4096,
+            observation_soft_limit=3072,
+            observation_hard_limit=4096,
+            compression=compression_config_for_platform("reddit"),
+        )
+        agent = ContextSocialAgent(
+            agent_id=99,
+            user_info=user_info,
+            model=model,
+            available_actions=[ActionType.DO_NOTHING],
+            context_settings=settings,
+        )
+
+        agent.update_memory(
+            BaseMessage.make_assistant_message(
+                role_name="assistant",
+                content="<think>\nprivate reasoning\n</think>\nFinal answer",
+            ),
+            OpenAIBackendRole.ASSISTANT,
+        )
+
+        assistant_records = [
+            record
+            for record in agent.memory.retrieve()
+            if record.memory_record.role_at_backend
+            == OpenAIBackendRole.ASSISTANT
+        ]
+        self.assertEqual(len(assistant_records), 1)
+        self.assertEqual(
+            assistant_records[0].memory_record.message.content,
+            "Final answer",
+        )
+
     def test_custom_memory_cleans_tool_call_records_without_duplication(self):
         memory = build_chat_history_memory(
             token_counter=HeuristicUnicodeTokenCounter(),
