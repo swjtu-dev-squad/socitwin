@@ -111,6 +111,7 @@ class RealOASISEngineV3:
         self.is_running = False
         self.context_token_limit: Optional[int] = None
         self.generation_max_tokens: Optional[int] = None
+        self.memory_window_size: Optional[int] = None
         
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
@@ -247,6 +248,15 @@ class RealOASISEngineV3:
             self.model = resolved_model.model
             self.context_token_limit = resolved_model.context_token_limit
             self.generation_max_tokens = resolved_model.generation_max_tokens
+            qwen3_vllm_local_compat = os.environ.get(
+                "OASIS_QWEN3_VLLM_LOCAL_COMPAT", "0"
+            ).lower() in {"1", "true", "yes", "on"}
+            env_window_size = os.environ.get("OASIS_CONTEXT_WINDOW_SIZE")
+            self.memory_window_size = (
+                int(env_window_size)
+                if env_window_size
+                else None
+            )
 
             # 定义可用动作
             # REFRESH 是必须的，让agents获取推荐内容
@@ -302,6 +312,7 @@ class RealOASISEngineV3:
                         1024, int(resolved_model.context_token_limit * 0.75)
                     ),
                     observation_hard_limit=resolved_model.context_token_limit,
+                    memory_window_size=self.memory_window_size,
                     observation_instruction_suffix=(
                         resolved_model.observation_instruction_suffix
                     ),
@@ -365,6 +376,7 @@ class RealOASISEngineV3:
                 "init_time": init_time,
                 "context_token_limit": self.context_token_limit,
                 "generation_max_tokens": self.generation_max_tokens,
+                "memory_window_size": self.memory_window_size,
                 "observation_instruction_suffix": (
                     resolved_model.observation_instruction_suffix
                 ),

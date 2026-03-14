@@ -494,6 +494,7 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(init_result["status"], "ok")
         self.assertEqual(init_result["context_token_limit"], 4096)
         self.assertEqual(init_result["generation_max_tokens"], 512)
+        self.assertIsNone(init_result["memory_window_size"])
         self.assertEqual(len(engine.agents), 2)
         self.assertTrue(all(isinstance(agent, ContextSocialAgent) for agent in engine.agents))
 
@@ -572,6 +573,8 @@ class ContextIntegrationTests(unittest.TestCase):
                     "regions": regions or ["General"],
                     "context_token_limit": 4096,
                     "generation_max_tokens": 512,
+                    "memory_window_size": 64,
+                    "observation_instruction_suffix": "/no_think",
                 }
 
             async def step(self):
@@ -618,6 +621,8 @@ class ContextIntegrationTests(unittest.TestCase):
             result = asyncio.run(run_context_smoke(args))
 
         self.assertEqual(result["init"]["agent_count"], 2)
+        self.assertEqual(result["init"]["memory_window_size"], 64)
+        self.assertEqual(result["init"]["observation_instruction_suffix"], "/no_think")
         self.assertEqual(len(result["steps"]), 2)
         self.assertEqual(result["steps"][1]["step"], 2)
         self.assertEqual(

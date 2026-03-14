@@ -72,6 +72,7 @@ class ContextSocialAgent(SocialAgent):
             token_counter=context_settings.token_counter,
             context_token_limit=context_settings.context_token_limit,
             agent_id=self.agent_id,
+            window_size=context_settings.memory_window_size,
         )
         self._ensure_system_message_in_memory()
         self.prune_tool_calls_from_memory = True

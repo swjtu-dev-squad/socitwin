@@ -64,6 +64,7 @@ class ContextRuntimeSettings:
     context_token_limit: int
     observation_soft_limit: int
     observation_hard_limit: int
+    memory_window_size: Optional[int] = None
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
     observation_instruction_suffix: str = ""
     strip_assistant_think_blocks: bool = False
