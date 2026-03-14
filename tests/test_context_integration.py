@@ -370,6 +370,116 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(first_pass_count, 2)
         self.assertEqual(second_pass_count, 2)
 
+    def test_custom_memory_growth_is_linear_across_tool_call_turns(self):
+        memory = build_chat_history_memory(
+            token_counter=HeuristicUnicodeTokenCounter(),
+            context_token_limit=4096,
+            agent_id="agent-test",
+        )
+        assistant_role_type = BaseMessage.make_assistant_message(
+            role_name="assistant",
+            content="",
+        ).role_type
+
+        memory.write_record(
+            MemoryRecord(
+                message=BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content="system prompt",
+                ),
+                role_at_backend=OpenAIBackendRole.SYSTEM,
+                agent_id="agent-test",
+            )
+        )
+
+        for turn in range(5):
+            memory.write_record(
+                MemoryRecord(
+                    message=BaseMessage.make_user_message(
+                        role_name="User",
+                        content=f"observation turn {turn}",
+                    ),
+                    role_at_backend=OpenAIBackendRole.USER,
+                    agent_id="agent-test",
+                )
+            )
+            memory.write_record(
+                MemoryRecord(
+                    message=FunctionCallingMessage(
+                        role_name="assistant",
+                        role_type=assistant_role_type,
+                        meta_dict=None,
+                        content="",
+                        func_name="refresh",
+                        args={"turn": turn},
+                        tool_call_id=f"tool-{turn}",
+                    ),
+                    role_at_backend=OpenAIBackendRole.ASSISTANT,
+                    agent_id="agent-test",
+                )
+            )
+            memory.write_record(
+                MemoryRecord(
+                    message=FunctionCallingMessage(
+                        role_name="assistant",
+                        role_type=assistant_role_type,
+                        meta_dict=None,
+                        content="",
+                        func_name="refresh",
+                        result='{"success": true}',
+                        tool_call_id=f"tool-{turn}",
+                    ),
+                    role_at_backend=OpenAIBackendRole.FUNCTION,
+                    agent_id="agent-test",
+                )
+            )
+            memory.write_record(
+                MemoryRecord(
+                    message=BaseMessage.make_assistant_message(
+                        role_name="assistant",
+                        content=f"final answer turn {turn}",
+                    ),
+                    role_at_backend=OpenAIBackendRole.ASSISTANT,
+                    agent_id="agent-test",
+                )
+            )
+            memory.clean_tool_calls()
+
+        records = memory.retrieve()
+
+        self.assertEqual(len(records), 11)
+        self.assertEqual(
+            sum(
+                1
+                for record in records
+                if record.memory_record.role_at_backend == OpenAIBackendRole.SYSTEM
+            ),
+            1,
+        )
+        self.assertEqual(
+            sum(
+                1
+                for record in records
+                if record.memory_record.role_at_backend == OpenAIBackendRole.USER
+            ),
+            5,
+        )
+        self.assertEqual(
+            sum(
+                1
+                for record in records
+                if record.memory_record.role_at_backend == OpenAIBackendRole.ASSISTANT
+            ),
+            5,
+        )
+        self.assertTrue(
+            all(
+                record.memory_record.message.__class__.__name__
+                != "FunctionCallingMessage"
+                for record in records
+            )
+        )
+
     def test_engine_collects_context_metrics(self):
         assistant_role_type = BaseMessage.make_assistant_message(
             role_name="assistant",
