@@ -23,8 +23,8 @@ from datetime import datetime
 # 监控导入时间
 import_start = time.time()
 
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
+from camel.messages import BaseMessage
+from camel.types import OpenAIBackendRole
 
 import oasis
 from oasis import (
@@ -32,11 +32,18 @@ from oasis import (
     AgentGraph,
     LLMAction,
     ManualAction,
-    SocialAgent,
     UserInfo,
     make,
     DefaultPlatformType,
 )
+
+from oasis_dashboard.context import (
+    ContextRuntimeSettings,
+    ContextSocialAgent,
+    ModelRuntimeSpec,
+    build_shared_model,
+)
+from oasis_dashboard.context.config import compression_config_for_platform
 
 
 class RealOASISEngineV3:
@@ -103,6 +110,9 @@ class RealOASISEngineV3:
         self.total_posts = 0
         self.active_agents = 0
         self.is_running = False
+        self.context_token_limit: Optional[int] = None
+        self.generation_max_tokens: Optional[int] = None
+        self.memory_window_size: Optional[int] = None
         
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
@@ -133,6 +143,48 @@ class RealOASISEngineV3:
         # 简化的地区背景
         region_suffix = f" from {region.title()}."
         return base_instruction + region_suffix
+
+    def _build_model_runtime_spec(self) -> ModelRuntimeSpec | list[ModelRuntimeSpec]:
+        generation_max_tokens = int(
+            os.environ.get("OASIS_MODEL_GENERATION_MAX_TOKENS", "512")
+        )
+        declared_context_window = os.environ.get("OASIS_MODEL_CONTEXT_WINDOW")
+        context_token_limit = os.environ.get("OASIS_CONTEXT_TOKEN_LIMIT")
+        timeout = os.environ.get("OASIS_MODEL_TIMEOUT")
+        max_retries = int(os.environ.get("OASIS_MODEL_MAX_RETRIES", "3"))
+        api_key = os.environ.get("OASIS_MODEL_API_KEY")
+        url = os.environ.get("OASIS_MODEL_URL")
+        urls = [
+            item.strip()
+            for item in os.environ.get("OASIS_MODEL_URLS", "").split(",")
+            if item.strip()
+        ]
+
+        default_model_config: dict[str, Any] = {}
+        if self.model_platform.lower() == "ollama":
+            default_model_config["temperature"] = 0.4
+
+        base_kwargs = dict(
+            model_platform=self.model_platform,
+            model_type=self.model_type,
+            model_config_dict=default_model_config,
+            api_key=api_key,
+            timeout=float(timeout) if timeout else None,
+            max_retries=max_retries,
+            generation_max_tokens=generation_max_tokens,
+            declared_context_window=(
+                int(declared_context_window)
+                if declared_context_window
+                else None
+            ),
+            context_token_limit=(
+                int(context_token_limit) if context_token_limit else None
+            ),
+        )
+
+        if urls:
+            return [ModelRuntimeSpec(url=item, **base_kwargs) for item in urls]
+        return ModelRuntimeSpec(url=url, **base_kwargs)
 
     async def initialize(
         self,
@@ -170,20 +222,16 @@ class RealOASISEngineV3:
             else:
                 regions = ["General"]
 
-            # 创建模型
-            if self.model_platform.lower() == "ollama":
-                self.model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OLLAMA,
-                    model_type=self.model_type,
-                    model_config_dict={
-                        "temperature": 0.4,  # 降低温度使内容更聚焦主题
-                    },
-                )
-            else:
-                self.model = ModelFactory.create(
-                    model_platform=ModelPlatformType.OPENAI,
-                    model_type=ModelType.GPT_4O_MINI,
-                )
+            resolved_model = build_shared_model(self._build_model_runtime_spec())
+            self.model = resolved_model.model
+            self.context_token_limit = resolved_model.context_token_limit
+            self.generation_max_tokens = resolved_model.generation_max_tokens
+            env_window_size = os.environ.get("OASIS_CONTEXT_WINDOW_SIZE")
+            self.memory_window_size = (
+                int(env_window_size)
+                if env_window_size
+                else None
+            )
 
             # 定义可用动作
             # REFRESH 是必须的，让agents获取推荐内容
@@ -196,6 +244,8 @@ class RealOASISEngineV3:
 
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
+
+            compression = compression_config_for_platform(platform)
 
             # 创建 agents
             for i in range(agent_count):
@@ -218,18 +268,37 @@ class RealOASISEngineV3:
                     }
                 }
 
-                agent = SocialAgent(
-                    agent_id=i,
-                    user_info=UserInfo(
-                        user_name=f"agent_{i}",
-                        name=f"Agent {i}",
-                        description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
-                        profile=agent_profile,  # 设置正确的profile
-                        recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
+                user_info = UserInfo(
+                    user_name=f"agent_{i}",
+                    name=f"Agent {i}",
+                    description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
+                    profile=agent_profile,  # 设置正确的profile
+                    recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
+                )
+                system_message = BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content=user_info.to_system_message(),
+                )
+                context_settings = ContextRuntimeSettings(
+                    token_counter=resolved_model.token_counter,
+                    system_message=system_message,
+                    context_token_limit=resolved_model.context_token_limit,
+                    observation_soft_limit=max(
+                        1024, int(resolved_model.context_token_limit * 0.75)
                     ),
+                    observation_hard_limit=resolved_model.context_token_limit,
+                    memory_window_size=self.memory_window_size,
+                    compression=compression,
+                )
+                context_settings.validate()
+
+                agent = ContextSocialAgent(
+                    agent_id=i,
+                    user_info=user_info,
                     agent_graph=self.agent_graph,
                     model=self.model,
                     available_actions=available_actions,
+                    context_settings=context_settings,
                 )
                 self.agent_graph.add_agent(agent)
                 self.agents.append(agent)
@@ -274,6 +343,9 @@ class RealOASISEngineV3:
                 "regions": regions,
                 "topic": primary_topic,  # 向后兼容
                 "init_time": init_time,
+                "context_token_limit": self.context_token_limit,
+                "generation_max_tokens": self.generation_max_tokens,
+                "memory_window_size": self.memory_window_size,
                 "agents": [
                     {
                         "id": i,
@@ -344,12 +416,14 @@ class RealOASISEngineV3:
             step_time = time.time() - step_start
 
             # 记录内部日志
+            context_metrics = self._collect_context_metrics()
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "step": self.current_step,
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
+                "context_metrics": context_metrics,
             }
             self.logs.append(log_entry)
 
@@ -362,6 +436,7 @@ class RealOASISEngineV3:
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
+                "context_metrics": context_metrics,
                 "new_logs": new_logs,  # ← 返回所有日志
             }
             
@@ -439,6 +514,147 @@ class RealOASISEngineV3:
             import traceback
             traceback.print_exc()
             return self._get_fallback_logs(f"Error: {str(e)}")
+
+    def _collect_context_metrics(self) -> Dict[str, Any]:
+        metrics: Dict[str, Any] = {
+            "agent_count": len(self.agents),
+            "avg_chars_before": 0,
+            "avg_chars_after": 0,
+            "max_chars_before": 0,
+            "max_chars_after": 0,
+            "total_truncated_fields": 0,
+            "total_placeholder_fields": 0,
+            "total_comments_omitted": 0,
+            "total_groups_omitted": 0,
+            "avg_context_tokens": 0,
+            "max_context_tokens": 0,
+            "avg_memory_records": 0,
+            "max_memory_records": 0,
+            "avg_get_context_ms": 0.0,
+            "max_get_context_ms": 0.0,
+            "avg_retrieve_ms": 0.0,
+            "max_retrieve_ms": 0.0,
+            "context_token_errors": 0,
+            "memory_retrieve_errors": 0,
+            "total_system_records": 0,
+            "total_user_records": 0,
+            "total_assistant_records": 0,
+            "total_function_records": 0,
+            "total_tool_records": 0,
+            "total_assistant_function_call_records": 0,
+        }
+        if not self.agents:
+            return metrics
+
+        chars_before = []
+        chars_after = []
+        context_tokens = []
+        memory_records = []
+        get_context_timings = []
+        retrieve_timings = []
+
+        for agent in self.agents:
+            render_stats = getattr(getattr(agent, "env", None), "last_render_stats", None)
+            if isinstance(render_stats, dict):
+                chars_before.append(render_stats.get("chars_before", 0))
+                chars_after.append(render_stats.get("chars_after", 0))
+                metrics["total_truncated_fields"] += render_stats.get(
+                    "truncated_field_count", 0
+                )
+                metrics["total_placeholder_fields"] += render_stats.get(
+                    "placeholder_field_count", 0
+                )
+                metrics["total_comments_omitted"] += render_stats.get(
+                    "comments_omitted_count", 0
+                )
+                metrics["total_groups_omitted"] += render_stats.get(
+                    "groups_omitted_count", 0
+                )
+
+            memory = getattr(agent, "memory", None)
+            if memory is None:
+                continue
+            try:
+                start = time.perf_counter()
+                _, token_count = memory.get_context()
+                get_context_timings.append(
+                    (time.perf_counter() - start) * 1000
+                )
+                context_tokens.append(token_count)
+            except Exception:
+                metrics["context_token_errors"] += 1
+
+            try:
+                start = time.perf_counter()
+                retrieved_records = memory.retrieve()
+                retrieve_timings.append((time.perf_counter() - start) * 1000)
+                memory_records.append(len(retrieved_records))
+                self._accumulate_memory_record_metrics(
+                    metrics,
+                    retrieved_records,
+                )
+            except Exception:
+                metrics["memory_retrieve_errors"] += 1
+
+        if chars_before:
+            metrics["avg_chars_before"] = int(sum(chars_before) / len(chars_before))
+            metrics["max_chars_before"] = max(chars_before)
+        if chars_after:
+            metrics["avg_chars_after"] = int(sum(chars_after) / len(chars_after))
+            metrics["max_chars_after"] = max(chars_after)
+        if context_tokens:
+            metrics["avg_context_tokens"] = int(
+                sum(context_tokens) / len(context_tokens)
+            )
+            metrics["max_context_tokens"] = max(context_tokens)
+        if memory_records:
+            metrics["avg_memory_records"] = int(
+                sum(memory_records) / len(memory_records)
+            )
+            metrics["max_memory_records"] = max(memory_records)
+        if get_context_timings:
+            metrics["avg_get_context_ms"] = round(
+                sum(get_context_timings) / len(get_context_timings), 3
+            )
+            metrics["max_get_context_ms"] = round(max(get_context_timings), 3)
+        if retrieve_timings:
+            metrics["avg_retrieve_ms"] = round(
+                sum(retrieve_timings) / len(retrieve_timings), 3
+            )
+            metrics["max_retrieve_ms"] = round(max(retrieve_timings), 3)
+
+        return metrics
+
+    @staticmethod
+    def _accumulate_memory_record_metrics(
+        metrics: Dict[str, Any],
+        retrieved_records: List[Any],
+    ) -> None:
+        for record in retrieved_records:
+            memory_record = getattr(record, "memory_record", None)
+            if memory_record is None:
+                continue
+
+            role = getattr(memory_record, "role_at_backend", None)
+            message = getattr(memory_record, "message", None)
+            message_class = (
+                message.__class__.__name__
+                if message is not None
+                else None
+            )
+
+            if role == OpenAIBackendRole.SYSTEM:
+                metrics["total_system_records"] += 1
+            elif role == OpenAIBackendRole.USER:
+                metrics["total_user_records"] += 1
+            elif role == OpenAIBackendRole.ASSISTANT:
+                metrics["total_assistant_records"] += 1
+                if message_class == "FunctionCallingMessage":
+                    metrics["total_assistant_function_call_records"] += 1
+            elif role == OpenAIBackendRole.FUNCTION:
+                metrics["total_function_records"] += 1
+            elif role == OpenAIBackendRole.TOOL:
+                metrics["total_tool_records"] += 1
 
     def _read_posts_table(self, cursor, tables) -> List[Dict]:
         """尝试读取posts相关表"""

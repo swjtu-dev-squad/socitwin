@@ -109,17 +109,38 @@
    uv sync
    ```
 
-3. **Configure Local Model**
+3. **Start Local Model Service**
    ```bash
    ollama pull qwen3:8b
+   ollama run qwen3:8b
    ```
 
-4. **Start Development Server**
+4. **Configure Model Runtime**
+   ```bash
+   export OASIS_MODEL_PLATFORM=ollama
+   export OASIS_MODEL_TYPE=qwen3:8b
+   export OASIS_MODEL_URL=http://127.0.0.1:11434/v1
+   export OASIS_MODEL_CONTEXT_WINDOW=8192
+   export OASIS_CONTEXT_TOKEN_LIMIT=6144
+   export OASIS_MODEL_GENERATION_MAX_TOKENS=256
+   ```
+
+   Recommended meanings:
+   - `OASIS_MODEL_PLATFORM`: Inference backend type. Use `ollama` for local Ollama, `vllm` for OpenAI-compatible vLLM services.
+   - `OASIS_MODEL_TYPE`: Model name exposed by the backend, for example `qwen3:8b`.
+   - `OASIS_MODEL_URL`: Base URL of the model service. For local Ollama, the recommended value is `http://127.0.0.1:11434/v1`.
+   - `OASIS_MODEL_CONTEXT_WINDOW`: Declared model context window. Set this to the actual context length of your deployed model.
+   - `OASIS_CONTEXT_TOKEN_LIMIT`: Budget reserved for short-term conversation context. A practical recommendation is to keep it below the full context window to leave room for system prompt and generation.
+   - `OASIS_MODEL_GENERATION_MAX_TOKENS`: Maximum tokens for a single model response. A conservative local development value such as `256` is recommended.
+
+   For a detailed explanation of why these settings are explicit in the current architecture, see [OASIS Memory Optimization](docs/OASIS_MEMORY_OPTIMIZATION.md).
+
+5. **Start Development Server**
    ```bash
    pnpm dev
    ```
 
-5. **Build for Production**
+6. **Build for Production**
    ```bash
    pnpm build
    NODE_ENV=production npx tsx server.ts
@@ -132,6 +153,7 @@
 - **[Installation & Configuration Guide](docs/INSTALL_AND_CONFIG_MANUAL.md)**: Detailed setup instructions
 - **[Developer Guide](docs/DEVELOPER_MANUAL.md)**: Code structure, API documentation, and development guidelines
 - **[OASIS Architecture](docs/OASIS_AND_ARCHITECTURE.md)**: System architecture and design principles
+- **[OASIS Memory Optimization](docs/OASIS_MEMORY_OPTIMIZATION.md)**: Current memory/context optimization architecture, runtime configuration, validation workflow, and future evolution path
 
 ---
 
