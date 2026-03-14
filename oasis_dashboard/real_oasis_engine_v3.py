@@ -111,6 +111,7 @@ class RealOASISEngineV3:
         self.is_running = False
         self.context_token_limit: Optional[int] = None
         self.generation_max_tokens: Optional[int] = None
+        self.memory_window_size: Optional[int] = None
         
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
@@ -157,10 +158,29 @@ class RealOASISEngineV3:
             for item in os.environ.get("OASIS_MODEL_URLS", "").split(",")
             if item.strip()
         ]
+        qwen3_vllm_local_compat = os.environ.get(
+            "OASIS_QWEN3_VLLM_LOCAL_COMPAT", "0"
+        ).lower() in {"1", "true", "yes", "on"}
 
         default_model_config: dict[str, Any] = {}
         if self.model_platform.lower() == "ollama":
             default_model_config["temperature"] = 0.4
+        elif (
+            self.model_platform.lower() == "vllm"
+            and qwen3_vllm_local_compat
+            and "qwen3" in self.model_type.lower()
+        ):
+            default_model_config.update(
+                {
+                    "temperature": 0.7,
+                    "top_p": 0.8,
+                    "presence_penalty": 1.5,
+                    "extra_body": {
+                        "top_k": 20,
+                        "min_p": 0,
+                    },
+                }
+            )
 
         base_kwargs = dict(
             model_platform=self.model_platform,
@@ -178,6 +198,10 @@ class RealOASISEngineV3:
             context_token_limit=(
                 int(context_token_limit) if context_token_limit else None
             ),
+            observation_instruction_suffix=(
+                "/no_think" if qwen3_vllm_local_compat else ""
+            ),
+            strip_assistant_think_blocks=qwen3_vllm_local_compat,
         )
 
         if urls:
@@ -224,6 +248,15 @@ class RealOASISEngineV3:
             self.model = resolved_model.model
             self.context_token_limit = resolved_model.context_token_limit
             self.generation_max_tokens = resolved_model.generation_max_tokens
+            qwen3_vllm_local_compat = os.environ.get(
+                "OASIS_QWEN3_VLLM_LOCAL_COMPAT", "0"
+            ).lower() in {"1", "true", "yes", "on"}
+            env_window_size = os.environ.get("OASIS_CONTEXT_WINDOW_SIZE")
+            self.memory_window_size = (
+                int(env_window_size)
+                if env_window_size
+                else None
+            )
 
             # 定义可用动作
             # REFRESH 是必须的，让agents获取推荐内容
@@ -279,6 +312,13 @@ class RealOASISEngineV3:
                         1024, int(resolved_model.context_token_limit * 0.75)
                     ),
                     observation_hard_limit=resolved_model.context_token_limit,
+                    memory_window_size=self.memory_window_size,
+                    observation_instruction_suffix=(
+                        resolved_model.observation_instruction_suffix
+                    ),
+                    strip_assistant_think_blocks=(
+                        resolved_model.strip_assistant_think_blocks
+                    ),
                     compression=compression,
                 )
                 context_settings.validate()
@@ -336,6 +376,13 @@ class RealOASISEngineV3:
                 "init_time": init_time,
                 "context_token_limit": self.context_token_limit,
                 "generation_max_tokens": self.generation_max_tokens,
+                "memory_window_size": self.memory_window_size,
+                "observation_instruction_suffix": (
+                    resolved_model.observation_instruction_suffix
+                ),
+                "strip_assistant_think_blocks": (
+                    resolved_model.strip_assistant_think_blocks
+                ),
                 "agents": [
                     {
                         "id": i,

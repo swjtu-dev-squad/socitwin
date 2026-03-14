@@ -46,11 +46,15 @@ async def run_context_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 "platform": init_result["platform"],
                 "topics": init_result["topics"],
                 "regions": init_result["regions"],
-                "context_token_limit": init_result.get("context_token_limit"),
-                "generation_max_tokens": init_result.get("generation_max_tokens"),
-            },
-            "steps": steps,
-        }
+            "context_token_limit": init_result.get("context_token_limit"),
+            "generation_max_tokens": init_result.get("generation_max_tokens"),
+            "memory_window_size": init_result.get("memory_window_size"),
+            "observation_instruction_suffix": init_result.get(
+                "observation_instruction_suffix"
+            ),
+        },
+        "steps": steps,
+    }
     finally:
         await engine.reset()
 
@@ -88,6 +92,7 @@ def main() -> int:
         f"platform={init['platform']}",
         f"context_limit={init['context_token_limit']}",
         f"generation_max_tokens={init['generation_max_tokens']}",
+        f"memory_window_size={init['memory_window_size']}",
     )
     for step in result["steps"]:
         metrics = step["context_metrics"]

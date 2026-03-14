@@ -9,9 +9,10 @@ def build_chat_history_memory(
     token_counter: BaseTokenCounter,
     context_token_limit: int,
     agent_id: str,
+    window_size: int | None = None,
 ) -> ChatHistoryMemory:
     return ChatHistoryMemory(
         ScoreBasedContextCreator(token_counter, context_token_limit),
-        window_size=None,
+        window_size=window_size,
         agent_id=agent_id,
     )
