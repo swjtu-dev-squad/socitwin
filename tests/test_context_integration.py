@@ -4,7 +4,8 @@ import asyncio
 from unittest.mock import patch
 import unittest
 
-from camel.messages import BaseMessage
+from camel.memories import MemoryRecord
+from camel.messages import BaseMessage, FunctionCallingMessage
 from camel.models import ModelFactory, ModelManager
 from camel.types import ModelPlatformType, ModelType, OpenAIBackendRole
 from oasis import ActionType, UserInfo
@@ -17,6 +18,7 @@ from oasis_dashboard.context import (
 )
 from oasis_dashboard.context.config import compression_config_for_platform
 from oasis_dashboard.context.environment import ContextSocialEnvironment
+from oasis_dashboard.context.memory import build_chat_history_memory
 from oasis_dashboard.context.tokens import HeuristicUnicodeTokenCounter
 from oasis_dashboard.context_smoke import build_parser, run_context_smoke
 from oasis_dashboard.real_oasis_engine_v3 import RealOASISEngineV3
@@ -225,6 +227,148 @@ class ContextIntegrationTests(unittest.TestCase):
             if record.memory_record.role_at_backend == OpenAIBackendRole.USER
         ]
         self.assertEqual(len(user_records), 2)
+
+    def test_custom_memory_cleans_tool_call_records_without_duplication(self):
+        memory = build_chat_history_memory(
+            token_counter=HeuristicUnicodeTokenCounter(),
+            context_token_limit=4096,
+            agent_id="agent-test",
+        )
+        assistant_role_type = BaseMessage.make_assistant_message(
+            role_name="assistant",
+            content="",
+        ).role_type
+
+        memory.write_record(
+            MemoryRecord(
+                message=BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content="system prompt",
+                ),
+                role_at_backend=OpenAIBackendRole.SYSTEM,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=FunctionCallingMessage(
+                    role_name="assistant",
+                    role_type=assistant_role_type,
+                    meta_dict=None,
+                    content="",
+                    func_name="refresh",
+                    args={"limit": 5},
+                    tool_call_id="tool-1",
+                ),
+                role_at_backend=OpenAIBackendRole.ASSISTANT,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=FunctionCallingMessage(
+                    role_name="assistant",
+                    role_type=assistant_role_type,
+                    meta_dict=None,
+                    content="",
+                    func_name="refresh",
+                    result='{"success": true}',
+                    tool_call_id="tool-1",
+                ),
+                role_at_backend=OpenAIBackendRole.FUNCTION,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=BaseMessage.make_assistant_message(
+                    role_name="assistant",
+                    content="Final answer",
+                ),
+                role_at_backend=OpenAIBackendRole.ASSISTANT,
+                agent_id="agent-test",
+            )
+        )
+
+        memory.clean_tool_calls()
+        records = memory.retrieve()
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(
+            [record.memory_record.role_at_backend for record in records],
+            [OpenAIBackendRole.SYSTEM, OpenAIBackendRole.ASSISTANT],
+        )
+        self.assertEqual(records[-1].memory_record.message.content, "Final answer")
+
+    def test_custom_memory_cleanup_is_idempotent(self):
+        memory = build_chat_history_memory(
+            token_counter=HeuristicUnicodeTokenCounter(),
+            context_token_limit=4096,
+            agent_id="agent-test",
+        )
+        assistant_role_type = BaseMessage.make_assistant_message(
+            role_name="assistant",
+            content="",
+        ).role_type
+
+        memory.write_record(
+            MemoryRecord(
+                message=BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content="system prompt",
+                ),
+                role_at_backend=OpenAIBackendRole.SYSTEM,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=FunctionCallingMessage(
+                    role_name="assistant",
+                    role_type=assistant_role_type,
+                    meta_dict=None,
+                    content="",
+                    func_name="refresh",
+                    args={"limit": 5},
+                    tool_call_id="tool-1",
+                ),
+                role_at_backend=OpenAIBackendRole.ASSISTANT,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=FunctionCallingMessage(
+                    role_name="assistant",
+                    role_type=assistant_role_type,
+                    meta_dict=None,
+                    content="",
+                    func_name="refresh",
+                    result='{"success": true}',
+                    tool_call_id="tool-1",
+                ),
+                role_at_backend=OpenAIBackendRole.FUNCTION,
+                agent_id="agent-test",
+            )
+        )
+        memory.write_record(
+            MemoryRecord(
+                message=BaseMessage.make_assistant_message(
+                    role_name="assistant",
+                    content="Final answer",
+                ),
+                role_at_backend=OpenAIBackendRole.ASSISTANT,
+                agent_id="agent-test",
+            )
+        )
+
+        memory.clean_tool_calls()
+        first_pass_count = len(memory.retrieve())
+        memory.clean_tool_calls()
+        second_pass_count = len(memory.retrieve())
+
+        self.assertEqual(first_pass_count, 2)
+        self.assertEqual(second_pass_count, 2)
 
     def test_engine_collects_context_metrics(self):
         class FakeMemory:
