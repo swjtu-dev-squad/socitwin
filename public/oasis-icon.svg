@@ -1,17 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- 极简 OASIS 图标 - 绿洲网络概念 -->
-  <!-- 外圆 - 代表社区完整性 -->
-  <circle cx="50" cy="50" r="45" fill="currentColor"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- OASIS Icon - 标准版 -->
+  <rect width="32" height="32" rx="6" fill="#10b981"/>
 
-  <!-- 中心空白圆 - 代表绿洲中心 -->
-  <circle cx="50" cy="50" r="20" fill="white"/>
+  <!-- 中心水滴 -->
+  <path d="M16 10 Q22 16 22 20 Q22 24 16 24 Q10 24 10 20 Q10 16 16 10Z" fill="white"/>
 
-  <!-- 水滴形状 - 代表生命之源 -->
-  <path d="M50 35 Q58 42 58 50 Q58 58 50 58 Q42 58 42 50 Q42 42 50 35Z" fill="white"/>
+  <!-- 上方节点 -->
+  <circle cx="16" cy="6" r="2.5" fill="white" opacity="0.8"/>
 
-  <!-- 四个外围节点 - 代表社交网络连接 -->
-  <circle cx="50" cy="15" r="6" fill="white"/>
-  <circle cx="50" cy="85" r="6" fill="white"/>
-  <circle cx="15" cy="50" r="6" fill="white"/>
-  <circle cx="85" cy="50" r="6" fill="white"/>
+  <!-- 下方节点 -->
+  <circle cx="16" cy="26" r="2.5" fill="white" opacity="0.8"/>
+
+  <!-- 左侧节点 -->
+  <circle cx="6" cy="16" r="2.5" fill="white" opacity="0.8"/>
+
+  <!-- 右侧节点 -->
+  <circle cx="26" cy="16" r="2.5" fill="white" opacity="0.8"/>
 </svg>

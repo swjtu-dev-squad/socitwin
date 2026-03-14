@@ -15,7 +15,6 @@ export function OasisIcon({ className = "", size = 40 }: OasisIconProps) {
       className={className}
       style={{
         borderRadius: '8px',
-        filter: 'brightness(0) invert(1)', // 将 logo 变成白色
       }}
     />
   );
