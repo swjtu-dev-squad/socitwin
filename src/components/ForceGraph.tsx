@@ -1,5 +1,3 @@
-import { useRef, useEffect } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
 import { Agent } from '@/lib/types';
 
 interface ForceGraphProps {
@@ -8,41 +6,34 @@ interface ForceGraphProps {
 }
 
 export default function ForceGraph({ agents, onNodeClick }: ForceGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const graphData = useMemo(() => {
-    const nodes = agents.map(a => ({
-      id: a.id,
-      name: a.name,
-      val: a.status === 'active' ? 10 : 5,
-      color: a.status === 'active' ? '#10b981' : '#3f3f46'
-    }));
-
-    const links = Array.from({ length: agents.length * 1.5 }, () => ({
-      source: agents[Math.floor(Math.random() * agents.length)].id,
-      target: agents[Math.floor(Math.random() * agents.length)].id
-    })).filter(l => l.source !== l.target);
-
-    return { nodes, links };
-  }, [agents]);
-
+  // TODO: Implement graph visualization
+  // Neo4j Visualization Library integration pending
   return (
-    <div ref={containerRef} className="w-full h-full">
-      <ForceGraph2D
-        graphData={graphData}
-        nodeLabel="name"
-        nodeColor={node => (node as any).color}
-        nodeRelSize={6}
-        linkColor={() => '#27272a'}
-        linkDirectionalParticles={2}
-        linkDirectionalParticleSpeed={0.005}
-        onNodeClick={(node) => onNodeClick(agents.find(a => a.id === node.id)!)}
-        backgroundColor="transparent"
-        width={900}
-        height={600}
-      />
+    <div style={{
+      width: '100%',
+      height: '100%',
+      background: '#1a1a1a',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#71717a',
+      fontSize: '14px',
+      fontFamily: 'system-ui, sans-serif'
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ marginBottom: '12px', opacity: 0.5 }}>
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ margin: '0 auto' }}>
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="4" />
+            <line x1="12" y1="2" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+          </svg>
+        </div>
+        <div>Graph Visualization</div>
+        <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.7 }}>
+          Coming Soon
+        </div>
+      </div>
     </div>
   );
 }
-
-import { useMemo } from 'react';

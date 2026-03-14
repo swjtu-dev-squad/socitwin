@@ -90,3 +90,32 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-accent);
 }
+
+/* Landing Page Styles */
+@layer components {
+  /* 渐变文字动画 */
+  .hero-gradient-text {
+    background: linear-gradient(135deg, #D72638 0%, #F46036 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-size: 200% auto;
+    animation: gradient-shift 3s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+  }
+
+  /* 玻璃卡片效果（升级版） */
+  .glass-card {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    background: rgba(26, 22, 20, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+      0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+}
