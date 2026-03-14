@@ -777,6 +777,11 @@ class ContextIntegrationTests(unittest.TestCase):
                         "max_context_tokens": 333,
                         "avg_memory_records": 4,
                         "avg_retrieve_ms": 1.25,
+                        "total_user_records": 3,
+                        "total_assistant_records": 4,
+                        "total_assistant_function_call_records": 1,
+                        "total_function_records": 0,
+                        "total_tool_records": 0,
                     },
                 }
 
@@ -814,6 +819,12 @@ class ContextIntegrationTests(unittest.TestCase):
         self.assertEqual(result["steps"][1]["step"], 2)
         self.assertEqual(
             result["steps"][1]["context_metrics"]["avg_context_tokens"], 222
+        )
+        self.assertEqual(
+            result["steps"][1]["context_metrics"]["total_user_records"], 3
+        )
+        self.assertEqual(
+            result["steps"][1]["context_metrics"]["total_assistant_records"], 4
         )
 
 
