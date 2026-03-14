@@ -14,11 +14,7 @@ from oasis.social_platform import Channel
 from oasis.social_platform.config import UserInfo
 from oasis.social_platform.typing import ActionType
 
-from .config import (
-    ContextRuntimeSettings,
-    build_observation_message_content,
-    strip_think_blocks,
-)
+from .config import ContextRuntimeSettings
 from .environment import ContextSocialEnvironment
 from .memory import build_chat_history_memory
 
@@ -77,25 +73,6 @@ class ContextSocialAgent(SocialAgent):
         self._ensure_system_message_in_memory()
         self.prune_tool_calls_from_memory = True
 
-    async def perform_action_by_llm(self):
-        if not self.context_settings.observation_instruction_suffix:
-            return await super().perform_action_by_llm()
-
-        env_prompt = await self.env.to_text_prompt()
-        user_msg = BaseMessage.make_user_message(
-            role_name="User",
-            content=build_observation_message_content(
-                env_prompt,
-                self.context_settings.observation_wrapper,
-                self.context_settings.observation_instruction_suffix,
-            ),
-        )
-        try:
-            response = await self.astep(user_msg)
-            return response
-        except Exception as exc:
-            return exc
-
     def update_memory(self, *args, **kwargs):
         parent_method = super().update_memory
         try:
@@ -112,16 +89,8 @@ class ContextSocialAgent(SocialAgent):
         if not isinstance(message, BaseMessage) or role is None:
             return parent_method(*args, **kwargs)
 
-        message = self._sanitize_message_for_memory(message, role)
-
         if not self._message_fits_context_limit(message, role):
-            return self._delegate_to_parent(
-                parent_method,
-                bound.arguments,
-                message,
-                role,
-                timestamp,
-            )
+            return parent_method(*args, **kwargs)
 
         self.memory.write_record(
             MemoryRecord(
@@ -136,24 +105,6 @@ class ContextSocialAgent(SocialAgent):
             )
         )
         return None
-
-    def _delegate_to_parent(
-        self,
-        parent_method,
-        bound_arguments: dict[str, Any],
-        message: BaseMessage,
-        role: OpenAIBackendRole,
-        timestamp: Any,
-    ):
-        delegated_kwargs = {}
-        for key in bound_arguments:
-            if key == "message":
-                delegated_kwargs[key] = message
-            elif key == "role":
-                delegated_kwargs[key] = role
-            elif key == "timestamp":
-                delegated_kwargs[key] = timestamp
-        return parent_method(**delegated_kwargs)
 
     def _message_fits_context_limit(
         self,
@@ -178,23 +129,6 @@ class ContextSocialAgent(SocialAgent):
         except Exception:
             return False
         return tokens <= self.context_settings.context_token_limit
-
-    def _sanitize_message_for_memory(
-        self,
-        message: BaseMessage,
-        role: OpenAIBackendRole,
-    ) -> BaseMessage:
-        if (
-            role != OpenAIBackendRole.ASSISTANT
-            or not self.context_settings.strip_assistant_think_blocks
-        ):
-            return message
-        if not isinstance(message.content, str):
-            return message
-        sanitized_content = strip_think_blocks(message.content)
-        if sanitized_content == message.content:
-            return message
-        return message.create_new_instance(sanitized_content)
 
     def _ensure_system_message_in_memory(self) -> None:
         records = self.memory.retrieve()

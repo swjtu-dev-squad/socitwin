@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
-import re
 from typing import Any, Optional
 
 from camel.messages import BaseMessage
@@ -18,7 +17,6 @@ UPSTREAM_OBSERVATION_WRAPPER = (
     "for example to just like the posts. Here is your social media "
     "environment: {env_prompt}"
 )
-THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 
 @dataclass(slots=True)
@@ -43,8 +41,6 @@ class ModelRuntimeSpec:
     declared_context_window: Optional[int] = None
     context_token_limit: Optional[int] = None
     token_counter: Optional[BaseTokenCounter] = None
-    observation_instruction_suffix: str = ""
-    strip_assistant_think_blocks: bool = False
 
 
 @dataclass(slots=True)
@@ -53,8 +49,6 @@ class ResolvedModelRuntime:
     token_counter: BaseTokenCounter
     context_token_limit: int
     generation_max_tokens: Optional[int]
-    observation_instruction_suffix: str = ""
-    strip_assistant_think_blocks: bool = False
 
 
 @dataclass(slots=True)
@@ -66,18 +60,12 @@ class ContextRuntimeSettings:
     observation_hard_limit: int
     memory_window_size: Optional[int] = None
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
-    observation_instruction_suffix: str = ""
-    strip_assistant_think_blocks: bool = False
     compression: CompressionConfig = field(
         default_factory=lambda: compression_config_for_platform("reddit")
     )
 
     def validate(self) -> None:
-        minimal_prompt = build_observation_message_content(
-            "{}",
-            self.observation_wrapper,
-            self.observation_instruction_suffix,
-        )
+        minimal_prompt = self.observation_wrapper.format(env_prompt="{}")
         system_tokens = self.token_counter.count_tokens_from_messages(
             [
                 self.system_message.to_openai_message(
@@ -102,10 +90,8 @@ class ContextRuntimeSettings:
                 ),
                 BaseMessage.make_user_message(
                     role_name="User",
-                    content=build_observation_message_content(
-                        bounded_prompt,
-                        self.observation_wrapper,
-                        self.observation_instruction_suffix,
+                    content=self.observation_wrapper.format(
+                        env_prompt=bounded_prompt
                     ),
                 ).to_openai_message(OpenAIBackendRole.USER),
             ]
@@ -183,21 +169,3 @@ def compression_config_for_platform(platform: str) -> CompressionConfig:
         comment_text_cap_chars=192,
         group_text_cap_chars=192,
     )
-
-
-def build_observation_message_content(
-    env_prompt: str,
-    observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER,
-    instruction_suffix: str = "",
-) -> str:
-    content = observation_wrapper.format(env_prompt=env_prompt)
-    suffix = instruction_suffix.strip()
-    if not suffix:
-        return content
-    return f"{content} {suffix}"
-
-
-def strip_think_blocks(content: str) -> str:
-    if not content or "<think>" not in content:
-        return content
-    return THINK_BLOCK_RE.sub("", content).strip()

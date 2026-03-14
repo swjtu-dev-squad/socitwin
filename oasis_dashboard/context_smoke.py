@@ -49,9 +49,6 @@ async def run_context_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "context_token_limit": init_result.get("context_token_limit"),
             "generation_max_tokens": init_result.get("generation_max_tokens"),
             "memory_window_size": init_result.get("memory_window_size"),
-            "observation_instruction_suffix": init_result.get(
-                "observation_instruction_suffix"
-            ),
         },
         "steps": steps,
     }

@@ -7,7 +7,7 @@ from camel.messages import BaseMessage
 from camel.types import OpenAIBackendRole
 from oasis.social_agent.agent_environment import SocialEnvironment
 
-from .config import ContextRuntimeSettings, build_observation_message_content
+from .config import ContextRuntimeSettings
 
 
 COMMENT_ACTIONS = {
@@ -217,10 +217,8 @@ class ContextSocialEnvironment(SocialEnvironment):
         return posts, groups, stats
 
     def _prompt_token_count(self, env_prompt: str) -> int:
-        full_prompt = build_observation_message_content(
-            env_prompt,
-            self.runtime_settings.observation_wrapper,
-            self.runtime_settings.observation_instruction_suffix,
+        full_prompt = self.runtime_settings.observation_wrapper.format(
+            env_prompt=env_prompt
         )
         user_message = BaseMessage.make_user_message(
             role_name="User", content=full_prompt
