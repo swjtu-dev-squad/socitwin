@@ -33,6 +33,8 @@ def build_shared_model(
         token_counter=token_counter,
         context_token_limit=context_token_limit,
         generation_max_tokens=generation_max_tokens,
+        observation_instruction_suffix=specs[0].observation_instruction_suffix,
+        strip_assistant_think_blocks=specs[0].strip_assistant_think_blocks,
     )
 
 
