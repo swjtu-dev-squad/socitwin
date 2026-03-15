@@ -1,13 +1,12 @@
-import { 
-  Drawer, 
-  DrawerContent, 
-  DrawerHeader, 
-  DrawerTitle, 
-  DrawerDescription, 
-  DrawerFooter, 
-  DrawerClose, 
-  Button, 
-  Badge 
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerFooter,
+  Button,
+  Badge
 } from '@/components/ui';
 import { Agent } from '@/lib/types';
 import { 
@@ -153,11 +152,13 @@ export default function AgentDetailDrawer({ agent, open, onClose }: AgentDetailD
             <Button className="flex-1 bg-accent hover:bg-accent-hover rounded-xl h-12">
               <MessageSquare className="w-4 h-4 mr-2" /> 注入动作
             </Button>
-            <DrawerClose asChild>
-              <Button variant="outline" className="flex-1 border-border-default hover:bg-bg-tertiary rounded-xl h-12" onClick={onClose}>
-                关闭
-              </Button>
-            </DrawerClose>
+            <Button
+              variant="outline"
+              className="flex-1 border-border-default hover:bg-bg-tertiary rounded-xl h-12"
+              onClick={onClose}
+            >
+              关闭
+            </Button>
           </div>
         </DrawerFooter>
       </DrawerContent>

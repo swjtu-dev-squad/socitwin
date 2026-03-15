@@ -2,12 +2,12 @@ import { useState, useMemo } from 'react';
 import { useSimulationStore } from '@/lib/store';
 import ForceGraph from '@/components/ForceGraph';
 import AgentDetailDrawer from '@/components/AgentDetailDrawer';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
   TableRow,
   Input,
   Card,
@@ -15,19 +15,20 @@ import {
   Badge,
   ScrollArea
 } from '@/components/ui';
-import { 
-  Users, 
-  Search, 
-  Filter, 
-  Maximize2, 
-  RefreshCw, 
-  Share2, 
+import {
+  Users,
+  Search,
+  Filter,
+  Maximize2,
+  RefreshCw,
+  Share2,
   Settings2,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import { Agent } from '@/lib/types';
 import { Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 export default function Agents() {
   const { status } = useSimulationStore();
@@ -36,11 +37,12 @@ export default function Agents() {
   const [filter, setFilter] = useState<'ALL' | 'ACTIVE' | 'IDLE'>('ALL');
 
   const filteredAgents = useMemo(() => {
-    return status.agents.filter(a => {
-      const matchesSearch = a.id.toLowerCase().includes(search.toLowerCase()) || 
+    const agents = status.agents || [];
+    return agents.filter(a => {
+      const matchesSearch = a.id.toLowerCase().includes(search.toLowerCase()) ||
                            a.name.toLowerCase().includes(search.toLowerCase());
-      const matchesFilter = filter === 'ALL' || 
-                           (filter === 'ACTIVE' && a.status === 'active') || 
+      const matchesFilter = filter === 'ALL' ||
+                           (filter === 'ACTIVE' && a.status === 'active') ||
                            (filter === 'IDLE' && a.status === 'idle');
       return matchesSearch && matchesFilter;
     });
@@ -108,7 +110,7 @@ export default function Agents() {
           </div>
           
           <div className="flex-1 relative bg-bg-primary/50">
-            {status.agents.length === 0 ? (
+            {(!status.agents || status.agents.length === 0) ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
                 <div className="w-24 h-24 bg-bg-secondary rounded-full flex items-center justify-center mb-6 opacity-20 border-2 border-dashed border-accent">
                   <Share2 className="w-10 h-10 text-accent" />
@@ -120,9 +122,9 @@ export default function Agents() {
                 </Link>
               </div>
             ) : (
-              <ForceGraph 
-                agents={status.agents} 
-                onNodeClick={(node) => setSelectedAgent(node)} 
+              <ForceGraph
+                agents={status.agents}
+                onNodeClick={(node) => setSelectedAgent(node)}
               />
             )}
           </div>
@@ -133,8 +135,8 @@ export default function Agents() {
           <div className="p-6 border-b border-border-default space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">
-                智能体列表 
-                <span className="ml-2 text-text-muted font-mono">({status.activeAgents.toLocaleString()})</span>
+                智能体列表
+                <span className="ml-2 text-text-muted font-mono">({(status.activeAgents || 0).toLocaleString()})</span>
               </h2>
               <div className="flex gap-2">
                 <Button 
@@ -210,9 +212,9 @@ export default function Agents() {
                     <TableCell className="text-right">
                       <span className={cn(
                         "font-mono text-xs font-bold",
-                        (agent as any).polarization > 0.7 ? "text-rose-500" : "text-text-tertiary"
+                        (agent.polarization ?? 0) > 0.7 ? "text-rose-500" : "text-text-tertiary"
                       )}>
-                        {(agent as any).polarization?.toFixed(2) || '0.00'}
+                        {(agent.polarization ?? 0).toFixed(2)}
                       </span>
                     </TableCell>
                   </TableRow>
@@ -243,8 +245,4 @@ export default function Agents() {
       />
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
 }
