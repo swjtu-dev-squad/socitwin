@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { Card, Button, Badge, Slider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui';
+import { Card, Button, Badge, Slider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
 import {
@@ -36,12 +36,25 @@ export default function Overview() {
   const { status, history, setStatus } = useSimulationStore();
   const navigate = useNavigate();
   const [agentCount, setAgentCount] = useState([10]); // 默认10个agents
+  const [platform, setPlatform] = useState('REDDIT');
+  const [recsys, setRecsys] = useState('HOT');
+  const [topic, setTopic] = useState('POLITICS');
+  const [region, setRegion] = useState('THAILAND');
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
         const res = await simulationApi.getStatus();
         setStatus(res.data);
+
+        // Sync current running config to state ONLY when simulation is running
+        // This prevents overwriting user's manual changes when simulation is not running
+        if (res.data.running) {
+          if (res.data.platform) setPlatform(res.data.platform);
+          if (res.data.recsys) setRecsys(res.data.recsys);
+          if (res.data.topics && res.data.topics.length > 0) setTopic(res.data.topics[0]);
+          if (res.data.regions && res.data.regions.length > 0) setRegion(res.data.regions[0]);
+        }
       } catch (error) {
         console.error('Failed to fetch simulation status:', error);
       }
@@ -95,52 +108,52 @@ export default function Overview() {
   return (
     <div className="px-6 lg:px-12 xl:px-16 py-12">
       <div className="max-w-7xl mx-auto space-y-6">
-        <header className="space-y-4">
-          {/* 第一行: 标题 + 状态 + Badge + 刷新按钮 */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl tracking-tight flex items-center gap-3">
-                <Eye className="w-8 h-8 text-accent" />
-                概览
-              </h1>
-              <div className={cn(
-                "h-8 flex items-center gap-2 px-3 rounded-full border text-xs",
-                status.running && !status.paused ? "bg-accent-subtle border-accent/20 text-accent" :
-                status.paused ? "bg-bg-tertiary border-border-default text-text-secondary" : "bg-bg-tertiary border-border-default text-text-tertiary"
-              )}>
-                <div className={cn("w-1.5 h-1.5 rounded-full",
-                  status.running && !status.paused ? "bg-accent" :
-                  status.paused ? "bg-text-secondary" : "bg-text-muted"
-                )}></div>
-                {status.running && !status.paused ? '运行中' : status.paused ? '已暂停' : '已停止'}
-              </div>
-              {/* 所有Badge（在同一行） */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {status.running && status.platform && (
-                  <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
-                    <Globe className="w-3 h-3 text-text-tertiary" />
-                    {status.platform}
-                  </Badge>
-                )}
-                {status.running && status.recsys && (
-                  <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
-                    <Cpu className="w-3 h-3 text-text-tertiary" />
-                    RecSys: {status.recsys}
-                  </Badge>
-                )}
-                {status.running && status.regions && status.regions.length > 0 && (
-                  <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
-                    <Globe className="w-3 h-3 text-text-tertiary" />
-                    {status.regions.join(', ')}
-                  </Badge>
-                )}
-                {status.running && status.topics && status.topics.length > 0 && (
-                  <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
-                    <Zap className="w-3 h-3 text-text-tertiary" />
-                    {status.topics.length} Topics
-                  </Badge>
-                )}
-              </div>
+        <header className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
+              <Eye className="w-10 h-10 text-accent" />
+              概览
+            </h1>
+            <p className="text-text-tertiary mt-1">实时监控系统运行状态与关键指标</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "h-8 flex items-center gap-2 px-3 rounded-full border text-xs",
+              status.running && !status.paused ? "bg-accent-subtle border-accent/20 text-accent" :
+              status.paused ? "bg-bg-tertiary border-border-default text-text-secondary" : "bg-bg-tertiary border-border-default text-text-tertiary"
+            )}>
+              <div className={cn("w-1.5 h-1.5 rounded-full",
+                status.running && !status.paused ? "bg-accent" :
+                status.paused ? "bg-text-secondary" : "bg-text-muted"
+              )}></div>
+              {status.running && !status.paused ? '运行中' : status.paused ? '已暂停' : '已停止'}
+            </div>
+            {/* 所有Badge（在同一行） */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {status.running && status.platform && (
+                <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
+                  <Globe className="w-3 h-3 text-text-tertiary" />
+                  {status.platform}
+                </Badge>
+              )}
+              {status.running && status.recsys && (
+                <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
+                  <Cpu className="w-3 h-3 text-text-tertiary" />
+                  RecSys: {status.recsys}
+                </Badge>
+              )}
+              {status.running && status.regions && status.regions.length > 0 && (
+                <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
+                  <Globe className="w-3 h-3 text-text-tertiary" />
+                  {status.regions.join(', ')}
+                </Badge>
+              )}
+              {status.running && status.topics && status.topics.length > 0 && (
+                <Badge variant="outline" className="bg-bg-secondary border-border-default text-text-secondary gap-1.5 h-8 px-3 rounded-full">
+                  <Zap className="w-3 h-3 text-text-tertiary" />
+                  {status.topics.length} Topics
+                </Badge>
+              )}
             </div>
             <Button
               variant="outline"
@@ -153,9 +166,6 @@ export default function Overview() {
               刷新
             </Button>
           </div>
-
-          {/* 第二行: 副标题 */}
-          <p className="text-text-tertiary text-sm">实时监控</p>
         </header>
 
         {/* Stats Table and Control - 12 Column Grid */}
@@ -213,29 +223,66 @@ export default function Overview() {
 
             {/* Configuration Display: 2x2 Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-text-tertiary">平台</label>
-                <div className="bg-bg-primary border border-border-default h-11 rounded-lg flex items-center px-3 text-sm">
-                  {status.platform || 'REDDIT'}
-                </div>
+                <Select value={platform} onValueChange={setPlatform}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-11 rounded-xl">
+                    <SelectValue placeholder="选择平台" value={platform} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="REDDIT">Reddit</SelectItem>
+                    <SelectItem value="X">X</SelectItem>
+                    <SelectItem value="FACEBOOK">Facebook</SelectItem>
+                    <SelectItem value="TIKTOK">TikTok</SelectItem>
+                    <SelectItem value="INSTAGRAM">Instagram</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-text-tertiary">算法</label>
-                <div className="bg-bg-primary border border-border-default h-11 rounded-lg flex items-center px-3 text-sm">
-                  {status.recsys || 'HOT'}
-                </div>
+                <Select value={recsys} onValueChange={setRecsys}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-11 rounded-xl">
+                    <SelectValue placeholder="选择算法" value={recsys} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOT">Hot-score</SelectItem>
+                    <SelectItem value="TWHIN">TwHIN-BERT</SelectItem>
+                    <SelectItem value="FORYOU">For You</SelectItem>
+                    <SelectItem value="EDGERANK">EdgeRank</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-text-tertiary">话题</label>
-                <div className="bg-bg-primary border border-border-default h-11 rounded-lg flex items-center px-3 text-sm">
-                  {status.topics?.[0] || 'POLITICS'}
-                </div>
+                <Select value={topic} onValueChange={setTopic}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-11 rounded-xl">
+                    <SelectValue placeholder="选择话题" value={topic} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="POLITICS">Politics</SelectItem>
+                    <SelectItem value="AI">AI & Tech</SelectItem>
+                    <SelectItem value="ENTERTAINMENT">Entertainment</SelectItem>
+                    <SelectItem value="HEALTH">Health</SelectItem>
+                    <SelectItem value="TRAVEL">Travel</SelectItem>
+                    <SelectItem value="FOOD">Food</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-text-tertiary">地区</label>
-                <div className="bg-bg-primary border border-border-default h-11 rounded-lg flex items-center px-3 text-sm">
-                  {status.regions?.[0] || 'THAILAND'}
-                </div>
+                <Select value={region} onValueChange={setRegion}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-11 rounded-xl">
+                    <SelectValue placeholder="选择地区" value={region} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="THAILAND">Thailand</SelectItem>
+                    <SelectItem value="CAMBODIA">Cambodia</SelectItem>
+                    <SelectItem value="INDONESIA">Indonesia</SelectItem>
+                    <SelectItem value="VIETNAM">Vietnam</SelectItem>
+                    <SelectItem value="MALAYSIA">Malaysia</SelectItem>
+                    <SelectItem value="PHILIPPINES">Philippines</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -277,11 +324,11 @@ export default function Overview() {
                   } else {
                     try {
                       await simulationApi.updateConfig({
-                        platform: 'REDDIT',
-                        recsys: 'HOT',
+                        platform,
+                        recsys,
                         agentCount: agentCount[0],
-                        topics: ['POLITICS'],
-                        regions: ['THAILAND'],
+                        topics: [topic],
+                        regions: [region],
                       });
                       const statusRes = await simulationApi.getStatus();
                       setStatus(statusRes.data);
@@ -362,7 +409,7 @@ export default function Overview() {
           /* Empty State Guide */
           <div className="flex items-center justify-center py-12">
             <div className="text-center py-12">
-              <p className="text-text-secondary text-sm mb-4">模拟未启动，请在下方配置参数后启动</p>
+              <p className="text-text-secondary text-sm mb-4">模拟未启动，请配置参数后启动</p>
             </div>
           </div>
         ) : (

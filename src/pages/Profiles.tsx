@@ -77,7 +77,8 @@ export default function Profiles() {
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="px-6 lg:px-12 xl:px-16 py-12">
+      <div className="max-w-7xl mx-auto space-y-8">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
@@ -351,6 +352,7 @@ export default function Profiles() {
             )}
           </div>
         </Card>
+      </div>
       </div>
     </div>
   );
