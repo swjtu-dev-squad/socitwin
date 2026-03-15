@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from camel.configs import ChatGPTConfig, OllamaConfig, VLLMConfig, OpenRouterConfig
+from camel.configs import (
+    ChatGPTConfig,
+    DeepSeekConfig,
+    OllamaConfig,
+    OpenRouterConfig,
+    VLLMConfig,
+)
 from camel.models import ModelFactory, ModelManager
 from camel.types import ModelPlatformType
 
@@ -91,6 +97,8 @@ def _default_model_config(model_platform: str) -> dict:
         return ChatGPTConfig().as_dict()
     if normalized == "openrouter":
         return OpenRouterConfig().as_dict()
+    if normalized == "deepseek":
+        return DeepSeekConfig().as_dict()
     return {}
 
 
