@@ -74,13 +74,13 @@
 
 ## Performance
 
-| Metric | Value | Description |
-|--------|-------|-------------|
-| Qwen3-8B Load Time | 0.26s | Initial model loading |
-| OASIS Initialization | 9.75s | Per agent |
-| Step 1 Execution | 1.08s | With real LLM calls |
-| Step 2-5 Average | 0.14s | With real LLM calls |
-| Timeout Limit | 30s | Optimized for UX |
+| Metric | Ollama (RTX 3060) | OpenRouter (DeepSeek) | Description |
+|--------|------------------|----------------------|-------------|
+| Qwen3-8B Load Time | 0.26s | <0.1s | Initial model loading |
+| OASIS Initialization | 9.75s | 9.75s | Per agent |
+| Average Step (Ollama) | 5.87s | - | With local LLM |
+| Average Step (OpenRouter) | - | 1-2s | 3-6x faster |
+| Timeout Limit | 30s | 30s | Optimized for UX |
 
 ---
 
@@ -89,8 +89,13 @@
 ### Prerequisites
 
 - **Operating System**: Ubuntu 22.04 LTS (recommended)
-- **Hardware**: 4+ core CPU, 8GB+ RAM, 40GB+ storage
-- **Software**: Node.js 20+, Python 3.11+, Ollama
+- **Hardware**:
+  - For Ollama: 4+ core CPU, 8GB+ RAM, 40GB+ storage, GPU with 8GB+ VRAM
+  - For OpenRouter: No special hardware required
+- **Software**: Node.js 20+, Python 3.11+
+- **LLM Backend**:
+  - Option 1: Ollama (local, free)
+  - Option 2: OpenRouter account (cloud, paid, faster)
 
 ### Installation
 
@@ -115,7 +120,28 @@
    ollama run qwen3:8b
    ```
 
-4. **Configure Model Runtime**
+4. **Configure Environment**
+
+   **Method 1: Using a .env File (Recommended)**
+
+   Copy the example environment file and edit as needed:
+   ```bash
+   cp .env.example .env
+   ```
+
+   The `.env` file comes pre-configured with sensible defaults for local Ollama:
+   - `OASIS_MODEL_PLATFORM=ollama`
+   - `OASIS_MODEL_TYPE=qwen3:8b`
+   - `OASIS_MODEL_URL=http://127.0.0.1:11434/v1`
+   - `OASIS_MODEL_CONTEXT_WINDOW=8192`
+   - `OASIS_CONTEXT_TOKEN_LIMIT=6144`
+   - `OASIS_MODEL_GENERATION_MAX_TOKENS=256`
+
+   The `.env` file is automatically loaded when the backend starts.
+
+   **Method 2: Manual Environment Variables (Alternative)**
+
+   For development or CI/CD, you can export variables manually:
    ```bash
    export OASIS_MODEL_PLATFORM=ollama
    export OASIS_MODEL_TYPE=qwen3:8b
@@ -125,7 +151,9 @@
    export OASIS_MODEL_GENERATION_MAX_TOKENS=256
    ```
 
-   Recommended meanings:
+   **Note:** Environment variables set manually (Method 2) take precedence over those in `.env`.
+
+   **Configuration Reference:**
    - `OASIS_MODEL_PLATFORM`: Inference backend type. Use `ollama` for local Ollama, `vllm` for OpenAI-compatible vLLM services.
    - `OASIS_MODEL_TYPE`: Model name exposed by the backend, for example `qwen3:8b`.
    - `OASIS_MODEL_URL`: Base URL of the model service. For local Ollama, the recommended value is `http://127.0.0.1:11434/v1`.
@@ -145,6 +173,50 @@
    pnpm build
    NODE_ENV=production npx tsx server.ts
    ```
+
+---
+
+## Model Backend Comparison
+
+### Ollama vs OpenRouter
+
+| Feature | Ollama (Local) | OpenRouter (Cloud) |
+|---------|---------------|-------------------|
+| **Speed** | ~5.87s/step (RTX 3060) | ~1-2s/step (3-6x faster) |
+| **Cost** | Free (requires hardware) | ~$0.14/1M tokens (DeepSeek) |
+| **Setup** | Install Ollama + GPU | Just get API key |
+| **Privacy** | 100% local | Data sent to API |
+| **Scalability** | Limited by GPU | Virtually unlimited |
+| **Models** | Open source only | 100+ models available |
+
+### When to use each?
+
+**Use Ollama if you:**
+- Have a powerful GPU (RTX 3060 or better)
+- Need 100% data privacy
+- Want zero ongoing costs
+- Are running small simulations (< 20 agents)
+
+**Use OpenRouter if you:**
+- Need faster execution speed
+- Don't have a powerful GPU
+- Are running large-scale simulations (50+ agents)
+- Want access to diverse models
+- Prefer cloud scalability
+
+### OpenRouter Model Recommendations
+
+| Model | Speed | Cost | Quality | Best For |
+|-------|-------|------|---------|----------|
+| `deepseek/deepseek-chat` | Very Fast | $0.14/1M | Good | Large simulations |
+| `google/gemini-flash-1.5` | Very Fast | $0.08/1M | Excellent | Balanced choice |
+| `meta-llama/llama-3.1-8b-instruct` | Fast | $0.08/1M | Good | Cost-effective |
+| `openai/gpt-4o-mini` | Fast | $0.15/1M | Excellent | Best quality |
+
+**Cost Example**: 100 agents × 50 steps ≈ 2M tokens
+- DeepSeek: ~$0.28 total
+- GPT-4o-mini: ~$0.30 total
+- Ollama: Free (but slower)
 
 ---
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from camel.configs import ChatGPTConfig, OllamaConfig, VLLMConfig
+from camel.configs import ChatGPTConfig, OllamaConfig, VLLMConfig, OpenRouterConfig
 from camel.models import ModelFactory, ModelManager
 from camel.types import ModelPlatformType
 
@@ -89,6 +89,8 @@ def _default_model_config(model_platform: str) -> dict:
         return VLLMConfig().as_dict()
     if normalized == "openai":
         return ChatGPTConfig().as_dict()
+    if normalized == "openrouter":
+        return OpenRouterConfig().as_dict()
     return {}
 
 
