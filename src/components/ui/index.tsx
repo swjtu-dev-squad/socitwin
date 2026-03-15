@@ -7,13 +7,14 @@ export const Card = ({ className, children, ...props }: { className?: string, ch
   </div>
 );
 
-export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'outline' | 'secondary' | 'destructive' }>(
+export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost' }>(
   ({ className, variant = 'default', ...props }, ref) => {
     const variants = {
       default: "bg-accent text-white hover:bg-accent-hover glow-effect",
       outline: "border border-border-default bg-transparent hover:bg-bg-tertiary text-text-primary",
       secondary: "bg-bg-tertiary text-text-primary hover:bg-bg-elevated",
       destructive: "bg-rose-600 text-white hover:bg-rose-700",
+      ghost: "bg-transparent hover:bg-bg-tertiary/50 text-text-primary",
     };
     return (
       <button
@@ -199,17 +200,22 @@ export const SelectItem = ({ children, value, onValueChange, setIsOpen }: any) =
 );
 SelectItem.displayName = 'SelectItem';
 
-export const Slider = ({ value, onValueChange, min, max, step, className }: any) => (
-  <input
-    type="range"
-    min={min}
-    max={max}
-    step={step}
-    value={value[0]}
-    onChange={(e) => onValueChange([parseInt(e.target.value)])}
-    className={cn("w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent", className)}
-  />
-);
+export const Slider = ({ value, onValueChange, min, max, step, className }: any) => {
+  const percentage = ((value[0] - min) / (max - min)) * 100;
+
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value[0]}
+      onChange={(e) => onValueChange([parseInt(e.target.value)])}
+      className={cn("w-full", className)}
+      style={{ '--progress': `${percentage}%` } as any}
+    />
+  );
+};
 
 export const Table = ({ children }: any) => <table className="w-full text-left border-collapse">{children}</table>;
 export const TableHeader = ({ children, className }: any) => <thead className={className}>{children}</thead>;

@@ -8,6 +8,7 @@ export interface Agent {
   interests: string[];
   status: 'active' | 'idle' | 'thinking';
   lastAction?: { type: ActionType; content?: string; reason: string };
+  polarization?: number; // 添加极化值字段
 }
 
 export interface LogEntry {

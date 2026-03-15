@@ -2,20 +2,19 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Home,
-  SlidersHorizontal,
   UserRound,
   Users,
   MessageSquare,
   BarChart3,
   Settings as SettingsIcon,
-  MessageCircle
+  MessageCircle,
+  Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OasisIcon from './OasisIcon';
 
 const navItems = [
-  { name: '概览', icon: Home, href: '/overview' },
-  { name: '控制中心', icon: SlidersHorizontal, href: '/control' },
+  { name: '概览', icon: Eye, href: '/overview' },
   { name: '用户画像生成', icon: UserRound, href: '/profiles' },
   { name: '智能体监控', icon: Users, href: '/agents' },
   { name: '通信日志', icon: MessageSquare, href: '/logs' },
@@ -30,15 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen bg-bg-primary text-text-primary font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border-default bg-bg-secondary/50 flex flex-col glass-effect">
-        <div className="p-6 flex items-center gap-3">
-          <OasisIcon size={40} />
-          <div>
-            <h1 className="font-bold text-xl tracking-tight">OASIS</h1>
-            <p className="text-[10px] text-accent font-mono uppercase tracking-widest gradient-text">Simulation OS</p>
-          </div>
-        </div>
-
+      <aside className="w-64 bg-bg-secondary/50 flex flex-col glass-effect">
         <nav className="flex-1 px-3 py-4 space-y-1">
           {navItems.map((item) => {
             const isActive = location.pathname === item.href;
@@ -59,16 +50,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
-
-        <div className="p-4 border-t border-border-default">
-          <div className="bg-bg-tertiary/50 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] text-text-tertiary uppercase font-bold tracking-wider">System Status</span>
-              <span className="w-2 h-2 bg-accent rounded-full animate-pulse shadow-[0_0_8px_rgba(215,38,56,0.8)]"></span>
-            </div>
-            <p className="text-xs text-text-secondary">v1.0.0 Stable</p>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}

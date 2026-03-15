@@ -109,7 +109,8 @@ export default function Logs() {
   const actionTypes = ['CREATE_POST', 'LIKE_POST', 'FOLLOW', 'REPORT_POST'];
 
   return (
-    <div className="p-8 h-full flex flex-col space-y-8">
+    <div className="px-6 lg:px-12 xl:px-16 py-12 h-full flex flex-col">
+      <div className="max-w-7xl mx-auto space-y-8 flex-1 min-h-0">
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
@@ -249,6 +250,7 @@ export default function Logs() {
           )}
         </ScrollArea>
       </Card>
+      </div>
     </div>
   );
 }

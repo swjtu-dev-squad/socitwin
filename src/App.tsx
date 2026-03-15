@@ -4,7 +4,6 @@ import { initSocket, disconnectSocket } from './lib/socket';
 import DashboardLayout from './components/DashboardLayout';
 import Home from './pages/Home';
 import Overview from './pages/Overview';
-import Control from './pages/Control';
 import Profiles from './pages/Profiles';
 import Agents from './pages/Agents';
 import Logs from './pages/Logs';
@@ -30,11 +29,6 @@ export default function App() {
         <Route path="/overview" element={
           <DashboardLayout>
             <Overview />
-          </DashboardLayout>
-        } />
-        <Route path="/control" element={
-          <DashboardLayout>
-            <Control />
           </DashboardLayout>
         } />
         <Route path="/profiles" element={

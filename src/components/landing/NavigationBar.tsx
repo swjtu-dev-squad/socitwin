@@ -1,15 +1,13 @@
 import { Link } from 'react-router-dom';
 import { Github, BookOpen } from 'lucide-react';
-import { OasisIcon } from '@/components/OasisIcon';
 
 export default function NavigationBar() {
   return (
     <nav className="sticky top-0 z-50 h-16 glass-effect border-b border-border-default">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-12 xl:px-16 h-full flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
-          <OasisIcon size={32} />
-          <span className="text-lg font-bold gradient-text">OASIS DASHBOARD</span>
+        <Link to="/" className="flex items-center group">
+          <img src="/logo-text.png" alt="OASIS Dashboard" className="h-10" />
         </Link>
 
         {/* Nav Links */}
