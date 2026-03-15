@@ -7,6 +7,7 @@ Real OASIS Engine V3 - Speed Optimized
 """
 
 import os
+import random
 import sys
 import time
 from datetime import datetime, timezone
@@ -116,9 +117,14 @@ class RealOASISEngineV3:
         
         self.agents: List[Any] = []
         self.logs: List[Dict] = []
-        
+
         # 使用真实 LLMAction 模式
         self.use_llm_action = True
+
+        # 极化率分析器（延迟初始化）
+        self.polarization_analyzer: Optional[Any] = None
+        self.polarization_topic: Optional[str] = None
+        self.last_polarization: float = 0.0
 
     def _get_topic_instructions(self, topic: str, region: str) -> str:
         """
@@ -234,12 +240,12 @@ class RealOASISEngineV3:
             )
 
             # 定义可用动作
-            # REFRESH 是必须的，让agents获取推荐内容
+            # 🔥 移除DO_NOTHING以防止agents选择什么都不做
+            # 这样agents必须选择：创建帖子、点赞或刷新
             available_actions = [
                 ActionType.CREATE_POST,
                 ActionType.LIKE_POST,
-                ActionType.REFRESH,  # ✅ 关键：允许agents刷新推荐内容
-                ActionType.DO_NOTHING,  # 允许agents选择不做任何事
+                ActionType.REFRESH,
             ]
 
             # 初始化 agent graph
@@ -332,6 +338,26 @@ class RealOASISEngineV3:
 
             init_time = time.time() - init_start
             print(f"✅ OASIS初始化完成 (耗时 {init_time:.2f}秒)", flush=True)
+
+            # 初始化极化率分析器
+            self.polarization_topic = primary_topic
+            if primary_topic and primary_topic != "general":
+                try:
+                    from oasis_dashboard.polarization_analyzer import PolarizationAnalyzer
+
+                    self.polarization_analyzer = PolarizationAnalyzer(
+                        db_path=self.db_path,
+                        model_spec=self._build_model_runtime_spec(),
+                        topic=primary_topic,
+                        sample_size=30,
+                        cache_size=500
+                    )
+
+                    print(f"✅ 极化率分析器已初始化，topic: {primary_topic}", flush=True)
+
+                except Exception as e:
+                    print(f"⚠️  极化率分析器初始化失败: {e}", flush=True)
+                    self.polarization_analyzer = None
 
             return {
                 "status": "ok",
@@ -430,6 +456,9 @@ class RealOASISEngineV3:
             # 从 OASIS 数据库读取真实的 agent 行为日志
             new_logs = self._get_real_agent_actions()
 
+            # 计算极化率（每一步都检查）
+            polarization_result = await self._update_polarization()
+
             return {
                 "status": "ok",
                 "current_step": self.current_step,
@@ -438,6 +467,7 @@ class RealOASISEngineV3:
                 "step_time": step_time,
                 "context_metrics": context_metrics,
                 "new_logs": new_logs,  # ← 返回所有日志
+                "polarization": polarization_result.get("polarization", 0.0),  # ← 极化率
             }
             
         except Exception as e:
@@ -465,7 +495,44 @@ class RealOASISEngineV3:
             "status": "ok",
             "message": "模拟已重置",
         }
-    
+
+    async def _update_polarization(self) -> Dict:
+        """
+        更新极化率（每一步都调用）
+
+        Returns:
+            极化率指标字典
+        """
+        # 如果没有初始化分析器，返回0
+        if not hasattr(self, 'polarization_analyzer') or self.polarization_analyzer is None:
+            return {"polarization": 0.0}
+
+        try:
+            # 执行分析
+            result = await self.polarization_analyzer.analyze()
+
+            # 更新缓存
+            self.last_polarization = result.get("polarization", 0.0)
+
+            # 记录到历史（用于降级）
+            if "polarization" in result:
+                self.polarization_analyzer.history.append(result["polarization"])
+                # 保留最近100次
+                if len(self.polarization_analyzer.history) > 100:
+                    self.polarization_analyzer.history.pop(0)
+
+            return result
+
+        except Exception as e:
+            print(f"⚠️  极化率分析失败: {e}，使用历史平均值", flush=True)
+
+            # 降级：返回历史平均值
+            if hasattr(self.polarization_analyzer, 'history') and len(self.polarization_analyzer.history) > 0:
+                avg_pol = sum(self.polarization_analyzer.history) / len(self.polarization_analyzer.history)
+                return {"polarization": avg_pol, "degraded": True}
+
+            return {"polarization": 0.0, "error": str(e)}
+
     def get_status(self) -> Dict:
         """获取当前模拟状态"""
         return {
