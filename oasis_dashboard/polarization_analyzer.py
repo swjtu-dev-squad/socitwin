@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from camel.messages import BaseMessage
+from camel.types import OpenAIBackendRole
 
 from oasis_dashboard.context import ModelRuntimeSpec, build_shared_model
 
@@ -134,7 +135,7 @@ class PolarizationAnalyzer:
             try:
                 result = await asyncio.wait_for(
                     self._analyze_posts(new_posts),
-                    timeout=2.0  # 2秒超时
+                    timeout=30.0  # 30秒超时（LLM 调用需要时间）
                 )
                 self.last_result = result
                 return result
@@ -269,23 +270,42 @@ Example format: [0.2, 0.7, 0.5, 0.3, 0.8]
 Your response:"""
 
         # 2. 调用LLM（带重试）
+        # 注意：CAMEL-AI 模型后端使用 run()/arun() 方法，需要 OpenAI 格式消息
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = await self.model.agenerate([
-                    BaseMessage.make_user_message(
-                        role_name="user",
-                        content=prompt
-                    )
-                ])
+                # 创建 BaseMessage 并转换为 OpenAI 格式
+                base_message = BaseMessage.make_user_message(
+                    role_name="user",
+                    content=prompt
+                )
+                openai_message = base_message.to_openai_message(
+                    OpenAIBackendRole.USER
+                )
 
-                result_text = response.msgs[0].content.strip()
+                # 优先使用异步方法，如果不可用则用线程池包装同步方法
+                if hasattr(self.model, 'arun'):
+                    response = await self.model.arun([openai_message])
+                elif hasattr(self.model, 'run'):
+                    response = await asyncio.to_thread(
+                        self.model.run,
+                        [openai_message]
+                    )
+                else:
+                    raise AttributeError("模型不支持 arun() 或 run() 方法")
+
+                # arun 返回 ChatCompletion 对象
+                result_text = response.choices[0].message.content.strip()
+
+                # 记录原始响应用于调试
+                logger.debug(f"LLM 原始响应 (前200字符): {result_text[:200]}")
+
                 stances = self._parse_stance_json(result_text, len(posts))
 
                 if stances:
                     return stances
 
-                logger.warning(f"LLM解析失败（尝试 {attempt+1}/{max_retries}）")
+                logger.warning(f"LLM解析失败（尝试 {attempt+1}/{max_retries}），响应: {result_text[:100]}")
 
             except Exception as e:
                 logger.warning(f"LLM调用失败（尝试 {attempt+1}/{max_retries}）: {e}")
@@ -298,7 +318,7 @@ Your response:"""
 
     def _parse_stance_json(self, text: str, expected_count: int) -> List[float]:
         """
-        解析LLM返回的JSON立场分数
+        解析LLM返回的JSON立场分数（增强容错）
 
         Args:
             text: LLM响应文本
@@ -307,44 +327,98 @@ Your response:"""
         Returns:
             立场分数列表
         """
-        try:
-            # 尝试提取JSON数组
-            # 处理可能的markdown代码块
-            if "```json" in text:
-                text = text.split("```json")[1].split("```")[0].strip()
-            elif "```" in text:
-                text = text.split("```")[1].split("```")[0].strip()
+        # 尝试多种解析策略
+        strategies = [
+            self._parse_as_json_array,
+            self._parse_as_number_list,
+            self._extract_numbers_from_text,
+        ]
 
-            # 查找JSON数组
-            match = re.search(r'\[.*?\]', text, re.DOTALL)
-            if not match:
-                raise ValueError("未找到JSON数组")
-
-            json_str = match.group()
-            data = json.loads(json_str)
-
-            # 验证结果
-            if isinstance(data, list):
-                stances = []
-                for item in data:
-                    if isinstance(item, (int, float)):
-                        stance = float(item)
-                        # 归一化到0-1范围
-                        stance = max(0.0, min(1.0, stance))
-                        stances.append(stance)
-
-                if len(stances) == expected_count:
+        for strategy in strategies:
+            try:
+                stances = strategy(text, expected_count)
+                if stances and len(stances) == expected_count:
+                    logger.debug(f"成功使用 {strategy.__name__} 解析 {len(stances)} 个立场")
                     return stances
-                else:
-                    logger.warning(
-                        f"立场数量不匹配: 期望{expected_count}, 实际{len(stances)}"
-                    )
+            except Exception as e:
+                logger.debug(f"{strategy.__name__} 失败: {e}")
+                continue
 
-            raise ValueError("JSON格式不正确")
+        logger.error(f"所有解析策略失败，原始文本: {text[:200]}")
+        return []
 
-        except Exception as e:
-            logger.error(f"解析立场JSON失败: {e}")
-            return []
+    def _parse_as_json_array(self, text: str, expected_count: int) -> List[float]:
+        """策略1: 解析为标准 JSON 数组"""
+        # 处理可能的 markdown 代码块
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+
+        # 查找 JSON 数组（使用非贪婪匹配）
+        matches = re.findall(r'\[[\s\S]*?\]', text)
+        for json_str in matches:
+            try:
+                data = json.loads(json_str)
+                if isinstance(data, list):
+                    stances = []
+                    for item in data:
+                        if isinstance(item, (int, float)):
+                            stance = float(item)
+                            # 归一化到 0-1 范围
+                            stance = max(0.0, min(1.0, stance))
+                            stances.append(stance)
+
+                    if len(stances) == expected_count:
+                        return stances
+            except json.JSONDecodeError:
+                continue
+
+        raise ValueError("未找到有效的 JSON 数组")
+
+    def _parse_as_number_list(self, text: str, expected_count: int) -> List[float]:
+        """策略2: 解析逗号分隔的数字列表"""
+        # 提取所有数字（包括小数）
+        numbers = re.findall(r'\d+\.?\d*', text)
+
+        if len(numbers) >= expected_count:
+            stances = []
+            for num_str in numbers[:expected_count]:
+                try:
+                    num = float(num_str)
+                    # 归一化到 0-1 范围
+                    if num > 1:
+                        num = num / 10.0  # 假设是 1-10 的评分
+                    num = max(0.0, min(1.0, num))
+                    stances.append(num)
+                except ValueError:
+                    continue
+
+            if len(stances) == expected_count:
+                return stances
+
+        raise ValueError("未能提取足够的数字")
+
+    def _extract_numbers_from_text(self, text: str, expected_count: int) -> List[float]:
+        """策略3: 从文本中提取所有可能的分数"""
+        # 查找 "0.0", "1.0", "0.5" 等模式
+        pattern = r'\b0?\.\d+\b|\b[01]\.0\b'
+        matches = re.findall(pattern, text)
+
+        if len(matches) >= expected_count:
+            stances = []
+            for match in matches[:expected_count]:
+                try:
+                    stance = float(match)
+                    stance = max(0.0, min(1.0, stance))
+                    stances.append(stance)
+                except ValueError:
+                    continue
+
+            if len(stances) == expected_count:
+                return stances
+
+        raise ValueError("未能从文本中提取有效分数")
 
     def _calculate_polarization_metrics(self, stances: List[float]) -> Dict:
         """
