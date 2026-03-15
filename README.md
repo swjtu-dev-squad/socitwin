@@ -29,7 +29,7 @@
 ### 🎯 Core Capabilities
 
 - **Real OASIS Engine Integration**: Built on the authentic `camel-oasis` framework, ensuring simulation accuracy and depth
-- **Local Model Support**: Run local LLMs via Ollama (Qwen3-8B) without external API dependencies, reducing costs and protecting data privacy
+- **Flexible Model Support**: Run local LLMs via Ollama (Qwen3-8B) or use cloud APIs via DeepSeek/OpenRouter for faster inference (3-6x speedup)
 - **Real-time Monitoring**: Live tracking of simulation status, KPI metrics (active agents, total posts, polarization index), and agent activities
 - **Dynamic Control**: Adjust parameters, inject events, and intervene in agent behaviors during simulation runtime
 - **Advanced Visualization**: Social network graphs, trend analysis, and geospatial heatmaps for intuitive data understanding
@@ -65,7 +65,7 @@
 |----------|-----------|
 | **Frontend** | React 19, TypeScript, Vite, TailwindCSS, Recharts, Framer Motion |
 | **Backend** | Node.js, Express, Socket.io, TypeScript |
-| **Simulation Engine** | Python 3.11+, CAMEL-AI, Ollama, Qwen3-8B |
+| **Simulation Engine** | Python 3.11+, CAMEL-AI, Ollama/DeepSeek/OpenRouter, Qwen3-8B |
 | **Database** | SQLite (built-in with OASIS) |
 | **State Management** | Zustand, TanStack Query |
 | **UI Components** | Lucide Icons, Sonner |
@@ -74,13 +74,14 @@
 
 ## Performance
 
-| Metric | Ollama (RTX 3060) | OpenRouter (DeepSeek) | Description |
-|--------|------------------|----------------------|-------------|
-| Qwen3-8B Load Time | 0.26s | <0.1s | Initial model loading |
-| OASIS Initialization | 9.75s | 9.75s | Per agent |
-| Average Step (Ollama) | 5.87s | - | With local LLM |
-| Average Step (OpenRouter) | - | 1-2s | 3-6x faster |
-| Timeout Limit | 30s | 30s | Optimized for UX |
+| Metric | Ollama (RTX 3060) | DeepSeek API | OpenRouter | Description |
+|--------|------------------|--------------|------------|-------------|
+| Qwen3-8B Load Time | 0.26s | <0.1s | <0.1s | Initial model loading |
+| OASIS Initialization | 9.75s | 9.75s | 9.75s | Per agent |
+| Average Step Time | 5.87s | 1-2s | 1-2s | Per agent per step |
+| Speed vs Ollama | 1x (baseline) | 3-6x faster | 3-6x faster | Performance improvement |
+| Cost | Free (hardware) | ¥1/1M tokens | ~$0.14/1M tokens | Cheapest options |
+| Invoice | N/A | ✅ Chinese invoice | ⚠️ Complex | Billing convenience |
 
 ---
 
@@ -91,11 +92,12 @@
 - **Operating System**: Ubuntu 22.04 LTS (recommended)
 - **Hardware**:
   - For Ollama: 4+ core CPU, 8GB+ RAM, 40GB+ storage, GPU with 8GB+ VRAM
-  - For OpenRouter: No special hardware required
+  - For DeepSeek/OpenRouter: No special hardware required
 - **Software**: Node.js 20+, Python 3.11+
-- **LLM Backend**:
-  - Option 1: Ollama (local, free)
-  - Option 2: OpenRouter account (cloud, paid, faster)
+- **LLM Backend** (choose one):
+  - Option 1: Ollama (local, free, slower)
+  - Option 2: DeepSeek API (cloud, ¥1/1M tokens, 3-6x faster, ✅ Chinese invoice)
+  - Option 3: OpenRouter (cloud, paid, 3-6x faster, ⚠️ invoice may be complex)
 
 ### Installation
 
@@ -154,12 +156,13 @@
    **Note:** Environment variables set manually (Method 2) take precedence over those in `.env`.
 
    **Configuration Reference:**
-   - `OASIS_MODEL_PLATFORM`: Inference backend type. Use `ollama` for local Ollama, `vllm` for OpenAI-compatible vLLM services.
-   - `OASIS_MODEL_TYPE`: Model name exposed by the backend, for example `qwen3:8b`.
-   - `OASIS_MODEL_URL`: Base URL of the model service. For local Ollama, the recommended value is `http://127.0.0.1:11434/v1`.
-   - `OASIS_MODEL_CONTEXT_WINDOW`: Declared model context window. Set this to the actual context length of your deployed model.
-   - `OASIS_CONTEXT_TOKEN_LIMIT`: Budget reserved for short-term conversation context. A practical recommendation is to keep it below the full context window to leave room for system prompt and generation.
-   - `OASIS_MODEL_GENERATION_MAX_TOKENS`: Maximum tokens for a single model response. A conservative local development value such as `256` is recommended.
+   - `OASIS_MODEL_PLATFORM`: Inference backend type. Options: `ollama`, `deepseek`, `openrouter`, `openai`, `vllm`.
+   - `OASIS_MODEL_TYPE`: Model name. Examples: `qwen3:8b` (Ollama), `deepseek-chat` (DeepSeek), `deepseek/deepseek-chat` (OpenRouter).
+   - `OASIS_MODEL_URL`: Base URL of the model service. Required for custom deployments, can be omitted for official APIs.
+   - `OASIS_MODEL_API_KEY`: API key for cloud services (DeepSeek, OpenRouter, OpenAI).
+   - `OASIS_MODEL_CONTEXT_WINDOW`: Declared model context window. Set to the actual context length of your model.
+   - `OASIS_CONTEXT_TOKEN_LIMIT`: Budget for conversation context. Keep below full context window.
+   - `OASIS_MODEL_GENERATION_MAX_TOKENS`: Maximum tokens per response. Recommended: `256`.
 
    For a detailed explanation of why these settings are explicit in the current architecture, see [OASIS Memory Optimization](docs/OASIS_MEMORY_OPTIMIZATION.md).
 
@@ -178,16 +181,17 @@
 
 ## Model Backend Comparison
 
-### Ollama vs OpenRouter
+### Ollama vs DeepSeek vs OpenRouter
 
-| Feature | Ollama (Local) | OpenRouter (Cloud) |
-|---------|---------------|-------------------|
-| **Speed** | ~5.87s/step (RTX 3060) | ~1-2s/step (3-6x faster) |
-| **Cost** | Free (requires hardware) | ~$0.14/1M tokens (DeepSeek) |
-| **Setup** | Install Ollama + GPU | Just get API key |
-| **Privacy** | 100% local | Data sent to API |
-| **Scalability** | Limited by GPU | Virtually unlimited |
-| **Models** | Open source only | 100+ models available |
+| Feature | Ollama (Local) | DeepSeek API | OpenRouter (Cloud) |
+|---------|---------------|--------------|-------------------|
+| **Speed** | ~5.87s/step (RTX 3060) | ~1-2s/step (3-6x faster) | ~1-2s/step (3-6x faster) |
+| **Cost** | Free (requires hardware) | ¥1/1M tokens (~$0.14) | ~$0.14/1M tokens (varies) |
+| **Setup** | Install Ollama + GPU | Just get API key | Just get API key |
+| **Privacy** | 100% local | Data sent to API | Data sent to API |
+| **Scalability** | Limited by GPU | Virtually unlimited | Virtually unlimited |
+| **Invoice** | N/A | ✅ Chinese invoice | ⚠️ May be complex |
+| **Models** | Open source only | DeepSeek models | 100+ models |
 
 ### When to use each?
 
@@ -197,26 +201,50 @@
 - Want zero ongoing costs
 - Are running small simulations (< 20 agents)
 
-**Use OpenRouter if you:**
-- Need faster execution speed
+**Use DeepSeek if you:**
+- Need faster execution speed (3-6x)
 - Don't have a powerful GPU
+- ✅ Need Chinese invoice for reimbursement
+- Want the cheapest cloud option (¥1/1M tokens)
 - Are running large-scale simulations (50+ agents)
-- Want access to diverse models
-- Prefer cloud scalability
 
-### OpenRouter Model Recommendations
+**Use OpenRouter if you:**
+- Need access to diverse models (100+ options)
+- Want to compare different LLMs
+- Don't mind potentially complex invoicing
+
+### Model Recommendations
+
+#### DeepSeek Models (Recommended for Chinese Users)
+```bash
+OASIS_MODEL_PLATFORM=deepseek
+OASIS_MODEL_TYPE=deepseek-chat
+OASIS_MODEL_API_KEY=sk-xxxxx
+```
 
 | Model | Speed | Cost | Quality | Best For |
 |-------|-------|------|---------|----------|
-| `deepseek/deepseek-chat` | Very Fast | $0.14/1M | Good | Large simulations |
+| `deepseek-chat` | Very Fast | ¥1/1M | Good | Large simulations |
+| `deepseek-coder` | Very Fast | ¥1/1M | Excellent | Code generation |
+
+#### OpenRouter Models (Alternative)
+| Model | Speed | Cost | Quality | Best For |
+|-------|-------|------|---------|----------|
 | `google/gemini-flash-1.5` | Very Fast | $0.08/1M | Excellent | Balanced choice |
 | `meta-llama/llama-3.1-8b-instruct` | Fast | $0.08/1M | Good | Cost-effective |
 | `openai/gpt-4o-mini` | Fast | $0.15/1M | Excellent | Best quality |
 
-**Cost Example**: 100 agents × 50 steps ≈ 2M tokens
-- DeepSeek: ~$0.28 total
-- GPT-4o-mini: ~$0.30 total
-- Ollama: Free (but slower)
+### Cost Examples
+
+**Scenario**: 100 agents × 50 steps ≈ 2M tokens
+
+| Provider | Cost | Notes |
+|----------|------|-------|
+| **DeepSeek** | **¥2 (~$0.28)** | ✅ Chinese invoice available |
+| OpenRouter (DeepSeek) | ~$0.28 | ⚠️ Invoice may be complex |
+| OpenRouter (Gemini) | ~$0.16 | ⚠️ Invoice may be complex |
+| OpenRouter (GPT-4o-mini) | ~$0.30 | ⚠️ Invoice may be complex |
+| **Ollama** | **Free** | Slower, requires GPU |
 
 ---
 
