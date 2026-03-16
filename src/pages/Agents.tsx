@@ -70,7 +70,7 @@ export default function Agents() {
               {status.running && !status.paused ? '实时更新中 (每 3s)' : status.paused ? '已暂停' : '引擎已停止'}
             </span>
           </div>
-          <Link to="/control">
+          <Link to="/overview">
             <Button variant="outline" className="rounded-xl border-border-default h-10 text-xs gap-2">
               <Settings2 className="w-4 h-4" />
               配置引擎
@@ -118,7 +118,7 @@ export default function Agents() {
                 </div>
                 <h3 className="text-lg font-bold text-text-secondary mb-2">社交网络拓扑待初始化</h3>
                 <p className="text-xs text-text-muted max-w-xs mb-6">启动模拟后，系统将实时绘制 Agent 之间的关注、互动与信息流转关系图谱。</p>
-                <Link to="/control">
+                <Link to="/overview">
                   <Button className="bg-accent hover:bg-accent-hover rounded-xl px-6">立即前往控制中心启动</Button>
                 </Link>
               </div>

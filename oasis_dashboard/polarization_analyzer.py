@@ -8,12 +8,14 @@ It analyzes post content to determine stance positions and calculates polarizati
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import json
 import logging
+import os
 import re
 import sqlite3
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from camel.messages import BaseMessage
@@ -38,7 +40,7 @@ class PolarizationAnalyzer:
     def __init__(
         self,
         db_path: str,
-        model_spec: ModelRuntimeSpec,
+        model_spec: ModelRuntimeSpec | list[ModelRuntimeSpec],
         topic: str,
         sample_size: int = 30,
         cache_size: int = 500,
@@ -54,13 +56,26 @@ class PolarizationAnalyzer:
             cache_size: 缓存最近N条分析结果
         """
         self.db_path = db_path
-        self.model_spec = model_spec
+        self.model_spec = self._prepare_model_spec_for_analysis(model_spec)
         self.topic = topic
         self.sample_size = sample_size
         self.cache_size = cache_size
+        self.analysis_timeout_s = float(
+            os.environ.get("OASIS_POLARIZATION_TIMEOUT", "30")
+        )
+        self.request_timeout_s = float(
+            os.environ.get("OASIS_POLARIZATION_REQUEST_TIMEOUT", "12")
+        )
+        self.max_retries = int(
+            os.environ.get("OASIS_POLARIZATION_MAX_RETRIES", "3")
+        )
+        self.chunk_size = max(
+            1,
+            int(os.environ.get("OASIS_POLARIZATION_CHUNK_SIZE", "8")),
+        )
 
         # 初始化模型
-        resolved_model = build_shared_model(model_spec)
+        resolved_model = build_shared_model(self.model_spec)
         self.model = resolved_model.model
 
         # 状态追踪
@@ -135,13 +150,25 @@ class PolarizationAnalyzer:
             try:
                 result = await asyncio.wait_for(
                     self._analyze_posts(new_posts),
-                    timeout=30.0  # 30秒超时（LLM 调用需要时间）
+                    timeout=self.analysis_timeout_s,
                 )
                 self.last_result = result
                 return result
 
             except asyncio.TimeoutError:
-                logger.warning("极化分析超时，使用缓存")
+                logger.warning("极化分析超时，尝试启发式降级")
+                fallback_stances = self._heuristic_stance_batch(new_posts)
+                if fallback_stances:
+                    self._save_analysis_results(
+                        [p["post_id"] for p in new_posts],
+                        fallback_stances,
+                        confidence=0.35,
+                    )
+                    result = self._calculate_polarization_metrics(fallback_stances)
+                    result["degraded"] = True
+                    result["source"] = "heuristic_timeout_fallback"
+                    self.last_result = result
+                    return result
                 return self.get_cached_result()
 
         except Exception as e:
@@ -158,18 +185,28 @@ class PolarizationAnalyzer:
         Returns:
             极化率指标字典
         """
-        # 1. 批量LLM立场分析
+        # 1. 批量LLM立场分析（含分块降级）
         logger.debug(f"开始分析 {len(posts)} 条帖子...")
-        stances = await self._analyze_batch(posts)
+        stances = await self._analyze_with_chunk_fallback(posts)
 
         if not stances:
-            logger.warning("LLM分析返回空结果，使用历史平均值")
-            return self._get_historical_fallback()
+            logger.warning("LLM分析返回空结果，使用启发式降级")
+            stances = self._heuristic_stance_batch(posts)
+            if not stances:
+                return self._get_historical_fallback()
+            confidence = 0.35
+            degraded = True
+            source = "heuristic_empty_llm_fallback"
+        else:
+            confidence = 0.8
+            degraded = False
+            source = "llm"
 
         # 2. 保存分析结果到缓存
         self._save_analysis_results(
             [p['post_id'] for p in posts],
-            stances
+            stances,
+            confidence=confidence,
         )
 
         # 3. 计算极化率
@@ -184,8 +221,47 @@ class PolarizationAnalyzer:
             f"✅ 极化率分析完成: {result['polarization']:.3f} "
             f"(N={result['sample_size']}, std={result['std']:.3f})"
         )
+        if degraded:
+            result["degraded"] = True
+        result["source"] = source
 
         return result
+
+    async def _analyze_with_chunk_fallback(self, posts: List[Dict]) -> List[float]:
+        """
+        先整批分析，失败后按 chunk 分块分析，避免单次大请求整体失败。
+        """
+        full_batch = await self._analyze_batch(posts)
+        if full_batch:
+            return self._normalize_stance_count(full_batch, len(posts))
+
+        logger.warning(
+            "整批极化分析失败，切换分块模式（chunk_size=%s）",
+            self.chunk_size,
+        )
+        merged: List[float] = []
+        for idx in range(0, len(posts), self.chunk_size):
+            chunk = posts[idx: idx + self.chunk_size]
+            chunk_stances = await self._analyze_batch(chunk)
+            if not chunk_stances:
+                chunk_stances = self._heuristic_stance_batch(chunk)
+                if chunk_stances:
+                    logger.warning(
+                        "分块 %s-%s 使用启发式降级",
+                        idx,
+                        idx + len(chunk) - 1,
+                    )
+            if not chunk_stances:
+                logger.warning(
+                    "分块 %s-%s 仍失败，填充中立值",
+                    idx,
+                    idx + len(chunk) - 1,
+                )
+                chunk_stances = [0.5] * len(chunk)
+            merged.extend(
+                self._normalize_stance_count(chunk_stances, len(chunk))
+            )
+        return self._normalize_stance_count(merged, len(posts))
 
     def _get_new_posts(self) -> List[Dict]:
         """
@@ -271,7 +347,7 @@ Your response:"""
 
         # 2. 调用LLM（带重试）
         # 注意：CAMEL-AI 模型后端使用 run()/arun() 方法，需要 OpenAI 格式消息
-        max_retries = 3
+        max_retries = self.max_retries
         for attempt in range(max_retries):
             try:
                 # 创建 BaseMessage 并转换为 OpenAI 格式
@@ -285,17 +361,27 @@ Your response:"""
 
                 # 优先使用异步方法，如果不可用则用线程池包装同步方法
                 if hasattr(self.model, 'arun'):
-                    response = await self.model.arun([openai_message])
+                    response = await asyncio.wait_for(
+                        self.model.arun([openai_message]),
+                        timeout=self.request_timeout_s,
+                    )
                 elif hasattr(self.model, 'run'):
-                    response = await asyncio.to_thread(
-                        self.model.run,
-                        [openai_message]
+                    response = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.model.run,
+                            [openai_message]
+                        ),
+                        timeout=self.request_timeout_s,
                     )
                 else:
                     raise AttributeError("模型不支持 arun() 或 run() 方法")
 
-                # arun 返回 ChatCompletion 对象
-                result_text = response.choices[0].message.content.strip()
+                result_text = self._extract_response_text(response)
+                if not result_text:
+                    logger.warning(
+                        f"LLM返回空内容（尝试 {attempt+1}/{max_retries}）"
+                    )
+                    continue
 
                 # 记录原始响应用于调试
                 logger.debug(f"LLM 原始响应 (前200字符): {result_text[:200]}")
@@ -312,9 +398,9 @@ Your response:"""
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.5)  # 短暂等待后重试
 
-        # 3. 所有重试失败，返回中立值
-        logger.error("所有LLM重试失败，返回中立值")
-        return [0.5] * len(posts)
+        # 3. 所有重试失败，返回空列表，交给上层分块/启发式兜底
+        logger.error("所有LLM重试失败")
+        return []
 
     def _parse_stance_json(self, text: str, expected_count: int) -> List[float]:
         """
@@ -337,9 +423,16 @@ Your response:"""
         for strategy in strategies:
             try:
                 stances = strategy(text, expected_count)
-                if stances and len(stances) == expected_count:
-                    logger.debug(f"成功使用 {strategy.__name__} 解析 {len(stances)} 个立场")
-                    return stances
+                if stances:
+                    normalized = self._normalize_stance_count(
+                        stances, expected_count
+                    )
+                    logger.debug(
+                        "成功使用 %s 解析并归一化到 %s 个立场",
+                        strategy.__name__,
+                        len(normalized),
+                    )
+                    return normalized
             except Exception as e:
                 logger.debug(f"{strategy.__name__} 失败: {e}")
                 continue
@@ -369,7 +462,7 @@ Your response:"""
                             stance = max(0.0, min(1.0, stance))
                             stances.append(stance)
 
-                    if len(stances) == expected_count:
+                    if stances:
                         return stances
             except json.JSONDecodeError:
                 continue
@@ -381,9 +474,9 @@ Your response:"""
         # 提取所有数字（包括小数）
         numbers = re.findall(r'\d+\.?\d*', text)
 
-        if len(numbers) >= expected_count:
+        if numbers:
             stances = []
-            for num_str in numbers[:expected_count]:
+            for num_str in numbers:
                 try:
                     num = float(num_str)
                     # 归一化到 0-1 范围
@@ -394,7 +487,7 @@ Your response:"""
                 except ValueError:
                     continue
 
-            if len(stances) == expected_count:
+            if stances:
                 return stances
 
         raise ValueError("未能提取足够的数字")
@@ -405,9 +498,9 @@ Your response:"""
         pattern = r'\b0?\.\d+\b|\b[01]\.0\b'
         matches = re.findall(pattern, text)
 
-        if len(matches) >= expected_count:
+        if matches:
             stances = []
-            for match in matches[:expected_count]:
+            for match in matches:
                 try:
                     stance = float(match)
                     stance = max(0.0, min(1.0, stance))
@@ -415,10 +508,84 @@ Your response:"""
                 except ValueError:
                     continue
 
-            if len(stances) == expected_count:
+            if stances:
                 return stances
 
         raise ValueError("未能从文本中提取有效分数")
+
+    @staticmethod
+    def _normalize_stance_count(
+        stances: List[float], expected_count: int
+    ) -> List[float]:
+        """将分数数量归一化到预期长度，避免因数量不一致整批失败。"""
+        cleaned = [max(0.0, min(1.0, float(s))) for s in stances]
+        if len(cleaned) >= expected_count:
+            return cleaned[:expected_count]
+
+        fill_value = (
+            sum(cleaned) / len(cleaned)
+            if cleaned
+            else 0.5
+        )
+        return cleaned + [fill_value] * (expected_count - len(cleaned))
+
+    @staticmethod
+    def _extract_response_text(response: Any) -> str:
+        """兼容不同后端响应格式，尽量提取可解析文本。"""
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return ""
+
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            return ""
+
+        content = getattr(message, "content", "")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+            if parts:
+                return "\n".join(parts)
+
+        # 某些模型会把关键信息放在 tool call 的 arguments 里
+        tool_calls = getattr(message, "tool_calls", None) or []
+        for tool_call in tool_calls:
+            func = getattr(tool_call, "function", None)
+            if func is None:
+                continue
+            arguments = getattr(func, "arguments", None)
+            if isinstance(arguments, str) and arguments.strip():
+                return arguments.strip()
+
+        return ""
+
+    @staticmethod
+    def _prepare_model_spec_for_analysis(
+        model_spec: ModelRuntimeSpec | list[ModelRuntimeSpec],
+    ) -> ModelRuntimeSpec | list[ModelRuntimeSpec]:
+        """
+        极化分析只需要稳定纯文本输出，禁用 tool-calling 避免空响应。
+        """
+        specs = model_spec if isinstance(model_spec, list) else [model_spec]
+        patched_specs: List[ModelRuntimeSpec] = []
+        for spec in specs:
+            config = dict(spec.model_config_dict or {})
+            config.pop("tool_choice", None)
+            # 分析任务更适合低温，提升可解析性
+            config.setdefault("temperature", 0.2)
+            patched_specs.append(
+                replace(spec, model_config_dict=config)
+            )
+
+        if isinstance(model_spec, list):
+            return patched_specs
+        return patched_specs[0]
 
     def _calculate_polarization_metrics(self, stances: List[float]) -> Dict:
         """
@@ -480,7 +647,8 @@ Your response:"""
     def _save_analysis_results(
         self,
         post_ids: List[int],
-        stances: List[float]
+        stances: List[float],
+        confidence: float = 0.8,
     ):
         """
         保存分析结果到数据库缓存
@@ -503,7 +671,7 @@ Your response:"""
                     INSERT OR REPLACE INTO polarization_cache
                     (post_id, stance_score, confidence, analyzed_at, topic)
                     VALUES (?, ?, ?, ?, ?)
-                """, (post_id, stance, 0.8, now, self.topic))
+                """, (post_id, stance, confidence, now, self.topic))
 
             conn.commit()
 
@@ -546,6 +714,13 @@ Your response:"""
         if self.last_result:
             return self.last_result
 
+        cached_stances = self._load_cached_stances()
+        if cached_stances:
+            result = self._calculate_polarization_metrics(cached_stances)
+            result["cached"] = True
+            result["source"] = "db_cache"
+            return result
+
         # 如果有历史数据，返回平均值
         if self.history:
             avg_pol = sum(self.history) / len(self.history)
@@ -565,6 +740,8 @@ Your response:"""
             'r_metric': 0.0,
             'bimodality': 0.0,
             'sample_size': 0,
+            'cached': True,
+            'source': 'empty_cache',
         }
 
     def _get_historical_fallback(self) -> Dict:
@@ -584,7 +761,15 @@ Your response:"""
                 'bimodality': 0.0,
                 'sample_size': 0,
                 'degraded': True,
+                'source': 'history',
             }
+
+        cached_stances = self._load_cached_stances()
+        if cached_stances:
+            result = self._calculate_polarization_metrics(cached_stances)
+            result["degraded"] = True
+            result["source"] = "db_cache_fallback"
+            return result
 
         logger.warning("无历史数据，返回默认值0")
         return {
@@ -594,7 +779,59 @@ Your response:"""
             'bimodality': 0.0,
             'sample_size': 0,
             'error': True,
+            'source': 'hard_zero_fallback',
         }
+
+    def _load_cached_stances(self, limit: int = 100) -> List[float]:
+        """从缓存表读取最近的立场分数。"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT stance_score
+                FROM polarization_cache
+                WHERE topic = ?
+                ORDER BY analyzed_at DESC
+                LIMIT ?
+                """,
+                (self.topic, limit),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+            return [float(row[0]) for row in rows if row and row[0] is not None]
+        except Exception as e:
+            logger.warning(f"读取极化缓存失败: {e}")
+            return []
+
+    def _heuristic_stance_batch(self, posts: List[Dict]) -> List[float]:
+        """无需LLM的启发式估计，用于超时/空响应时保底。"""
+        stances: List[float] = []
+        for post in posts:
+            text = str(post.get("content") or "")
+            likes = int(post.get("num_likes") or 0)
+            stances.append(self._heuristic_stance_from_text(text, likes))
+        return stances
+
+    @staticmethod
+    def _heuristic_stance_from_text(text: str, likes: int = 0) -> float:
+        normalized = text.lower()
+        support_words = [
+            "support", "agree", "advocate", "promote", "progressive",
+            "sustainability", "renewable", "equity", "justice",
+            "inclusive", "solidarity", "champion", "must",
+        ]
+        oppose_words = [
+            "oppose", "against", "reject", "deny", "harmful",
+            "stifle", "overreach", "radical", "ban", "cannot",
+        ]
+
+        support_hits = sum(1 for w in support_words if w in normalized)
+        oppose_hits = sum(1 for w in oppose_words if w in normalized)
+
+        score = 0.5 + 0.08 * (support_hits - oppose_hits)
+        score += min(0.08, likes * 0.01)
+        return max(0.0, min(1.0, score))
 
     @staticmethod
     def _truncate_text(text: str, max_length: int) -> str:

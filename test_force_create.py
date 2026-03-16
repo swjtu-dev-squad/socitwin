@@ -27,8 +27,6 @@ async def test_force_create():
 
     # 创建引擎
     engine = RealOASISEngineV3(
-        model_platform="ollama",
-        model_type="qwen3:8b",
         db_path="./test_force_create.db"
     )
 

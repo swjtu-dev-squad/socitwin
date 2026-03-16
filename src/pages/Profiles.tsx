@@ -42,7 +42,7 @@ export default function Profiles() {
         description: `画像已就绪，地区: ${region}`,
         action: {
           label: "前往控制中心",
-          onClick: () => navigate('/control')
+          onClick: () => navigate('/overview')
         }
       });
     } catch (e) {
@@ -91,7 +91,7 @@ export default function Profiles() {
           {agents.length > 0 && (
             <Button 
               className="bg-accent hover:bg-accent-hover rounded-xl h-10 text-xs font-bold px-6 gap-2 animate-in fade-in slide-in-from-right-4"
-              onClick={() => navigate('/control', { state: { platform, topic, region, agentCount: count[0] } })}
+              onClick={() => navigate('/overview', { state: { platform, topic, region, agentCount: count[0] } })}
             >
               <PlayCircle className="w-4 h-4" />
               应用并启动模拟
@@ -244,7 +244,7 @@ export default function Profiles() {
               
               {agents.length > 0 && !loading && (
                 <Button 
-                  onClick={() => navigate('/control', { state: { platform, topic, region, agentCount: count[0] } })} 
+                  onClick={() => navigate('/overview', { state: { platform, topic, region, agentCount: count[0] } })} 
                   className="w-full h-12 bg-accent hover:bg-accent-hover rounded-2xl font-bold animate-in fade-in slide-in-from-bottom-4"
                 >
                   <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -284,7 +284,7 @@ export default function Profiles() {
               <Button 
                 variant="ghost" 
                 className="h-8 text-[10px] text-text-tertiary hover:text-accent gap-1"
-                onClick={() => navigate('/control')}
+                onClick={() => navigate('/overview')}
               >
                 前往控制中心 <ArrowRight className="w-3 h-3" />
               </Button>

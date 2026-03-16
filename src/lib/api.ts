@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SimulationStatus, GenerateUsersRequest, GenerateUsersResponse } from './types';
+import { SimulationStatus, GenerateUsersRequest, GenerateUsersResponse, LogEntry } from './types';
 
 const api = axios.create({
   baseURL: '/api',  // 使用相对路径，自动适配本地开发和部署环境
@@ -30,4 +30,6 @@ export const simulationApi = {
 
   sendGroupMessage: (content: string, agentName?: string) =>
     api.post('/sim/group-message', { content, agentName }),
+
+  getLogs: () => api.get<{ logs: LogEntry[] }>('/sim/logs'),
 };

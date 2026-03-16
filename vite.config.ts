@@ -45,13 +45,18 @@ export default defineConfig(({ mode }) => {
         ],
       },
       watch: {
-        // 显式忽略这些目录
+        // 显式忽略这些目录和文件
         ignored: [
           '**/venv/**',
           '**/.venv/**',
           '**/env/**',
           '**/__pycache__/**',
           '**/*.pyc',
+          '**/*.db',
+          '**/*.db-shm',
+          '**/*.db-wal',
+          '**/oasis_simulation.db*',
+          '**/dev-logs/**',
         ],
       },
     },

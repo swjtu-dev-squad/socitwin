@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { watch } from "fs";
 import { existsSync } from "fs";
+import Database from "better-sqlite3";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,8 +16,9 @@ const __dirname = path.dirname(__filename);
 let oasisProcess: any = null;
 let oasisReady = false;
 let restartTimeout: NodeJS.Timeout | null = null;
+let ioInstance: any = null;
 
-function startOasisEngine(io?: any) {
+function startOasisEngine() {
   console.log("Starting OASIS Engine...");
   oasisProcess = spawn(path.join(__dirname, ".venv", "bin", "python"), [path.join(__dirname, "oasis_dashboard", "real_oasis_engine_v3.py"), "--rpc"], {
     stdio: ["pipe", "pipe", "pipe"],
@@ -37,9 +39,9 @@ function startOasisEngine(io?: any) {
 
     // 解析进度信息
     const progressMatch = output.match(/📊 Progress: (\d+)\/(\d+) \((\d+)%\)/);
-    if (progressMatch && io) {
+    if (progressMatch && ioInstance) {
       const [, current, total, percentage] = progressMatch;
-      io.emit("step_progress", {
+      ioInstance.emit("step_progress", {
         current: parseInt(current),
         total: parseInt(total),
         percentage: parseInt(percentage),
@@ -47,8 +49,8 @@ function startOasisEngine(io?: any) {
     }
 
     // 解析完成信号
-    if (output.includes("✅ Step complete") && io) {
-      io.emit("step_complete");
+    if (output.includes("✅ Step complete") && ioInstance) {
+      ioInstance.emit("step_complete");
     }
 
     // 智能分类输出类型
@@ -170,12 +172,15 @@ async function startServer() {
     },
   });
 
+  // Store io instance globally for use in OASIS engine
+  ioInstance = io;
+
   const PORT = 3000;
 
   app.use(express.json());
 
-  // Start OASIS Engine (pass io for progress updates)
-  startOasisEngine(io);
+  // Start OASIS Engine (uses ioInstance for progress updates)
+  startOasisEngine();
 
   // Watch Python files for hot reload
   watchPythonFiles();
@@ -244,7 +249,11 @@ async function startServer() {
       simulationState.totalPosts = result.total_posts || simulationState.totalPosts;
       simulationState.polarization = result.polarization || simulationState.polarization;
       simulationState.activeAgents = result.active_agents || simulationState.activeAgents;
-      
+
+      // 🆕 Track initialization phase (Phase 4)
+      simulationState.initializationPhase = result.initialization_phase || false;
+      simulationState.initializationComplete = result.initialization_complete || false;
+
       // 处理多条日志（兼容单个 new_log 和 new_logs 数组）
       if (result.new_logs && Array.isArray(result.new_logs)) {
         result.new_logs.forEach((log: any) => {
@@ -321,7 +330,7 @@ async function startServer() {
   app.post("/api/sim/reset", async (req, res) => {
     try {
       await callOasisEngine("reset", {});
-      
+
       simulationState = {
         running: false,
         paused: false,
@@ -340,6 +349,45 @@ async function startServer() {
       res.json({ status: "reset" });
     } catch (error: any) {
       console.error("Error resetting OASIS:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  app.get("/api/sim/logs", async (req, res) => {
+    try {
+      const dbPath = process.env.OASIS_DB_PATH || path.join(__dirname, "oasis_simulation.db");
+
+      if (!existsSync(dbPath)) {
+        return res.json({ logs: [] });
+      }
+
+      const db = new Database(dbPath, { readonly: true });
+
+      const query = `
+        SELECT
+          user_id as agentId,
+          created_at as timestamp,
+          action as actionType,
+          info as content
+        FROM trace
+        ORDER BY created_at DESC
+        LIMIT 500
+      `;
+
+      const rows: any[] = db.prepare(query).all();
+      db.close();
+
+      const logs = rows.map(row => ({
+        agentId: `agent_${row.agentId}`,
+        timestamp: row.timestamp,
+        actionType: row.actionType,
+        content: row.content || "",
+        reason: ""
+      }));
+
+      res.json({ logs });
+    } catch (error: any) {
+      console.error("Error fetching logs:", error);
       res.status(500).json({ status: "error", message: error.message });
     }
   });

@@ -146,7 +146,7 @@ export default function Analytics() {
             <Share2 className="w-4 h-4" />
             生成报告
           </Button>
-          <Link to="/control">
+          <Link to="/overview">
             <Button className="bg-accent hover:bg-accent-hover rounded-xl h-10 text-xs font-bold px-6">
               调整模拟参数
             </Button>
@@ -163,7 +163,7 @@ export default function Analytics() {
           <p className="text-sm text-text-muted max-w-sm mb-8">
             模拟尚未启动或正在初始化中。启动模拟后，系统将实时收集并分析智能体的行为数据，为您呈现多维度的洞察图表。
           </p>
-          <Link to="/control">
+          <Link to="/overview">
             <Button className="bg-accent hover:bg-accent-hover rounded-xl px-10 h-12 font-bold gap-2">
               <Zap className="w-4 h-4" />
               立即启动模拟

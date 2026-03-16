@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { Card, Button, Badge, Slider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
+import { Card, Button, Badge, Slider, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Progress } from '@/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
+import { io } from 'socket.io-client';
 import {
   Users,
   FileText,
@@ -18,7 +19,8 @@ import {
   StepForward,
   RotateCcw,
   Square,
-  Settings2
+  Settings2,
+  Terminal
 } from 'lucide-react';
 import {
   XAxis,
@@ -33,7 +35,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export default function Overview() {
-  const { status, history, setStatus } = useSimulationStore();
+  const { status, history, setStatus, stepProgress, isStepping, setStepProgress, setIsStepping } = useSimulationStore();
   const navigate = useNavigate();
   const [agentCount, setAgentCount] = useState([10]); // 默认10个agents
   const [platform, setPlatform] = useState('REDDIT');
@@ -65,31 +67,57 @@ export default function Overview() {
     return () => clearInterval(interval);
   }, [setStatus]);
 
+  // WebSocket 进度监听（单步执行用）
+  useEffect(() => {
+    const socket = io('http://localhost:3000');
+
+    socket.on('step_progress', (progress) => {
+      setStepProgress(progress);
+    });
+
+    socket.on('step_complete', () => {
+      setIsStepping(false);
+    });
+
+    socket.on('stats_update', (newStatus) => {
+      setStatus(newStatus);
+    });
+
+    return () => socket.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 安全的数字格式化函数
+  const formatNumber = (value: number | undefined | null): string => {
+    if (value === undefined || value === null) return 'N/A';
+    return value.toLocaleString();
+  };
+
   const stats = [
     {
       label: '活跃 Agents',
-      value: status.activeAgents.toLocaleString(),
+      value: formatNumber(status.activeAgents),
       icon: Users,
       status: 'healthy',
       path: '/agents'
     },
     {
       label: '总帖子数',
-      value: status.totalPosts.toLocaleString(),
+      value: formatNumber(status.totalPosts),
       icon: FileText,
       status: 'healthy',
       path: '/logs'
     },
     {
       label: '当前步数',
-      value: status.currentStep.toLocaleString(),
+      value: formatNumber(status.currentStep),
       icon: Zap,
       status: 'healthy',
       path: '/overview'
     },
     {
       label: '极化指数',
-      value: status.polarization.toFixed(2),
+      value: status.polarization?.toFixed(2) || '0.00',
       icon: Activity,
       status: status.polarization > 0.7 ? 'warning' : 'healthy',
       path: '/analytics'
@@ -354,19 +382,35 @@ export default function Overview() {
               <Button
                 onClick={async () => {
                   try {
+                    setIsStepping(true);
                     await simulationApi.step();
-                    toast.success("单步执行完成");
                   } catch (error) {
                     toast.error("步进执行失败");
+                    setIsStepping(false);
                   }
                 }}
-                disabled={!status.running && !status.paused}
+                disabled={(!status.running && !status.paused) || isStepping}
                 variant="secondary"
                 className="h-12 rounded-xl items-center justify-center gap-2"
               >
-                <StepForward className="w-4 h-4" />
-                <span className="font-medium">单步执行</span>
+                <StepForward className={cn("w-4 h-4", isStepping && "animate-spin")} />
+                <span className="font-medium">
+                  {isStepping
+                    ? `执行中... ${stepProgress.total > 0 ? `${stepProgress.current}/${stepProgress.total}` : ''}`
+                    : '单步执行'}
+                </span>
               </Button>
+
+              {/* 执行中时显示进度条 */}
+              {isStepping && stepProgress.total > 0 && (
+                <div className="col-span-2 mt-3 p-3 rounded-xl bg-bg-primary/60 border border-border-default/40 backdrop-blur-sm">
+                  <div className="flex justify-between text-xs text-text-tertiary mb-2">
+                    <span>执行进度</span>
+                    <span className="font-medium">{stepProgress.current} / {stepProgress.total} ({stepProgress.percentage}%)</span>
+                  </div>
+                  <Progress value={stepProgress.percentage} className="h-2" />
+                </div>
+              )}
 
               {/* 重置按钮 */}
               <Button

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSimulationStore } from '@/lib/store';
+import { simulationApi } from '@/lib/api';
 import {
   Card,
   Button,
@@ -14,7 +15,8 @@ import {
   Play,
   Search,
   FileText,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -57,11 +59,32 @@ const formatTimestamp = (timestamp: string): string => {
 };
 
 export default function Logs() {
-  const { logs, status } = useSimulationStore();
+  const { logs, status, setLogs } = useSimulationStore();
   const [isPaused, setIsPaused] = useState(false);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   const [displayLogs, setDisplayLogs] = useState(logs);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 从数据库加载历史日志（仅组件挂载时执行一次）
+  useEffect(() => {
+    const loadLogsFromDatabase = async () => {
+      setIsLoading(true);
+      try {
+        const response = await simulationApi.getLogs();
+        if (response.data.logs) {
+          setLogs(response.data.logs);
+        }
+      } catch (error) {
+        console.error('Failed to load logs from database:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadLogsFromDatabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Update display logs only when not paused
   useEffect(() => {
@@ -92,7 +115,7 @@ export default function Logs() {
       `"${log.content.replace(/"/g, '""')}"`,
       `"${log.reason.replace(/"/g, '""')}"`
     ].join(','));
-    
+
     const csvContent = [headers.join(','), ...csvRows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -104,6 +127,22 @@ export default function Logs() {
     link.click();
     document.body.removeChild(link);
     toast.success("日志导出成功");
+  };
+
+  const handleRefreshLogs = async () => {
+    setIsLoading(true);
+    try {
+      const response = await simulationApi.getLogs();
+      if (response.data.logs) {
+        setLogs(response.data.logs);
+        toast.success(`从数据库加载了 ${response.data.logs.length} 条日志`);
+      }
+    } catch (error) {
+      toast.error("加载日志失败");
+      console.error('Failed to refresh logs:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const actionTypes = ['CREATE_POST', 'LIKE_POST', 'FOLLOW', 'REPORT_POST'];
@@ -132,16 +171,25 @@ export default function Logs() {
             </div>
             <p className="text-[10px] text-text-muted font-mono mt-0.5">已接收 {logs.length} 条日志 · 1s/次</p>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
+            className="rounded-xl border-border-default h-10 text-xs gap-2"
+            onClick={handleRefreshLogs}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            从数据库刷新
+          </Button>
+          <Button
+            variant="outline"
             className="rounded-xl border-border-default h-10 text-xs gap-2"
             onClick={() => setIsPaused(!isPaused)}
           >
             {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
             {isPaused ? '恢复滚动' : '暂停滚动'}
           </Button>
-          <Button 
-            variant="default" 
+          <Button
+            variant="default"
             className="rounded-xl h-10 text-xs gap-2 bg-accent hover:bg-accent-hover"
             onClick={handleExportCSV}
           >
@@ -198,10 +246,10 @@ export default function Logs() {
                 启动模拟后，智能体之间的每一条交互、决策和思考逻辑都将实时显示在这里。
               </p>
               <div className="flex gap-4">
-                <Link to="/control">
+                <Link to="/overview">
                   <Button className="bg-accent hover:bg-accent-hover rounded-xl px-8 h-12 font-bold gap-2">
                     <Zap className="w-4 h-4" />
-                    立即前往控制中心启动
+                    立即前往概览页启动
                   </Button>
                 </Link>
                 <Button variant="outline" className="rounded-xl px-8 h-12 border-border-default font-bold">注入测试日志</Button>

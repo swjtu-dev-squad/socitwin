@@ -51,13 +51,17 @@ class RealOASISEngine:
     
     def __init__(
         self,
-        model_platform: str = "ollama",
-        model_type: str = "qwen3:8b",
+        model_platform: Optional[str] = None,
+        model_type: Optional[str] = None,
         db_path: str = "./oasis_simulation.db",
     ):
         """初始化真实 OASIS 引擎"""
-        self.model_platform = model_platform
-        self.model_type = model_type
+        self.model_platform = model_platform or os.environ.get(
+            "OASIS_MODEL_PLATFORM", "ollama"
+        )
+        self.model_type = model_type or os.environ.get(
+            "OASIS_MODEL_TYPE", "qwen3:8b"
+        )
         self.db_path = db_path
         
         self.agent_graph: Optional[Any] = None
