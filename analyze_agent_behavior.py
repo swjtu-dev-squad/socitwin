@@ -24,8 +24,6 @@ async def analyze_agent_behavior():
 
     # 创建引擎
     engine = RealOASISEngineV3(
-        model_platform="ollama",
-        model_type="qwen3:8b",
         db_path="./behavior_analysis.db"
     )
 

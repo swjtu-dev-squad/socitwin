@@ -39,20 +39,24 @@ class OASISEngine:
     
     def __init__(
         self,
-        model_platform: str = "ollama",
-        model_type: str = "qwen3:8b",
+        model_platform: Optional[str] = None,
+        model_type: Optional[str] = None,
         db_path: str = "./oasis_simulation.db",
     ):
         """
         Initialize the OASIS Engine.
         
         Args:
-            model_platform: LLM platform (e.g., "ollama", "openai")
-            model_type: Model type (e.g., "qwen3:8b", "gpt-4o-mini")
+            model_platform: LLM platform; defaults to OASIS_MODEL_PLATFORM
+            model_type: Model type; defaults to OASIS_MODEL_TYPE
             db_path: Path to the simulation database
         """
-        self.model_platform = model_platform
-        self.model_type = model_type
+        self.model_platform = model_platform or os.environ.get(
+            "OASIS_MODEL_PLATFORM", "ollama"
+        )
+        self.model_type = model_type or os.environ.get(
+            "OASIS_MODEL_TYPE", "qwen3:8b"
+        )
         self.db_path = db_path
         
         self.agent_graph: Optional[Any] = None  # AgentGraph

@@ -33,8 +33,13 @@ export interface SimulationStatus {
   recsys?: string;
   topics?: string[];
   regions?: string[];
+
+  // 🆕 Track initialization phase (Phase 4)
+  initializationPhase?: boolean;
+  initializationComplete?: boolean;
+
   // Future analytics fields
-  stepTime?: number;  // Time taken for last step (ms)
+  stepTime?: number;
   opinionDistribution?: {
     farLeft: number;
     neutral: number;
@@ -71,5 +76,5 @@ export interface GenerateUsersResponse {
     name: string;
     bio: string;
     interests: string[];
-  }>;
+  }>);
 }

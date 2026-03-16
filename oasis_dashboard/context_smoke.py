@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from typing import Any
 
 from oasis_dashboard.real_oasis_engine_v3 import RealOASISEngineV3
@@ -60,8 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run a small OASIS context smoke test."
     )
-    parser.add_argument("--model-platform", default="ollama")
-    parser.add_argument("--model-type", default="qwen3:8b")
+    parser.add_argument(
+        "--model-platform",
+        default=os.environ.get("OASIS_MODEL_PLATFORM", "ollama"),
+    )
+    parser.add_argument(
+        "--model-type",
+        default=os.environ.get("OASIS_MODEL_TYPE", "qwen3:8b"),
+    )
     parser.add_argument("--db-path", default="/tmp/oasis-context-smoke.db")
     parser.add_argument("--agent-count", type=int, default=2)
     parser.add_argument("--steps", type=int, default=3)

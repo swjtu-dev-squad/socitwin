@@ -11,6 +11,8 @@ screenshots/
 page_texts/
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 dev-logs/
 
 # Python virtual environments

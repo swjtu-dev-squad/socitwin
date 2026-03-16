@@ -46,6 +46,26 @@ from oasis_dashboard.context import (
 )
 from oasis_dashboard.context.config import compression_config_for_platform
 
+# 🔧 Monkey-patch CAMEL to handle multiple messages from DeepSeek API
+# DeepSeek API returns multiple candidate responses during tool calling,
+# but CAMEL's _record_final_output only handles single response.
+import camel.agents.chat_agent as chat_agent_module
+original_record_final_output = chat_agent_module.ChatAgent._record_final_output
+
+def patched_record_final_output(self, output_messages):
+    """Patched version that handles the first message when multiple are returned"""
+    if len(output_messages) == 0:
+        return
+    elif len(output_messages) == 1:
+        self.record_message(output_messages[0])
+    else:
+        # 🔧 FIX: When multiple messages returned, record the FIRST one
+        # This allows tool calls to execute properly
+        self.record_message(output_messages[0])
+        print(f"⚡ Patched: Recording first of {len(output_messages)} messages (tool calling enabled)", flush=True)
+
+chat_agent_module.ChatAgent._record_final_output = patched_record_final_output
+
 
 class RealOASISEngineV3:
     """
@@ -94,13 +114,17 @@ class RealOASISEngineV3:
 
     def __init__(
         self,
-        model_platform: str = "ollama",
-        model_type: str = "qwen3:8b",
+        model_platform: Optional[str] = None,
+        model_type: Optional[str] = None,
         db_path: str = "./oasis_simulation.db",
     ):
         """初始化真实 OASIS 引擎"""
-        self.model_platform = model_platform
-        self.model_type = model_type
+        self.model_platform = model_platform or os.environ.get(
+            "OASIS_MODEL_PLATFORM", "ollama"
+        )
+        self.model_type = model_type or os.environ.get(
+            "OASIS_MODEL_TYPE", "qwen3:8b"
+        )
         self.db_path = db_path
         
         self.agent_graph: Optional[Any] = None
@@ -120,6 +144,12 @@ class RealOASISEngineV3:
 
         # 使用真实 LLMAction 模式
         self.use_llm_action = True
+
+        # 初始化阶段状态跟踪 (Phase 2.1)
+        # 🔧 禁用渐进式激活，让所有 agents 从第一步就全部参与
+        self.initialization_phase = False
+        self.initial_seeded_agents = set()
+        self.activation_step = 0
 
         # 极化率分析器（延迟初始化）
         self.polarization_analyzer: Optional[Any] = None
@@ -166,9 +196,43 @@ class RealOASISEngineV3:
             if item.strip()
         ]
 
+        # 温度配置
+        # 优先级：环境变量 > 平台默认值
+        temperature_env = os.environ.get("OASIS_MODEL_TEMPERATURE")
+
+        # 平台默认温度配置
+        platform_default_temperatures = {
+            "ollama": 0.4,
+            "deepseek": 0.8,  # OASIS 推荐值
+            "openai": 0.7,
+            "openrouter": 0.7,
+            "vllm": 0.7,
+        }
+
+        default_temperature = platform_default_temperatures.get(
+            self.model_platform.lower(),
+            0.7  # 通用默认值
+        )
+
+        # 初始化模型配置字典
         default_model_config: dict[str, Any] = {}
-        if self.model_platform.lower() == "ollama":
-            default_model_config["temperature"] = 0.4
+
+        # 设置温度
+        if temperature_env:
+            try:
+                default_model_config["temperature"] = float(temperature_env)
+                print(f"🌡️  使用环境变量温度: {temperature_env}")
+            except ValueError:
+                print(f"⚠️  温度值无效: {temperature_env}，使用默认值: {default_temperature}")
+                default_model_config["temperature"] = default_temperature
+        else:
+            default_model_config["temperature"] = default_temperature
+            print(f"🌡️  使用默认温度 ({self.model_platform}): {default_temperature}")
+
+        # 🔧 显式启用tool calling（针对DeepSeek API）
+        if self.model_platform.lower() == "deepseek":
+            default_model_config["tool_choice"] = "auto"
+            print(f"🔧 已启用 DeepSeek tool calling (tool_choice=auto) + Multi-message patch")
 
         base_kwargs = dict(
             model_platform=self.model_platform,
@@ -248,6 +312,70 @@ class RealOASISEngineV3:
                 ActionType.REFRESH,
             ]
 
+            # 🔥 多样化属性集合（增加agent多样性）
+            age_range = [18, 22, 25, 28, 32, 35, 40, 45, 50, 55, 60, 65]
+            genders = ["male", "female", "non-binary", "unknown"]
+            mbti_types = [
+                "INTJ", "INTP", "ENTJ", "ENTP",
+                "INFJ", "INFP", "ENFJ", "ENFP",
+                "ISTJ", "ISFJ", "ESTJ", "ESFJ",
+                "ISTP", "ISFP", "ESTP", "ESFP"
+            ]
+            countries = ["Thailand", "Cambodia", "Indonesia", "Vietnam", "Malaysia", "Philippines", "Singapore", "Myanmar", "Laos", "Brunei"]
+
+            # 针对不同话题的多样化profile
+            topic_profiles = {
+                "POLITICS": [
+                    "Conservative political views, support traditional values and limited government",
+                    "Liberal political views, support progressive policies and social justice",
+                    "Moderate centrist, believe in balanced approaches and compromise",
+                    "Libertarian views, support individual freedom and free markets",
+                    "Green politics, focus on environmental protection and sustainability",
+                    "Nationalist views, prioritize country's interests above all else",
+                    "Socialist views, support wealth redistribution and social programs",
+                ],
+                "AI": [
+                    "AI optimist, excited about technological progress and automation",
+                    "AI skeptic, concerned about job displacement and ethical implications",
+                    "AI researcher, focused on technical capabilities and limitations",
+                    "AI ethicist, worried about bias, fairness, and alignment",
+                    "Tech entrepreneur, sees AI as a business opportunity",
+                    "AI artist, explores creative applications of AI tools",
+                ],
+                "ENTERTAINMENT": [
+                    "Movie enthusiast, loves cinema and film analysis",
+                    "Music lover, follows artists and attends concerts",
+                    "Gaming fan, plays video games and follows esports",
+                    "TV series binge-watcher, discusses plot twists and characters",
+                    "Celebrity news follower, keeps up with entertainment industry",
+                    "Pop culture critic, analyzes trends and media influence",
+                ],
+                "HEALTH": [
+                    "Fitness enthusiast, works out regularly and follows diet trends",
+                    "Mental health advocate, promotes therapy and mindfulness",
+                    "Medical professional, shares evidence-based health information",
+                    "Alternative medicine supporter, believes in holistic approaches",
+                    "Nutrition focused, interested in supplements and healthy eating",
+                    "Yoga and wellness practitioner, emphasizes mind-body connection",
+                ],
+                "TRAVEL": [
+                    "Adventure traveler, seeks hiking, diving, and extreme sports",
+                    "Cultural tourist, interested in history, art, and local traditions",
+                    "Luxury traveler, prefers high-end resorts and fine dining",
+                    "Budget backpacker, looks for affordable and authentic experiences",
+                    "Digital nomad, combines work and travel while working remotely",
+                    "Food tourist, travels primarily to try local cuisines",
+                ],
+                "FOOD": [
+                    "Home cook, enjoys trying new recipes and cooking techniques",
+                    "Restaurant reviewer, critiques dining experiences and ambiance",
+                    "Food photographer, focuses on presentation and aesthetics",
+                    "Health-conscious eater, follows specific diets (vegan, keto, etc.)",
+                    "Street food lover, seeks authentic local food experiences",
+                    "Baker and pastry enthusiast, loves desserts and baking",
+                ],
+            }
+
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
 
@@ -259,28 +387,39 @@ class RealOASISEngineV3:
                 agent_topic = topics[i % len(topics)] if len(topics) > 1 else primary_topic
                 agent_region = regions[i % len(regions)] if len(regions) > 1 else regions[0]
 
-                # 创建增强的主题指令
-                topic_instructions = self._get_topic_instructions(agent_topic, agent_region)
+                # 🔥 随机选择多样化的属性（使用agent_id作为种子确保可重现）
+                random.seed(i + 42)  # 使用固定种子确保每次运行结果一致
+                agent_age = random.choice(age_range)
+                agent_gender = random.choice(genders)
+                agent_mbti = random.choice(mbti_types)
+                agent_country = random.choice(countries)
+
+                # 从话题对应的profile集合中随机选择一个，如果没有则使用默认的
+                topic_profiles_list = topic_profiles.get(agent_topic, [f"Discuss {agent_topic.lower()} and related topics"])
+                agent_user_profile = random.choice(topic_profiles_list)
 
                 # 构建符合OASIS要求的profile结构
                 # OASIS的to_system_message()使用profile['other_info']['user_profile']
                 agent_profile = {
                     "other_info": {
-                        "user_profile": topic_instructions,  # 主题指令放在这里
-                        "gender": "unknown",
-                        "age": 25,
-                        "mbti": "UNKNOWN",
-                        "country": agent_region.title(),
+                        "user_profile": agent_user_profile,  # 🔥 多样化的profile
+                        "gender": agent_gender,
+                        "age": agent_age,
+                        "mbti": agent_mbti,
+                        "country": agent_country,
                     }
                 }
 
                 user_info = UserInfo(
                     user_name=f"agent_{i}",
                     name=f"Agent {i}",
-                    description=f"AI agent {i} - Topic: {agent_topic}, Region: {agent_region}",
+                    description=f"AI agent {i} - {agent_gender}, {agent_age}yo, {agent_mbti}, {agent_country}, {agent_topic}",
                     profile=agent_profile,  # 设置正确的profile
                     recsys_type=platform.lower(),  # ✅ 使用平台类型（reddit/twitter）而不是推荐算法
                 )
+
+                # 🔥 打印agent属性（用于调试和验证多样性）
+                print(f"{agent_profile}", flush=True)
                 system_message = BaseMessage.make_assistant_message(
                     role_name="system",
                     content=user_info.to_system_message(),
@@ -391,6 +530,146 @@ class RealOASISEngineV3:
                 "message": f"初始化失败: {str(e)}",
             }
 
+    async def _seed_initial_content(self) -> Dict:
+        """Step 1: 创建初始内容 (ManualAction) - 按照OASIS官方文档"""
+        try:
+            print("🌱 Seeding initial content...", flush=True)
+
+            all_agents = list(self.env.agent_graph.get_agents())
+            seed_agents = all_agents[:5]  # 前5个agent
+
+            # 多样化的种子内容
+            seed_contents = [
+                f"Welcome to our {self.polarization_topic or 'general'} discussion! What are your thoughts?",
+                f"I'm excited to discuss {self.polarization_topic or 'this topic'}!",
+                f"Let's have a productive conversation about {self.polarization_topic or 'this'}.",
+                "What does everyone think about the current situation?",
+                f"I've been thinking about {self.polarization_topic or 'this topic'} a lot lately.",
+            ]
+
+            actions = {}
+            for idx, (agent_id, agent) in enumerate(seed_agents):
+                actions[agent] = ManualAction(
+                    action_type=ActionType.CREATE_POST,
+                    action_args={"content": seed_contents[idx % len(seed_contents)]}
+                )
+                self.initial_seeded_agents.add(agent_id)
+
+            await self.env.step(actions)
+            self.total_posts = self._get_actual_post_count()
+
+            # 🔄 刷新推荐系统，让agents可以看到新创建的帖子
+            print("🔄 Refreshing recommendation system...", flush=True)
+            await self.env.platform.update_rec_table()
+
+            print(f"✅ Seeded {len(actions)} initial posts", flush=True)
+            print("✅ Step complete", file=sys.stderr, flush=True)  # 触发前端 WebSocket 事件
+
+            return {
+                "status": "ok",
+                "seeded_posts": len(actions),
+                "total_posts": self.total_posts,
+            }
+        except Exception as e:
+            print(f"❌ Failed to seed initial content: {e}", flush=True)
+            return {"status": "error", "message": str(e)}
+
+    async def _activate_agents_gradually(self) -> Dict:
+        """Step 2: 逐步激活agents (LLMAction) - 按照OASIS官方文档"""
+        try:
+            all_agents = list(self.env.agent_graph.get_agents())
+            total_agents = len(all_agents)
+
+            # 计算当前阶段应该激活多少agents
+            if self.activation_step == 0:
+                target_count = max(5, int(total_agents * 0.2))  # 20%
+            elif self.activation_step == 1:
+                target_count = int(total_agents * 0.5)  # 50%
+            else:
+                target_count = total_agents  # 100%
+
+            available_agents = [
+                (aid, agent) for aid, agent in all_agents
+                if aid not in self.initial_seeded_agents
+            ]
+
+            agents_to_activate = available_agents[:target_count]
+
+            print(f"⚡ Activating {len(agents_to_activate)}/{total_agents} agents (phase {self.activation_step + 1})", flush=True)
+
+            actions = {
+                agent: LLMAction()
+                for _, agent in agents_to_activate
+            }
+
+            # 🐛 调试：打印推荐表状态
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM rec")
+            rec_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM post")
+            post_count = cursor.fetchone()[0]
+            conn.close()
+            print(f"📊 推荐: {rec_count} 条, 帖子: {post_count} 条", flush=True)
+
+            # 🐛 调试：打印第一个激活agent的memory内容
+            if agents_to_activate:
+                first_agent_id, first_agent = agents_to_activate[0]
+                if hasattr(first_agent, 'memory'):
+                    memory = first_agent.memory
+                    if hasattr(memory, 'get_context'):
+                        context, tokens = memory.get_context()
+                        print(f"🧠 Agent {first_agent_id} memory: {len(context)} 条消息, {tokens} tokens", flush=True)
+                        # 打印最后3条消息
+                        for msg in context[-3:]:
+                            if isinstance(msg, dict):
+                                role = msg.get('role', 'unknown')
+                                content = str(msg.get('content', ''))[:200]
+                                print(f"  [{role}]: {content}...", flush=True)
+
+            await self.env.step(actions)
+
+            # 🐛 调试：立即检查agents实际执行的操作
+            conn_check = sqlite3.connect(self.db_path)
+            cursor_check = conn_check.cursor()
+            # 查看最新执行的操作（排除refresh和sign_up）
+            cursor_check.execute(
+                "SELECT user_id, action FROM trace "
+                "WHERE action NOT IN ('refresh', 'sign_up') "
+                "ORDER BY created_at DESC LIMIT 10"
+            )
+            recent_actions = cursor_check.fetchall()
+            if recent_actions:
+                print(f"🎯 Agents执行了 {len(recent_actions)} 个非refresh操作:", flush=True)
+                for user_id, action in recent_actions[:5]:  # 只打印前5个
+                    print(f"  Agent {user_id}: {action}", flush=True)
+            else:
+                print(f"⚠️  Agents没有执行任何social actions！", flush=True)
+            conn_check.close()
+
+            # 🔄 刷新推荐系统，让agents可以看到新内容
+            print("🔄 Refreshing recommendation system...", flush=True)
+            await self.env.platform.update_rec_table()
+
+            print("✅ Step complete", file=sys.stderr, flush=True)  # 触发前端 WebSocket 事件
+
+            if len(agents_to_activate) < total_agents:
+                self.activation_step += 1
+            else:
+                self.initialization_phase = False
+                print("✅ All agents activated", flush=True)
+
+            return {
+                "status": "ok",
+                "activated_agents": len(agents_to_activate),
+                "phase": self.activation_step,
+                "initialization_complete": not self.initialization_phase,
+            }
+        except Exception as e:
+            print(f"❌ Failed to activate agents: {e}", flush=True)
+            return {"status": "error", "message": str(e)}
+
     async def step(self) -> Dict:
         """执行一步真实 OASIS 模拟（速度优化版）"""
         if not self.is_running or self.env is None:
@@ -401,6 +680,8 @@ class RealOASISEngineV3:
 
         try:
             step_start = time.time()
+
+            # 🔧 直接运行所有 agents（禁用渐进式激活）
             print(f"⚙️  Step {self.current_step + 1} 开始", flush=True)
 
             # 按照OASIS官方文档：从环境中获取agents
@@ -410,26 +691,53 @@ class RealOASISEngineV3:
             total_agents = len(all_agents)
             print(f"📊 Progress: 0/{total_agents} (0%)", file=sys.stderr, flush=True)
 
-            # 分批执行agents以显示实时进度
-            batch_size = max(1, total_agents // 5)  # 分成约5批（平衡速度和进度显示）
+            # 🚀 并发执行每个agent，真正并行调用LLM API
+            # 默认并发8，可通过 OASIS_STEP_CONCURRENCY 调整
+            configured_concurrency = int(
+                os.environ.get("OASIS_STEP_CONCURRENCY", "8")
+            )
+            step_concurrency = max(1, min(configured_concurrency, total_agents))
+            print(
+                f"🚀 Step concurrency: {step_concurrency}/{total_agents}",
+                flush=True,
+            )
+
             completed = 0
+            agent_observations = []
+            semaphore = asyncio.Semaphore(step_concurrency)
 
-            for i in range(0, total_agents, batch_size):
-                batch_agents = all_agents[i:i + batch_size]
+            async def _run_single_agent(agent):
+                async with semaphore:
+                    actions = {agent: LLMAction()}
+                    await self.env.step(actions)
+                    return self._collect_agent_observation(agent, actions[agent])
 
-                # 为当前批的agents创建LLMAction
-                batch_actions = {
-                    agent: LLMAction()
-                    for _, agent in batch_agents
-                }
+            tasks = [
+                asyncio.create_task(_run_single_agent(agent))
+                for _, agent in all_agents
+            ]
 
-                # 执行当前批
-                await self.env.step(batch_actions)
+            try:
+                for finished_task in asyncio.as_completed(tasks):
+                    obs_data = await finished_task
+                    completed += 1
+                    percentage = int((completed / total_agents) * 100)
+                    print(
+                        f"📊 Progress: {completed}/{total_agents} ({percentage}%)",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    if obs_data:
+                        agent_observations.append(obs_data)
+            except Exception:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
 
-                # 更新进度
-                completed += len(batch_agents)
-                percentage = int((completed / total_agents) * 100)
-                print(f"📊 Progress: {completed}/{total_agents} ({percentage}%)", file=sys.stderr, flush=True)
+            # 🔄 所有agent完成后统一刷新推荐系统
+            await self.env.platform.update_rec_table()
 
             # 完成进度
             print(f"✅ Step complete", file=sys.stderr, flush=True)
@@ -459,6 +767,20 @@ class RealOASISEngineV3:
             # 计算极化率（每一步都检查）
             polarization_result = await self._update_polarization()
 
+            # 新增：计算 Console 数据摘要统计
+            total_interactions = sum(
+                1 for obs in agent_observations
+                if obs['action']['type'] in ['LIKE_POST', 'CREATE_COMMENT', 'FOLLOW']
+            )
+            posts_created = sum(
+                1 for obs in agent_observations
+                if obs['action']['type'] == 'CREATE_POST'
+            )
+            avg_context_tokens = (
+                sum(obs['observations']['contextTokens'] for obs in agent_observations) / len(agent_observations)
+                if agent_observations else 0
+            )
+
             return {
                 "status": "ok",
                 "current_step": self.current_step,
@@ -483,14 +805,20 @@ class RealOASISEngineV3:
         """重置模拟"""
         if self.env is not None:
             await self.env.close()
-        
+
         self.current_step = 0
         self.total_posts = 0
         self.is_running = False
         self.logs = []
-        
+
+        # 🆕 重置初始化状态 (Phase 3)
+        # 🔧 禁用渐进式激活，让所有 agents 从第一步就全部参与
+        self.initialization_phase = False
+        self.initial_seeded_agents = set()
+        self.activation_step = 0
+
         print("🔄 模拟已重置", flush=True)
-        
+
         return {
             "status": "ok",
             "message": "模拟已重置",
@@ -581,6 +909,211 @@ class RealOASISEngineV3:
             import traceback
             traceback.print_exc()
             return self._get_fallback_logs(f"Error: {str(e)}")
+
+    def _collect_agent_observation(self, agent, action) -> Optional[Dict]:
+        """收集单个 agent 的观察信息"""
+        try:
+            # 获取 agent 对象
+            agent_obj = agent if hasattr(agent, 'user_info') else None
+            if not agent_obj:
+                return None
+
+            # 获取 agent ID 和名称
+            agent_id = getattr(agent_obj, 'agent_id', 'unknown')
+            user_info = getattr(agent_obj, 'user_info', None)
+            agent_name = user_info.user_name if user_info else f"Agent {agent_id}"
+
+            # 收集观察数据
+            seen_posts = self._get_agent_seen_posts(agent_obj)
+            context_info = self._get_agent_context_info(agent_obj)
+
+            # 获取动作信息
+            action_type = "UNKNOWN"
+            action_content = ""
+            action_reason = ""
+
+            # 从 trace 表获取实际动作
+            action_data = self._get_agent_last_action(agent_id)
+            if action_data:
+                action_type = action_data.get('action_type', 'UNKNOWN')
+                action_content = action_data.get('content', '')
+                action_reason = action_data.get('reason', '')
+
+            return {
+                'agentId': f"agent_{agent_id}",
+                'agentName': agent_name,
+                'step': self.current_step,
+                'observations': {
+                    'seenPosts': seen_posts,
+                    'seenAgentsCount': context_info.get('seen_agents_count', 0),
+                    'retrievedMemories': context_info.get('memory_records', 0),
+                    'contextTokens': context_info.get('context_tokens', 0),
+                    'contextLength': context_info.get('context_length', 0),
+                },
+                'action': {
+                    'type': action_type,
+                    'content': action_content,
+                    'reason': action_reason,
+                },
+                'timestamp': datetime.now().isoformat(),
+            }
+        except Exception as e:
+            print(f"Warning: Failed to collect observation for agent: {e}", flush=True)
+            return None
+
+    def _get_agent_seen_posts(self, agent) -> List[Dict]:
+        """获取 agent 在当前步骤看到的帖子"""
+        posts = []
+
+        try:
+            # 方法1：从 agent 的 context 中提取
+            if hasattr(agent, 'memory'):
+                memory = agent.memory
+                if hasattr(memory, 'get_context'):
+                    context, _ = memory.get_context()
+                    posts = self._parse_posts_from_context(context)
+
+            # 方法2：从环境日志中获取
+            if not posts and hasattr(agent, 'env'):
+                env = agent.env
+                if hasattr(env, 'last_render_stats'):
+                    stats = env.last_render_stats
+                    posts = self._parse_posts_from_render_stats(stats)
+
+            return posts[:10]  # 限制返回数量
+        except Exception as e:
+            print(f"Warning: Failed to get seen posts: {e}", flush=True)
+            return []
+
+    def _parse_posts_from_context(self, context: List) -> List[Dict]:
+        """从 context (List[OpenAIMessage]) 中解析帖子信息"""
+        posts = []
+
+        try:
+            import json
+
+            for message in context:
+                if isinstance(message, dict):
+                    content = message.get('content', '')
+
+                    # 尝试解析 JSON 格式的帖子数据
+                    if 'post_id' in content or 'content' in content:
+                        try:
+                            data = json.loads(content) if isinstance(content, str) else content
+
+                            if isinstance(data, dict) and 'content' in data:
+                                posts.append({
+                                    'postId': str(data.get('post_id', 'unknown')),
+                                    'content': data.get('content', '')[:500],
+                                    'author': data.get('author_name', 'Unknown'),
+                                    'authorId': str(data.get('user_id', 'unknown')),
+                                    'timestamp': data.get('created_at', datetime.now().isoformat()),
+                                    'numLikes': data.get('num_likes', 0),
+                                })
+                        except:
+                            pass
+
+            return posts[:10]
+        except Exception as e:
+            print(f"Warning: Failed to parse posts from context: {e}", flush=True)
+            return []
+
+    def _parse_posts_from_render_stats(self, stats: Dict) -> List[Dict]:
+        """从 render stats 中解析帖子信息"""
+        posts = []
+
+        try:
+            if 'observed_posts' in stats:
+                for post in stats['observed_posts'][:10]:
+                    posts.append({
+                        'postId': str(post.get('id', 'unknown')),
+                        'content': post.get('content', '')[:500],
+                        'author': post.get('author', 'Unknown'),
+                        'authorId': str(post.get('author_id', 'unknown')),
+                        'timestamp': post.get('timestamp', datetime.now().isoformat()),
+                        'numLikes': post.get('num_likes', 0),
+                    })
+        except Exception as e:
+            print(f"Warning: Failed to parse posts from render stats: {e}", flush=True)
+
+        return posts
+
+    def _get_agent_context_info(self, agent) -> Dict:
+        """获取 agent 的上下文信息"""
+        info = {
+            'seen_agents_count': 0,
+            'memory_records': 0,
+            'context_tokens': 0,
+            'context_length': 0,
+        }
+
+        try:
+            # 获取上下文长度
+            if hasattr(agent, 'memory'):
+                memory = agent.memory
+                if hasattr(memory, 'get_context'):
+                    context, token_count = memory.get_context()
+                    # context 是 List[OpenAIMessage], token_count 是实际的 token 数量
+                    info['context_length'] = sum(len(str(msg.get('content', ''))) for msg in context)
+                    info['context_tokens'] = token_count if isinstance(token_count, int) else len(context) * 100  # 使用 OASIS 返回的实际 token 数
+                    info['memory_records'] = len(context)  # context 本身就是 memory records
+
+            # 获取看到的 agent 数量
+            info['seen_agents_count'] = min(len(self.agents), 50)
+
+        except Exception as e:
+            print(f"Warning: Failed to get context info: {e}", flush=True)
+
+        return info
+
+    def _get_agent_last_action(self, agent_id: int) -> Optional[Dict]:
+        """从数据库中获取 agent 的最后动作"""
+        try:
+            import sqlite3
+            import os
+
+            if not os.path.exists(self.db_path):
+                return None
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 从 trace 表查询最近的动作
+            cursor.execute(
+                """
+                SELECT action, info, created_at
+                FROM trace
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (agent_id,)
+            )
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                action, info, created_at = row
+                # 映射动作类型
+                action_map = {
+                    'create_post': 'CREATE_POST',
+                    'like': 'LIKE_POST',
+                    'follow': 'FOLLOW',
+                    'refresh': 'REFRESH',
+                }
+                mapped_type = action_map.get(action.lower(), action.upper())
+
+                return {
+                    'action_type': mapped_type,
+                    'content': info or f'Executed {action}',
+                    'reason': f'Agent decided to {action}',
+                }
+
+            return None
+        except Exception as e:
+            print(f"Warning: Failed to get last action: {e}", flush=True)
+            return None
 
     def _collect_context_metrics(self) -> Dict[str, Any]:
         metrics: Dict[str, Any] = {
