@@ -155,6 +155,10 @@ class RealOASISEngineV3:
         self.polarization_analyzer: Optional[Any] = None
         self.polarization_topic: Optional[str] = None
         self.last_polarization: float = 0.0
+        # 增量日志水位线游标（修复 Issue #13：防止历史帖子被重复返回为 new_logs）
+        # 每次 step 只返回 post_id > _last_seen_post_id 的新记录
+        self._last_seen_post_id: int = 0
+        self._last_seen_like_id: int = 0
 
     def _get_topic_instructions(self, topic: str, region: str) -> str:
         """
@@ -497,7 +501,10 @@ class RealOASISEngineV3:
                 except Exception as e:
                     print(f"⚠️  极化率分析器初始化失败: {e}", flush=True)
                     self.polarization_analyzer = None
-
+            # 初始化成功：重置增量日志水位线，确保新轮模拟不继承旧游标
+            self._last_seen_post_id = 0
+            self._last_seen_like_id = 0
+            print("📍 增量日志水位线已重置", flush=True)
             return {
                 "status": "ok",
                 "message": f"真实OASIS已初始化 {agent_count} 个agents",
@@ -816,6 +823,9 @@ class RealOASISEngineV3:
         self.initialization_phase = False
         self.initial_seeded_agents = set()
         self.activation_step = 0
+        # 重置增量日志水位线，防止新轮模拟继承旧游标导致日志空白
+        self._last_seen_post_id = 0
+        self._last_seen_like_id = 0
 
         print("🔄 模拟已重置", flush=True)
 
@@ -875,15 +885,19 @@ class RealOASISEngineV3:
         }
 
     def _get_real_agent_actions(self) -> List[Dict]:
-        """从 OASIS 数据库读取真实的 agent 行为"""
+        """增量读取本次 step 新增的 agent 行为日志（修复 Issue #13）
+
+        返回当前 step 新增的 post / like 记录。
+        数据库不存在或无新增时返回 []，不伪造 fallback 假日志。
+        """
         import sqlite3
         import os
 
         logs = []
 
-        # 检查数据库是否存在
+        # 数据库尚未创建（初始化前）：返回空数组，不伪造假日志
         if not os.path.exists(self.db_path):
-            return self._get_fallback_logs("Database not yet created")
+            return []
 
         try:
             conn = sqlite3.connect(self.db_path)
@@ -893,22 +907,20 @@ class RealOASISEngineV3:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             tables = [row[0] for row in cursor.fetchall()]
 
-            # 尝试读取不同可能的表结构
+            # 增量读取：只返回 post_id / like_id > 水位线的新记录
             logs.extend(self._read_posts_table(cursor, tables))
             logs.extend(self._read_interactions_table(cursor, tables))
 
             conn.close()
 
-            # 如果没有找到任何日志，返回基本信息
-            if not logs:
-                return self._get_fallback_logs("No data found in database")
-            return logs[:100]  # 最多返回100条
+            # 无新增时返回空数组，不伪造假日志
+            return logs
 
         except Exception as e:
             print(f"❌ 读取数据库失败: {str(e)}", flush=True)
             import traceback
             traceback.print_exc()
-            return self._get_fallback_logs(f"Error: {str(e)}")
+            return []
 
     def _collect_agent_observation(self, agent, action) -> Optional[Dict]:
         """收集单个 agent 的观察信息"""
@@ -1257,15 +1269,18 @@ class RealOASISEngineV3:
                 metrics["total_tool_records"] += 1
 
     def _read_posts_table(self, cursor, tables) -> List[Dict]:
-        """尝试读取posts相关表"""
+        """增量读取 post 表（修复 Issue #13）
+
+        只返回 post_id > self._last_seen_post_id 的新帖子，
+        读取后更新水位线为本次最大 post_id。
+        """
         logs = []
 
-        # OASIS使用小写的 'post' 表
+        # OASIS 使用小写的 'post' 表
         if 'post' not in tables:
             return logs
 
         try:
-            # 读取最新的帖子
             cursor.execute("""
                 SELECT
                     p.post_id,
@@ -1276,14 +1291,14 @@ class RealOASISEngineV3:
                     u.user_name
                 FROM post p
                 LEFT JOIN user u ON p.user_id = u.user_id
-                ORDER BY p.post_id DESC
-                LIMIT 50
-            """)
+                WHERE p.post_id > ?
+                ORDER BY p.post_id ASC
+            """, (self._last_seen_post_id,))
 
             rows = cursor.fetchall()
+            max_id = self._last_seen_post_id
             for row in rows:
                 post_id, user_id, content, created_at, num_likes, user_name = row
-
                 logs.append({
                     "timestamp": self._format_timestamp(created_at),
                     "agent_id": user_name or f"Agent {user_id}",
@@ -1291,6 +1306,11 @@ class RealOASISEngineV3:
                     "content": content[:200] + "..." if len(content) > 200 else content,
                     "reason": f"Post {post_id} | {num_likes} likes"
                 })
+                if post_id > max_id:
+                    max_id = post_id
+
+            # 更新水位线
+            self._last_seen_post_id = max_id
 
         except Exception as e:
             print(f"⚠️  读取post表失败: {e}", flush=True)
@@ -1298,10 +1318,14 @@ class RealOASISEngineV3:
         return logs
 
     def _read_interactions_table(self, cursor, tables) -> List[Dict]:
-        """尝试读取interactions/likes相关表"""
+        """增量读取 like 表（修复 Issue #13）
+
+        只返回 like_id > self._last_seen_like_id 的新点赞记录，
+        读取后更新水位线为本次最大 like_id。
+        """
         logs = []
 
-        # 读取like表
+        # 读取 like 表
         if 'like' not in tables and 'likes' not in tables:
             return logs
 
@@ -1317,14 +1341,14 @@ class RealOASISEngineV3:
                     u.user_name
                 FROM {table_name} l
                 LEFT JOIN user u ON l.user_id = u.user_id
-                ORDER BY l.like_id DESC
-                LIMIT 20
-            """)
+                WHERE l.like_id > ?
+                ORDER BY l.like_id ASC
+            """, (self._last_seen_like_id,))
 
             rows = cursor.fetchall()
+            max_id = self._last_seen_like_id
             for row in rows:
                 like_id, user_id, post_id, created_at, user_name = row
-
                 logs.append({
                     "timestamp": self._format_timestamp(created_at),
                     "agent_id": user_name or f"Agent {user_id}",
@@ -1332,6 +1356,11 @@ class RealOASISEngineV3:
                     "content": f"Liked post {post_id}",
                     "reason": f"Like {like_id}"
                 })
+                if like_id > max_id:
+                    max_id = like_id
+
+            # 更新水位线
+            self._last_seen_like_id = max_id
 
         except Exception as e:
             pass  # 静默忽略读取错误
