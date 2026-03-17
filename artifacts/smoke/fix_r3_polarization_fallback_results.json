@@ -1,0 +1,150 @@
+{
+  "gates": {
+    "real_analysis_writes_history": true,
+    "fallback_not_write_history": true,
+    "source_field_present": true,
+    "trace_distinguishable": true,
+    "history_not_polluted": true,
+    "curve_still_dynamic": true
+  },
+  "trace": [
+    {
+      "step": 1,
+      "total_posts": 5,
+      "polarization": 0.31533126291998986,
+      "source": "llm",
+      "is_fallback": false,
+      "history_written": true,
+      "history_len": 2
+    },
+    {
+      "step": 2,
+      "total_posts": 5,
+      "polarization": 0.2906002445823045,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 3,
+      "total_posts": 5,
+      "polarization": 0.32161653526870676,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 4,
+      "total_posts": 5,
+      "polarization": 0.29300556142813233,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 5,
+      "total_posts": 5,
+      "polarization": 0.2819426586216479,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 6,
+      "total_posts": 5,
+      "polarization": 0.3175733586451616,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 7,
+      "total_posts": 5,
+      "polarization": 0.29300227419311214,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 8,
+      "total_posts": 5,
+      "polarization": 0.36998419611035804,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 9,
+      "total_posts": 5,
+      "polarization": 0.32276724820272684,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 10,
+      "total_posts": 5,
+      "polarization": 0.3651931367954585,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 11,
+      "total_posts": 5,
+      "polarization": 0.35382527809342984,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 12,
+      "total_posts": 5,
+      "polarization": 0.2949610858416622,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 13,
+      "total_posts": 5,
+      "polarization": 0.298937206751484,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 14,
+      "total_posts": 5,
+      "polarization": 0.34309189139654084,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    },
+    {
+      "step": 15,
+      "total_posts": 5,
+      "polarization": 0.3108163895445489,
+      "source": "history_dynamic",
+      "is_fallback": true,
+      "history_written": false,
+      "history_len": 2
+    }
+  ],
+  "history_trace": [],
+  "debug_log": [],
+  "status": "PASS"
+}

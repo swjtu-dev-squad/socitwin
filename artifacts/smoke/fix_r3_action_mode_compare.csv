@@ -1,0 +1,14 @@
+action,in_default,in_smoke_dense
+CREATE_COMMENT,True,True
+CREATE_POST,True,True
+DISLIKE_COMMENT,True,True
+DISLIKE_POST,True,True
+DO_NOTHING,True,False
+FOLLOW,True,True
+LIKE_COMMENT,True,True
+LIKE_POST,True,True
+MUTE,True,True
+REFRESH,True,False
+SEARCH_POSTS,True,True
+SEARCH_USER,True,True
+TREND,True,True

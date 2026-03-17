@@ -1,0 +1,81 @@
+{
+  "gates": {
+    "default_keeps_refresh": true,
+    "smoke_dense_removes_refresh": true,
+    "modes_are_different": true,
+    "smoke_dense_behavior_density": true,
+    "default_mode_no_error": true,
+    "action_space_configurable": true
+  },
+  "mode_compare": [
+    {
+      "action": "CREATE_COMMENT",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "CREATE_POST",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "DISLIKE_COMMENT",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "DISLIKE_POST",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "DO_NOTHING",
+      "in_default": true,
+      "in_smoke_dense": false
+    },
+    {
+      "action": "FOLLOW",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "LIKE_COMMENT",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "LIKE_POST",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "MUTE",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "REFRESH",
+      "in_default": true,
+      "in_smoke_dense": false
+    },
+    {
+      "action": "SEARCH_POSTS",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "SEARCH_USER",
+      "in_default": true,
+      "in_smoke_dense": true
+    },
+    {
+      "action": "TREND",
+      "in_default": true,
+      "in_smoke_dense": true
+    }
+  ],
+  "behavior_stats": {
+    "smoke_dense_final_posts": 11
+  },
+  "status": "PASS"
+}

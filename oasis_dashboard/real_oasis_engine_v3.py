@@ -117,8 +117,16 @@ class RealOASISEngineV3:
         model_platform: Optional[str] = None,
         model_type: Optional[str] = None,
         db_path: str = "./oasis_simulation.db",
+        behavior_mode: str = "smoke_dense",
     ):
-        """初始化真实 OASIS 引擎"""
+        """初始化真实 OASIS 引擎
+
+        Args:
+            behavior_mode: 动作空间策略模式。
+                - "default": 保留 OASIS 平台默认动作集（包含 REFRESH / DO_NOTHING）
+                - "smoke_dense": 移除 REFRESH / DO_NOTHING，提升行为密度（smoke/压力测试用）
+                - "social_only": 只保留产生内容或关系变化的动作
+        """
         self.model_platform = model_platform or os.environ.get(
             "OASIS_MODEL_PLATFORM", "ollama"
         )
@@ -126,7 +134,9 @@ class RealOASISEngineV3:
             "OASIS_MODEL_TYPE", "qwen3:8b"
         )
         self.db_path = db_path
-        
+        # Issue #FIX-R3-ACTION-MODE: 动作空间策略模式，默认 smoke_dense 以保持 R3-01 行为密度
+        self.behavior_mode: str = behavior_mode
+
         self.agent_graph: Optional[Any] = None
         self.env: Optional[Any] = None
         self.model: Optional[Any] = None
@@ -272,6 +282,47 @@ class RealOASISEngineV3:
             return [ModelRuntimeSpec(url=item, **base_kwargs) for item in urls]
         return ModelRuntimeSpec(url=url, **base_kwargs)
 
+    def _build_available_actions(self, platform: str, behavior_mode: str) -> list:
+        """根据平台和行为模式构建可用动作列表。
+
+        Issue #FIX-R3-ACTION-MODE: 将动作空间策略配置化，避免硬编码删除默认动作。
+
+        Args:
+            platform: 平台类型（"reddit" / "twitter"）
+            behavior_mode: 动作空间策略模式
+                - "default": 保留 OASIS 平台默认动作集（包含 REFRESH / DO_NOTHING）
+                - "smoke_dense": 移除 REFRESH / DO_NOTHING，提升行为密度
+                - "social_only": 只保留产生内容或关系变化的动作
+
+        Returns:
+            可用动作列表
+        """
+        # 获取平台默认动作集（尊重 OASIS 完整动作空间）
+        if platform.lower() == 'reddit':
+            base_actions = ActionType.get_default_reddit_actions()
+        elif platform.lower() in ('twitter', 'x'):
+            base_actions = ActionType.get_default_twitter_actions()
+        else:
+            base_actions = ActionType.get_default_reddit_actions()
+
+        actions = list(base_actions)
+
+        if behavior_mode == 'smoke_dense':
+            # smoke/压力测试模式：移除低产出动作，提升行为密度
+            # 这是测试策略，不是系统默认语义
+            actions = [a for a in actions if a not in {ActionType.REFRESH, ActionType.DO_NOTHING}]
+        elif behavior_mode == 'social_only':
+            # 社交专用模式：只保留产生内容或关系变化的动作
+            actions = [a for a in actions if a in {
+                ActionType.CREATE_POST,
+                ActionType.LIKE_POST,
+                ActionType.FOLLOW,
+                ActionType.CREATE_COMMENT,
+            }]
+        # else: "default" 模式保留平台完整默认动作集，不做任何过滤
+
+        return actions
+
     async def initialize(
         self,
         agent_count: int = 10,
@@ -319,14 +370,17 @@ class RealOASISEngineV3:
                 else None
             )
 
-            # 定义可用动作
-            # 🔥 移除DO_NOTHING和REFRESH以防止agents选择什么都不做或只刷新
-            # 这样agents必须选择：创建帖子或点赞，大幅提升行为密度
-            # Issue #R3-01-FIX: 移除REFRESH后totalPosts从2提升到10+
-            available_actions = [
-                ActionType.CREATE_POST,
-                ActionType.LIKE_POST,
-            ]
+            # Issue #FIX-R3-ACTION-MODE: 动作空间策略配置化
+            # 使用 behavior_mode 参数控制动作空间，而非硬编码删除默认动作
+            available_actions = self._build_available_actions(
+                platform=platform,
+                behavior_mode=getattr(self, 'behavior_mode', 'smoke_dense'),
+            )
+            print(
+                f"🎛️ behavior_mode={getattr(self, 'behavior_mode', 'smoke_dense')}, "
+                f"available_actions={[a.name for a in available_actions]}",
+                flush=True,
+            )
 
             # 🔥 多样化属性集合（增加agent多样性）
             age_range = [18, 22, 25, 28, 32, 35, 40, 45, 50, 55, 60, 65]
@@ -963,24 +1017,27 @@ class RealOASISEngineV3:
             # 执行分析
             result = await self.polarization_analyzer.analyze()
 
-            # Issue #R3-02-FIX: 当没有新帖子时，基于历史均值加小扰动计算动态极化值
-            # 这解决了极化常数问题：当 agents 在 step 1 全部发帖后后续只点赞，极化就不再变化
-            # 判断：如果 last_analyzed_post_id 没有变化（没有新帖子），则添加动态扰动
+              # Issue #R3-02-FIX: 当没有新帖子时，基于历史均值加小扰动计算动态极化值
+            # Issue #FIX-R3-POLARIZATION-FALLBACK: fallback 动态值不写回主历史，隔离分析层与 UI 展示层
             curr_last_id = getattr(self.polarization_analyzer, 'last_analyzed_post_id', 0)
             no_new_posts = (curr_last_id == prev_last_id and curr_last_id > 0)
             if no_new_posts and self.polarization_analyzer.history:
                 # 没有新帖子，基于历史均值加上小扰动使极化值动态变化
                 try:
+                    # 使用主历史均值作为基线（只包含真实分析值，不包含 fallback 值）
                     base_pol = sum(self.polarization_analyzer.history) / len(self.polarization_analyzer.history)
                     import random as _random
                     noise = _random.gauss(0, 0.025)  # 标准差 0.025 的高斯扰动
                     dynamic_pol = max(0.0, min(1.0, base_pol + noise))
                     result = dict(result)
                     result['polarization'] = dynamic_pol
-                    result['source'] = 'history_dynamic'
+                    result['source'] = 'history_dynamic'  # 显式标注来源
+                    result['is_fallback'] = True           # 显式标注是否为降级值
+                    result['history_written'] = False      # 显式标注不写入主历史
                     print(
                         f"📊 [Polarization] dynamic update (no new posts): base={base_pol:.4f} "
-                        f"noise={noise:.4f} result={dynamic_pol:.4f}",
+                        f"noise={noise:.4f} result={dynamic_pol:.4f} "
+                        f"source=history_dynamic is_fallback=True history_written=False",
                         flush=True,
                     )
                 except Exception as _e:
@@ -989,13 +1046,26 @@ class RealOASISEngineV3:
             # 更新缓存
             self.last_polarization = result.get("polarization", 0.0)
 
-            # 记录到历史（用于降级）
-            if "polarization" in result:
+            # Issue #FIX-R3-POLARIZATION-FALLBACK: 只有真实分析值才写入主历史，隔离 fallback 污染
+            # 真实分析来源：llm, heuristic, heuristic_empty_llm_fallback（对帖子内容做了实际分析）
+            # 降级来源：history_dynamic, history, db_cache, db_cache_fallback, historical_fallback, error_fallback, hard_zero_fallback
+            REAL_ANALYSIS_SOURCES = {'llm', 'heuristic', 'heuristic_empty_llm_fallback'}
+            source = result.get('source', 'analyzed')
+            is_fallback = result.get('is_fallback', source not in REAL_ANALYSIS_SOURCES)
+            should_write_history = (
+                "polarization" in result and
+                not is_fallback
+            )
+            if should_write_history:
                 self.polarization_analyzer.history.append(result["polarization"])
-                # 保留最近100次
+                # 保留最近 100 条真实分析历史
                 if len(self.polarization_analyzer.history) > 100:
                     self.polarization_analyzer.history.pop(0)
 
+            # 将 is_fallback / history_written 写入返回值（供 trace 和前端区分）
+            result = dict(result)
+            result['is_fallback'] = is_fallback
+            result['history_written'] = should_write_history
             return result
 
         except Exception as e:

@@ -1,0 +1,16 @@
+step,total_posts,polarization,source,is_fallback,history_written,history_len
+1,5,0.31533126291998986,llm,False,True,2
+2,5,0.2906002445823045,history_dynamic,True,False,2
+3,5,0.32161653526870676,history_dynamic,True,False,2
+4,5,0.29300556142813233,history_dynamic,True,False,2
+5,5,0.2819426586216479,history_dynamic,True,False,2
+6,5,0.3175733586451616,history_dynamic,True,False,2
+7,5,0.29300227419311214,history_dynamic,True,False,2
+8,5,0.36998419611035804,history_dynamic,True,False,2
+9,5,0.32276724820272684,history_dynamic,True,False,2
+10,5,0.3651931367954585,history_dynamic,True,False,2
+11,5,0.35382527809342984,history_dynamic,True,False,2
+12,5,0.2949610858416622,history_dynamic,True,False,2
+13,5,0.298937206751484,history_dynamic,True,False,2
+14,5,0.34309189139654084,history_dynamic,True,False,2
+15,5,0.3108163895445489,history_dynamic,True,False,2
