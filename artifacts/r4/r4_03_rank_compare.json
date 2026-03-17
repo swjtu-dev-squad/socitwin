@@ -1,0 +1,251 @@
+{
+  "candidates": [
+    "p1",
+    "p2",
+    "p3",
+    "p4",
+    "p5",
+    "p6",
+    "p7"
+  ],
+  "context": {
+    "interests": [
+      "AI",
+      "technology",
+      "machine learning"
+    ],
+    "long_term_interests": [
+      "travel",
+      "nature",
+      "adventure"
+    ],
+    "followed_authors": [
+      "alice",
+      "bob"
+    ],
+    "boards": [
+      "travel",
+      "nature",
+      "outdoor"
+    ],
+    "search_query": "AI technology"
+  },
+  "rankings": {
+    "tiktok": [
+      {
+        "post_id": "p1",
+        "score": 0.834611,
+        "breakdown": {
+          "short_term_interest": 0.6667,
+          "completion_rate": 0.85,
+          "engagement": 1.0,
+          "freshness": 0.9439
+        }
+      },
+      {
+        "post_id": "p6",
+        "score": 0.796738,
+        "breakdown": {
+          "short_term_interest": 0.6667,
+          "completion_rate": 0.8,
+          "engagement": 0.9,
+          "freshness": 0.917
+        }
+      },
+      {
+        "post_id": "p3",
+        "score": 0.559308,
+        "breakdown": {
+          "short_term_interest": 0.0,
+          "completion_rate": 0.9,
+          "engagement": 0.7,
+          "freshness": 0.9715
+        }
+      },
+      {
+        "post_id": "p5",
+        "score": 0.546248,
+        "breakdown": {
+          "short_term_interest": 0.0,
+          "completion_rate": 0.75,
+          "engagement": 1.0,
+          "freshness": 0.7937
+        }
+      },
+      {
+        "post_id": "p7",
+        "score": 0.530685,
+        "breakdown": {
+          "short_term_interest": 0.0,
+          "completion_rate": 0.65,
+          "engagement": 1.0,
+          "freshness": 0.8409
+        }
+      },
+      {
+        "post_id": "p2",
+        "score": 0.523113,
+        "breakdown": {
+          "short_term_interest": 0.0,
+          "completion_rate": 0.6,
+          "engagement": 1.0,
+          "freshness": 0.8656
+        }
+      },
+      {
+        "post_id": "p4",
+        "score": 0.425015,
+        "breakdown": {
+          "short_term_interest": 0.0,
+          "completion_rate": 0.7,
+          "engagement": 1.0,
+          "freshness": 0.2501
+        }
+      }
+    ],
+    "xiaohongshu": [
+      {
+        "post_id": "p1",
+        "score": 0.648333,
+        "breakdown": {
+          "content_quality": 0.705,
+          "social_affinity": 0.2,
+          "search_intent_match": 1.0,
+          "freshness": 0.9439
+        }
+      },
+      {
+        "post_id": "p6",
+        "score": 0.576053,
+        "breakdown": {
+          "content_quality": 0.51,
+          "social_affinity": 0.2,
+          "search_intent_match": 1.0,
+          "freshness": 0.917
+        }
+      },
+      {
+        "post_id": "p5",
+        "score": 0.473061,
+        "breakdown": {
+          "content_quality": 0.84,
+          "social_affinity": 0.2,
+          "search_intent_match": 0.0,
+          "freshness": 0.7937
+        }
+      },
+      {
+        "post_id": "p3",
+        "score": 0.468231,
+        "breakdown": {
+          "content_quality": 0.75,
+          "social_affinity": 0.2,
+          "search_intent_match": 0.0,
+          "freshness": 0.9715
+        }
+      },
+      {
+        "post_id": "p2",
+        "score": 0.468084,
+        "breakdown": {
+          "content_quality": 0.795,
+          "social_affinity": 0.2,
+          "search_intent_match": 0.0,
+          "freshness": 0.8656
+        }
+      },
+      {
+        "post_id": "p4",
+        "score": 0.447511,
+        "breakdown": {
+          "content_quality": 1.0,
+          "social_affinity": 0.2,
+          "search_intent_match": 0.0,
+          "freshness": 0.2501
+        }
+      },
+      {
+        "post_id": "p7",
+        "score": 0.375139,
+        "breakdown": {
+          "content_quality": 0.54,
+          "social_affinity": 0.2,
+          "search_intent_match": 0.0,
+          "freshness": 0.8409
+        }
+      }
+    ],
+    "pinterest": [
+      {
+        "post_id": "p4",
+        "score": 0.858341,
+        "breakdown": {
+          "long_term_interest": 1.0,
+          "board_similarity": 1.0,
+          "visual_or_topic_similarity": 0.6667,
+          "freshness": 0.2501
+        }
+      },
+      {
+        "post_id": "p3",
+        "score": 0.127154,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.9715
+        }
+      },
+      {
+        "post_id": "p1",
+        "score": 0.124389,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.9439
+        }
+      },
+      {
+        "post_id": "p6",
+        "score": 0.121702,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.917
+        }
+      },
+      {
+        "post_id": "p2",
+        "score": 0.116556,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.8656
+        }
+      },
+      {
+        "post_id": "p7",
+        "score": 0.114093,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.8409
+        }
+      },
+      {
+        "post_id": "p5",
+        "score": 0.109374,
+        "breakdown": {
+          "long_term_interest": 0.0,
+          "board_similarity": 0.1,
+          "visual_or_topic_similarity": 0.0,
+          "freshness": 0.7937
+        }
+      }
+    ]
+  }
+}

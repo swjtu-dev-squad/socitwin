@@ -1,0 +1,62 @@
+{
+  "status": "valid",
+  "valid": true,
+  "errors": [],
+  "warnings": [],
+  "stats": {
+    "users": 3,
+    "relationships": 2,
+    "posts": 2
+  },
+  "preview": {
+    "users": [
+      {
+        "username": "alice",
+        "realname": "Alice Smith",
+        "bio": "Tech enthusiast",
+        "age": 28,
+        "gender": "F",
+        "country": "US"
+      },
+      {
+        "username": "bob",
+        "realname": "Bob Jones",
+        "bio": "Sports fan",
+        "age": 32,
+        "gender": "M",
+        "country": "UK"
+      },
+      {
+        "username": "carol",
+        "realname": "Carol White",
+        "bio": "Artist",
+        "age": 25,
+        "gender": "F",
+        "country": "DE"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "alice",
+        "target": "bob",
+        "type": "follow"
+      },
+      {
+        "source": "bob",
+        "target": "carol",
+        "type": "follow"
+      }
+    ],
+    "posts": [
+      {
+        "username": "alice",
+        "content": "Hello world! First post."
+      },
+      {
+        "username": "bob",
+        "content": "Loving the new platform!"
+      }
+    ]
+  },
+  "format": "json"
+}

@@ -78,5 +78,5 @@ export interface GenerateUsersResponse {
     name: string;
     bio: string;
     interests: string[];
-  }>);
+  }>;
 }

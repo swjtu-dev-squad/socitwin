@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
+import { PropagationGraph } from '@/components/PropagationGraph';
 import { useSimulationStore } from '@/lib/store';
+import type { StatsHistoryEntry } from '@/lib/types';
 import { 
   Card,
   Button,
@@ -459,16 +461,7 @@ export default function Analytics() {
                 <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">传播节点分析</h3>
               </div>
             </div>
-            <div className="flex items-center justify-center h-48 text-text-tertiary">
-              <div className="text-center">
-                <Zap className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">传播节点分析</p>
-                <p className="text-xs mt-1 opacity-70">Coming Soon</p>
-                <p className="text-[9px] mt-2 text-text-muted max-w-xs mx-auto">
-                  需要后端实现社交网络分析算法
-                </p>
-              </div>
-            </div>
+            <PropagationGraph />
           </Card>
 
           {/* A/B Test Results */}

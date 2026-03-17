@@ -1,0 +1,66 @@
+{
+  "task": "R4-01",
+  "gates": {
+    "propagation-summary API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "nodes > 0": {
+      "status": "PASS",
+      "detail": "nodes=4"
+    },
+    "metrics returned": {
+      "status": "PASS",
+      "detail": "metrics keys: ['velocity', 'coverage', 'herdIndex', 'totalNodes', 'totalEdges', 'activeAgents', 'totalPosts']"
+    },
+    "PropagationGraph.tsx exists": {
+      "status": "PASS",
+      "detail": "/home/ubuntu/oasis-dashboard/src/components/PropagationGraph.tsx"
+    },
+    "ForceGraph2D used": {
+      "status": "PASS",
+      "detail": "react-force-graph-2d integration"
+    },
+    "node click handler": {
+      "status": "PASS",
+      "detail": "interactive node selection"
+    },
+    "PropagationGraph imported": {
+      "status": "PASS",
+      "detail": "component imported in Analytics"
+    },
+    "Coming Soon removed from propagation": {
+      "status": "PASS",
+      "detail": "placeholder removed"
+    },
+    "opinion-distribution API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "distribution has 3 categories": {
+      "status": "PASS",
+      "detail": "categories=3"
+    },
+    "distribution sums to ~100%": {
+      "status": "PASS",
+      "detail": "sum=100.0%"
+    },
+    "herd-index API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "current herd index returned": {
+      "status": "PASS",
+      "detail": "current=1"
+    },
+    "TypeScript compilation passes": {
+      "status": "PASS",
+      "detail": "clean"
+    }
+  },
+  "summary": {
+    "passed": 14,
+    "total": 14,
+    "status": "PASS"
+  }
+}

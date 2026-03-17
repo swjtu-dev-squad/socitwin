@@ -1,0 +1,30 @@
+{
+  "nodes": 4,
+  "edges": 1,
+  "metrics": {
+    "velocity": 1,
+    "coverage": 0.3333,
+    "herdIndex": 0.6016,
+    "totalNodes": 4,
+    "totalEdges": 1,
+    "activeAgents": 1,
+    "totalPosts": 1
+  },
+  "sample_nodes": [
+    {
+      "id": "agent_0",
+      "type": "agent",
+      "label": "agent_0"
+    },
+    {
+      "id": "agent_1",
+      "type": "agent",
+      "label": "agent_1"
+    },
+    {
+      "id": "agent_2",
+      "type": "agent",
+      "label": "agent_2"
+    }
+  ]
+}

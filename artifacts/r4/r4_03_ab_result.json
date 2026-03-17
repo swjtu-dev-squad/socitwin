@@ -1,0 +1,150 @@
+{
+  "user_id": 1,
+  "candidate_count": 7,
+  "top_k": 3,
+  "platforms": {
+    "tiktok": {
+      "top_k_ids": [
+        "p1",
+        "p6",
+        "p3"
+      ],
+      "top_k_scores": [
+        {
+          "post_id": "p1",
+          "score": 0.834611,
+          "breakdown": {
+            "short_term_interest": 0.6667,
+            "completion_rate": 0.85,
+            "engagement": 1.0,
+            "freshness": 0.9439
+          }
+        },
+        {
+          "post_id": "p6",
+          "score": 0.796738,
+          "breakdown": {
+            "short_term_interest": 0.6667,
+            "completion_rate": 0.8,
+            "engagement": 0.9,
+            "freshness": 0.917
+          }
+        },
+        {
+          "post_id": "p3",
+          "score": 0.559308,
+          "breakdown": {
+            "short_term_interest": 0.0,
+            "completion_rate": 0.9,
+            "engagement": 0.7,
+            "freshness": 0.9715
+          }
+        }
+      ]
+    },
+    "xiaohongshu": {
+      "top_k_ids": [
+        "p1",
+        "p6",
+        "p5"
+      ],
+      "top_k_scores": [
+        {
+          "post_id": "p1",
+          "score": 0.648333,
+          "breakdown": {
+            "content_quality": 0.705,
+            "social_affinity": 0.2,
+            "search_intent_match": 1.0,
+            "freshness": 0.9439
+          }
+        },
+        {
+          "post_id": "p6",
+          "score": 0.576053,
+          "breakdown": {
+            "content_quality": 0.51,
+            "social_affinity": 0.2,
+            "search_intent_match": 1.0,
+            "freshness": 0.917
+          }
+        },
+        {
+          "post_id": "p5",
+          "score": 0.473061,
+          "breakdown": {
+            "content_quality": 0.84,
+            "social_affinity": 0.2,
+            "search_intent_match": 0.0,
+            "freshness": 0.7937
+          }
+        }
+      ]
+    },
+    "pinterest": {
+      "top_k_ids": [
+        "p4",
+        "p3",
+        "p1"
+      ],
+      "top_k_scores": [
+        {
+          "post_id": "p4",
+          "score": 0.858341,
+          "breakdown": {
+            "long_term_interest": 1.0,
+            "board_similarity": 1.0,
+            "visual_or_topic_similarity": 0.6667,
+            "freshness": 0.2501
+          }
+        },
+        {
+          "post_id": "p3",
+          "score": 0.127154,
+          "breakdown": {
+            "long_term_interest": 0.0,
+            "board_similarity": 0.1,
+            "visual_or_topic_similarity": 0.0,
+            "freshness": 0.9715
+          }
+        },
+        {
+          "post_id": "p1",
+          "score": 0.124389,
+          "breakdown": {
+            "long_term_interest": 0.0,
+            "board_similarity": 0.1,
+            "visual_or_topic_similarity": 0.0,
+            "freshness": 0.9439
+          }
+        }
+      ]
+    }
+  },
+  "overlap_analysis": {
+    "tiktok_vs_xiaohongshu": {
+      "overlap_count": 2,
+      "overlap_ids": [
+        "p6",
+        "p1"
+      ],
+      "jaccard": 0.5
+    },
+    "tiktok_vs_pinterest": {
+      "overlap_count": 2,
+      "overlap_ids": [
+        "p3",
+        "p1"
+      ],
+      "jaccard": 0.5
+    },
+    "xiaohongshu_vs_pinterest": {
+      "overlap_count": 1,
+      "overlap_ids": [
+        "p1"
+      ],
+      "jaccard": 0.2
+    }
+  },
+  "diversity_score": 0.6
+}

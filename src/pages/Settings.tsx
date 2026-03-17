@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DatasetImport } from '@/components/DatasetImport';
 import { 
   Card, 
   Button, 
@@ -132,6 +133,14 @@ export default function Settings() {
                 <Switch />
               </div>
             </div>
+          </Card>
+
+          <Card className="bg-bg-secondary border-border-default p-8 space-y-6">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Database className="w-5 h-5 text-accent" />
+              自定义数据集导入
+            </h2>
+            <DatasetImport />
           </Card>
 
           <Card className="bg-bg-secondary border-border-default p-8 space-y-6">

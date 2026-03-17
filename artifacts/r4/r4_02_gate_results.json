@@ -1,0 +1,114 @@
+{
+  "task": "R4-02",
+  "gates": {
+    "validate API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "valid JSON accepted": {
+      "status": "PASS",
+      "detail": "status=valid, errors=[]"
+    },
+    "stats returned": {
+      "status": "PASS",
+      "detail": "stats={'users': 3, 'relationships': 2, 'posts': 2}"
+    },
+    "preview returned": {
+      "status": "PASS",
+      "detail": "preview keys=['users', 'relationships', 'posts']"
+    },
+    "user count correct": {
+      "status": "PASS",
+      "detail": "users=3"
+    },
+    "relationship count correct": {
+      "status": "PASS",
+      "detail": "relationships=2"
+    },
+    "post count correct": {
+      "status": "PASS",
+      "detail": "posts=2"
+    },
+    "invalid JSON rejected": {
+      "status": "PASS",
+      "detail": "status=invalid"
+    },
+    "errors list non-empty": {
+      "status": "PASS",
+      "detail": "errors=[\"users[0]: missing required field 'username'\"]"
+    },
+    "CSV accepted": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "CSV parsed correctly": {
+      "status": "PASS",
+      "detail": "status=valid, errors=[]"
+    },
+    "CSV user count": {
+      "status": "PASS",
+      "detail": "users=3"
+    },
+    "format=csv returned": {
+      "status": "PASS",
+      "detail": "format=csv"
+    },
+    "import API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "import success": {
+      "status": "PASS",
+      "detail": "status=success, message=Imported 3 users, 2 posts, 2 relationships"
+    },
+    "agentConfig returned": {
+      "status": "PASS",
+      "detail": "agentConfig length=3"
+    },
+    "analytics returned": {
+      "status": "PASS",
+      "detail": "analytics={'opinionDistribution': {'left': 0, 'center': 3, 'right': 0}, 'totalAgents': 3, 'totalPosts': 2, 'totalRelationships': 2}"
+    },
+    "agentConfig has user_name": {
+      "status": "PASS",
+      "detail": "first agent keys=['agent_id', 'user_name', 'name', 'bio', 'persona', 'age', 'gender', 'mbti', 'country', 'interests']"
+    },
+    "invalid import rejected": {
+      "status": "PASS",
+      "detail": "HTTP 400"
+    },
+    "error message returned": {
+      "status": "PASS",
+      "detail": "status=error"
+    },
+    "DatasetImport.tsx exists": {
+      "status": "PASS",
+      "detail": "/home/ubuntu/oasis-dashboard/src/components/DatasetImport.tsx"
+    },
+    "drag-drop upload": {
+      "status": "PASS",
+      "detail": "drag-and-drop handler present"
+    },
+    "validation display": {
+      "status": "PASS",
+      "detail": "validation result interface"
+    },
+    "preview table": {
+      "status": "PASS",
+      "detail": "preview table rendering"
+    },
+    "DatasetImport in Settings": {
+      "status": "PASS",
+      "detail": "component integrated in Settings page"
+    },
+    "TypeScript compilation passes": {
+      "status": "PASS",
+      "detail": "clean"
+    }
+  },
+  "summary": {
+    "passed": 26,
+    "total": 26,
+    "status": "PASS"
+  }
+}

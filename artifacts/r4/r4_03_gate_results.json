@@ -1,0 +1,126 @@
+{
+  "task": "R4-03",
+  "gates": {
+    "tiktok instantiates and ranks": {
+      "status": "PASS",
+      "detail": "ranked 7 items"
+    },
+    "tiktok has score field": {
+      "status": "PASS",
+      "detail": "all items have score"
+    },
+    "tiktok has score_breakdown": {
+      "status": "PASS",
+      "detail": "all items have breakdown"
+    },
+    "xiaohongshu instantiates and ranks": {
+      "status": "PASS",
+      "detail": "ranked 7 items"
+    },
+    "xiaohongshu has score field": {
+      "status": "PASS",
+      "detail": "all items have score"
+    },
+    "xiaohongshu has score_breakdown": {
+      "status": "PASS",
+      "detail": "all items have breakdown"
+    },
+    "pinterest instantiates and ranks": {
+      "status": "PASS",
+      "detail": "ranked 7 items"
+    },
+    "pinterest has score field": {
+      "status": "PASS",
+      "detail": "all items have score"
+    },
+    "pinterest has score_breakdown": {
+      "status": "PASS",
+      "detail": "all items have breakdown"
+    },
+    "TikTok vs 小红书 top-3 differs": {
+      "status": "PASS",
+      "detail": "TikTok=['p1', 'p6', 'p3'], XHS=['p1', 'p6', 'p5']"
+    },
+    "TikTok vs Pinterest top-3 differs": {
+      "status": "PASS",
+      "detail": "TikTok=['p1', 'p6', 'p3'], Pinterest=['p4', 'p3', 'p1']"
+    },
+    "小红书 vs Pinterest top-3 differs": {
+      "status": "PASS",
+      "detail": "XHS=['p1', 'p6', 'p5'], Pinterest=['p4', 'p3', 'p1']"
+    },
+    "param change affects ranking": {
+      "status": "PASS",
+      "detail": "default=['p1', 'p6', 'p3'], modified=['p1', 'p3', 'p6']"
+    },
+    "freshness boost improves p3 rank": {
+      "status": "PASS",
+      "detail": "p3 rank: default=2, modified=1 (lower=better)"
+    },
+    "ab_compare returns report": {
+      "status": "PASS",
+      "detail": "keys=['user_id', 'candidate_count', 'top_k', 'platforms', 'overlap_analysis', 'diversity_score']"
+    },
+    "ab_compare has all 3 platforms": {
+      "status": "PASS",
+      "detail": "platforms=['tiktok', 'xiaohongshu', 'pinterest']"
+    },
+    "ab_compare has overlap_analysis": {
+      "status": "PASS",
+      "detail": "overlap keys=['tiktok_vs_xiaohongshu', 'tiktok_vs_pinterest', 'xiaohongshu_vs_pinterest']"
+    },
+    "diversity_score > 0": {
+      "status": "PASS",
+      "detail": "diversity=0.6"
+    },
+    "tiktok switch mid-run stable": {
+      "status": "PASS",
+      "detail": "run1=3, run2=4"
+    },
+    "xiaohongshu switch mid-run stable": {
+      "status": "PASS",
+      "detail": "run1=3, run2=4"
+    },
+    "pinterest switch mid-run stable": {
+      "status": "PASS",
+      "detail": "run1=3, run2=4"
+    },
+    "TikTok breakdown has all keys": {
+      "status": "PASS",
+      "detail": "keys=['short_term_interest', 'completion_rate', 'engagement', 'freshness']"
+    },
+    "breakdown values in [0,1]": {
+      "status": "PASS",
+      "detail": "values={'short_term_interest': 0.6667, 'completion_rate': 0.85, 'engagement': 1.0, 'freshness': 0.9439}"
+    },
+    "XHS breakdown has all keys": {
+      "status": "PASS",
+      "detail": "keys=['content_quality', 'social_affinity', 'search_intent_match', 'freshness']"
+    },
+    "Pinterest breakdown has all keys": {
+      "status": "PASS",
+      "detail": "keys=['long_term_interest', 'board_similarity', 'visual_or_topic_similarity', 'freshness']"
+    },
+    "platforms API available": {
+      "status": "PASS",
+      "detail": "HTTP 200"
+    },
+    "3 platforms listed": {
+      "status": "PASS",
+      "detail": "count=3"
+    },
+    "rank API available": {
+      "status": "PASS",
+      "detail": "HTTP 200, keys=['platform', 'ranked']"
+    },
+    "rank API returns ranked list": {
+      "status": "PASS",
+      "detail": "ranked count=3"
+    }
+  },
+  "summary": {
+    "passed": 29,
+    "total": 29,
+    "status": "PASS"
+  }
+}

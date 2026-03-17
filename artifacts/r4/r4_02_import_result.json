@@ -1,0 +1,58 @@
+{
+  "status": "success",
+  "message": "Imported 3 users, 2 posts, 2 relationships",
+  "stats": {
+    "users": 3,
+    "relationships": 2,
+    "posts": 2
+  },
+  "warnings": [],
+  "agentConfig": [
+    {
+      "agent_id": 0,
+      "user_name": "alice",
+      "name": "Alice Smith",
+      "bio": "Tech enthusiast",
+      "persona": "",
+      "age": 28,
+      "gender": "F",
+      "mbti": null,
+      "country": "US",
+      "interests": []
+    },
+    {
+      "agent_id": 1,
+      "user_name": "bob",
+      "name": "Bob Jones",
+      "bio": "Sports fan",
+      "persona": "",
+      "age": 32,
+      "gender": "M",
+      "mbti": null,
+      "country": "UK",
+      "interests": []
+    },
+    {
+      "agent_id": 2,
+      "user_name": "carol",
+      "name": "Carol White",
+      "bio": "Artist",
+      "persona": "",
+      "age": 25,
+      "gender": "F",
+      "mbti": null,
+      "country": "DE",
+      "interests": []
+    }
+  ],
+  "analytics": {
+    "opinionDistribution": {
+      "left": 0,
+      "center": 3,
+      "right": 0
+    },
+    "totalAgents": 3,
+    "totalPosts": 2,
+    "totalRelationships": 2
+  }
+}
