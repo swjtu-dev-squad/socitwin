@@ -1,0 +1,60 @@
+{
+  "verdict": "PASS",
+  "metrics": [
+    {
+      "metric": "群体极化率",
+      "value": "0.0%",
+      "source": "/api/sim/status → polarization",
+      "data_type": "ZERO",
+      "traceable": true,
+      "note": "来自 Python 引擎 PolarizationAnalyzer，基于 agent 帖子内容计算"
+    },
+    {
+      "metric": "信息传播速度",
+      "value": "前端计算 posts/s",
+      "source": "history[] 中相邻 totalPosts 差值 / 时间差",
+      "data_type": "DERIVED",
+      "traceable": true,
+      "note": "基于真实 totalPosts 数据派生，但 1 agent 场景下几乎为 0"
+    },
+    {
+      "metric": "从众效应指数",
+      "value": "Coming Soon",
+      "source": "无",
+      "data_type": "NOT_IMPLEMENTED",
+      "traceable": false,
+      "note": "前端明确标注 Coming Soon，不伪装成真实数据 ✅"
+    },
+    {
+      "metric": "A/B 测试偏差",
+      "value": "Coming Soon",
+      "source": "无",
+      "data_type": "NOT_IMPLEMENTED",
+      "traceable": false,
+      "note": "前端明确标注 Coming Soon，不伪装成真实数据 ✅"
+    },
+    {
+      "metric": "意见分布（极左/中立/极右）",
+      "value": "[0, 0, 0]",
+      "source": "硬编码 0",
+      "data_type": "HARDCODED_ZERO",
+      "traceable": false,
+      "note": "TODO 注释：等待 agent ideology 属性，目前全为 0，不伪装 ✅"
+    },
+    {
+      "metric": "群体极化演化趋势图",
+      "value": "history 中 5 个数据点",
+      "source": "WebSocket stats_update → store.history",
+      "data_type": "REAL",
+      "traceable": true,
+      "note": "来自真实 step 执行结果，每步更新一次"
+    }
+  ],
+  "errors": [],
+  "status_sample": {
+    "currentStep": 5,
+    "totalPosts": 0,
+    "polarization": 0,
+    "activeAgents": 1
+  }
+}
