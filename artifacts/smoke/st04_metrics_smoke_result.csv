@@ -1,0 +1,4 @@
+metric,formula,value,unit,computable,data_source,note
+极化指数,"LLM stance analysis → variance normalization → [0,1]",0.16,"ratio [0,1]",True,PolarizationAnalyzer (LLM-based),"1 agent / 5 steps, stable at 0.1600"
+传播速度,Δposts / Δtime,0.0408,posts/s,True,status.totalPosts + timestamp,"avg=0.0408 posts/s, low due to 1-agent scenario"
+羊群指数,"H = Σ(p_a)^2, normalized = (H - 1/n)/(1 - 1/n)",0.25,"ratio [0,1]",True,trace table action distribution,"raw HHI=0.5000, n=3 action types, 6 total actions"
