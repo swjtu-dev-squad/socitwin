@@ -1,0 +1,18 @@
+{
+  "test": "ST-02+ST-04-REGRESSION",
+  "timestamp": "2026-03-16T23:58:41.937202",
+  "verdict": "PASS",
+  "results": {
+    "ST-02": "PASS",
+    "ST-04": "PASS"
+  },
+  "details": {
+    "st02_init_ok": true,
+    "st02_steps_ok": 3,
+    "st02_status_ok": true,
+    "st04_spread_speed": 0.0,
+    "st04_step_count": 5,
+    "st04_total_posts": 0,
+    "st04_hhi": 1.0
+  }
+}
