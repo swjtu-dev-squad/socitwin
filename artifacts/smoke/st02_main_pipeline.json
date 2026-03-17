@@ -1,0 +1,104 @@
+{
+  "steps": [
+    {
+      "step": 1,
+      "currentStep": 1,
+      "totalPosts": 1,
+      "polarization": 0.16000000000000003
+    },
+    {
+      "step": 2,
+      "currentStep": 2,
+      "totalPosts": 1,
+      "polarization": 0.16000000000000003
+    },
+    {
+      "step": 3,
+      "currentStep": 3,
+      "totalPosts": 1,
+      "polarization": 0.16000000000000003
+    },
+    {
+      "step": 4,
+      "currentStep": 4,
+      "totalPosts": 1,
+      "polarization": 0.16000000000000003
+    },
+    {
+      "step": 5,
+      "currentStep": 5,
+      "totalPosts": 1,
+      "polarization": 0.16000000000000003
+    }
+  ],
+  "errors": [],
+  "verdict": "PASS",
+  "log_count": 6,
+  "log_unique": 3,
+  "final_status": {
+    "running": true,
+    "paused": false,
+    "currentStep": 5,
+    "activeAgents": 1,
+    "totalPosts": 1,
+    "polarization": 0.16000000000000003,
+    "agents": [
+      {
+        "id": 0,
+        "name": "Agent 0",
+        "description": "AI agent 0 - Topic: AI, Region: General"
+      }
+    ],
+    "platform": "reddit",
+    "recsys": "hot-score",
+    "topics": [
+      "AI"
+    ],
+    "regions": [
+      "General"
+    ],
+    "initializationPhase": false,
+    "initializationComplete": false,
+    "oasis_ready": true
+  },
+  "after_reset": {
+    "running": false,
+    "paused": false,
+    "currentStep": 0,
+    "activeAgents": 0,
+    "totalPosts": 0,
+    "polarization": 0,
+    "agents": [],
+    "platform": "Reddit",
+    "recsys": "Hot-score",
+    "topics": [],
+    "regions": [],
+    "oasis_ready": true
+  },
+  "checks": [
+    {
+      "desc": "5次step全部成功",
+      "pass": true
+    },
+    {
+      "desc": "currentStep单调递增",
+      "pass": true
+    },
+    {
+      "desc": "totalPosts不倒退",
+      "pass": true
+    },
+    {
+      "desc": "reset后currentStep归零",
+      "pass": true
+    },
+    {
+      "desc": "reset后running=false",
+      "pass": true
+    },
+    {
+      "desc": "无API错误",
+      "pass": true
+    }
+  ]
+}
