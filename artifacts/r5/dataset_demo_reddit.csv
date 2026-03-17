@@ -1,0 +1,11 @@
+user_name,name,bio,opinion,age,gender,mbti,country,interests
+alice_tech,Alice Chen,Software engineer interested in AI and machine learning,0.65,28,F,INTJ,US,technology|AI|programming
+bob_sports,Bob Martinez,Sports enthusiast and fitness coach,0.35,32,M,ESTP,US,sports|fitness|nutrition
+carol_art,Carol White,Digital artist and creative director,0.55,25,F,ENFP,UK,art|design|photography
+david_finance,David Kim,Financial analyst with interest in crypto,0.72,35,M,ISTJ,KR,finance|crypto|economics
+emma_science,Emma Johnson,PhD student in computational biology,0.48,27,F,INTP,DE,science|biology|data
+frank_politics,Frank Davis,Political science professor and blogger,0.22,45,M,ENTJ,US,politics|history|policy
+grace_health,Grace Lee,Nutritionist and wellness advocate,0.58,30,F,ISFJ,CA,health|nutrition|wellness
+henry_gaming,Henry Brown,Game developer and esports commentator,0.8,23,M,ENTP,AU,gaming|esports|technology
+iris_travel,Iris Zhang,Travel blogger and cultural explorer,0.45,29,F,ESFP,CN,travel|culture|food
+james_env,James Wilson,Environmental activist and sustainability researcher,0.18,38,M,INFJ,NZ,environment|sustainability|climate

@@ -1,0 +1,185 @@
+{
+  "metadata": {
+    "name": "dataset_demo_reddit",
+    "description": "Reddit 风格示例数据集，用于 R5 实验模板验证",
+    "platform": "REDDIT",
+    "version": "1.0"
+  },
+  "agents": [
+    {
+      "user_name": "alice_tech",
+      "name": "Alice Chen",
+      "bio": "Software engineer interested in AI and machine learning",
+      "opinion": 0.65,
+      "age": 28,
+      "gender": "F",
+      "mbti": "INTJ",
+      "country": "US",
+      "interests": ["technology", "AI", "programming"]
+    },
+    {
+      "user_name": "bob_sports",
+      "name": "Bob Martinez",
+      "bio": "Sports enthusiast and fitness coach",
+      "opinion": 0.35,
+      "age": 32,
+      "gender": "M",
+      "mbti": "ESTP",
+      "country": "US",
+      "interests": ["sports", "fitness", "nutrition"]
+    },
+    {
+      "user_name": "carol_art",
+      "name": "Carol White",
+      "bio": "Digital artist and creative director",
+      "opinion": 0.55,
+      "age": 25,
+      "gender": "F",
+      "mbti": "ENFP",
+      "country": "UK",
+      "interests": ["art", "design", "photography"]
+    },
+    {
+      "user_name": "david_finance",
+      "name": "David Kim",
+      "bio": "Financial analyst with interest in crypto",
+      "opinion": 0.72,
+      "age": 35,
+      "gender": "M",
+      "mbti": "ISTJ",
+      "country": "KR",
+      "interests": ["finance", "crypto", "economics"]
+    },
+    {
+      "user_name": "emma_science",
+      "name": "Emma Johnson",
+      "bio": "PhD student in computational biology",
+      "opinion": 0.48,
+      "age": 27,
+      "gender": "F",
+      "mbti": "INTP",
+      "country": "DE",
+      "interests": ["science", "biology", "data"]
+    },
+    {
+      "user_name": "frank_politics",
+      "name": "Frank Davis",
+      "bio": "Political science professor and blogger",
+      "opinion": 0.22,
+      "age": 45,
+      "gender": "M",
+      "mbti": "ENTJ",
+      "country": "US",
+      "interests": ["politics", "history", "policy"]
+    },
+    {
+      "user_name": "grace_health",
+      "name": "Grace Lee",
+      "bio": "Nutritionist and wellness advocate",
+      "opinion": 0.58,
+      "age": 30,
+      "gender": "F",
+      "mbti": "ISFJ",
+      "country": "CA",
+      "interests": ["health", "nutrition", "wellness"]
+    },
+    {
+      "user_name": "henry_gaming",
+      "name": "Henry Brown",
+      "bio": "Game developer and esports commentator",
+      "opinion": 0.80,
+      "age": 23,
+      "gender": "M",
+      "mbti": "ENTP",
+      "country": "AU",
+      "interests": ["gaming", "esports", "technology"]
+    },
+    {
+      "user_name": "iris_travel",
+      "name": "Iris Zhang",
+      "bio": "Travel blogger and cultural explorer",
+      "opinion": 0.45,
+      "age": 29,
+      "gender": "F",
+      "mbti": "ESFP",
+      "country": "CN",
+      "interests": ["travel", "culture", "food"]
+    },
+    {
+      "user_name": "james_env",
+      "name": "James Wilson",
+      "bio": "Environmental activist and sustainability researcher",
+      "opinion": 0.18,
+      "age": 38,
+      "gender": "M",
+      "mbti": "INFJ",
+      "country": "NZ",
+      "interests": ["environment", "sustainability", "climate"]
+    }
+  ],
+  "posts": [
+    {
+      "post_id": "p001",
+      "author": "alice_tech",
+      "content": "AI is transforming software development at an unprecedented pace",
+      "topic": "technology",
+      "likes": 45,
+      "comments": 12,
+      "shares": 8,
+      "freshness_hours": 2
+    },
+    {
+      "post_id": "p002",
+      "author": "bob_sports",
+      "content": "Morning workout routine that changed my life",
+      "topic": "fitness",
+      "likes": 78,
+      "comments": 23,
+      "shares": 15,
+      "freshness_hours": 5
+    },
+    {
+      "post_id": "p003",
+      "author": "frank_politics",
+      "content": "The economic policy debate we need to have right now",
+      "topic": "politics",
+      "likes": 120,
+      "comments": 89,
+      "shares": 34,
+      "freshness_hours": 1
+    },
+    {
+      "post_id": "p004",
+      "author": "carol_art",
+      "content": "My latest digital art series inspired by urban landscapes",
+      "topic": "art",
+      "likes": 234,
+      "comments": 45,
+      "shares": 67,
+      "freshness_hours": 8
+    },
+    {
+      "post_id": "p005",
+      "author": "james_env",
+      "content": "Climate data shows alarming trends we cannot ignore",
+      "topic": "environment",
+      "likes": 89,
+      "comments": 156,
+      "shares": 78,
+      "freshness_hours": 3
+    }
+  ],
+  "relationships": [
+    {"follower": "alice_tech", "following": "emma_science"},
+    {"follower": "alice_tech", "following": "henry_gaming"},
+    {"follower": "bob_sports", "following": "grace_health"},
+    {"follower": "carol_art", "following": "iris_travel"},
+    {"follower": "david_finance", "following": "frank_politics"},
+    {"follower": "emma_science", "following": "james_env"},
+    {"follower": "frank_politics", "following": "david_finance"},
+    {"follower": "grace_health", "following": "bob_sports"},
+    {"follower": "henry_gaming", "following": "alice_tech"},
+    {"follower": "iris_travel", "following": "carol_art"},
+    {"follower": "james_env", "following": "frank_politics"}
+  ]
+}

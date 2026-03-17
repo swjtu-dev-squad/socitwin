@@ -1,0 +1,41 @@
+{
+  "source_experiment": "artifacts/experiments/exp_demo_tiktok_vs_xhs/result.json",
+  "comparisons": [
+    {
+      "recommender_a": "TIKTOK",
+      "recommender_b": "XIAOHONGSHU",
+      "polarization_delta_final": 0.0798,
+      "herd_delta_final": -0.08,
+      "velocity_delta": 0.125,
+      "metrics_a": {
+        "polarization_final": 0.6826,
+        "herd_index_final": 0.5802,
+        "velocity_avg": 0.4734,
+        "total_posts": 34
+      },
+      "metrics_b": {
+        "polarization_final": 0.6028,
+        "herd_index_final": 0.6602,
+        "velocity_avg": 0.3484,
+        "total_posts": 34
+      },
+      "propagation_summary_a": {
+        "totalNodes": 15,
+        "totalEdges": 17,
+        "totalPosts": 34,
+        "activeAgents": 5,
+        "velocity": 0.4733,
+        "herdIndex": 0.6826
+      },
+      "propagation_summary_b": {
+        "totalNodes": 15,
+        "totalEdges": 17,
+        "totalPosts": 34,
+        "activeAgents": 5,
+        "velocity": 0.3483,
+        "herdIndex": 0.6028
+      },
+      "conclusion": "TIKTOK 策略下极化程度更高（差值 0.0798），说明其信息茧房效应更显著；XIAOHONGSHU 策略下羊群效应更强（差值 0.0800），内容集中度更高；TIKTOK 策略传播速度更快（差值 0.1250），新鲜内容扩散更迅速；综合来看，TIKTOK 与 XIAOHONGSHU 在社交动力学上存在可观察差异，推荐算法设计对平台生态有实质性影响。"
+    }
+  ]
+}

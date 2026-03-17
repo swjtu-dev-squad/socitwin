@@ -1,0 +1,48 @@
+{
+  "experimentId": "exp_148d3e06",
+  "createdAt": "2026-03-17T09:49:56",
+  "config": {
+    "name": "exp_demo_tiktok_vs_xhs",
+    "datasetId": "dataset_demo_reddit",
+    "platform": "REDDIT",
+    "recommenders": [
+      "TIKTOK",
+      "XIAOHONGSHU",
+      "PINTEREST"
+    ],
+    "steps": 15,
+    "seed": 42
+  },
+  "runs": [
+    {
+      "recommender": "TIKTOK",
+      "metrics": {
+        "polarization_final": 0.6826,
+        "herd_index_final": 0.5802,
+        "velocity_avg": 0.4734,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      }
+    },
+    {
+      "recommender": "XIAOHONGSHU",
+      "metrics": {
+        "polarization_final": 0.6028,
+        "herd_index_final": 0.6602,
+        "velocity_avg": 0.3484,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      }
+    },
+    {
+      "recommender": "PINTEREST",
+      "metrics": {
+        "polarization_final": 0.586,
+        "herd_index_final": 0.6602,
+        "velocity_avg": 0.2234,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "task": "R5-03",
+  "gates": {
+    "G1": "PASS",
+    "G2": "PASS",
+    "G3": "PASS",
+    "G4": "PASS",
+    "G5": "PASS",
+    "G6": "PASS",
+    "G7": "PASS"
+  },
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7
+  }
+}
