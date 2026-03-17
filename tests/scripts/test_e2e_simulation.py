@@ -165,7 +165,7 @@ class SimulationTester:
             response = requests.post(
                 f"{self.base_url}/api/sim/step",
                 json={},
-                timeout=120  # 2 minutes timeout
+                timeout=600  # 10 minutes timeout
             )
             elapsed = time.time() - start_time
 

@@ -61,10 +61,10 @@ class PolarizationAnalyzer:
         self.sample_size = sample_size
         self.cache_size = cache_size
         self.analysis_timeout_s = float(
-            os.environ.get("OASIS_POLARIZATION_TIMEOUT", "30")
+            os.environ.get("OASIS_POLARIZATION_TIMEOUT", "600")  # 10分钟
         )
         self.request_timeout_s = float(
-            os.environ.get("OASIS_POLARIZATION_REQUEST_TIMEOUT", "12")
+            os.environ.get("OASIS_POLARIZATION_REQUEST_TIMEOUT", "600")  # 10分钟
         )
         self.max_retries = int(
             os.environ.get("OASIS_POLARIZATION_MAX_RETRIES", "3")
@@ -394,7 +394,7 @@ Your response:"""
                 logger.warning(f"LLM解析失败（尝试 {attempt+1}/{max_retries}），响应: {result_text[:100]}")
 
             except Exception as e:
-                logger.warning(f"LLM调用失败（尝试 {attempt+1}/{max_retries}）: {e}")
+                logger.warning(f"LLM调用失败（尝试 {attempt+1}/{max_retries}）: {type(e).__name__}: {e}")
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.5)  # 短暂等待后重试
 

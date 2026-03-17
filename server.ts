@@ -8,6 +8,10 @@ import { spawn } from "child_process";
 import { watch } from "fs";
 import { existsSync } from "fs";
 import Database from "better-sqlite3";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -210,6 +214,9 @@ async function startServer() {
     recsys: "Hot-score",
     topics: [] as string[],
     regions: [] as string[],
+    initializationPhase: false as boolean,
+    initializationComplete: false as boolean,
+    oasis_ready: false as boolean,
   };
 
   // API Routes - All calling real OASIS Engine
@@ -366,6 +373,9 @@ async function startServer() {
         recsys: "Hot-score",
         topics: [],
         regions: [],
+        initializationPhase: false,
+        initializationComplete: false,
+        oasis_ready: false,
       };
 
       io.emit("stats_update", simulationState);
