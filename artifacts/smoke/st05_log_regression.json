@@ -1,0 +1,66 @@
+{
+  "verdict": "FAIL",
+  "errors": [
+    "日志重复率 50.0% >= 50%，旧 bug 仍存在（Issue #13 未修复）"
+  ],
+  "log_snapshots": [
+    {
+      "step": 1,
+      "total": 2,
+      "unique_content": 2
+    },
+    {
+      "step": 2,
+      "total": 3,
+      "unique_content": 3
+    },
+    {
+      "step": 3,
+      "total": 4,
+      "unique_content": 3
+    },
+    {
+      "step": 4,
+      "total": 5,
+      "unique_content": 3
+    },
+    {
+      "step": 5,
+      "total": 6,
+      "unique_content": 3
+    }
+  ],
+  "dedup_analysis": {
+    "totals_per_step": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "unique_per_step": [
+      2,
+      3,
+      3,
+      3,
+      3
+    ],
+    "has_duplicates": true,
+    "final_dup_rate": 0.5,
+    "is_growing": true
+  },
+  "checks": [
+    {
+      "desc": "日志接口无HTTP错误",
+      "pass": true
+    },
+    {
+      "desc": "日志随步数有内容变化",
+      "pass": true
+    },
+    {
+      "desc": "重复率 < 50%（旧bug阈值）",
+      "pass": false
+    }
+  ]
+}
