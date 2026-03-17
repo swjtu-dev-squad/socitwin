@@ -155,10 +155,20 @@ class RealOASISEngineV3:
         self.polarization_analyzer: Optional[Any] = None
         self.polarization_topic: Optional[str] = None
         self.last_polarization: float = 0.0
+
+        # 系统行为指标分析器
+        self.metrics_analyzer: Optional[Any] = None
+
         # 增量日志水位线游标（修复 Issue #13：防止历史帖子被重复返回为 new_logs）
         # 每次 step 只返回 post_id > _last_seen_post_id 的新记录
         self._last_seen_post_id: int = 0
         self._last_seen_like_id: int = 0
+
+        # 跟踪上一步数据，用于计算速度指标
+        self.previous_step_data: Dict[str, Any] = {
+            "posts": 0,
+            "timestamp": 0.0
+        }
 
     def _get_topic_instructions(self, topic: str, region: str) -> str:
         """
@@ -501,6 +511,28 @@ class RealOASISEngineV3:
                 except Exception as e:
                     print(f"⚠️  极化率分析器初始化失败: {e}", flush=True)
                     self.polarization_analyzer = None
+
+            # 初始化系统行为指标分析器
+            try:
+                from oasis_dashboard.metrics_analyzer import MetricsAnalyzer
+
+                self.metrics_analyzer = MetricsAnalyzer(
+                    db_path=self.db_path,
+                    cache_size=1000
+                )
+
+                # 初始化上一步数据
+                self.previous_step_data = {
+                    "posts": self.total_posts,
+                    "timestamp": time.time()
+                }
+
+                print(f"✅ 指标分析器已初始化", flush=True)
+
+            except Exception as e:
+                print(f"⚠️  指标分析器初始化失败: {e}", flush=True)
+                self.metrics_analyzer = None
+
             # 初始化成功：重置增量日志水位线，确保新轮模拟不继承旧游标
             self._last_seen_post_id = 0
             self._last_seen_like_id = 0
@@ -774,6 +806,17 @@ class RealOASISEngineV3:
             # 计算极化率（每一步都检查）
             polarization_result = await self._update_polarization()
 
+            # 计算系统行为指标
+            velocity_result = self._update_velocity()
+            hhi_result = await self._update_herd_hhi()
+
+            # 更新上一步数据
+            if self.metrics_analyzer is not None:
+                self.previous_step_data = {
+                    "posts": self.total_posts,
+                    "timestamp": time.time()
+                }
+
             # 新增：计算 Console 数据摘要统计
             total_interactions = sum(
                 1 for obs in agent_observations
@@ -797,6 +840,12 @@ class RealOASISEngineV3:
                 "context_metrics": context_metrics,
                 "new_logs": new_logs,  # ← 返回所有日志
                 "polarization": polarization_result.get("polarization", 0.0),  # ← 极化率
+                "velocity": velocity_result.get("velocity", 0.0),  # ← 信息传播速度
+                "herd_hhi": hhi_result.get("herd_hhi", 0.0),  # ← 羊群效应指数
+                # 包含完整结果用于调试
+                "velocity_details": velocity_result,
+                "herd_hhi_details": hhi_result,
+                "polarization_details": polarization_result,
             }
             
         except Exception as e:
@@ -870,6 +919,58 @@ class RealOASISEngineV3:
                 return {"polarization": avg_pol, "degraded": True}
 
             return {"polarization": 0.0, "error": str(e)}
+
+    def _update_velocity(self) -> Dict:
+        """
+        更新信息传播速度（每一步都调用）
+
+        Returns:
+            速度指标字典
+        """
+        # 如果没有初始化分析器，返回0
+        if not hasattr(self, 'metrics_analyzer') or self.metrics_analyzer is None:
+            return {"velocity": 0.0}
+
+        try:
+            current_time = time.time()
+            step_duration = current_time - self.previous_step_data.get("timestamp", current_time)
+            previous_posts = self.previous_step_data.get("posts", 0)
+
+            result = self.metrics_analyzer.calculate_velocity(
+                step_number=self.current_step,
+                current_posts=self.total_posts,
+                previous_posts=previous_posts,
+                step_duration_s=step_duration
+            )
+
+            return result
+
+        except Exception as e:
+            print(f"⚠️  传播速度计算失败: {e}", flush=True)
+            return {"velocity": 0.0, "error": str(e)}
+
+    async def _update_herd_hhi(self) -> Dict:
+        """
+        更新羊群效应指数（每一步都调用）
+
+        Returns:
+            HHI 指标字典
+        """
+        # 如果没有初始化分析器，返回0
+        if not hasattr(self, 'metrics_analyzer') or self.metrics_analyzer is None:
+            return {"herd_hhi": 0.0}
+
+        try:
+            result = self.metrics_analyzer.calculate_herd_hhi(
+                step_number=self.current_step,
+                time_window_s=60.0  # 分析最近60秒的行为
+            )
+
+            return result
+
+        except Exception as e:
+            print(f"⚠️  羊群指数计算失败: {e}", flush=True)
+            return {"herd_hhi": 0.0, "error": str(e)}
 
     def get_status(self) -> Dict:
         """获取当前模拟状态"""

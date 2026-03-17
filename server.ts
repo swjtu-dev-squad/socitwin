@@ -201,6 +201,8 @@ async function startServer() {
     activeAgents: 0,
     totalPosts: 0,
     polarization: 0.0,
+    velocity: 0.0,           // 🆕 Information velocity (posts/second)
+    herdHhi: 0.0,            // 🆕 Herd effect index (normalized HHI)
     agents: [] as any[],
     platform: "Reddit",
     recsys: "Hot-score",
@@ -257,6 +259,10 @@ async function startServer() {
       simulationState.totalPosts = result.total_posts || simulationState.totalPosts;
       simulationState.polarization = result.polarization || simulationState.polarization;
       simulationState.activeAgents = result.active_agents || simulationState.activeAgents;
+
+      // 🆕 Update new metrics (Phase 5: velocity + herd effect)
+      simulationState.velocity = result.velocity ?? simulationState.velocity;
+      simulationState.herdHhi = result.herd_hhi ?? simulationState.herdHhi;
 
       // 🆕 Track initialization phase (Phase 4)
       simulationState.initializationPhase = result.initialization_phase || false;
@@ -346,6 +352,8 @@ async function startServer() {
         activeAgents: 0,
         totalPosts: 0,
         polarization: 0.0,
+        velocity: 0.0,
+        herdHhi: 0.0,
         agents: [],
         platform: "Reddit",
         recsys: "Hot-score",

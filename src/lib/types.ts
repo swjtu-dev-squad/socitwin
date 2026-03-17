@@ -28,6 +28,8 @@ export interface SimulationStatus {
   activeAgents: number;
   totalPosts: number;
   polarization: number;
+  velocity?: number;        // 🆕 Information velocity (posts/second)
+  herdHhi?: number;         // 🆕 Herd effect index (normalized HHI)
   agents: Agent[];
   platform?: string;
   recsys?: string;

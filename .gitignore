@@ -15,6 +15,12 @@ page_texts/
 *.db-wal
 dev-logs/
 
+# Test results
+test-results/
+test_results_e2e_*.json
+*.json.test
+test-results-*.json
+
 # Python virtual environments
 venv/
 env/

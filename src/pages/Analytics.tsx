@@ -50,22 +50,43 @@ export default function Analytics() {
     return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
   }, [history, status.polarization]);
 
-  // Calculate information velocity from posts and time
-  const informationVelocity = useMemo(() => {
-    if (history.length === 0) return { value: '0 msg/s', trend: '0%' };
+  // Generic trend calculation helper
+  const calculateTrend = (currentValue: number, metricKey: keyof StatsHistoryEntry): string => {
+    if (history.length < 2) return '0%';
 
-    // Calculate posts per second from last step
+    const prevIndex = history.length - 2;
+    const prevValue = history[prevIndex][metricKey] as number | undefined;
+
+    if (prevValue === undefined || prevValue === null || prevValue === 0) return '0%';
+
+    const change = ((currentValue - prevValue) / prevValue) * 100;
+    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`;
+  };
+
+  // Calculate information velocity from backend (with frontend fallback)
+  const informationVelocity = useMemo(() => {
+    // Prefer backend calculation
+    if (typeof status.velocity === 'number') {
+      return {
+        value: `${status.velocity.toFixed(3)} msg/s`,
+        trend: calculateTrend(status.velocity, 'velocity'),
+        source: 'backend'
+      };
+    }
+
+    // Fallback to frontend calculation
+    if (history.length === 0) return { value: '0 msg/s', trend: '0%', source: 'frontend' };
+
     const lastEntry = history[history.length - 1];
     const prevEntry = history[history.length - 2] || { timestamp: Date.now(), totalPosts: 0 };
 
-    const timeDiff = (lastEntry.timestamp - prevEntry.timestamp) / 1000; // seconds
+    const timeDiff = (lastEntry.timestamp - prevEntry.timestamp) / 1000;
     const postsDiff = lastEntry.totalPosts - prevEntry.totalPosts;
 
-    if (timeDiff <= 0) return { value: '0 msg/s', trend: '0%' };
+    if (timeDiff <= 0) return { value: '0 msg/s', trend: '0%', source: 'frontend' };
 
     const velocity = Math.round(postsDiff / timeDiff);
 
-    // Calculate trend (compare with previous)
     const prevPrevEntry = history[history.length - 3] || prevEntry;
     const prevTimeDiff = (prevEntry.timestamp - prevPrevEntry.timestamp) / 1000;
     const prevPostsDiff = prevEntry.totalPosts - (prevPrevEntry.totalPosts || 0);
@@ -78,8 +99,27 @@ export default function Analytics() {
     return {
       value: `${velocity} msg/s`,
       trend: `${trendPercent > 0 ? '+' : ''}${trendPercent.toFixed(0)}%`,
+      source: 'frontend'
     };
-  }, [history]);
+  }, [history, status.velocity]);
+
+  // Calculate herd effect HHI from backend
+  const herdEffect = useMemo(() => {
+    if (typeof status.herdHhi === 'number') {
+      return {
+        value: `${(status.herdHhi * 100).toFixed(1)}%`,
+        trend: calculateTrend(status.herdHhi, 'herdHhi'),
+        disabled: false
+      };
+    }
+
+    // Not available yet
+    return {
+      value: 'Coming Soon',
+      trend: null,
+      disabled: true
+    };
+  }, [status.herdHhi, history]);
 
   // Opinion distribution - zeros until agents have ideology attributes
   // TODO: Calculate from agent ideology when available
@@ -108,16 +148,17 @@ export default function Analytics() {
       trend: informationVelocity.trend,
       up: !informationVelocity.trend.startsWith('-'),
       icon: TrendingUp,
-      color: 'text-emerald-500'
+      color: 'text-emerald-500',
+      disabled: false
     },
     {
       label: '从众效应指数',
-      value: 'Coming Soon',
-      trend: null,
-      up: null,
+      value: herdEffect.value,
+      trend: herdEffect.trend,
+      up: null,  // HHI interpretation depends on context
       icon: Users,
-      color: 'text-text-muted',
-      disabled: true,
+      color: 'text-blue-500',
+      disabled: herdEffect.disabled
     },
     {
       label: 'A/B 测试偏差',
@@ -248,6 +289,117 @@ export default function Analytics() {
                     strokeWidth={3}
                     dot={false}
                     activeDot={{ r: 6, strokeWidth: 0, fill: '#D72638' }}
+                    animationDuration={1000}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* Information Velocity Trend */}
+          <Card className="md:col-span-2 lg:col-span-3 p-6 bg-bg-secondary border-border-default flex flex-col h-[400px]">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">信息传播速度</h3>
+              </div>
+              <Badge variant="outline" className="bg-emerald-500/10 border-emerald-500/20 text-emerald-500 text-[10px]">
+                实时监控
+              </Badge>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={
+                  history.map(h => ({
+                    time: new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    value: h.velocity ?? 0
+                  }))
+                }>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#24201E" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={30}
+                  />
+                  <YAxis
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => `${v.toFixed(2)} msg/s`}
+                  />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
+                    itemStyle={{ color: '#10b981', fontSize: '12px', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#1A1A1A', fontSize: '10px', marginBottom: '4px' }}
+                    formatter={(value: number) => [`${value.toFixed(3)} msg/s`, '速度']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#10b981"
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }}
+                    animationDuration={1000}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* Herd Effect (HHI) Trend */}
+          <Card className="md:col-span-2 lg:col-span-3 p-6 bg-bg-secondary border-border-default flex flex-col h-[400px]">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-500" />
+                <h3 className="text-sm font-bold uppercase tracking-widest text-text-secondary">羊群效应指数（HHI）</h3>
+              </div>
+              <Badge variant="outline" className="bg-blue-500/10 border-blue-500/20 text-blue-500 text-[10px]">
+                行为集中度
+              </Badge>
+            </div>
+            <div className="flex-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={
+                  history.map(h => ({
+                    time: new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                    value: ((h.herdHhi ?? 0) * 100)  // Convert to percentage
+                  }))
+                }>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#24201E" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={30}
+                  />
+                  <YAxis
+                    stroke="#1A1614"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    domain={[0, 100]}
+                    tickFormatter={(v) => `${v.toFixed(0)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
+                    itemStyle={{ color: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
+                    labelStyle={{ color: '#1A1A1A', fontSize: '10px', marginBottom: '4px' }}
+                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'HHI']}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={false}
+                    activeDot={{ r: 6, strokeWidth: 0, fill: '#3b82f6' }}
                     animationDuration={1000}
                   />
                 </LineChart>
