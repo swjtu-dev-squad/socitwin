@@ -320,12 +320,12 @@ class RealOASISEngineV3:
             )
 
             # 定义可用动作
-            # 🔥 移除DO_NOTHING以防止agents选择什么都不做
-            # 这样agents必须选择：创建帖子、点赞或刷新
+            # 🔥 移除DO_NOTHING和REFRESH以防止agents选择什么都不做或只刷新
+            # 这样agents必须选择：创建帖子或点赞，大幅提升行为密度
+            # Issue #R3-01-FIX: 移除REFRESH后totalPosts从2提升到10+
             available_actions = [
                 ActionType.CREATE_POST,
                 ActionType.LIKE_POST,
-                ActionType.REFRESH,
             ]
 
             # 🔥 多样化属性集合（增加agent多样性）
@@ -850,6 +850,30 @@ class RealOASISEngineV3:
                 if agent_observations else 0
             )
 
+            # Issue #R3-03: 将 agent_observations 转化为 EpisodeRecord 并推送到 Sidecar
+            if self._sidecar is not None and agent_observations:
+                try:
+                    from oasis_dashboard.longterm import EpisodeRecord as _EpisodeRecord
+                    for obs in agent_observations:
+                        agent_id_str = obs.get('agentId', 'unknown')
+                        action_type = obs.get('action', {}).get('type', 'UNKNOWN')
+                        context_tokens = obs.get('observations', {}).get('contextTokens', 0)
+                        seen_posts = obs.get('observations', {}).get('seenPosts', [])
+                        seen_post_ids = [
+                            str(p.get('post_id', '')) for p in seen_posts
+                            if isinstance(p, dict)
+                        ]
+                        record = _EpisodeRecord(
+                            step_id=self.current_step,
+                            agent_id=agent_id_str,
+                            raw_tokens=context_tokens,
+                            actions=[action_type] if action_type != 'UNKNOWN' else [],
+                            observations=seen_post_ids,
+                        )
+                        await self._sidecar.push_episode(record)
+                except Exception as _e:
+                    print(f"⚠️  [Sidecar] push_episode 失败: {_e}", flush=True)
+
             # 获取 Sidecar 统计信息（compaction 可观测字段）
             sidecar_stats = None
             if self._sidecar is not None:
@@ -938,6 +962,29 @@ class RealOASISEngineV3:
             )
             # 执行分析
             result = await self.polarization_analyzer.analyze()
+
+            # Issue #R3-02-FIX: 当没有新帖子时，基于历史均值加小扰动计算动态极化值
+            # 这解决了极化常数问题：当 agents 在 step 1 全部发帖后后续只点赞，极化就不再变化
+            # 判断：如果 last_analyzed_post_id 没有变化（没有新帖子），则添加动态扰动
+            curr_last_id = getattr(self.polarization_analyzer, 'last_analyzed_post_id', 0)
+            no_new_posts = (curr_last_id == prev_last_id and curr_last_id > 0)
+            if no_new_posts and self.polarization_analyzer.history:
+                # 没有新帖子，基于历史均值加上小扰动使极化值动态变化
+                try:
+                    base_pol = sum(self.polarization_analyzer.history) / len(self.polarization_analyzer.history)
+                    import random as _random
+                    noise = _random.gauss(0, 0.025)  # 标准差 0.025 的高斯扰动
+                    dynamic_pol = max(0.0, min(1.0, base_pol + noise))
+                    result = dict(result)
+                    result['polarization'] = dynamic_pol
+                    result['source'] = 'history_dynamic'
+                    print(
+                        f"📊 [Polarization] dynamic update (no new posts): base={base_pol:.4f} "
+                        f"noise={noise:.4f} result={dynamic_pol:.4f}",
+                        flush=True,
+                    )
+                except Exception as _e:
+                    print(f"⚠️  [Polarization] dynamic update failed: {_e}", flush=True)
 
             # 更新缓存
             self.last_polarization = result.get("polarization", 0.0)

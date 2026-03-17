@@ -1,0 +1,52 @@
+[
+  {
+    "step_id": 1,
+    "agent_id": "agent_0",
+    "raw_tokens": 100,
+    "summary": "",
+    "summary_tokens": 0,
+    "actions": [
+      "CREATE_POST"
+    ],
+    "observations": [
+      "post_1"
+    ],
+    "compacted": false,
+    "created_at": 1773733408.2505004,
+    "token_saving": 0
+  },
+  {
+    "step_id": 2,
+    "agent_id": "agent_0",
+    "raw_tokens": 120,
+    "summary": "",
+    "summary_tokens": 0,
+    "actions": [
+      "LIKE_POST"
+    ],
+    "observations": [
+      "post_1",
+      "post_2"
+    ],
+    "compacted": false,
+    "created_at": 1773733408.2505023,
+    "token_saving": 0
+  },
+  {
+    "step_id": 3,
+    "agent_id": "agent_0",
+    "raw_tokens": 150,
+    "summary": "",
+    "summary_tokens": 0,
+    "actions": [
+      "CREATE_POST"
+    ],
+    "observations": [
+      "post_2",
+      "post_3"
+    ],
+    "compacted": false,
+    "created_at": 1773733408.2505038,
+    "token_saving": 0
+  }
+]

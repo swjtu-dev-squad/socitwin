@@ -232,6 +232,100 @@ class InMemoryLongTermSidecar:
                 "compaction_count": self._compaction_count,
             }
 
+    # ------------------------------------------------------------------
+    # B 侧接口：write_episode / write_episodes（Issue #27 契约）
+    # ------------------------------------------------------------------
+
+    async def write_episode(self, record: "EpisodeRecord") -> Dict[str, Any]:
+        """
+        （B 侧）写入单条情节记录。等同于 push_episode，提供 Issue #27 命名契约。
+        """
+        return await self.push_episode(record)
+
+    async def write_episodes(self, records: List["EpisodeRecord"]) -> Dict[str, Any]:
+        """
+        （B 侧）批量写入情节记录。
+
+        Returns:
+            {"status": "ok", "written": int, "compacted": int}
+        """
+        written = 0
+        compacted = 0
+        for record in records:
+            result = await self.push_episode(record)
+            written += 1
+            if result.get("compacted"):
+                compacted += 1
+        return {"status": "ok", "written": written, "compacted": compacted}
+
+    # ------------------------------------------------------------------
+    # B 侧接口：retrieve_relevant（Issue #27 契约）
+    # ------------------------------------------------------------------
+
+    VALID_QUERY_SOURCES = frozenset([
+        "distilled topic",
+        "recent episodic summary",
+        "structured event query",
+    ])
+
+    async def retrieve_relevant(
+        self,
+        agent_id: str,
+        query: str,
+        query_source: str,
+        top_k: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        （B 侧）按 query_source 类型检索相关情节。
+
+        Args:
+            agent_id:     目标 Agent 标识符。
+            query:        查询文本。
+            query_source: 查询来源类型，必须是以下之一：
+                          - "distilled topic"
+                          - "recent episodic summary"
+                          - "structured event query"
+            top_k:        返回最多 top_k 条结果。
+
+        Returns:
+            情节记录列表（按相关性排序）。
+
+        Raises:
+            ValueError: 当 query_source 不合法时。
+        """
+        if query_source not in self.VALID_QUERY_SOURCES:
+            raise ValueError(
+                f"Invalid query_source: '{query_source}'. "
+                f"Must be one of: {sorted(self.VALID_QUERY_SOURCES)}"
+            )
+        async with self._lock:
+            episodes = self._store.get(agent_id, [])
+            if not episodes:
+                return []
+            # 简单关键词匹配（后续可替换为 embedding 检索）
+            query_lower = query.lower()
+            scored = []
+            for ep in episodes:
+                score = 0.0
+                # 匹配 actions
+                for action in ep.actions:
+                    if query_lower in action.lower():
+                        score += 2.0
+                # 匹配 summary
+                if ep.summary and query_lower in ep.summary.lower():
+                    score += 3.0
+                # 匹配 observations
+                for obs in ep.observations:
+                    if isinstance(obs, str) and query_lower in obs.lower():
+                        score += 1.0
+                # 对于 recent episodic summary，偏好最新的情节
+                if query_source == "recent episodic summary":
+                    score += ep.step_id * 0.1
+                scored.append((score, ep))
+            # 按分数降序排序，返回 top_k
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return [ep.to_dict() for _, ep in scored[:top_k]]
+
     async def reset(self) -> None:
         """清空所有情节记录，重置统计信息（仿真重置时调用）。"""
         async with self._lock:
