@@ -1,0 +1,420 @@
+/usr/local/lib/python3.11/dist-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.5.0) or chardet (7.1.0)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+🚀 初始化 OASIS: 1 agents, reddit, general
+🌡️  使用默认温度 (openai): 0.7
+{'other_info': {'user_profile': 'AI skeptic, concerned about job displacement and ethical implications', 'gender': 'male', 'age': 60, 'mbti': 'INTJ', 'country': 'Malaysia'}}
+{'user_profile': 'AI skeptic, concerned about job displacement and ethical implications', 'gender': 'male', 'age': 60, 'mbti': 'INTJ', 'country': 'Malaysia'}
+{'user_profile': 'AI skeptic, concerned about job displacement and ethical implications', 'gender': 'male', 'age': 60, 'mbti': 'INTJ', 'country': 'Malaysia'}
+db_path /tmp/oasis-context-smoke.db
+✅ OASIS初始化完成 (耗时 1.45秒)
+🌡️  使用默认温度 (openai): 0.7
+✅ 极化率分析器已初始化，topic: AI
+⚙️  Step 1 开始
+📊 Progress: 0/1 (0%)
+🚀 Step concurrency: 1/1
+2026-03-16 23:13:42,689 - social.twitter - INFO - Starting to refresh recommendation system cache...
+2026-03-16 23:13:42,689 - oasis.env - INFO - update rec table.
+2026-03-16 23:13:42,892 - social.agent - INFO - Agent 0 observing environment: And there are many group chat channels {}
+And You are already in some groups []
+You receive some messages from them {}
+You can join the groups you are interested, leave the groups you already in, send messages to the group you already in.
+You must make sure you can only send messages to the group you are already in
+After refreshing, there are no existing posts.
+pick one you want to perform action that best reflects your current inclination based on your profile and posts content. Do not limit your action in just `like` to like posts
+2026-03-16 23:13:43,879 - camel.models.model_manager - ERROR - Error processing with model: <camel.models.openai_model.OpenAIModel object at 0x7efad51996d0>
+2026-03-16 23:13:43,879 - camel.camel.agents.chat_agent - ERROR - Model error: gpt-4.1-mini
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/camel/agents/chat_agent.py", line 2248, in _aget_model_response
+    response = await self.model_backend.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 287, in arun
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 274, in arun
+    response = await self.current_model.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/base_model.py", line 480, in arun
+    result = await self._arun(messages, response_format, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 388, in _arun
+    result = await self._arequest_chat_completion(messages, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 426, in _arequest_chat_completion
+    return await self._async_client.chat.completions.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/resources/chat/completions/completions.py", line 2585, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1794, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1594, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:43,881 - social.agent - ERROR - Agent 0 error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:43,881 - oasis.env - INFO - performed all actions.
+📊 Progress: 1/1 (100%)
+2026-03-16 23:13:43,883 - social.twitter - INFO - Starting to refresh recommendation system cache...
+✅ Step complete
+⚙️  Step 2 开始
+📊 Progress: 0/1 (0%)
+🚀 Step concurrency: 1/1
+2026-03-16 23:13:43,885 - social.twitter - INFO - Starting to refresh recommendation system cache...
+2026-03-16 23:13:43,886 - oasis.env - INFO - update rec table.
+2026-03-16 23:13:44,088 - social.agent - INFO - Agent 0 observing environment: And there are many group chat channels {}
+And You are already in some groups []
+You receive some messages from them {}
+You can join the groups you are interested, leave the groups you already in, send messages to the group you already in.
+You must make sure you can only send messages to the group you are already in
+After refreshing, there are no existing posts.
+pick one you want to perform action that best reflects your current inclination based on your profile and posts content. Do not limit your action in just `like` to like posts
+2026-03-16 23:13:44,378 - camel.models.model_manager - ERROR - Error processing with model: <camel.models.openai_model.OpenAIModel object at 0x7efad51996d0>
+2026-03-16 23:13:44,378 - camel.camel.agents.chat_agent - ERROR - Model error: gpt-4.1-mini
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/camel/agents/chat_agent.py", line 2248, in _aget_model_response
+    response = await self.model_backend.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 287, in arun
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 274, in arun
+    response = await self.current_model.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/base_model.py", line 480, in arun
+    result = await self._arun(messages, response_format, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 388, in _arun
+    result = await self._arequest_chat_completion(messages, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 426, in _arequest_chat_completion
+    return await self._async_client.chat.completions.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/resources/chat/completions/completions.py", line 2585, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1794, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1594, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:44,379 - social.agent - ERROR - Agent 0 error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:44,379 - oasis.env - INFO - performed all actions.
+📊 Progress: 1/1 (100%)
+2026-03-16 23:13:44,381 - social.twitter - INFO - Starting to refresh recommendation system cache...
+✅ Step complete
+⚙️  Step 3 开始
+📊 Progress: 0/1 (0%)
+🚀 Step concurrency: 1/1
+2026-03-16 23:13:44,384 - social.twitter - INFO - Starting to refresh recommendation system cache...
+2026-03-16 23:13:44,384 - oasis.env - INFO - update rec table.
+2026-03-16 23:13:44,586 - social.agent - INFO - Agent 0 observing environment: And there are many group chat channels {}
+And You are already in some groups []
+You receive some messages from them {}
+You can join the groups you are interested, leave the groups you already in, send messages to the group you already in.
+You must make sure you can only send messages to the group you are already in
+After refreshing, there are no existing posts.
+pick one you want to perform action that best reflects your current inclination based on your profile and posts content. Do not limit your action in just `like` to like posts
+2026-03-16 23:13:44,875 - camel.models.model_manager - ERROR - Error processing with model: <camel.models.openai_model.OpenAIModel object at 0x7efad51996d0>
+2026-03-16 23:13:44,876 - camel.camel.agents.chat_agent - ERROR - Model error: gpt-4.1-mini
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/camel/agents/chat_agent.py", line 2248, in _aget_model_response
+    response = await self.model_backend.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 287, in arun
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 274, in arun
+    response = await self.current_model.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/base_model.py", line 480, in arun
+    result = await self._arun(messages, response_format, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 388, in _arun
+    result = await self._arequest_chat_completion(messages, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 426, in _arequest_chat_completion
+    return await self._async_client.chat.completions.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/resources/chat/completions/completions.py", line 2585, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1794, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1594, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:44,876 - social.agent - ERROR - Agent 0 error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:44,877 - oasis.env - INFO - performed all actions.
+📊 Progress: 1/1 (100%)
+2026-03-16 23:13:44,879 - social.twitter - INFO - Starting to refresh recommendation system cache...
+✅ Step complete
+⚙️  Step 4 开始
+📊 Progress: 0/1 (0%)
+🚀 Step concurrency: 1/1
+2026-03-16 23:13:44,882 - social.twitter - INFO - Starting to refresh recommendation system cache...
+2026-03-16 23:13:44,882 - oasis.env - INFO - update rec table.
+2026-03-16 23:13:45,084 - social.agent - INFO - Agent 0 observing environment: And there are many group chat channels {}
+And You are already in some groups []
+You receive some messages from them {}
+You can join the groups you are interested, leave the groups you already in, send messages to the group you already in.
+You must make sure you can only send messages to the group you are already in
+After refreshing, there are no existing posts.
+pick one you want to perform action that best reflects your current inclination based on your profile and posts content. Do not limit your action in just `like` to like posts
+2026-03-16 23:13:45,360 - camel.models.model_manager - ERROR - Error processing with model: <camel.models.openai_model.OpenAIModel object at 0x7efad51996d0>
+2026-03-16 23:13:45,360 - camel.camel.agents.chat_agent - ERROR - Model error: gpt-4.1-mini
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/camel/agents/chat_agent.py", line 2248, in _aget_model_response
+    response = await self.model_backend.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 287, in arun
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 274, in arun
+    response = await self.current_model.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/base_model.py", line 480, in arun
+    result = await self._arun(messages, response_format, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 388, in _arun
+    result = await self._arequest_chat_completion(messages, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 426, in _arequest_chat_completion
+    return await self._async_client.chat.completions.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/resources/chat/completions/completions.py", line 2585, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1794, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1594, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:45,361 - social.agent - ERROR - Agent 0 error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:45,361 - oasis.env - INFO - performed all actions.
+📊 Progress: 1/1 (100%)
+2026-03-16 23:13:45,364 - social.twitter - INFO - Starting to refresh recommendation system cache...
+✅ Step complete
+⚙️  Step 5 开始
+📊 Progress: 0/1 (0%)
+🚀 Step concurrency: 1/1
+2026-03-16 23:13:45,367 - social.twitter - INFO - Starting to refresh recommendation system cache...
+2026-03-16 23:13:45,367 - oasis.env - INFO - update rec table.
+2026-03-16 23:13:45,569 - social.agent - INFO - Agent 0 observing environment: And there are many group chat channels {}
+And You are already in some groups []
+You receive some messages from them {}
+You can join the groups you are interested, leave the groups you already in, send messages to the group you already in.
+You must make sure you can only send messages to the group you are already in
+After refreshing, there are no existing posts.
+pick one you want to perform action that best reflects your current inclination based on your profile and posts content. Do not limit your action in just `like` to like posts
+2026-03-16 23:13:45,824 - camel.models.model_manager - ERROR - Error processing with model: <camel.models.openai_model.OpenAIModel object at 0x7efad51996d0>
+2026-03-16 23:13:45,824 - camel.camel.agents.chat_agent - ERROR - Model error: gpt-4.1-mini
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/camel/agents/chat_agent.py", line 2248, in _aget_model_response
+    response = await self.model_backend.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 287, in arun
+    raise exc
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/model_manager.py", line 274, in arun
+    response = await self.current_model.arun(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/base_model.py", line 480, in arun
+    result = await self._arun(messages, response_format, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 388, in _arun
+    result = await self._arequest_chat_completion(messages, tools)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/camel/models/openai_model.py", line 426, in _arequest_chat_completion
+    return await self._async_client.chat.completions.create(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/resources/chat/completions/completions.py", line 2585, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1794, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/openai/_base_client.py", line 1594, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:45,825 - social.agent - ERROR - Agent 0 error: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-jwwcf*************po3C. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'code': 'invalid_api_key', 'param': None}, 'status': 401}
+2026-03-16 23:13:45,825 - oasis.env - INFO - performed all actions.
+📊 Progress: 1/1 (100%)
+2026-03-16 23:13:45,828 - social.twitter - INFO - Starting to refresh recommendation system cache...
+✅ Step complete
+2026-03-16 23:13:45,831 - oasis.env - INFO - Simulation finished! Please check the results in the database: /tmp/oasis-context-smoke.db. Note that the trace table stored all the actions of the agents.
+🔄 模拟已重置
+{
+  "init": {
+    "agent_count": 1,
+    "platform": "reddit",
+    "topics": [
+      "AI"
+    ],
+    "regions": [
+      "General"
+    ],
+    "context_token_limit": 6144,
+    "generation_max_tokens": 256,
+    "memory_window_size": null
+  },
+  "steps": [
+    {
+      "step": 1,
+      "total_posts": 0,
+      "step_time": 1.1953279972076416,
+      "context_metrics": {
+        "agent_count": 1,
+        "avg_chars_before": 538,
+        "avg_chars_after": 538,
+        "max_chars_before": 538,
+        "max_chars_after": 538,
+        "total_truncated_fields": 0,
+        "total_placeholder_fields": 0,
+        "total_comments_omitted": 0,
+        "total_groups_omitted": 0,
+        "avg_context_tokens": 258,
+        "max_context_tokens": 258,
+        "avg_memory_records": 2,
+        "max_memory_records": 2,
+        "avg_get_context_ms": 0.491,
+        "max_get_context_ms": 0.491,
+        "avg_retrieve_ms": 0.072,
+        "max_retrieve_ms": 0.072,
+        "context_token_errors": 0,
+        "memory_retrieve_errors": 0,
+        "total_system_records": 1,
+        "total_user_records": 1,
+        "total_assistant_records": 0,
+        "total_function_records": 0,
+        "total_tool_records": 0,
+        "total_assistant_function_call_records": 0
+      }
+    },
+    {
+      "step": 2,
+      "total_posts": 0,
+      "step_time": 0.49672985076904297,
+      "context_metrics": {
+        "agent_count": 1,
+        "avg_chars_before": 538,
+        "avg_chars_after": 538,
+        "max_chars_before": 538,
+        "max_chars_after": 538,
+        "total_truncated_fields": 0,
+        "total_placeholder_fields": 0,
+        "total_comments_omitted": 0,
+        "total_groups_omitted": 0,
+        "avg_context_tokens": 405,
+        "max_context_tokens": 405,
+        "avg_memory_records": 3,
+        "max_memory_records": 3,
+        "avg_get_context_ms": 0.692,
+        "max_get_context_ms": 0.692,
+        "avg_retrieve_ms": 0.086,
+        "max_retrieve_ms": 0.086,
+        "context_token_errors": 0,
+        "memory_retrieve_errors": 0,
+        "total_system_records": 1,
+        "total_user_records": 2,
+        "total_assistant_records": 0,
+        "total_function_records": 0,
+        "total_tool_records": 0,
+        "total_assistant_function_call_records": 0
+      }
+    },
+    {
+      "step": 3,
+      "total_posts": 0,
+      "step_time": 0.4957442283630371,
+      "context_metrics": {
+        "agent_count": 1,
+        "avg_chars_before": 538,
+        "avg_chars_after": 538,
+        "max_chars_before": 538,
+        "max_chars_after": 538,
+        "total_truncated_fields": 0,
+        "total_placeholder_fields": 0,
+        "total_comments_omitted": 0,
+        "total_groups_omitted": 0,
+        "avg_context_tokens": 552,
+        "max_context_tokens": 552,
+        "avg_memory_records": 4,
+        "max_memory_records": 4,
+        "avg_get_context_ms": 0.777,
+        "max_get_context_ms": 0.777,
+        "avg_retrieve_ms": 0.101,
+        "max_retrieve_ms": 0.101,
+        "context_token_errors": 0,
+        "memory_retrieve_errors": 0,
+        "total_system_records": 1,
+        "total_user_records": 3,
+        "total_assistant_records": 0,
+        "total_function_records": 0,
+        "total_tool_records": 0,
+        "total_assistant_function_call_records": 0
+      }
+    },
+    {
+      "step": 4,
+      "total_posts": 0,
+      "step_time": 0.4828815460205078,
+      "context_metrics": {
+        "agent_count": 1,
+        "avg_chars_before": 538,
+        "avg_chars_after": 538,
+        "max_chars_before": 538,
+        "max_chars_after": 538,
+        "total_truncated_fields": 0,
+        "total_placeholder_fields": 0,
+        "total_comments_omitted": 0,
+        "total_groups_omitted": 0,
+        "avg_context_tokens": 699,
+        "max_context_tokens": 699,
+        "avg_memory_records": 5,
+        "max_memory_records": 5,
+        "avg_get_context_ms": 0.922,
+        "max_get_context_ms": 0.922,
+        "avg_retrieve_ms": 0.118,
+        "max_retrieve_ms": 0.118,
+        "context_token_errors": 0,
+        "memory_retrieve_errors": 0,
+        "total_system_records": 1,
+        "total_user_records": 4,
+        "total_assistant_records": 0,
+        "total_function_records": 0,
+        "total_tool_records": 0,
+        "total_assistant_function_call_records": 0
+      }
+    },
+    {
+      "step": 5,
+      "total_posts": 0,
+      "step_time": 0.4623680114746094,
+      "context_metrics": {
+        "agent_count": 1,
+        "avg_chars_before": 538,
+        "avg_chars_after": 538,
+        "max_chars_before": 538,
+        "max_chars_after": 538,
+        "total_truncated_fields": 0,
+        "total_placeholder_fields": 0,
+        "total_comments_omitted": 0,
+        "total_groups_omitted": 0,
+        "avg_context_tokens": 846,
+        "max_context_tokens": 846,
+        "avg_memory_records": 6,
+        "max_memory_records": 6,
+        "avg_get_context_ms": 1.058,
+        "max_get_context_ms": 1.058,
+        "avg_retrieve_ms": 0.139,
+        "max_retrieve_ms": 0.139,
+        "context_token_errors": 0,
+        "memory_retrieve_errors": 0,
+        "total_system_records": 1,
+        "total_user_records": 5,
+        "total_assistant_records": 0,
+        "total_function_records": 0,
+        "total_tool_records": 0,
+        "total_assistant_function_call_records": 0
+      }
+    }
+  ]
+}
