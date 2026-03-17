@@ -163,6 +163,8 @@ class RealOASISEngineV3:
         # 每次 step 只返回 post_id > _last_seen_post_id 的新记录
         self._last_seen_post_id: int = 0
         self._last_seen_like_id: int = 0
+        # Long-Term Sidecar（Issue #26/#27：Episodic Compaction 与记忆检索）
+        self._sidecar: Optional[Any] = None
 
         # 跟踪上一步数据，用于计算速度指标
         self.previous_step_data: Dict[str, Any] = {
@@ -537,6 +539,23 @@ class RealOASISEngineV3:
             self._last_seen_post_id = 0
             self._last_seen_like_id = 0
             print("📍 增量日志水位线已重置", flush=True)
+            # 重置极化分析器水位线，确保 step 1 能捕获新帖子（修复极化值恒定 bug）
+            if self.polarization_analyzer is not None:
+                self.polarization_analyzer.last_analyzed_post_id = 0
+                self.polarization_analyzer.last_result = {}
+                print("📍 极化分析器水位线已重置", flush=True)
+            # 初始化 Long-Term Sidecar（Issue #26/#27）
+            try:
+                from oasis_dashboard.longterm import InMemoryLongTermSidecar
+                self._sidecar = InMemoryLongTermSidecar(
+                    compaction_threshold=10,
+                    compaction_window=5,
+                    max_summary_tokens=200,
+                )
+                print("✅ Long-Term Sidecar 已初始化", flush=True)
+            except Exception as e:
+                print(f"⚠️  Long-Term Sidecar 初始化失败: {e}", flush=True)
+                self._sidecar = None
             return {
                 "status": "ok",
                 "message": f"真实OASIS已初始化 {agent_count} 个agents",
@@ -831,6 +850,14 @@ class RealOASISEngineV3:
                 if agent_observations else 0
             )
 
+            # 获取 Sidecar 统计信息（compaction 可观测字段）
+            sidecar_stats = None
+            if self._sidecar is not None:
+                try:
+                    sidecar_stats = await self._sidecar.get_stats()
+                except Exception:
+                    sidecar_stats = None
+
             return {
                 "status": "ok",
                 "current_step": self.current_step,
@@ -846,6 +873,7 @@ class RealOASISEngineV3:
                 "velocity_details": velocity_result,
                 "herd_hhi_details": hhi_result,
                 "polarization_details": polarization_result,
+                "sidecar_stats": sidecar_stats,  # ← compaction 可观测测字段（Issue #26/#27）
             }
             
         except Exception as e:
@@ -875,6 +903,11 @@ class RealOASISEngineV3:
         # 重置增量日志水位线，防止新轮模拟继承旧游标导致日志空白
         self._last_seen_post_id = 0
         self._last_seen_like_id = 0
+        # 重置 Long-Term Sidecar
+        if self._sidecar is not None:
+            import asyncio
+            asyncio.get_event_loop().run_until_complete(self._sidecar.reset()) if not asyncio.get_event_loop().is_running() else None
+            self._sidecar = None
 
         print("🔄 模拟已重置", flush=True)
 
@@ -895,6 +928,14 @@ class RealOASISEngineV3:
             return {"polarization": 0.0}
 
         try:
+            # 诊断日志：当前 step 前最后分析的 post_id
+            prev_last_id = getattr(self.polarization_analyzer, 'last_analyzed_post_id', 0)
+            print(
+                f"📊 [Polarization] step={self.current_step} "
+                f"last_analyzed_post_id={prev_last_id} "
+                f"total_posts={self.total_posts}",
+                flush=True,
+            )
             # 执行分析
             result = await self.polarization_analyzer.analyze()
 
@@ -1483,27 +1524,30 @@ class RealOASISEngineV3:
         return logs
 
     def _get_actual_post_count(self) -> int:
-        """从数据库读取真实的帖子数量"""
+        """从数据库读取真实的帖子数量，兼容 post / Posts 两种表名"""
         import sqlite3
         import os
 
         if not os.path.exists(self.db_path):
-            return len(self.agents)
+            return 0
 
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
-            # 统计帖子数量
-            cursor.execute("SELECT COUNT(*) FROM post")
-            post_count = cursor.fetchone()[0]
-
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = {row[0] for row in cursor.fetchall()}
+            if "post" in tables:
+                cursor.execute("SELECT COUNT(*) FROM post")
+            elif "Posts" in tables:
+                cursor.execute("SELECT COUNT(*) FROM Posts")
+            else:
+                conn.close()
+                return 0
+            count = cursor.fetchone()[0]
             conn.close()
-
-            return post_count
-
-        except Exception as e:
-            return len(self.agents)
+            return int(count)
+        except Exception:
+            return 0
 
     async def close(self) -> Dict:
         """关闭模拟环境"""

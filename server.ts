@@ -24,11 +24,13 @@ function startOasisEngine() {
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
-      // Use OpenAI-compatible API instead of default ollama/qwen3:8b
-      OASIS_MODEL_PLATFORM: process.env.OASIS_MODEL_PLATFORM || "openai",
-      OASIS_MODEL_TYPE: process.env.OASIS_MODEL_TYPE || "gpt-4.1-mini",
-      OASIS_MODEL_API_KEY: process.env.OPENAI_API_KEY || "",
-      OASIS_MODEL_URL: process.env.OASIS_MODEL_URL || process.env.OPENAI_BASE_URL || "",
+      // Explicitly forward all model-related env vars to Python subprocess
+      OASIS_MODEL_PLATFORM: process.env.OASIS_MODEL_PLATFORM ?? "openai",
+      OASIS_MODEL_TYPE: process.env.OASIS_MODEL_TYPE ?? "gpt-4.1-mini",
+      OASIS_MODEL_API_KEY: process.env.OASIS_MODEL_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
+      OASIS_MODEL_URL: process.env.OASIS_MODEL_URL ?? process.env.OPENAI_BASE_URL ?? "",
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
+      OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "",
     },
   });
 
@@ -255,10 +257,10 @@ async function startServer() {
 
       const result = await callOasisEngine("step", {});
       
-      simulationState.currentStep = result.current_step || simulationState.currentStep + 1;
-      simulationState.totalPosts = result.total_posts || simulationState.totalPosts;
-      simulationState.polarization = result.polarization || simulationState.polarization;
-      simulationState.activeAgents = result.active_agents || simulationState.activeAgents;
+      simulationState.currentStep = result.current_step ?? (simulationState.currentStep + 1);
+      simulationState.totalPosts = result.total_posts ?? simulationState.totalPosts;
+      simulationState.polarization = result.polarization ?? simulationState.polarization;
+      simulationState.activeAgents = result.active_agents ?? simulationState.activeAgents;
 
       // 🆕 Update new metrics (Phase 5: velocity + herd effect)
       simulationState.velocity = result.velocity ?? simulationState.velocity;
@@ -301,7 +303,12 @@ async function startServer() {
       }
 
       io.emit("stats_update", simulationState);
-      res.json(simulationState);
+      // 附加 Python 引擎原始返回字段（sidecar_stats 等可观测字段）
+      res.json({
+        ...simulationState,
+        sidecar_stats: result.sidecar_stats ?? null,
+        step_time: result.step_time ?? null,
+      });
     } catch (error: any) {
       console.error("Error executing OASIS step:", error);
       res.status(500).json({ status: "error", message: error.message });

@@ -1,0 +1,26 @@
+{
+  "total_posts_per_step": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "polarization_per_step": [
+    0.16000000000000003,
+    0.16000000000000003,
+    0.16000000000000003,
+    0.16000000000000003,
+    0.16000000000000003
+  ],
+  "sidecar_ok_steps": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "duplicate_logs": false,
+  "gates_passed": 4,
+  "gates_total": 4
+}
