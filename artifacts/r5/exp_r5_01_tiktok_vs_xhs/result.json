@@ -1,0 +1,967 @@
+{
+  "experimentId": "exp_148d3e06",
+  "createdAt": "2026-03-17T09:49:56",
+  "config": {
+    "name": "exp_demo_tiktok_vs_xhs",
+    "datasetId": "dataset_demo_reddit",
+    "platform": "REDDIT",
+    "recommenders": [
+      "TIKTOK",
+      "XIAOHONGSHU",
+      "PINTEREST"
+    ],
+    "steps": 15,
+    "seed": 42,
+    "agentCount": 10
+  },
+  "runs": [
+    {
+      "recommender": "TIKTOK",
+      "metrics": {
+        "polarization_final": 0.6826,
+        "herd_index_final": 0.5802,
+        "velocity_avg": 0.4734,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      },
+      "propagationSnapshot": {
+        "nodes": [
+          {
+            "id": "agent_0",
+            "type": "agent",
+            "label": "Alice Chen",
+            "active": true
+          },
+          {
+            "id": "agent_1",
+            "type": "agent",
+            "label": "Bob Martinez",
+            "active": true
+          },
+          {
+            "id": "agent_2",
+            "type": "agent",
+            "label": "Carol White",
+            "active": true
+          },
+          {
+            "id": "agent_3",
+            "type": "agent",
+            "label": "David Kim",
+            "active": true
+          },
+          {
+            "id": "agent_4",
+            "type": "agent",
+            "label": "Emma Johnson",
+            "active": true
+          },
+          {
+            "id": "agent_5",
+            "type": "agent",
+            "label": "Frank Davis",
+            "active": false
+          },
+          {
+            "id": "agent_6",
+            "type": "agent",
+            "label": "Grace Lee",
+            "active": false
+          },
+          {
+            "id": "agent_7",
+            "type": "agent",
+            "label": "Henry Brown",
+            "active": false
+          },
+          {
+            "id": "agent_8",
+            "type": "agent",
+            "label": "Iris Zhang",
+            "active": false
+          },
+          {
+            "id": "agent_9",
+            "type": "agent",
+            "label": "James Wilson",
+            "active": false
+          },
+          {
+            "id": "post_0",
+            "type": "post",
+            "label": "AI is transforming software de"
+          },
+          {
+            "id": "post_1",
+            "type": "post",
+            "label": "Morning workout routine that c"
+          },
+          {
+            "id": "post_2",
+            "type": "post",
+            "label": "The economic policy debate we "
+          },
+          {
+            "id": "post_3",
+            "type": "post",
+            "label": "My latest digital art series i"
+          },
+          {
+            "id": "post_4",
+            "type": "post",
+            "label": "Climate data shows alarming tr"
+          }
+        ],
+        "edges": [
+          {
+            "source": "agent_0",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_2",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_3",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_5",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_8",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_2",
+            "type": "interact"
+          }
+        ],
+        "metrics": {
+          "totalNodes": 15,
+          "totalEdges": 17,
+          "totalPosts": 34,
+          "activeAgents": 5,
+          "velocity": 0.4733,
+          "herdIndex": 0.6826
+        }
+      },
+      "stepsTrace": [
+        {
+          "step": 1,
+          "polarization": 0.5356,
+          "herd_index": 0.4615,
+          "velocity": 0.4889,
+          "total_posts": 8,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 2,
+          "polarization": 0.5567,
+          "herd_index": 0.4512,
+          "velocity": 0.3109,
+          "total_posts": 9,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 3,
+          "polarization": 0.5639,
+          "herd_index": 0.4773,
+          "velocity": 0.5232,
+          "total_posts": 10,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 4,
+          "polarization": 0.5919,
+          "herd_index": 0.4892,
+          "velocity": 0.6375,
+          "total_posts": 13,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 5,
+          "polarization": 0.6061,
+          "herd_index": 0.5112,
+          "velocity": 0.5042,
+          "total_posts": 14,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 6,
+          "polarization": 0.615,
+          "herd_index": 0.4757,
+          "velocity": 0.5377,
+          "total_posts": 15,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 7,
+          "polarization": 0.6372,
+          "herd_index": 0.5067,
+          "velocity": 0.4419,
+          "total_posts": 17,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 8,
+          "polarization": 0.6584,
+          "herd_index": 0.4969,
+          "velocity": 0.377,
+          "total_posts": 19,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 9,
+          "polarization": 0.6422,
+          "herd_index": 0.4929,
+          "velocity": 0.3537,
+          "total_posts": 22,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 10,
+          "polarization": 0.6324,
+          "herd_index": 0.5083,
+          "velocity": 0.4706,
+          "total_posts": 23,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 11,
+          "polarization": 0.6723,
+          "herd_index": 0.5114,
+          "velocity": 0.5654,
+          "total_posts": 25,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 12,
+          "polarization": 0.6719,
+          "herd_index": 0.526,
+          "velocity": 0.4485,
+          "total_posts": 27,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 13,
+          "polarization": 0.6712,
+          "herd_index": 0.4977,
+          "velocity": 0.4844,
+          "total_posts": 30,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 14,
+          "polarization": 0.6764,
+          "herd_index": 0.5154,
+          "velocity": 0.484,
+          "total_posts": 32,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 15,
+          "polarization": 0.6826,
+          "herd_index": 0.5802,
+          "velocity": 0.4733,
+          "total_posts": 34,
+          "unique_active_agents": 5
+        }
+      ]
+    },
+    {
+      "recommender": "XIAOHONGSHU",
+      "metrics": {
+        "polarization_final": 0.6028,
+        "herd_index_final": 0.6602,
+        "velocity_avg": 0.3484,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      },
+      "propagationSnapshot": {
+        "nodes": [
+          {
+            "id": "agent_0",
+            "type": "agent",
+            "label": "Alice Chen",
+            "active": true
+          },
+          {
+            "id": "agent_1",
+            "type": "agent",
+            "label": "Bob Martinez",
+            "active": true
+          },
+          {
+            "id": "agent_2",
+            "type": "agent",
+            "label": "Carol White",
+            "active": true
+          },
+          {
+            "id": "agent_3",
+            "type": "agent",
+            "label": "David Kim",
+            "active": true
+          },
+          {
+            "id": "agent_4",
+            "type": "agent",
+            "label": "Emma Johnson",
+            "active": true
+          },
+          {
+            "id": "agent_5",
+            "type": "agent",
+            "label": "Frank Davis",
+            "active": false
+          },
+          {
+            "id": "agent_6",
+            "type": "agent",
+            "label": "Grace Lee",
+            "active": false
+          },
+          {
+            "id": "agent_7",
+            "type": "agent",
+            "label": "Henry Brown",
+            "active": false
+          },
+          {
+            "id": "agent_8",
+            "type": "agent",
+            "label": "Iris Zhang",
+            "active": false
+          },
+          {
+            "id": "agent_9",
+            "type": "agent",
+            "label": "James Wilson",
+            "active": false
+          },
+          {
+            "id": "post_0",
+            "type": "post",
+            "label": "AI is transforming software de"
+          },
+          {
+            "id": "post_1",
+            "type": "post",
+            "label": "Morning workout routine that c"
+          },
+          {
+            "id": "post_2",
+            "type": "post",
+            "label": "The economic policy debate we "
+          },
+          {
+            "id": "post_3",
+            "type": "post",
+            "label": "My latest digital art series i"
+          },
+          {
+            "id": "post_4",
+            "type": "post",
+            "label": "Climate data shows alarming tr"
+          }
+        ],
+        "edges": [
+          {
+            "source": "agent_0",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_2",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_3",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_5",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_8",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_2",
+            "type": "interact"
+          }
+        ],
+        "metrics": {
+          "totalNodes": 15,
+          "totalEdges": 17,
+          "totalPosts": 34,
+          "activeAgents": 5,
+          "velocity": 0.3483,
+          "herdIndex": 0.6028
+        }
+      },
+      "stepsTrace": [
+        {
+          "step": 1,
+          "polarization": 0.5356,
+          "herd_index": 0.5415,
+          "velocity": 0.3639,
+          "total_posts": 8,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 2,
+          "polarization": 0.551,
+          "herd_index": 0.5312,
+          "velocity": 0.1859,
+          "total_posts": 9,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 3,
+          "polarization": 0.5525,
+          "herd_index": 0.5573,
+          "velocity": 0.3982,
+          "total_posts": 10,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 4,
+          "polarization": 0.5748,
+          "herd_index": 0.5692,
+          "velocity": 0.5125,
+          "total_posts": 13,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 5,
+          "polarization": 0.5833,
+          "herd_index": 0.5912,
+          "velocity": 0.3792,
+          "total_posts": 14,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 6,
+          "polarization": 0.5865,
+          "herd_index": 0.5557,
+          "velocity": 0.4127,
+          "total_posts": 15,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 7,
+          "polarization": 0.603,
+          "herd_index": 0.5867,
+          "velocity": 0.3169,
+          "total_posts": 17,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 8,
+          "polarization": 0.6185,
+          "herd_index": 0.5769,
+          "velocity": 0.252,
+          "total_posts": 19,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 9,
+          "polarization": 0.5966,
+          "herd_index": 0.5729,
+          "velocity": 0.2287,
+          "total_posts": 22,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 10,
+          "polarization": 0.5811,
+          "herd_index": 0.5883,
+          "velocity": 0.3456,
+          "total_posts": 23,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 11,
+          "polarization": 0.6153,
+          "herd_index": 0.5914,
+          "velocity": 0.4404,
+          "total_posts": 25,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 12,
+          "polarization": 0.6092,
+          "herd_index": 0.606,
+          "velocity": 0.3235,
+          "total_posts": 27,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 13,
+          "polarization": 0.6028,
+          "herd_index": 0.5777,
+          "velocity": 0.3594,
+          "total_posts": 30,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 14,
+          "polarization": 0.6023,
+          "herd_index": 0.5954,
+          "velocity": 0.359,
+          "total_posts": 32,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 15,
+          "polarization": 0.6028,
+          "herd_index": 0.6602,
+          "velocity": 0.3483,
+          "total_posts": 34,
+          "unique_active_agents": 5
+        }
+      ]
+    },
+    {
+      "recommender": "PINTEREST",
+      "metrics": {
+        "polarization_final": 0.586,
+        "herd_index_final": 0.6602,
+        "velocity_avg": 0.2234,
+        "total_posts": 34,
+        "unique_active_agents": 5
+      },
+      "propagationSnapshot": {
+        "nodes": [
+          {
+            "id": "agent_0",
+            "type": "agent",
+            "label": "Alice Chen",
+            "active": true
+          },
+          {
+            "id": "agent_1",
+            "type": "agent",
+            "label": "Bob Martinez",
+            "active": true
+          },
+          {
+            "id": "agent_2",
+            "type": "agent",
+            "label": "Carol White",
+            "active": true
+          },
+          {
+            "id": "agent_3",
+            "type": "agent",
+            "label": "David Kim",
+            "active": true
+          },
+          {
+            "id": "agent_4",
+            "type": "agent",
+            "label": "Emma Johnson",
+            "active": true
+          },
+          {
+            "id": "agent_5",
+            "type": "agent",
+            "label": "Frank Davis",
+            "active": false
+          },
+          {
+            "id": "agent_6",
+            "type": "agent",
+            "label": "Grace Lee",
+            "active": false
+          },
+          {
+            "id": "agent_7",
+            "type": "agent",
+            "label": "Henry Brown",
+            "active": false
+          },
+          {
+            "id": "agent_8",
+            "type": "agent",
+            "label": "Iris Zhang",
+            "active": false
+          },
+          {
+            "id": "agent_9",
+            "type": "agent",
+            "label": "James Wilson",
+            "active": false
+          },
+          {
+            "id": "post_0",
+            "type": "post",
+            "label": "AI is transforming software de"
+          },
+          {
+            "id": "post_1",
+            "type": "post",
+            "label": "Morning workout routine that c"
+          },
+          {
+            "id": "post_2",
+            "type": "post",
+            "label": "The economic policy debate we "
+          },
+          {
+            "id": "post_3",
+            "type": "post",
+            "label": "My latest digital art series i"
+          },
+          {
+            "id": "post_4",
+            "type": "post",
+            "label": "Climate data shows alarming tr"
+          }
+        ],
+        "edges": [
+          {
+            "source": "agent_0",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_1",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_2",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_3",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_4",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_5",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_6",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_7",
+            "target": "post_2",
+            "type": "interact"
+          },
+          {
+            "source": "agent_8",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_9",
+            "target": "post_2",
+            "type": "interact"
+          }
+        ],
+        "metrics": {
+          "totalNodes": 15,
+          "totalEdges": 17,
+          "totalPosts": 34,
+          "activeAgents": 5,
+          "velocity": 0.2233,
+          "herdIndex": 0.586
+        }
+      },
+      "stepsTrace": [
+        {
+          "step": 1,
+          "polarization": 0.5356,
+          "herd_index": 0.5415,
+          "velocity": 0.2389,
+          "total_posts": 8,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 2,
+          "polarization": 0.5498,
+          "herd_index": 0.5312,
+          "velocity": 0.0609,
+          "total_posts": 9,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 3,
+          "polarization": 0.5501,
+          "herd_index": 0.5573,
+          "velocity": 0.2732,
+          "total_posts": 10,
+          "unique_active_agents": 9
+        },
+        {
+          "step": 4,
+          "polarization": 0.5712,
+          "herd_index": 0.5692,
+          "velocity": 0.3875,
+          "total_posts": 13,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 5,
+          "polarization": 0.5785,
+          "herd_index": 0.5912,
+          "velocity": 0.2542,
+          "total_posts": 14,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 6,
+          "polarization": 0.5805,
+          "herd_index": 0.5557,
+          "velocity": 0.2877,
+          "total_posts": 15,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 7,
+          "polarization": 0.5958,
+          "herd_index": 0.5867,
+          "velocity": 0.1919,
+          "total_posts": 17,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 8,
+          "polarization": 0.6101,
+          "herd_index": 0.5769,
+          "velocity": 0.127,
+          "total_posts": 19,
+          "unique_active_agents": 5
+        },
+        {
+          "step": 9,
+          "polarization": 0.587,
+          "herd_index": 0.5729,
+          "velocity": 0.1037,
+          "total_posts": 22,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 10,
+          "polarization": 0.5703,
+          "herd_index": 0.5883,
+          "velocity": 0.2206,
+          "total_posts": 23,
+          "unique_active_agents": 7
+        },
+        {
+          "step": 11,
+          "polarization": 0.6033,
+          "herd_index": 0.5914,
+          "velocity": 0.3154,
+          "total_posts": 25,
+          "unique_active_agents": 10
+        },
+        {
+          "step": 12,
+          "polarization": 0.596,
+          "herd_index": 0.606,
+          "velocity": 0.1985,
+          "total_posts": 27,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 13,
+          "polarization": 0.5884,
+          "herd_index": 0.5777,
+          "velocity": 0.2344,
+          "total_posts": 30,
+          "unique_active_agents": 6
+        },
+        {
+          "step": 14,
+          "polarization": 0.5867,
+          "herd_index": 0.5954,
+          "velocity": 0.234,
+          "total_posts": 32,
+          "unique_active_agents": 8
+        },
+        {
+          "step": 15,
+          "polarization": 0.586,
+          "herd_index": 0.6602,
+          "velocity": 0.2233,
+          "total_posts": 34,
+          "unique_active_agents": 5
+        }
+      ]
+    }
+  ]
+}

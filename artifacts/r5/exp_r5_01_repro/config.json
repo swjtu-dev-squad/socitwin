@@ -1,0 +1,13 @@
+{
+  "name": "exp_demo_tiktok_vs_xhs",
+  "datasetId": "dataset_demo_reddit",
+  "platform": "REDDIT",
+  "recommenders": [
+    "TIKTOK",
+    "XIAOHONGSHU",
+    "PINTEREST"
+  ],
+  "steps": 15,
+  "seed": 42,
+  "agentCount": 10
+}

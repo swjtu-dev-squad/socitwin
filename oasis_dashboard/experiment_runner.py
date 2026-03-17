@@ -284,7 +284,7 @@ def run_experiment(
     runs: list[RunResult] = []
 
     for rec_name in config.recommenders:
-        print(f"  Running recommender: {rec_name} (seed={config.seed})")
+        import sys as _sys; _sys.stderr.write(f"  Running recommender: {rec_name} (seed={config.seed})\n")
 
         sim = LightweightSimulator(
             recommender_name=rec_name,
@@ -384,9 +384,10 @@ def _save_experiment_result(result: ExperimentResult, output_dir: Path) -> None:
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(result_dict["config"], f, indent=2, ensure_ascii=False)
 
-    print(f"  Saved: {json_path}")
-    print(f"  Saved: {csv_path}")
-    print(f"  Saved: {config_path}")
+    import sys as _sys
+    _sys.stderr.write(f"  Saved: {json_path}\n")
+    _sys.stderr.write(f"  Saved: {csv_path}\n")
+    _sys.stderr.write(f"  Saved: {config_path}\n")
 
 
 def generate_compare_report(result: ExperimentResult) -> str:

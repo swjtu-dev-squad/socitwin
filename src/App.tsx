@@ -10,6 +10,7 @@ import Logs from './pages/Logs';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import GroupChat from './pages/GroupChat';
+import Experiments from './pages/Experiments';
 import { Toaster } from 'sonner';
 
 export default function App() {
@@ -59,6 +60,11 @@ export default function App() {
         <Route path="/groupchat" element={
           <DashboardLayout>
             <GroupChat />
+          </DashboardLayout>
+        } />
+        <Route path="/experiments" element={
+          <DashboardLayout>
+            <Experiments />
           </DashboardLayout>
         } />
       </Routes>

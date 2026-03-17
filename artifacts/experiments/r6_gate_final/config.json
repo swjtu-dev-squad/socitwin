@@ -1,0 +1,12 @@
+{
+  "name": "r6_gate_final",
+  "datasetId": "demo",
+  "platform": "REDDIT",
+  "recommenders": [
+    "tiktok",
+    "xiaohongshu"
+  ],
+  "steps": 5,
+  "seed": 42,
+  "agentCount": 5
+}

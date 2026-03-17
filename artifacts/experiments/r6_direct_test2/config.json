@@ -1,0 +1,11 @@
+{
+  "name": "r6_direct_test2",
+  "datasetId": "demo",
+  "platform": "REDDIT",
+  "recommenders": [
+    "tiktok"
+  ],
+  "steps": 3,
+  "seed": 42,
+  "agentCount": 3
+}

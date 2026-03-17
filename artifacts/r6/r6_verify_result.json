@@ -1,0 +1,146 @@
+{
+  "total": 35,
+  "passed": 35,
+  "gates": [
+    {
+      "name": "POST /api/experiments/run 返回 200",
+      "passed": true
+    },
+    {
+      "name": "success=True",
+      "passed": true
+    },
+    {
+      "name": "experimentId 存在",
+      "passed": true
+    },
+    {
+      "name": "runs 包含 2 个推荐器",
+      "passed": true
+    },
+    {
+      "name": "每个 run 包含 polarization_final",
+      "passed": true
+    },
+    {
+      "name": "每个 run 包含 herd_index_final",
+      "passed": true
+    },
+    {
+      "name": "每个 run 包含 velocity_avg",
+      "passed": true
+    },
+    {
+      "name": "每个 run 包含 total_posts",
+      "passed": true
+    },
+    {
+      "name": "polarization_final 在 [0,1]",
+      "passed": true
+    },
+    {
+      "name": "herd_index_final 在 [0,1]",
+      "passed": true
+    },
+    {
+      "name": "GET /api/experiments/:id/result 返回 200",
+      "passed": true
+    },
+    {
+      "name": "result 包含 runs",
+      "passed": true
+    },
+    {
+      "name": "空 recommenders 返回 400",
+      "passed": true
+    },
+    {
+      "name": "GET /api/experiments 返回 200",
+      "passed": true
+    },
+    {
+      "name": "experiments 字段存在",
+      "passed": true
+    },
+    {
+      "name": "至少有 1 个历史实验",
+      "passed": true
+    },
+    {
+      "name": "实验包含 experimentId",
+      "passed": true
+    },
+    {
+      "name": "实验包含 recommenders",
+      "passed": true
+    },
+    {
+      "name": "实验包含 summary",
+      "passed": true
+    },
+    {
+      "name": "ExperimentRunnerPanel.tsx 存在",
+      "passed": true
+    },
+    {
+      "name": "ExperimentComparePanel.tsx 存在",
+      "passed": true
+    },
+    {
+      "name": "ExperimentArchiveTable.tsx 存在",
+      "passed": true
+    },
+    {
+      "name": "ExperimentDetailDrawer.tsx 存在",
+      "passed": true
+    },
+    {
+      "name": "Experiments.tsx 页面存在",
+      "passed": true
+    },
+    {
+      "name": "App.tsx 包含 /experiments 路由",
+      "passed": true
+    },
+    {
+      "name": "DashboardLayout.tsx 包含实验控制台",
+      "passed": true
+    },
+    {
+      "name": "experimentApi.ts 存在",
+      "passed": true
+    },
+    {
+      "name": "compareApi.ts 存在",
+      "passed": true
+    },
+    {
+      "name": "artifacts/experiments 目录存在",
+      "passed": true
+    },
+    {
+      "name": "至少 2 个实验目录",
+      "passed": true
+    },
+    {
+      "name": "至少 2 个实验有完整 result.json + config.json",
+      "passed": true
+    },
+    {
+      "name": "result.json 包含 stepsTrace",
+      "passed": true
+    },
+    {
+      "name": "stepsTrace 非空",
+      "passed": true
+    },
+    {
+      "name": "前端构建产物 dist/ 存在",
+      "passed": true
+    },
+    {
+      "name": "dist/index.html 存在",
+      "passed": true
+    }
+  ]
+}

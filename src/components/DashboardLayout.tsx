@@ -8,7 +8,8 @@ import {
   BarChart3,
   Settings as SettingsIcon,
   MessageCircle,
-  Eye
+  Eye,
+  FlaskConical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OasisIcon from './OasisIcon';
@@ -20,6 +21,7 @@ const navItems = [
   { name: '通信日志', icon: MessageSquare, href: '/logs' },
   { name: '群聊监控', icon: MessageCircle, href: '/groupchat' },
   { name: '分析仪表板', icon: BarChart3, href: '/analytics' },
+  { name: '实验控制台', icon: FlaskConical, href: '/experiments' },
   { name: '设置', icon: SettingsIcon, href: '/settings' },
 ];
 

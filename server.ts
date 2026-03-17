@@ -758,6 +758,139 @@ print(json.dumps(result))
 
   // ===== End R4-03 APIs =====
 
+  // ===== R6 Experiment APIs =====
+
+  // POST /api/experiments/run
+  app.post("/api/experiments/run", async (req, res) => {
+    try {
+      const { name, datasetId, recommenders, platform, steps, seed, agentCount } = req.body;
+      if (!recommenders || recommenders.length < 1) {
+        return res.status(400).json({ error: "At least one recommender required" });
+      }
+
+      const datasetFile = datasetId && datasetId !== 'demo'
+        ? path.join(__dirname, "artifacts", "r5", `${datasetId}.json`)
+        : path.join(__dirname, "artifacts", "r5", "dataset_demo_reddit.json");
+      const datasetPath = existsSync(datasetFile)
+        ? datasetFile
+        : path.join(__dirname, "artifacts", "r5", "dataset_demo_reddit.json");
+
+      const experimentName = (name || `exp_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const outputDir = path.join(__dirname, "artifacts", "experiments", experimentName);
+
+      const { execSync } = await import('child_process');
+      const helperScript = path.join(__dirname, 'oasis_dashboard', 'run_experiment_helper.py');
+      const cmd = [
+        'python3.11',
+        helperScript,
+        '--name', experimentName,
+        '--dataset-id', datasetId || 'demo',
+        '--dataset-path', datasetPath,
+        '--recommenders', JSON.stringify(recommenders),
+        '--platform', platform || 'REDDIT',
+        '--steps', String(steps || 15),
+        '--seed', String(seed || 42),
+        '--agent-count', String(agentCount || 10),
+        '--output-dir', outputDir,
+      ];
+
+      const output = execSync(cmd.map(c => `"${c.replace(/"/g, '\\"')}"`).join(' '), {
+        cwd: __dirname,
+        timeout: 120000,
+        maxBuffer: 10 * 1024 * 1024,
+        env: { ...process.env },
+        shell: true,
+      });
+      const result = JSON.parse(output.toString().trim());
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.error('Experiment run error:', err.stderr?.toString() || err.message);
+      res.status(500).json({ error: err.stderr?.toString() || err.message || 'Experiment failed' });
+    }
+  });
+
+  // GET /api/experiments - list all experiments
+  app.get("/api/experiments", async (_req, res) => {
+    try {
+      const experimentsDir = path.join(__dirname, "artifacts", "experiments");
+      if (!existsSync(experimentsDir)) {
+        return res.json({ experiments: [] });
+      }
+      const { readdirSync, statSync, readFileSync: rfs } = await import('fs');
+      const dirs = readdirSync(experimentsDir).filter((d: string) => {
+        try { return statSync(path.join(experimentsDir, d)).isDirectory(); } catch { return false; }
+      });
+      const experiments = dirs.map((dir: string) => {
+        const configPath = path.join(experimentsDir, dir, 'config.json');
+        const resultPath = path.join(experimentsDir, dir, 'result.json');
+        try {
+          const config = JSON.parse(rfs(configPath, 'utf-8') as string);
+          let summary: any = {};
+          if (existsSync(resultPath)) {
+            const result = JSON.parse(rfs(resultPath, 'utf-8') as string);
+            const runs = result.runs || [];
+            if (runs.length > 0) {
+              summary = {
+                bestPolarization: Math.max(...runs.map((r: any) => r.metrics?.polarization_final || 0)),
+                bestVelocity: Math.max(...runs.map((r: any) => r.metrics?.velocity_avg || 0)),
+                totalPosts: runs.reduce((s: number, r: any) => s + (r.metrics?.total_posts || 0), 0),
+              };
+            }
+          }
+          const resultData = existsSync(resultPath) ? JSON.parse(rfs(resultPath, 'utf-8') as string) : {};
+          return {
+            experimentId: resultData.experimentId || dir,
+            name: config.name || dir,
+            datasetId: config.datasetId,
+            recommenders: config.recommenders || [],
+            steps: config.steps,
+            seed: config.seed,
+            createdAt: statSync(configPath).mtime.toISOString(),
+            summary,
+          };
+        } catch {
+          return { experimentId: dir, name: dir, datasetId: '', recommenders: [], steps: 0, seed: 0, createdAt: '', summary: {} };
+        }
+      });
+      res.json({ experiments });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/experiments/:id/result
+  app.get("/api/experiments/:id/result", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const experimentsDir = path.join(__dirname, "artifacts", "experiments");
+      const { readdirSync, readFileSync: rfs } = await import('fs');
+      let resultPath: string | null = null;
+      if (existsSync(experimentsDir)) {
+        const dirs = readdirSync(experimentsDir);
+        for (const dir of dirs) {
+          const rp = path.join(experimentsDir, dir, 'result.json');
+          if (existsSync(rp)) {
+            const data = JSON.parse(rfs(rp, 'utf-8') as string);
+            if (data.experimentId === id || dir === id) {
+              resultPath = rp;
+              break;
+            }
+          }
+        }
+      }
+      if (!resultPath) {
+        return res.status(404).json({ error: 'Experiment not found' });
+      }
+      const { readFileSync: rfs2 } = await import('fs');
+      const result = JSON.parse(rfs2(resultPath, 'utf-8') as string);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ===== End R6 Experiment APIs =====
+
   app.get("/api/sim/logs", async (req, res) => {
     try {
       const dbPath = process.env.OASIS_DB_PATH || path.join(__dirname, "oasis_simulation.db");

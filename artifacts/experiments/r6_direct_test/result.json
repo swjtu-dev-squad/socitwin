@@ -1,0 +1,290 @@
+{
+  "experimentId": "exp_584df36b",
+  "createdAt": "2026-03-17T10:32:18",
+  "config": {
+    "name": "r6_direct_test",
+    "datasetId": "demo",
+    "platform": "REDDIT",
+    "recommenders": [
+      "tiktok",
+      "xiaohongshu"
+    ],
+    "steps": 5,
+    "seed": 42,
+    "agentCount": 5
+  },
+  "runs": [
+    {
+      "recommender": "tiktok",
+      "metrics": {
+        "polarization_final": 0.5771,
+        "herd_index_final": 0.4677,
+        "velocity_avg": 0.4988,
+        "total_posts": 12,
+        "unique_active_agents": 2
+      },
+      "propagationSnapshot": {
+        "nodes": [
+          {
+            "id": "agent_0",
+            "type": "agent",
+            "label": "Alice Chen",
+            "active": true
+          },
+          {
+            "id": "agent_1",
+            "type": "agent",
+            "label": "Bob Martinez",
+            "active": true
+          },
+          {
+            "id": "agent_2",
+            "type": "agent",
+            "label": "Carol White",
+            "active": false
+          },
+          {
+            "id": "agent_3",
+            "type": "agent",
+            "label": "David Kim",
+            "active": false
+          },
+          {
+            "id": "agent_4",
+            "type": "agent",
+            "label": "Emma Johnson",
+            "active": false
+          },
+          {
+            "id": "post_0",
+            "type": "post",
+            "label": "AI is transforming software de"
+          },
+          {
+            "id": "post_1",
+            "type": "post",
+            "label": "Morning workout routine that c"
+          },
+          {
+            "id": "post_2",
+            "type": "post",
+            "label": "The economic policy debate we "
+          },
+          {
+            "id": "post_3",
+            "type": "post",
+            "label": "My latest digital art series i"
+          },
+          {
+            "id": "post_4",
+            "type": "post",
+            "label": "Climate data shows alarming tr"
+          }
+        ],
+        "edges": [
+          {
+            "source": "agent_0",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_2",
+            "target": "post_2",
+            "type": "interact"
+          }
+        ],
+        "metrics": {
+          "totalNodes": 10,
+          "totalEdges": 3,
+          "totalPosts": 12,
+          "activeAgents": 2,
+          "velocity": 0.6405,
+          "herdIndex": 0.5771
+        }
+      },
+      "stepsTrace": [
+        {
+          "step": 1,
+          "polarization": 0.5356,
+          "herd_index": 0.4615,
+          "velocity": 0.4889,
+          "total_posts": 6,
+          "unique_active_agents": 2
+        },
+        {
+          "step": 2,
+          "polarization": 0.5567,
+          "herd_index": 0.4657,
+          "velocity": 0.4863,
+          "total_posts": 7,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 3,
+          "polarization": 0.5694,
+          "herd_index": 0.502,
+          "velocity": 0.3529,
+          "total_posts": 9,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 4,
+          "polarization": 0.5709,
+          "herd_index": 0.4647,
+          "velocity": 0.5253,
+          "total_posts": 10,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 5,
+          "polarization": 0.5771,
+          "herd_index": 0.4677,
+          "velocity": 0.6405,
+          "total_posts": 12,
+          "unique_active_agents": 2
+        }
+      ]
+    },
+    {
+      "recommender": "xiaohongshu",
+      "metrics": {
+        "polarization_final": 0.5543,
+        "herd_index_final": 0.5477,
+        "velocity_avg": 0.3738,
+        "total_posts": 12,
+        "unique_active_agents": 2
+      },
+      "propagationSnapshot": {
+        "nodes": [
+          {
+            "id": "agent_0",
+            "type": "agent",
+            "label": "Alice Chen",
+            "active": true
+          },
+          {
+            "id": "agent_1",
+            "type": "agent",
+            "label": "Bob Martinez",
+            "active": true
+          },
+          {
+            "id": "agent_2",
+            "type": "agent",
+            "label": "Carol White",
+            "active": false
+          },
+          {
+            "id": "agent_3",
+            "type": "agent",
+            "label": "David Kim",
+            "active": false
+          },
+          {
+            "id": "agent_4",
+            "type": "agent",
+            "label": "Emma Johnson",
+            "active": false
+          },
+          {
+            "id": "post_0",
+            "type": "post",
+            "label": "AI is transforming software de"
+          },
+          {
+            "id": "post_1",
+            "type": "post",
+            "label": "Morning workout routine that c"
+          },
+          {
+            "id": "post_2",
+            "type": "post",
+            "label": "The economic policy debate we "
+          },
+          {
+            "id": "post_3",
+            "type": "post",
+            "label": "My latest digital art series i"
+          },
+          {
+            "id": "post_4",
+            "type": "post",
+            "label": "Climate data shows alarming tr"
+          }
+        ],
+        "edges": [
+          {
+            "source": "agent_0",
+            "target": "post_0",
+            "type": "interact"
+          },
+          {
+            "source": "agent_0",
+            "target": "post_1",
+            "type": "interact"
+          },
+          {
+            "source": "agent_2",
+            "target": "post_2",
+            "type": "interact"
+          }
+        ],
+        "metrics": {
+          "totalNodes": 10,
+          "totalEdges": 3,
+          "totalPosts": 12,
+          "activeAgents": 2,
+          "velocity": 0.5155,
+          "herdIndex": 0.5543
+        }
+      },
+      "stepsTrace": [
+        {
+          "step": 1,
+          "polarization": 0.5356,
+          "herd_index": 0.5415,
+          "velocity": 0.3639,
+          "total_posts": 6,
+          "unique_active_agents": 2
+        },
+        {
+          "step": 2,
+          "polarization": 0.551,
+          "herd_index": 0.5457,
+          "velocity": 0.3613,
+          "total_posts": 7,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 3,
+          "polarization": 0.558,
+          "herd_index": 0.582,
+          "velocity": 0.2279,
+          "total_posts": 9,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 4,
+          "polarization": 0.5538,
+          "herd_index": 0.5447,
+          "velocity": 0.4003,
+          "total_posts": 10,
+          "unique_active_agents": 3
+        },
+        {
+          "step": 5,
+          "polarization": 0.5543,
+          "herd_index": 0.5477,
+          "velocity": 0.5155,
+          "total_posts": 12,
+          "unique_active_agents": 2
+        }
+      ]
+    }
+  ]
+}
