@@ -1,0 +1,169 @@
+{
+  "step_trace": [
+    {
+      "step": 1,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 5.46
+    },
+    {
+      "step": 2,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.82
+    },
+    {
+      "step": 3,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.94
+    },
+    {
+      "step": 4,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.81
+    },
+    {
+      "step": 5,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.78
+    },
+    {
+      "step": 6,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.85
+    },
+    {
+      "step": 7,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 0.84
+    },
+    {
+      "step": 8,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.37
+    },
+    {
+      "step": 9,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.11
+    },
+    {
+      "step": 10,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.14
+    },
+    {
+      "step": 11,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.11
+    },
+    {
+      "step": 12,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.11
+    },
+    {
+      "step": 13,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 2.09
+    },
+    {
+      "step": 14,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.2
+    },
+    {
+      "step": 15,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.23
+    },
+    {
+      "step": 16,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.13
+    },
+    {
+      "step": 17,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.16
+    },
+    {
+      "step": 18,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.13
+    },
+    {
+      "step": 19,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 2.34
+    },
+    {
+      "step": 20,
+      "totalPosts": 2,
+      "polarization": 0.41999999999999993,
+      "step_time": 1.19
+    }
+  ],
+  "truth_table": [
+    {
+      "metric": "Polarization Trend",
+      "page_value": "min=0.4200, max=0.4200, variation=0.0000",
+      "data_source": "/api/sim/step \u2192 polarization field",
+      "calculation": "LLM stance analysis \u2192 variance normalization (polarization_analyzer.py)",
+      "is_credible": "\u26a0\ufe0f NO VARIATION",
+      "notes": "Constant value - may need more diverse agents"
+    },
+    {
+      "metric": "Propagation Speed",
+      "page_value": "0.0719 posts/s",
+      "data_source": "/api/sim/step \u2192 totalPosts + step_time",
+      "calculation": "\u0394posts / \u0394time",
+      "is_credible": "\u2705 YES",
+      "notes": "Final posts=2, total_time=27.8s"
+    },
+    {
+      "metric": "Herd Index",
+      "page_value": "polarization unique values: 1/20",
+      "data_source": "/api/sim/step \u2192 polarization (proxy)",
+      "calculation": "HHI normalization of action distribution",
+      "is_credible": "\u26a0\ufe0f CONSTANT",
+      "notes": "Varies with agent behavior diversity"
+    },
+    {
+      "metric": "Unimplemented Placeholders",
+      "page_value": "Coming Soon labels",
+      "data_source": "Frontend src/pages/Analytics.tsx",
+      "calculation": "Static placeholder text",
+      "is_credible": "\u2705 YES (honest)",
+      "notes": "No fake data impersonating real metrics (confirmed ST-03)"
+    }
+  ],
+  "summary": {
+    "total_steps": 20,
+    "final_posts": 2,
+    "pol_variation": 0.0,
+    "pol_has_variation": false,
+    "propagation_speed": 0.0719237296071608,
+    "herd_varying": false,
+    "analytics_available": false,
+    "history_available": true,
+    "logs_available": true
+  }
+}

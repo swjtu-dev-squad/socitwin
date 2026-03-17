@@ -1,0 +1,60 @@
+[
+  {
+    "label": "Config-A",
+    "agent_count": 3,
+    "num_steps": 10,
+    "final_posts": 1,
+    "max_posts": 1,
+    "total_logs": 31,
+    "avg_step_time": 1.21,
+    "llm_active_steps": 1,
+    "errors": [],
+    "step_posts_trace": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "pass": true
+  },
+  {
+    "label": "Config-B",
+    "agent_count": 5,
+    "num_steps": 20,
+    "final_posts": 1,
+    "max_posts": 1,
+    "total_logs": 101,
+    "avg_step_time": 1.35,
+    "llm_active_steps": 4,
+    "errors": [],
+    "step_posts_trace": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "pass": true
+  }
+]

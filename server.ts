@@ -22,6 +22,14 @@ function startOasisEngine() {
   console.log("Starting OASIS Engine...");
   oasisProcess = spawn(path.join(__dirname, ".venv", "bin", "python"), [path.join(__dirname, "oasis_dashboard", "real_oasis_engine_v3.py"), "--rpc"], {
     stdio: ["pipe", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      // Use OpenAI-compatible API instead of default ollama/qwen3:8b
+      OASIS_MODEL_PLATFORM: process.env.OASIS_MODEL_PLATFORM || "openai",
+      OASIS_MODEL_TYPE: process.env.OASIS_MODEL_TYPE || "gpt-4.1-mini",
+      OASIS_MODEL_API_KEY: process.env.OPENAI_API_KEY || "",
+      OASIS_MODEL_URL: process.env.OASIS_MODEL_URL || process.env.OPENAI_BASE_URL || "",
+    },
   });
 
   oasisProcess.stdout.on("data", (data: Buffer) => {

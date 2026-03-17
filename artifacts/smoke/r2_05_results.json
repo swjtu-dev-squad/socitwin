@@ -1,0 +1,27 @@
+{
+  "gates": [
+    {
+      "name": "CLI smoke uses independent fixture database",
+      "passed": true
+    },
+    {
+      "name": "Dashboard uses separate database from CLI",
+      "passed": true
+    },
+    {
+      "name": "No disk I/O errors during R2 smoke round",
+      "passed": true
+    },
+    {
+      "name": "Dashboard interactions go through API only",
+      "passed": true
+    },
+    {
+      "name": "No concurrent access errors",
+      "passed": true
+    }
+  ],
+  "passed": 5,
+  "total": 5,
+  "overall": "PASS"
+}
