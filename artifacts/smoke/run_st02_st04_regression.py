@@ -145,3 +145,64 @@ output = {
 with open("artifacts/smoke/st02_st04_regression_result.json", "w") as f:
     json.dump(output, f, indent=2, ensure_ascii=False)
 print("\n结果已保存至 artifacts/smoke/st02_st04_regression_result.json")
+
+# ── ST-04-EXTENDED: 后端指标验证 ────────────────────────────────
+print("\n[ST-04-EXTENDED] 后端指标验证")
+
+# 获取最新的 step 响应来验证后端指标
+step_response = api("/api/sim/step", "POST")
+time.sleep(1)
+
+backend_velocity = step_response.get("velocity", None)
+backend_hhi = step_response.get("herd_hhi", None)
+
+print(f"  后端 velocity 字段存在: {'✅' if backend_velocity is not None else '❌'}")
+print(f"  后端 herd_hhi 字段存在: {'✅' if backend_hhi is not None else '❌'}")
+
+backend_metrics_ok = True
+metrics_details = {}
+
+if backend_velocity is not None:
+    print(f"  velocity 值: {backend_velocity} (类型: {type(backend_velocity).__name__})")
+    backend_metrics_ok = isinstance(backend_velocity, (int, float)) and backend_velocity >= 0
+    metrics_details["backend_velocity"] = backend_velocity
+else:
+    backend_metrics_ok = False
+    metrics_details["backend_velocity"] = None
+
+if backend_hhi is not None:
+    print(f"  herd_hhi 值: {backend_hhi} (类型: {type(backend_hhi).__name__})")
+    backend_metrics_ok = backend_metrics_ok and isinstance(backend_hhi, (int, float)) and 0 <= backend_hhi <= 1
+    metrics_details["backend_hhi"] = backend_hhi
+else:
+    backend_metrics_ok = False
+    metrics_details["backend_hhi"] = None
+
+# 检查详细指标字段
+velocity_details = step_response.get("velocity_details", None)
+hhi_details = step_response.get("herd_hhi_details", None)
+
+print(f"  velocity_details 存在: {'✅' if velocity_details else '⚠️'}")
+print(f"  herd_hhi_details 存在: {'✅' if hhi_details else '⚠️'}")
+
+if velocity_details:
+    print(f"    velocity_details.step_number: {velocity_details.get('step_number')}")
+    print(f"    velocity_details.delta_posts: {velocity_details.get('delta_posts')}")
+
+if hhi_details and not hhi_details.get("degraded"):
+    print(f"    herd_hhi_details.total_actions: {hhi_details.get('total_actions')}")
+    print(f"    herd_hhi_details.n_action_types: {hhi_details.get('n_action_types')}")
+
+st04_extended_pass = backend_metrics_ok
+results["ST-04-EXTENDED"] = "PASS" if st04_extended_pass else "FAIL"
+print(f"\n  ST-04-EXTENDED 结论: {'✅ PASS' if st04_extended_pass else '❌ FAIL'}")
+
+# 更新输出以包含扩展测试
+output["results"]["ST-04-EXTENDED"] = "PASS" if st04_extended_pass else "FAIL"
+output["details"]["st04_extended_backend_velocity"] = backend_velocity
+output["details"]["st04_extended_backend_hhi"] = backend_hhi
+
+# 重新保存包含扩展测试的结果
+with open("artifacts/smoke/st02_st04_regression_result.json", "w") as f:
+    json.dump(output, f, indent=2, ensure_ascii=False)
+
