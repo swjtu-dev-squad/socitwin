@@ -32,15 +32,26 @@ export interface CompareResult {
 export function extractCompareMetrics(result: ExperimentRunResult, recommender: string): CompareMetrics | null {
   const run = result.runs?.find(r => r.recommender === recommender);
   if (!run) return null;
+  // Extract time-series from stepsTrace (preferred) or fallback to metrics arrays
+  const stepsTrace = (run as any).stepsTrace || [];
+  const polarization_trace = stepsTrace.length > 0
+    ? stepsTrace.map((s: any) => s.polarization)
+    : (run.metrics.polarization_trace || []);
+  const herd_trace = stepsTrace.length > 0
+    ? stepsTrace.map((s: any) => s.herd_index)
+    : (run.metrics.herd_trace || []);
+  const velocity_trace = stepsTrace.length > 0
+    ? stepsTrace.map((s: any) => s.velocity)
+    : (run.metrics.velocity_trace || []);
   return {
     recommender,
     polarization_final: run.metrics.polarization_final,
     herd_index_final: run.metrics.herd_index_final,
     velocity_avg: run.metrics.velocity_avg,
     total_posts: run.metrics.total_posts,
-    polarization_trace: run.metrics.polarization_trace || [],
-    herd_trace: run.metrics.herd_trace || [],
-    velocity_trace: run.metrics.velocity_trace || [],
+    polarization_trace,
+    herd_trace,
+    velocity_trace,
   };
 }
 

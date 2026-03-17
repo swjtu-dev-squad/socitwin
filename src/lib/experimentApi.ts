@@ -23,6 +23,15 @@ export interface ExperimentRunResult {
   error?: string;
 }
 
+export interface StepTrace {
+  step: number;
+  polarization: number;
+  herd_index: number;
+  velocity: number;
+  total_posts: number;
+  unique_active_agents: number;
+}
+
 export interface ExperimentRun {
   recommender: string;
   metrics: {
@@ -30,12 +39,14 @@ export interface ExperimentRun {
     herd_index_final: number;
     velocity_avg: number;
     total_posts: number;
-    unique_agents: number;
-    steps_completed: number;
-    polarization_trace: number[];
-    herd_trace: number[];
-    velocity_trace: number[];
+    unique_agents?: number;
+    unique_active_agents?: number;
+    steps_completed?: number;
+    polarization_trace?: number[];
+    herd_trace?: number[];
+    velocity_trace?: number[];
   };
+  stepsTrace?: StepTrace[];
 }
 
 export interface ExperimentListItem {
