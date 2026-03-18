@@ -799,8 +799,8 @@ print(json.dumps(result))
         timeout: 120000,
         maxBuffer: 10 * 1024 * 1024,
         env: { ...process.env },
-        shell: true,
-      });
+        shell: '/bin/bash',
+      } as any);
       const result = JSON.parse(output.toString().trim());
       res.json({ success: true, ...result });
     } catch (err: any) {

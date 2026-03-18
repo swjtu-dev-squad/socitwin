@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { FlaskConical, BarChart3, Archive } from 'lucide-react';
 import ExperimentRunnerPanel from '../components/ExperimentRunnerPanel';
 import ExperimentComparePanel from '../components/ExperimentComparePanel';
