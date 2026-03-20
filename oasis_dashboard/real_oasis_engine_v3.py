@@ -169,6 +169,12 @@ class RealOASISEngineV3:
         # 系统行为指标分析器
         self.metrics_analyzer: Optional[Any] = None
 
+        # OASIS 论文指标：Round 概念和传播分析器
+        self.round_duration_steps = int(os.environ.get("OASIS_ROUND_DURATION_STEPS", "10"))
+        self.current_round = 0
+        self.propagation_analyzer: Optional[Any] = None
+        self.last_propagation: Dict[str, Any] = {}
+
         # 增量日志水位线游标（修复 Issue #13：防止历史帖子被重复返回为 new_logs）
         # 每次 step 只返回 post_id > _last_seen_post_id 的新记录
         self._last_seen_post_id: int = 0
@@ -589,6 +595,27 @@ class RealOASISEngineV3:
                 print(f"⚠️  指标分析器初始化失败: {e}", flush=True)
                 self.metrics_analyzer = None
 
+            # 初始化传播分析器（OASIS 论文指标）
+            try:
+                from oasis_dashboard.propagation_analyzer import PropagationAnalyzer
+
+                enable_nrmse = os.environ.get("OASIS_PROPAGATION_NRMSE", "false").lower() == "true"
+                real_data_path = os.environ.get("OASIS_PROPAGATION_REAL_DATA_PATH")
+
+                self.propagation_analyzer = PropagationAnalyzer(
+                    db_path=self.db_path,
+                    cache_size=1000,
+                    round_duration_steps=self.round_duration_steps,
+                    enable_nrmse=enable_nrmse,
+                    real_data_path=real_data_path,
+                )
+
+                print(f"✅ 传播分析器已初始化 (round_duration={self.round_duration_steps}, enable_nrmse={enable_nrmse})", flush=True)
+
+            except Exception as e:
+                print(f"⚠️  传播分析器初始化失败: {e}", flush=True)
+                self.propagation_analyzer = None
+
             # 初始化成功：重置增量日志水位线，确保新轮模拟不继承旧游标
             self._last_seen_post_id = 0
             self._last_seen_like_id = 0
@@ -876,12 +903,26 @@ class RealOASISEngineV3:
             # 从 OASIS 数据库读取真实的 agent 行为日志
             new_logs = self._get_real_agent_actions()
 
-            # 计算极化率（每一步都检查）
-            polarization_result = await self._update_polarization()
+            # ========== OASIS 论文指标计算 ==========
 
-            # 计算系统行为指标
-            velocity_result = self._update_velocity()
-            hhi_result = await self._update_herd_hhi()
+            # 计算 Round（10 steps = 1 round）
+            self.current_round = (self.current_step - 1) // self.round_duration_steps + 1
+
+            # Round 0：保存极化基线
+            if self.current_round == 0 and self.polarization_analyzer is not None:
+                await self.polarization_analyzer._save_round_0_baseline()
+
+            # 计算极化率（每一步都检查）
+            polarization_result = await self._update_polarization_with_comparison()
+
+            # 计算传播指标（每 round 更新一次）
+            if self.current_step % self.round_duration_steps == 0:
+                propagation_result = await self._update_propagation()
+            else:
+                propagation_result = self._get_cached_propagation()
+
+            # 计算羊群效应（Reddit 热度算法，每一步都检查）
+            herd_result = await self._update_herd_effect_reddit()
 
             # 更新上一步数据
             if self.metrics_analyzer is not None:
@@ -939,18 +980,32 @@ class RealOASISEngineV3:
             return {
                 "status": "ok",
                 "current_step": self.current_step,
+                "current_round": self.current_round,  # ← 新增：当前 Round
                 "total_posts": self.total_posts,
                 "active_agents": self.active_agents,
                 "step_time": step_time,
                 "context_metrics": context_metrics,
                 "new_logs": new_logs,  # ← 返回所有日志
-                "polarization": polarization_result.get("polarization", 0.0),  # ← 极化率
-                "velocity": velocity_result.get("velocity", 0.0),  # ← 信息传播速度
-                "herd_hhi": hhi_result.get("herd_hhi", 0.0),  # ← 羊群效应指数
-                # 包含完整结果用于调试
-                "velocity_details": velocity_result,
-                "herd_hhi_details": hhi_result,
+                # ========== OASIS 论文指标 ==========
+                "polarization": polarization_result.get("polarization", 0.0),  # ← 极化率（保留兼容）
+                "round_comparison": polarization_result.get("round_comparison"),  # ← 新增：Round 对比
+                "propagation": {  # ← 新增：传播指标
+                    "scale": propagation_result.get("scale", 0),
+                    "depth": propagation_result.get("depth", 0),
+                    "max_breadth": propagation_result.get("max_breadth", 0),
+                    "round": propagation_result.get("round", self.current_round),
+                    "nrmse": propagation_result.get("nrmse"),  # 可选：与现实数据对比
+                },
+                "herd_effect": {  # ← 新增：羊群效应（Reddit 热度算法）
+                    "herd_effect_score": herd_result.get("herd_effect_score", 0.0),
+                    "hot_posts_count": herd_result.get("hot_posts_count", 0),
+                    "cold_posts_count": herd_result.get("cold_posts_count", 0),
+                    "behavior_difference": herd_result.get("behavior_difference", 0.0),
+                },
+                # ========== 详细字段（用于调试） ==========
                 "polarization_details": polarization_result,
+                "propagation_details": propagation_result,
+                "herd_effect_details": herd_result,
                 "sidecar_stats": sidecar_stats,  # ← compaction 可观测测字段（Issue #26/#27）
             }
             
@@ -1077,6 +1132,95 @@ class RealOASISEngineV3:
                 return {"polarization": avg_pol, "degraded": True}
 
             return {"polarization": 0.0, "error": str(e)}
+
+    async def _update_polarization_with_comparison(self) -> Dict:
+        """
+        更新极化率 + Round 对比（每一步都调用）
+
+        Returns:
+            极化率指标字典，包含 round_comparison（在 round 切换时）
+        """
+        # 调用原有的极化分析
+        result = await self._update_polarization()
+
+        # Round 对比（仅在 round 切换且 round > 0 时）
+        if (
+            self.current_step % self.round_duration_steps == 0
+            and self.current_round > 0
+            and self.polarization_analyzer is not None
+        ):
+            try:
+                comparison = await self.polarization_analyzer.compare_rounds(self.current_round)
+                result['round_comparison'] = comparison.get('comparison', {})
+                result['llm_evaluation'] = comparison.get('llm_evaluation', '')
+            except Exception as e:
+                print(f"⚠️  Round 对比失败: {e}", flush=True)
+                result['round_comparison'] = None
+
+        return result
+
+    async def _update_propagation(self) -> Dict:
+        """
+        更新传播指标（每 round 更新一次）
+
+        Returns:
+            传播指标字典
+        """
+        if not hasattr(self, 'propagation_analyzer') or self.propagation_analyzer is None:
+            return {"scale": 0, "depth": 0, "max_breadth": 0, "round": self.current_round}
+
+        try:
+            result = await self.propagation_analyzer.analyze_round(self.current_round)
+            self.last_propagation = result
+            return result
+        except Exception as e:
+            print(f"⚠️  传播分析失败: {e}", flush=True)
+            return {
+                "scale": 0,
+                "depth": 0,
+                "max_breadth": 0,
+                "round": self.current_round,
+                "error": str(e)
+            }
+
+    def _get_cached_propagation(self) -> Dict:
+        """获取缓存的传播指标"""
+        if not hasattr(self, 'propagation_analyzer') or self.propagation_analyzer is None:
+            return {"scale": 0, "depth": 0, "max_breadth": 0, "round": self.current_round}
+
+        try:
+            return self.propagation_analyzer.get_cached_round(self.current_round)
+        except:
+            return {
+                "scale": self.last_propagation.get("scale", 0),
+                "depth": self.last_propagation.get("depth", 0),
+                "max_breadth": self.last_propagation.get("max_breadth", 0),
+                "round": self.current_round,
+            }
+
+    async def _update_herd_effect_reddit(self) -> Dict:
+        """
+        更新羊群效应（Reddit 热度算法，每一步都调用）
+
+        Returns:
+            羊群效应指标字典
+        """
+        if not hasattr(self, 'metrics_analyzer') or self.metrics_analyzer is None:
+            return {"herd_effect_score": 0.0}
+
+        try:
+            result = self.metrics_analyzer.calculate_herd_effect_reddit(
+                step_number=self.current_step,
+                hot_threshold=float(os.environ.get("OASIS_REDDIT_HOT_THRESHOLD", "0.5")),
+                cold_threshold=float(os.environ.get("OASIS_REDDIT_COLD_THRESHOLD", "0.2")),
+            )
+            return result
+        except Exception as e:
+            print(f"⚠️  羊群效应计算失败: {e}", flush=True)
+            return {"herd_effect_score": 0.0, "error": str(e)}
+
+    # ========== 以下为旧方法，已弃用但保留以避免破坏引用 ==========
+    # TODO: 在确认所有引用已更新后删除这些方法
 
     def _update_velocity(self) -> Dict:
         """

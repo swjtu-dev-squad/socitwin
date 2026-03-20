@@ -25,16 +25,48 @@ export interface SimulationStatus {
   running: boolean;
   paused: boolean;
   currentStep: number;
+  currentRound?: number;     // 🆕 Current round number (10 steps = 1 round)
   activeAgents: number;
   totalPosts: number;
   polarization: number;
-  velocity?: number;        // 🆕 Information velocity (posts/second)
-  herdHhi?: number;         // 🆕 Herd effect index (normalized HHI)
   agents: Agent[];
   platform?: string;
   recsys?: string;
   topics?: string[];
   regions?: string[];
+
+  // ========== OASIS Paper Metrics ==========
+
+  // 🆕 Information Propagation Metrics
+  propagation?: {
+    scale: number;           // Number of unique users in propagation
+    depth: number;           // Maximum depth of propagation graph
+    maxBreadth: number;      // Maximum breadth at any depth level
+    round: number;           // Current round number
+    nrmse?: number;          // Normalized RMSE vs real data (optional)
+  };
+
+  // 🆕 Group Polarization Metrics
+  roundComparison?: {
+    moreExtreme: number;     // Proportion moving to extreme positions
+    moreProgressive: number; // Proportion moving to center/progressive
+    unchanged: number;       // Proportion with no significant change
+  };
+  llmEvaluation?: string;    // LLM's explanation of polarization shift
+
+  // 🆕 Herd Effect Metrics (Reddit Hot Score)
+  herdEffect?: {
+    herdEffectScore: number; // Herd effect strength (0-1)
+    hotPostsCount: number;   // Number of hot posts
+    coldPostsCount: number;  // Number of cold posts
+    behaviorDifference: number; // Engagement difference (hot - cold) normalized
+  };
+
+  // ========== Legacy / Debug Fields ==========
+  // TODO: Remove after migration is complete
+
+  velocity?: number;        // ⚠️ DEPRECATED: Replaced by propagation.scale
+  herdHhi?: number;         // ⚠️ DEPRECATED: Replaced by herdEffect.herdEffectScore
 
   // 🆕 Track initialization phase (Phase 4)
   initializationPhase?: boolean;
@@ -47,6 +79,11 @@ export interface SimulationStatus {
     neutral: number;
     farRight: number;
   };
+
+  // ========== Detailed Metrics (for debugging) ==========
+  polarizationDetails?: any;
+  propagationDetails?: any;
+  herdEffectDetails?: any;
 }
 
 export interface StatsHistoryEntry extends SimulationStatus {
