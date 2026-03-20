@@ -82,6 +82,7 @@ class PolarizationAnalyzer:
         self.last_analyzed_post_id = 0
         self.history: List[float] = []  # 最近的分析结果用于降级
         self.last_result: Dict = {}
+        self.round_0_baseline: Dict = {}  # Round 0 基线数据（用于对比）
 
         # 初始化数据库缓存表
         self._init_cache_table()
@@ -848,3 +849,473 @@ Your response:"""
         if len(text) <= max_length:
             return text
         return text[:max_length] + "..."
+
+    # ========== Round Comparison Methods (OASIS Paper Metrics) ==========
+
+    async def _save_round_0_baseline(self):
+        """
+        保存 Round 0 的基线数据
+
+        采样 Round 0 的帖子，分析立场，保存到数据库作为后续对比的基准。
+        """
+        try:
+            logger.info("正在保存 Round 0 极化基线...")
+
+            # 采样 Round 0 的帖子（使用 sample_size）
+            posts = self._get_round_posts(round_number=0, sample_size=self.sample_size)
+
+            if not posts:
+                logger.warning("Round 0 没有找到帖子，跳过基线保存")
+                return
+
+            # 分析立场
+            stances = await self._analyze_with_chunk_fallback(posts)
+
+            if not stances:
+                logger.warning("Round 0 立场分析失败，使用启发式估计")
+                stances = self._heuristic_stance_batch(posts)
+
+            # 计算基线统计
+            import numpy as np
+            self.round_0_baseline = {
+                'mean_stance': float(np.mean(stances)),
+                'std_stance': float(np.std(stances)),
+                'extreme_ratio': float(np.mean([abs(s - 0.5) * 2 for s in stances])),
+                'stances': stances,
+                'sample_size': len(stances),
+                'timestamp': datetime.now().isoformat(),
+            }
+
+            # 持久化到数据库
+            self._save_baseline_to_db(self.round_0_baseline)
+
+            logger.info(
+                f"✅ Round 0 基线已保存: "
+                f"mean={self.round_0_baseline['mean_stance']:.3f}, "
+                f"std={self.round_0_baseline['std_stance']:.3f}, "
+                f"sample_size={len(stances)}"
+            )
+
+        except Exception as e:
+            logger.error(f"保存 Round 0 基线失败: {e}")
+            self.round_0_baseline = {}
+
+    def _get_round_posts(
+        self,
+        round_number: int,
+        sample_size: int = 30
+    ) -> List[Dict]:
+        """
+        获取指定 Round 的帖子
+
+        Args:
+            round_number: Round 编号
+            sample_size: 采样数量
+
+        Returns:
+            帖子列表
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 简化实现：使用 post_id 范围近似 round
+            # 生产环境应使用 step 字段或 created_at
+            if round_number == 0:
+                # Round 0: 最早的帖子
+                cursor.execute("""
+                    SELECT
+                        p.post_id,
+                        p.content,
+                        p.num_likes
+                    FROM post p
+                    ORDER BY p.post_id ASC
+                    LIMIT ?
+                """, (sample_size,))
+            else:
+                # Round N: 后续帖子
+                start_id = round_number * sample_size
+                cursor.execute("""
+                    SELECT
+                        p.post_id,
+                        p.content,
+                        p.num_likes
+                    FROM post p
+                    WHERE p.post_id >= ?
+                    ORDER BY p.post_id ASC
+                    LIMIT ?
+                """, (start_id, sample_size))
+
+            posts = []
+            for row in cursor.fetchall():
+                posts.append({
+                    'post_id': row[0],
+                    'content': row[1],
+                    'num_likes': row[2] or 0,
+                })
+
+            conn.close()
+            return posts
+
+        except Exception as e:
+            logger.error(f"获取 Round {round_number} 帖子失败: {e}")
+            return []
+
+    def _save_baseline_to_db(self, baseline: Dict):
+        """
+        保存基线到数据库
+
+        Args:
+            baseline: 基线数据字典
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 确保 polarization_baseline 表存在
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS polarization_baseline (
+                    round_number INTEGER PRIMARY KEY,
+                    baseline_data TEXT NOT NULL,
+                    saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 保存基线
+            cursor.execute("""
+                INSERT OR REPLACE INTO polarization_baseline
+                (round_number, baseline_data, saved_at)
+                VALUES (0, ?, CURRENT_TIMESTAMP)
+            """, (json.dumps(baseline),))
+
+            conn.commit()
+            conn.close()
+
+            logger.debug("基线已保存到数据库")
+
+        except Exception as e:
+            logger.error(f"保存基线到数据库失败: {e}")
+
+    async def compare_rounds(self, round_n: int) -> Dict:
+        """
+        对比 Round N vs Round 0 的极化变化
+
+        使用 LLM (GPT-4o-mini) 评估立场变化，分类为：
+        - More Extreme/Conservative: 更极端/保守
+        - More Progressive: 更进步
+        - Unchanged: 无显著变化
+
+        Args:
+            round_n: 当前 Round 编号
+
+        Returns:
+            {
+                'round_n': int,
+                'round_0_baseline': dict,
+                'comparison': {
+                    'more_extreme': float,  # 0-1
+                    'more_progressive': float,  # 0-1
+                    'unchanged': float,  # 0-1
+                },
+                'llm_evaluation': str,
+                'confidence': float,
+                'sample_size': int,
+            }
+        """
+        try:
+            if not self.round_0_baseline:
+                logger.warning("Round 0 基线不存在，无法对比")
+                return {
+                    'round_n': round_n,
+                    'error': 'no_baseline',
+                    'comparison': None
+                }
+
+            # 获取 Round N 的帖子
+            round_n_posts = self._get_round_posts(round_n, self.sample_size)
+
+            if not round_n_posts:
+                logger.warning(f"Round {round_n} 没有帖子，无法对比")
+                return {
+                    'round_n': round_n,
+                    'error': 'no_posts',
+                    'comparison': None
+                }
+
+            # 分析 Round N 的立场
+            round_n_stances = await self._analyze_with_chunk_fallback(round_n_posts)
+
+            if not round_n_stances:
+                logger.warning(f"Round {round_n} 立场分析失败")
+                round_n_stances = self._heuristic_stance_batch(round_n_posts)
+
+            # LLM 对比评估
+            comparison = await self._llm_compare_rounds(round_n_stances)
+
+            # 保存对比结果到数据库
+            self._save_comparison_to_db(round_n, comparison)
+
+            result = {
+                'round_n': round_n,
+                'round_0_baseline': {
+                    'mean_stance': self.round_0_baseline.get('mean_stance', 0),
+                    'std_stance': self.round_0_baseline.get('std_stance', 0),
+                    'extreme_ratio': self.round_0_baseline.get('extreme_ratio', 0),
+                },
+                'comparison': comparison.get('comparison', {}),
+                'llm_evaluation': comparison.get('llm_evaluation', ''),
+                'confidence': comparison.get('confidence', 0.8),
+                'sample_size': len(round_n_stances),
+            }
+
+            logger.info(
+                f"✅ Round {round_n} vs Round 0 对比完成: "
+                f"more_extreme={comparison['comparison'].get('more_extreme', 0):.2f}, "
+                f"more_progressive={comparison['comparison'].get('more_progressive', 0):.2f}"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Round 对比失败: {e}")
+            return {
+                'round_n': round_n,
+                'error': str(e),
+                'comparison': None
+            }
+
+    async def _llm_compare_rounds(self, round_n_stances: List[float]) -> Dict:
+        """
+        使用 LLM 对比 Round N vs Round 0
+
+        Args:
+            round_n_stances: Round N 的立场分数列表
+
+        Returns:
+            {
+                'comparison': {more_extreme, more_progressive, unchanged},
+                'llm_evaluation': str,
+                'confidence': float
+            }
+        """
+        try:
+            import numpy as np
+
+            # 准备数据摘要
+            round_0_summary = {
+                'mean': self.round_0_baseline.get('mean_stance', 0.5),
+                'std': self.round_0_baseline.get('std_stance', 0),
+                'extreme': self.round_0_baseline.get('extreme_ratio', 0),
+                'distribution': self._get_distribution_description(self.round_0_baseline.get('stances', []))
+            }
+
+            round_n_summary = {
+                'mean': float(np.mean(round_n_stances)),
+                'std': float(np.std(round_n_stances)),
+                'extreme': float(np.mean([abs(s - 0.5) * 2 for s in round_n_stances])),
+                'distribution': self._get_distribution_description(round_n_stances)
+            }
+
+            # 构建 LLM prompt
+            prompt = f"""You are analyzing polarization shifts in social media discussions about "{self.topic}".
+
+Round 0 Baseline (Initial State):
+- Mean stance: {round_0_summary['mean']:.3f} (0=opposed, 1=supportive, 0.5=neutral)
+- Std deviation: {round_0_summary['std']:.3f}
+- Extreme ratio: {round_0_summary['extreme']:.3f} (0=centered, 1=extreme)
+- Distribution: {round_0_summary['distribution']}
+
+Round Current State:
+- Mean stance: {round_n_summary['mean']:.3f}
+- Std deviation: {round_n_summary['std']:.3f}
+- Extreme ratio: {round_n_summary['extreme']:.3f}
+- Distribution: {round_n_summary['distribution']}
+
+Task: Classify the stance changes from Round 0 to Round Current into three categories:
+1. More Extreme/Conservative: Users moved toward extreme positions (closer to 0 or 1)
+2. More Progressive: Users moved toward moderate/center positions (closer to 0.5)
+3. Unchanged: No significant shift
+
+IMPORTANT: Return ONLY a valid JSON object with exact keys:
+{{"more_extreme": <float between 0-1>, "more_progressive": <float between 0-1>, "unchanged": <float between 0-1>, "reasoning": "<brief explanation>"}}
+
+The three values must sum to 1.0.
+
+Your response:"""
+
+            # 调用 LLM
+            base_message = BaseMessage.make_user_message(
+                role_name="user",
+                content=prompt
+            )
+            openai_message = base_message.to_openai_message(OpenAIBackendRole.USER)
+
+            response = await asyncio.wait_for(
+                self.model.arun([openai_message]),
+                timeout=self.request_timeout_s
+            )
+
+            result_text = self._extract_response_text(response)
+
+            # 解析 JSON
+            comparison = json.loads(result_text)
+
+            # 验证和归一化
+            more_extreme = float(comparison.get('more_extreme', 0.33))
+            more_progressive = float(comparison.get('more_progressive', 0.33))
+            unchanged = float(comparison.get('unchanged', 0.34))
+
+            # 确保和为 1.0
+            total = more_extreme + more_progressive + unchanged
+            if total > 0:
+                more_extreme /= total
+                more_progressive /= total
+                unchanged /= total
+
+            return {
+                'comparison': {
+                    'more_extreme': round(more_extreme, 4),
+                    'more_progressive': round(more_progressive, 4),
+                    'unchanged': round(unchanged, 4),
+                },
+                'llm_evaluation': comparison.get('reasoning', ''),
+                'confidence': 0.8
+            }
+
+        except Exception as e:
+            logger.error(f"LLM 对比失败: {e}")
+            # 降级：使用统计方法估计
+            return self._fallback_statistical_comparison(round_n_stances)
+
+    def _get_distribution_description(self, stances: List[float]) -> str:
+        """
+        生成立场分布的文字描述
+
+        Args:
+            stances: 立场分数列表
+
+        Returns:
+            分布描述字符串
+        """
+        import numpy as np
+
+        if not stances:
+            return "No data"
+
+        left = sum(1 for s in stances if s < 0.4)
+        center = sum(1 for s in stances if 0.4 <= s <= 0.6)
+        right = sum(1 for s in stances if s > 0.6)
+
+        total = len(stances)
+        return f"Left: {left/total:.1%}, Center: {center/total:.1%}, Right: {right/total:.1%}"
+
+    def _fallback_statistical_comparison(self, round_n_stances: List[float]) -> Dict:
+        """
+        LLM 失败时的统计方法降级
+
+        Args:
+            round_n_stances: Round N 的立场分数
+
+        Returns:
+            对比结果字典
+        """
+        import numpy as np
+
+        round_n_mean = np.mean(round_n_stances)
+        round_0_mean = self.round_0_baseline.get('mean_stance', 0.5)
+
+        # 简单判断：均值是否向极端方向移动
+        if abs(round_n_mean - 0.5) > abs(round_0_mean - 0.5):
+            # 向极端移动
+            more_extreme = 0.6
+            more_progressive = 0.2
+            unchanged = 0.2
+        elif abs(round_n_mean - 0.5) < abs(round_0_mean - 0.5):
+            # 向中心移动
+            more_extreme = 0.2
+            more_progressive = 0.6
+            unchanged = 0.2
+        else:
+            # 无显著变化
+            more_extreme = 0.2
+            more_progressive = 0.2
+            unchanged = 0.6
+
+        return {
+            'comparison': {
+                'more_extreme': round(more_extreme, 4),
+                'more_progressive': round(more_progressive, 4),
+                'unchanged': round(unchanged, 4),
+            },
+            'llm_evaluation': 'Statistical fallback (LLM unavailable)',
+            'confidence': 0.5,
+            'degraded': True
+        }
+
+    def _save_comparison_to_db(self, round_n: int, comparison: Dict):
+        """
+        保存对比结果到数据库
+
+        Args:
+            round_n: Round 编号
+            comparison: 对比结果字典
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # 确保 polarization_comparison 表存在
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS polarization_comparison (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    round_n INTEGER NOT NULL UNIQUE,
+                    comparison_result TEXT NOT NULL,
+                    computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 保存对比结果
+            cursor.execute("""
+                INSERT OR REPLACE INTO polarization_comparison
+                (round_n, comparison_result, computed_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (round_n, json.dumps(comparison),))
+
+            conn.commit()
+            conn.close()
+
+            logger.debug(f"Round {round_n} 对比结果已保存到数据库")
+
+        except Exception as e:
+            logger.error(f"保存对比结果失败: {e}")
+
+    def get_round_baseline(self, round_number: int = 0) -> Dict:
+        """
+        从数据库获取基线数据
+
+        Args:
+            round_number: Round 编号（默认 0）
+
+        Returns:
+            基线数据字典
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT baseline_data FROM polarization_baseline
+                WHERE round_number = ?
+            """, (round_number,))
+
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return json.loads(row[0])
+
+            return {}
+
+        except Exception as e:
+            logger.warning(f"读取基线失败: {e}")
+            return {}

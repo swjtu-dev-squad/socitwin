@@ -206,11 +206,15 @@ async function startServer() {
     running: false,
     paused: false,
     currentStep: 0,
+    currentRound: 0 as number | null,     // 🆕 OASIS: Current round number
     activeAgents: 0,
     totalPosts: 0,
     polarization: 0.0,
-    velocity: 0.0,           // 🆕 Information velocity (posts/second)
-    herdHhi: 0.0,            // 🆕 Herd effect index (normalized HHI)
+    propagation: null as any,             // 🆕 OASIS: Information propagation metrics
+    roundComparison: null as any,         // 🆕 OASIS: Group polarization round comparison
+    herdEffect: null as any,              // 🆕 OASIS: Herd effect (Reddit hot score)
+    velocity: 0.0,                        // ⚠️ Deprecated: Replaced by propagation
+    herdHhi: 0.0,                         // ⚠️ Deprecated: Replaced by herdEffect
     agents: [] as any[],
     platform: "Reddit",
     recsys: "Hot-score",
@@ -271,7 +275,13 @@ async function startServer() {
       simulationState.polarization = result.polarization ?? simulationState.polarization;
       simulationState.activeAgents = result.active_agents ?? simulationState.activeAgents;
 
-      // 🆕 Update new metrics (Phase 5: velocity + herd effect)
+      // 🆕 OASIS Paper Metrics (Phase 5: propagation, round_comparison, herd_effect)
+      simulationState.currentRound = result.current_round ?? simulationState.currentRound;
+      simulationState.propagation = result.propagation ?? simulationState.propagation;
+      simulationState.roundComparison = result.round_comparison ?? simulationState.roundComparison;
+      simulationState.herdEffect = result.herd_effect ?? simulationState.herdEffect;
+
+      // ⚠️ Deprecated: velocity, herdHhi (kept for backward compatibility)
       simulationState.velocity = result.velocity ?? simulationState.velocity;
       simulationState.herdHhi = result.herd_hhi ?? simulationState.herdHhi;
 
@@ -365,9 +375,13 @@ async function startServer() {
         running: false,
         paused: false,
         currentStep: 0,
+        currentRound: null,
         activeAgents: 0,
         totalPosts: 0,
         polarization: 0.0,
+        propagation: null,
+        roundComparison: null,
+        herdEffect: null,
         velocity: 0.0,
         herdHhi: 0.0,
         agents: [],
