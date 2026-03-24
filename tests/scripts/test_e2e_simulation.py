@@ -13,7 +13,30 @@ This script mimics the frontend workflow:
 5. Generate visualization charts
 
 Usage:
+    python test_e2e_simulation.py [agent_count] [num_steps] [base_url] [topics]
+
+Examples:
     python test_e2e_simulation.py
+    # Defaults: 5 agents, 5 steps, topic="AI"
+
+    python test_e2e_simulation.py 10 10
+    # 10 agents, 10 steps, topic="AI"
+
+    python test_e2e_simulation.py 5 5 http://localhost:3000 "MiddleEast"
+    # Custom topic (loads seeds from prompts/topics/middleeast.json)
+
+    python test_e2e_simulation.py 10 10 http://localhost:3000 "AI,Climate,Politics"
+    # Multiple topics (comma-separated)
+
+Note: Seed posts are automatically loaded from the topic configuration file
+      (prompts/topics/{topic}.json -> seed_posts field)
+    [
+        "The recent escalation shows clear aggression from one side.",
+        "Peace talks are the only way forward - military action will only make things worse.",
+        "International intervention is necessary to prevent further civilian casualties.",
+        "We should respect sovereignty and let regional powers handle the situation.",
+        "Economic sanctions are an effective alternative to military intervention."
+    ]
 """
 
 import requests
@@ -99,7 +122,7 @@ class SimulationTester:
             "platform": platform,
             "recsys": recsys,
             "topics": topics,
-            "regions": regions
+            "regions": regions,
         }
 
         print(f"  Configuration:")
@@ -702,11 +725,13 @@ class SimulationTester:
 def main():
     """Main entry point"""
     import sys
+    import os
 
     # Parse command line arguments
     agent_count = 5
     num_steps = 5
     base_url = "http://localhost:3000"
+    topics = ["AI"]
 
     if len(sys.argv) > 1:
         agent_count = int(sys.argv[1])
@@ -714,6 +739,9 @@ def main():
         num_steps = int(sys.argv[2])
     if len(sys.argv) > 3:
         base_url = sys.argv[3]
+    if len(sys.argv) > 4:
+        # Support comma-separated topics: "AI,Climate,Politics"
+        topics = [t.strip() for t in sys.argv[4].split(",")]
 
     # Run test
     tester = SimulationTester(base_url=base_url)
@@ -723,7 +751,7 @@ def main():
             agent_count=agent_count,
             num_steps=num_steps,
             platform="reddit",
-            topics=["AI"]
+            topics=topics
         )
 
         # Exit with appropriate code

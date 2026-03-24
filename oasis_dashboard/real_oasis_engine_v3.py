@@ -172,6 +172,12 @@ class RealOASISEngineV3:
         # OASIS 论文指标：Round 概念和传播分析器
         self.round_duration_steps = int(os.environ.get("OASIS_ROUND_DURATION_STEPS", "10"))
         self.current_round = 0
+
+        # 🆕 加载 Agent 系统提示词配置
+        self.agent_prompts_config = self._load_agent_prompts_config()
+
+        # 🆕 当前 topic 配置（包含人格列表）
+        self.current_topic_config = None
         self.propagation_analyzer: Optional[Any] = None
         self.last_propagation: Dict[str, Any] = {}
 
@@ -399,58 +405,8 @@ class RealOASISEngineV3:
             ]
             countries = ["Thailand", "Cambodia", "Indonesia", "Vietnam", "Malaysia", "Philippines", "Singapore", "Myanmar", "Laos", "Brunei"]
 
-            # 针对不同话题的多样化profile
-            topic_profiles = {
-                "POLITICS": [
-                    "Conservative political views, support traditional values and limited government",
-                    "Liberal political views, support progressive policies and social justice",
-                    "Moderate centrist, believe in balanced approaches and compromise",
-                    "Libertarian views, support individual freedom and free markets",
-                    "Green politics, focus on environmental protection and sustainability",
-                    "Nationalist views, prioritize country's interests above all else",
-                    "Socialist views, support wealth redistribution and social programs",
-                ],
-                "AI": [
-                    "AI optimist, excited about technological progress and automation",
-                    "AI skeptic, concerned about job displacement and ethical implications",
-                    "AI researcher, focused on technical capabilities and limitations",
-                    "AI ethicist, worried about bias, fairness, and alignment",
-                    "Tech entrepreneur, sees AI as a business opportunity",
-                    "AI artist, explores creative applications of AI tools",
-                ],
-                "ENTERTAINMENT": [
-                    "Movie enthusiast, loves cinema and film analysis",
-                    "Music lover, follows artists and attends concerts",
-                    "Gaming fan, plays video games and follows esports",
-                    "TV series binge-watcher, discusses plot twists and characters",
-                    "Celebrity news follower, keeps up with entertainment industry",
-                    "Pop culture critic, analyzes trends and media influence",
-                ],
-                "HEALTH": [
-                    "Fitness enthusiast, works out regularly and follows diet trends",
-                    "Mental health advocate, promotes therapy and mindfulness",
-                    "Medical professional, shares evidence-based health information",
-                    "Alternative medicine supporter, believes in holistic approaches",
-                    "Nutrition focused, interested in supplements and healthy eating",
-                    "Yoga and wellness practitioner, emphasizes mind-body connection",
-                ],
-                "TRAVEL": [
-                    "Adventure traveler, seeks hiking, diving, and extreme sports",
-                    "Cultural tourist, interested in history, art, and local traditions",
-                    "Luxury traveler, prefers high-end resorts and fine dining",
-                    "Budget backpacker, looks for affordable and authentic experiences",
-                    "Digital nomad, combines work and travel while working remotely",
-                    "Food tourist, travels primarily to try local cuisines",
-                ],
-                "FOOD": [
-                    "Home cook, enjoys trying new recipes and cooking techniques",
-                    "Restaurant reviewer, critiques dining experiences and ambiance",
-                    "Food photographer, focuses on presentation and aesthetics",
-                    "Health-conscious eater, follows specific diets (vegan, keto, etc.)",
-                    "Street food lover, seeks authentic local food experiences",
-                    "Baker and pastry enthusiast, loves desserts and baking",
-                ],
-            }
+            # 加载 topic 配置文件（人格列表 + 提示词）
+            topic_config = self._load_topic_config(primary_topic)
 
             # 初始化 agent graph
             self.agent_graph = AgentGraph()
@@ -470,9 +426,22 @@ class RealOASISEngineV3:
                 agent_mbti = random.choice(mbti_types)
                 agent_country = random.choice(countries)
 
-                # 从话题对应的profile集合中随机选择一个，如果没有则使用默认的
-                topic_profiles_list = topic_profiles.get(agent_topic, [f"Discuss {agent_topic.lower()} and related topics"])
-                agent_user_profile = random.choice(topic_profiles_list)
+                # 🆕 从外部配置文件加载 topic 配置（人格列表 + 提示词）
+                topic_config = self._load_topic_config(agent_topic)
+                self.current_topic_config = topic_config  # 保存供后续使用
+
+                # 从配置的 agent_profiles 列表中随机选择一个
+                agent_profiles_list = topic_config.get("agent_profiles", [])
+                if agent_profiles_list:
+                    selected_profile_config = random.choice(agent_profiles_list)
+                    agent_user_profile = selected_profile_config.get("description")
+                    persona_key = selected_profile_config.get("persona_key")
+                    persona_style = selected_profile_config.get("posting_style", {})
+                else:
+                    # 降级：使用默认描述
+                    agent_user_profile = f"Discuss {agent_topic.lower()} and related topics"
+                    persona_key = "neutral"
+                    persona_style = {}
 
                 # 构建符合OASIS要求的profile结构
                 # OASIS的to_system_message()使用profile['other_info']['user_profile']
@@ -496,10 +465,21 @@ class RealOASISEngineV3:
 
                 # 🔥 打印agent属性（用于调试和验证多样性）
                 print(f"{agent_profile}", flush=True)
+
+                # 🆕 使用配置文件中的 posting style 构建系统消息
+                enhanced_system_content = self._build_enhanced_system_message_from_config(
+                    user_info=user_info,
+                    platform=platform,
+                    persona_key=persona_key,
+                    persona_style=persona_style
+                )
                 system_message = BaseMessage.make_assistant_message(
                     role_name="system",
-                    content=user_info.to_system_message(),
+                    content=enhanced_system_content,
                 )
+                # 打印第一条 agent 的系统消息用于验证
+                if i == 0:
+                    print(f"📝 Agent {i} 系统消息预览（前500字符）:\n{enhanced_system_content[:500]}...\n", flush=True)
                 context_settings = ContextRuntimeSettings(
                     token_counter=resolved_model.token_counter,
                     system_message=system_message,
@@ -556,6 +536,7 @@ class RealOASISEngineV3:
 
             # 初始化极化率分析器
             self.polarization_topic = primary_topic
+
             if primary_topic and primary_topic != "general":
                 try:
                     from oasis_dashboard.polarization_analyzer import PolarizationAnalyzer
@@ -677,14 +658,9 @@ class RealOASISEngineV3:
             all_agents = list(self.env.agent_graph.get_agents())
             seed_agents = all_agents[:5]  # 前5个agent
 
-            # 多样化的种子内容
-            seed_contents = [
-                f"Welcome to our {self.polarization_topic or 'general'} discussion! What are your thoughts?",
-                f"I'm excited to discuss {self.polarization_topic or 'this topic'}!",
-                f"Let's have a productive conversation about {self.polarization_topic or 'this'}.",
-                "What does everyone think about the current situation?",
-                f"I've been thinking about {self.polarization_topic or 'this topic'} a lot lately.",
-            ]
+            # 从话题配置文件加载种子内容
+            seed_contents = self._generate_seed_content_for_topic(self.polarization_topic)
+            print(f"📝 Generated {len(seed_contents)} seed posts for topic: {self.polarization_topic}", flush=True)
 
             actions = {}
             for idx, (agent_id, agent) in enumerate(seed_agents):
@@ -712,6 +688,40 @@ class RealOASISEngineV3:
         except Exception as e:
             print(f"❌ Failed to seed initial content: {e}", flush=True)
             return {"status": "error", "message": str(e)}
+
+    def _generate_seed_content_for_topic(self, topic: str) -> List[str]:
+        """
+        从外部配置文件加载种子内容，如果没有则生成通用模板
+        返回5个不同观点的帖子，用于激发讨论
+        """
+        # 从配置文件加载
+        topic_config = self._load_topic_config(topic)
+
+        # 优先使用配置文件中的 seed_posts
+        seed_posts = topic_config.get("seed_posts", [])
+        if seed_posts and len(seed_posts) >= 5:
+            return seed_posts[:5]
+
+        # 降级：从 agent_profiles 的 posting_style 示例中生成
+        seed_profiles_list = topic_config.get("agent_profiles", [])
+        if seed_profiles_list:
+            examples = []
+            for profile in seed_profiles_list[:5]:
+                posting_style = profile.get("posting_style", {})
+                profile_examples = posting_style.get("examples", [])
+                if profile_examples:
+                    examples.append(profile_examples[0])  # 取第一个示例
+            if len(examples) >= 5:
+                return examples[:5]
+
+        # 最后降级：生成通用模板
+        return [
+            f"I've been following the developments around {topic} closely. Here's my perspective on what's really happening.",
+            f"The mainstream narrative about {topic} is completely wrong. Let me explain why...",
+            f"There are valid points on both sides of the {topic} debate. Here's what people are missing.",
+            f"The recent events around {topic} show that we need to rethink our entire approach.",
+            f"I've changed my mind about {topic} after seeing the latest evidence. Here's why...",
+        ]
 
     async def _activate_agents_gradually(self) -> Dict:
         """Step 2: 逐步激活agents (LLMAction) - 按照OASIS官方文档"""
@@ -831,9 +841,10 @@ class RealOASISEngineV3:
             print(f"📊 Progress: 0/{total_agents} (0%)", file=sys.stderr, flush=True)
 
             # 🚀 并发执行每个agent，真正并行调用LLM API
-            # 默认并发8，可通过 OASIS_STEP_CONCURRENCY 调整
+            # 默认并发50（提升以充分利用DeepSeek的无并发限制特性）
+            # 可通过 OASIS_STEP_CONCURRENCY 环境变量覆盖
             configured_concurrency = int(
-                os.environ.get("OASIS_STEP_CONCURRENCY", "8")
+                os.environ.get("OASIS_STEP_CONCURRENCY", "50")
             )
             step_concurrency = max(1, min(configured_concurrency, total_agents))
             print(
@@ -1132,6 +1143,154 @@ class RealOASISEngineV3:
                 return {"polarization": avg_pol, "degraded": True}
 
             return {"polarization": 0.0, "error": str(e)}
+
+    def _load_topic_config(self, topic: str) -> Dict:
+        """
+        从外部配置文件加载 topic 的人格列表和提示词
+
+        Args:
+            topic: 话题名称（如 "MiddleEast"）
+
+        Returns:
+            配置字典，包含 agent_profiles 列表
+        """
+        try:
+            topic_lower = topic.lower()
+            # 尝试多个可能的文件名
+            possible_names = [
+                f"{topic_lower}.json",
+                f"{topic}.json",  # 如果用户输入 "MiddleEast" 而文件是 "MIDDLEEAST.json"
+            ]
+
+            for filename in possible_names:
+                path = os.path.join(
+                    os.path.dirname(__file__),
+                    "prompts",
+                    "topics",
+                    filename
+                )
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    print(f"✅ 已加载 Topic 配置: {path}", flush=True)
+                    profiles = config.get("agent_profiles", [])
+                    print(f"   可用人格类型: {len(profiles)} 种", flush=True)
+                    return config
+
+            # 如果找不到文件，返回空配置
+            print(f"⚠️  未找到 topic '{topic}' 的配置文件，使用默认配置", flush=True)
+            return self._get_default_topic_config(topic)
+
+        except Exception as e:
+            print(f"⚠️  加载 Topic 配置失败: {e}，使用默认配置", flush=True)
+            return self._get_default_topic_config(topic)
+
+    def _get_default_topic_config(self, topic: str) -> Dict:
+        """
+        为没有配置文件的 topic 生成默认配置
+        """
+        return {
+            "agent_profiles": [
+                {
+                    "description": f"Discuss {topic.lower()} and related topics",
+                    "persona_key": "neutral",
+                    "posting_style": {
+                        "tone": "neutral, curious",
+                        "style": f"Interested in {topic.lower()} discussions",
+                        "examples": [
+                            f"I've been following developments around {topic.lower()} closely.",
+                            f"There are valid points on both sides of the {topic.lower()} debate.",
+                            f"The mainstream narrative about {topic.lower()} is worth questioning.",
+                        ]
+                    }
+                }
+            ]
+        }
+
+    def _load_agent_prompts_config(self) -> Dict:
+        """
+        从外部配置文件加载 Agent 系统提示词
+
+        Returns:
+            提示词配置字典
+        """
+        try:
+            # 尝试从多个位置加载
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), "prompts", "agent_system.json"),
+                os.path.join(os.path.dirname(__file__), "..", "oasis_dashboard", "prompts", "agent_system.json"),
+                "/app/oasis_dashboard/prompts/agent_system.json",
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    print(f"✅ 已加载 Agent 提示词配置: {path}", flush=True)
+                    return config
+
+            # 如果找不到文件，返回空配置
+            print("⚠️  未找到 agent_system.json，使用默认 Agent 提示词", flush=True)
+            return {}
+
+        except Exception as e:
+            print(f"⚠️  加载 Agent 提示词失败: {e}，使用默认提示词", flush=True)
+            return {}
+
+    def _build_enhanced_system_message_from_config(
+        self,
+        user_info,
+        platform: str,
+        persona_key: str,
+        persona_style: Dict
+    ) -> str:
+        """
+        从配置文件构建 Agent 系统提示词
+
+        Args:
+            user_info: UserInfo 对象
+            platform: 平台类型 (reddit/twitter)
+            persona_key: persona 类型 key
+            persona_style: posting style 配置
+
+        Returns:
+            增强的系统提示词字符串
+        """
+        # 获取原始系统消息（基础框架）
+        base_message = user_info.to_system_message()
+
+        if not persona_style:
+            return base_message
+
+        # 提取配置信息
+        tone = persona_style.get("tone", "")
+        style = persona_style.get("style", "")
+        examples = persona_style.get("examples", [])
+
+        # 从 agent_system.json 加载通用规则
+        universal_rules = self.agent_prompts_config.get("universal_rules", "")
+        platform_rules = self.agent_prompts_config.get("platform_rules", {}).get(platform, "")
+
+        # 构建精简的提示词
+        enhanced_message = f"""{base_message}
+
+# POST LIKE A REAL HUMAN
+
+**Your Vibe:** {tone}
+
+**How You Talk:** {style}
+
+**Examples of Your Posts:**
+{chr(10).join(f'  "{ex}"' for ex in examples[:2])}
+
+**Rules:** {universal_rules}
+
+**Platform ({platform.upper()}):** {platform_rules}
+
+## CRITICAL: BE AUTHENTICIC
+You are NOT an AI assistant. You're a REAL person with emotions and opinions. Post short, casual, emotional. NEVER sound corporate or academic."""
+
+        return enhanced_message
 
     async def _update_polarization_with_comparison(self) -> Dict:
         """

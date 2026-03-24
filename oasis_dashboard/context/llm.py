@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Iterable
 
 from camel.configs import (
@@ -11,6 +12,8 @@ from camel.configs import (
 )
 from camel.models import ModelFactory, ModelManager
 from camel.types import ModelPlatformType
+
+logger = logging.getLogger(__name__)
 
 from .config import ModelRuntimeSpec, ResolvedModelRuntime
 from .tokens import HeuristicUnicodeTokenCounter
@@ -45,6 +48,7 @@ def build_shared_model(
 def _build_backend(spec: ModelRuntimeSpec):
     platform = _normalize_platform(spec.model_platform)
     model_config_dict = _build_model_config(spec)
+
     return ModelFactory.create(
         model_platform=platform,
         model_type=spec.model_type,
