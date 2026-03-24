@@ -229,14 +229,15 @@ async function startServer() {
 
   app.post("/api/sim/config", async (req, res) => {
     try {
-      const { agentCount, platform, recsys, topics, regions, topic, region } = req.body;
-      
+      const { agentCount, platform, recsys, topics, regions, topic, region, seedPosts } = req.body;
+
       const config = {
         agent_count: agentCount || 1000,
         platform: platform || "Reddit",
         recsys: recsys || "Hot-score",
         topics: topics || (topic ? [topic] : []),
         regions: regions || (region ? [region] : []),
+        seed_posts: seedPosts || undefined,  // 🆕 自定义种子帖子
       };
 
       const result = await callOasisEngine("initialize", config);

@@ -71,7 +71,7 @@ class PolarizationAnalyzer:
         )
         self.chunk_size = max(
             1,
-            int(os.environ.get("OASIS_POLARIZATION_CHUNK_SIZE", "8")),
+            int(os.environ.get("OASIS_POLARIZATION_CHUNK_SIZE", "20")),
         )
 
         # 初始化模型
@@ -84,6 +84,10 @@ class PolarizationAnalyzer:
         self.last_result: Dict = {}
         self.round_0_baseline: Dict = {}  # Round 0 基线数据（用于对比）
 
+        # 🆕 加载自定义极化提示词
+        self.polarization_prompts = self._load_polarization_prompts()
+        self.custom_prompt = self._find_prompt_for_topic(topic)
+
         # 初始化数据库缓存表
         self._init_cache_table()
 
@@ -92,19 +96,35 @@ class PolarizationAnalyzer:
         )
 
     def _init_cache_table(self):
-        """初始化数据库缓存表"""
+        """初始化数据库缓存表（支持 post 和 comment）"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # 创建缓存表
+            # 检查是否需要迁移旧表结构
+            cursor.execute("""
+                SELECT sql FROM sqlite_master
+                WHERE type='table' AND name='polarization_cache'
+            """)
+            result = cursor.fetchone()
+
+            if result:
+                existing_sql = result[0]
+                # 如果旧表结构存在（没有 content_type 字段），需要迁移
+                if 'content_type' not in existing_sql:
+                    logger.info("检测到旧版 polarization_cache 表，开始迁移...")
+                    self._migrate_cache_table(cursor)
+
+            # 创建缓存表（新结构）
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS polarization_cache (
-                    post_id INTEGER PRIMARY KEY,
+                    content_type TEXT NOT NULL,
+                    item_id INTEGER NOT NULL,
                     stance_score REAL NOT NULL,
                     confidence REAL DEFAULT 0.8,
                     analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    topic TEXT NOT NULL
+                    topic TEXT NOT NULL,
+                    PRIMARY KEY (content_type, item_id, topic)
                 )
             """)
 
@@ -117,6 +137,10 @@ class PolarizationAnalyzer:
             # 启用WAL模式以提高并发性能
             cursor.execute("PRAGMA journal_mode=WAL")
 
+            # 如果进行了迁移，恢复备份数据
+            if result and 'content_type' not in result[0]:
+                self._restore_backup_data(cursor)
+
             conn.commit()
             conn.close()
 
@@ -124,6 +148,135 @@ class PolarizationAnalyzer:
 
         except Exception as e:
             logger.error(f"初始化缓存表失败: {e}")
+
+    def _migrate_cache_table(self, cursor: sqlite3.Cursor):
+        """
+        迁移旧版 polarization_cache 表到新结构
+        旧结构: post_id INTEGER PRIMARY KEY
+        新结构: (content_type, item_id, topic) PRIMARY KEY
+        """
+        try:
+            # 1. 备份旧数据到永久表（不是临时表，因为需要在不同的 cursor 间共享）
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS polarization_cache_migration AS
+                SELECT * FROM polarization_cache
+            """)
+            logger.info(f"已创建迁移备份表")
+
+            # 2. 删除旧表
+            cursor.execute("DROP TABLE polarization_cache")
+
+            # 3. 删除旧索引
+            cursor.execute("""
+                DROP INDEX IF EXISTS idx_polarization_topic_time
+            """)
+
+            logger.info("旧表结构已删除，新表将在 _init_cache_table 中创建")
+
+        except Exception as e:
+            logger.error(f"迁移缓存表失败: {e}")
+            raise
+
+    def _restore_backup_data(self, cursor: sqlite3.Cursor):
+        """从备份恢复数据到新表结构"""
+        try:
+            # 检查备份是否存在
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='polarization_cache_migration'
+            """)
+            if not cursor.fetchone():
+                logger.debug("没有备份数据需要恢复")
+                return
+
+            # 获取备份数据数量
+            cursor.execute("SELECT COUNT(*) FROM polarization_cache_migration")
+            backup_count = cursor.fetchone()[0]
+
+            # 恢复数据（旧数据都是 post 类型）
+            cursor.execute("""
+                INSERT OR IGNORE INTO polarization_cache
+                (content_type, item_id, stance_score, confidence, analyzed_at, topic)
+                SELECT
+                    'post' as content_type,
+                    post_id as item_id,
+                    stance_score,
+                    confidence,
+                    analyzed_at,
+                    topic
+                FROM polarization_cache_migration
+            """)
+
+            logger.info(f"已恢复 {backup_count} 条历史数据到新表结构")
+
+            # 删除备份表
+            cursor.execute("DROP TABLE polarization_cache_migration")
+
+        except Exception as e:
+            logger.error(f"恢复备份数据失败: {e}")
+
+    def _load_polarization_prompts(self) -> Dict:
+        """
+        从外部配置文件加载极化提示词
+
+        Returns:
+            提示词配置字典
+        """
+        try:
+            # 尝试从多个位置加载
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), "prompts", "polarization.json"),
+                os.path.join(os.path.dirname(__file__), "..", "oasis_dashboard", "prompts", "polarization.json"),
+                "/app/oasis_dashboard/prompts/polarization.json",
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    logger.info(f"✅ 已加载极化提示词配置: {path}")
+                    logger.info(f"   可用话题: {list(config.get('topics', {}).keys())}")
+                    return config
+
+            # 如果找不到文件，返回默认配置
+            logger.warning("⚠️  未找到 polarization.json，使用默认提示词")
+            return {"topics": {"default": {"prompt_template": None}}}
+
+        except Exception as e:
+            logger.warning(f"⚠️  加载极化提示词失败: {e}，使用默认提示词")
+            return {"topics": {"default": {"prompt_template": None}}}
+
+    def _find_prompt_for_topic(self, topic: str) -> Dict:
+        """
+        根据topic查找对应的提示词配置
+
+        Args:
+            topic: 话题名称
+
+        Returns:
+            提示词配置 {dimension, prompt_template, ...}
+        """
+        if not self.polarization_prompts or "topics" not in self.polarization_prompts:
+            return {}
+
+        topics_config = self.polarization_prompts["topics"]
+        topic_upper = topic.upper()
+
+        # 精确匹配
+        if topic_upper in topics_config:
+            config = topics_config[topic_upper]
+            logger.info(f"✅ 找到精确匹配的提示词: {topic_upper} - {config.get('dimension', 'N/A')}")
+            return config
+
+        # 子串匹配（支持 MiddleEast → MIDDLEEAST）
+        for key, config in topics_config.items():
+            if key != "default" and key in topic_upper:
+                logger.info(f"✅ 找到子串匹配: {topic_upper} → {key} - {config.get('dimension', 'N/A')}")
+                return config
+
+        # 未找到，使用默认
+        logger.warning(f"⚠️  未找到topic '{topic}' 的提示词，使用默认提示词")
+        return topics_config.get("default", {})
 
     async def analyze(self) -> Dict:
         """
@@ -161,7 +314,7 @@ class PolarizationAnalyzer:
                 fallback_stances = self._heuristic_stance_batch(new_posts)
                 if fallback_stances:
                     self._save_analysis_results(
-                        [p["post_id"] for p in new_posts],
+                        new_posts,
                         fallback_stances,
                         confidence=0.35,
                     )
@@ -205,7 +358,7 @@ class PolarizationAnalyzer:
 
         # 2. 保存分析结果到缓存
         self._save_analysis_results(
-            [p['post_id'] for p in posts],
+            posts,
             stances,
             confidence=confidence,
         )
@@ -266,48 +419,76 @@ class PolarizationAnalyzer:
 
     def _get_new_posts(self) -> List[Dict]:
         """
-        获取未分析的新帖子
+        获取未分析的新帖子和新评论
 
         Returns:
-            帖子列表
+            内容列表（包含 posts 和 comments）
         """
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
+            contents = []
+
+            # 1. 获取未分析的新帖子
             cursor.execute("""
                 SELECT
                     p.post_id,
                     p.content,
-                    p.num_likes
+                    p.num_likes,
+                    'post' as content_type
                 FROM post p
                 LEFT JOIN polarization_cache pc
-                    ON p.post_id = pc.post_id
+                    ON pc.content_type = 'post'
+                    AND pc.item_id = p.post_id
                     AND pc.topic = ?
-                WHERE pc.post_id IS NULL
+                WHERE pc.item_id IS NULL
                 ORDER BY p.post_id DESC
                 LIMIT ?
             """, (self.topic, self.sample_size))
 
-            posts = []
             for row in cursor.fetchall():
-                posts.append({
-                    'post_id': row[0],
+                contents.append({
+                    'item_id': row[0],
                     'content': row[1],
                     'num_likes': row[2] or 0,
+                    'content_type': 'post',
+                })
+
+            # 2. 获取未分析的新评论
+            cursor.execute("""
+                SELECT
+                    c.comment_id,
+                    c.content,
+                    c.num_likes,
+                    'comment' as content_type
+                FROM comment c
+                LEFT JOIN polarization_cache pc
+                    ON pc.content_type = 'comment'
+                    AND pc.item_id = c.comment_id
+                    AND pc.topic = ?
+                WHERE pc.item_id IS NULL
+                ORDER BY c.comment_id DESC
+                LIMIT ?
+            """, (self.topic, self.sample_size))
+
+            for row in cursor.fetchall():
+                contents.append({
+                    'item_id': row[0],
+                    'content': row[1],
+                    'num_likes': row[2] or 0,
+                    'content_type': 'comment',
                 })
 
             conn.close()
 
-            if posts:
-                # 更新最后分析的post_id
-                self.last_analyzed_post_id = max(p['post_id'] for p in posts)
-                logger.debug(f"获取到 {len(posts)} 条新帖子")
+            if contents:
+                logger.debug(f"获取到 {len(contents)} 条未分析内容（posts + comments）")
 
-            return posts
+            return contents
 
         except Exception as e:
-            logger.error(f"获取新帖子失败: {e}")
+            logger.error(f"获取新内容失败: {e}")
             return []
 
     async def _analyze_batch(self, posts: List[Dict]) -> List[float]:
@@ -329,7 +510,15 @@ class PolarizationAnalyzer:
             for i, p in enumerate(posts)
         ])
 
-        prompt = f"""You are analyzing social media posts about "{self.topic}".
+        # 🆕 使用自定义提示词（如果配置了）
+        prompt_template = self.custom_prompt.get("prompt_template")
+        if prompt_template:
+            # 使用自定义提示词
+            prompt = prompt_template.format(topic=self.topic, posts=post_texts)
+            logger.debug(f"使用自定义提示词 (dimension: {self.custom_prompt.get('dimension', 'N/A')})")
+        else:
+            # 使用默认提示词（向后兼容）
+            prompt = f"""You are analyzing social media posts about "{self.topic}".
 
 For each post, determine the stance on a scale of 0-1:
 - 0.0: Strongly opposed/against
@@ -647,18 +836,18 @@ Your response:"""
 
     def _save_analysis_results(
         self,
-        post_ids: List[int],
+        posts: List[Dict],
         stances: List[float],
         confidence: float = 0.8,
     ):
         """
-        保存分析结果到数据库缓存
+        保存分析结果到数据库缓存（支持 post 和 comment）
 
         Args:
-            post_ids: 帖子ID列表
+            posts: 内容列表，每个包含 item_id 和 content_type
             stances: 立场分数列表
         """
-        if not post_ids or not stances:
+        if not posts or not stances:
             return
 
         try:
@@ -667,12 +856,14 @@ Your response:"""
 
             now = datetime.now().isoformat()
 
-            for post_id, stance in zip(post_ids, stances):
+            for post, stance in zip(posts, stances):
+                content_type = post.get('content_type', 'post')
+                item_id = post.get('item_id') or post.get('post_id')
                 cursor.execute("""
                     INSERT OR REPLACE INTO polarization_cache
-                    (post_id, stance_score, confidence, analyzed_at, topic)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (post_id, stance, confidence, now, self.topic))
+                    (content_type, item_id, stance_score, confidence, analyzed_at, topic)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (content_type, item_id, stance, confidence, now, self.topic))
 
             conn.commit()
 
@@ -681,18 +872,18 @@ Your response:"""
 
             conn.close()
 
-            logger.debug(f"已保存 {len(post_ids)} 条分析结果到缓存")
+            logger.debug(f"已保存 {len(posts)} 条分析结果到缓存")
 
         except Exception as e:
             logger.error(f"保存分析结果失败: {e}")
 
     def _prune_cache(self, cursor: sqlite3.Cursor):
-        """清理缓存，保留最近N条"""
+        """清理缓存，保留最近N条（同时包含 post 和 comment）"""
         try:
             cursor.execute("""
                 DELETE FROM polarization_cache
-                WHERE post_id NOT IN (
-                    SELECT post_id FROM polarization_cache
+                WHERE (content_type, item_id) NOT IN (
+                    SELECT content_type, item_id FROM polarization_cache
                     WHERE topic = ?
                     ORDER BY analyzed_at DESC
                     LIMIT ?
@@ -712,19 +903,32 @@ Your response:"""
         Returns:
             极化率指标字典
         """
-        if self.last_result:
+        # 检查 last_result 的有效性（必须有样本数据）
+        if self.last_result and self.last_result.get('sample_size', 0) > 0:
+            logger.debug(f"使用缓存的极化率结果: {self.last_result.get('polarization'):.3f} (sample_size={self.last_result.get('sample_size')})")
             return self.last_result
 
-        cached_stances = self._load_cached_stances()
+        # 检查 last_result 是否无效（sample_size=0）
+        if self.last_result and self.last_result.get('sample_size', 0) == 0:
+            logger.warning(f"last_result 的 sample_size=0，尝试从数据库重新计算")
+
+        # 总是尝试从数据库重新计算（使用更大的limit）
+        cached_stances = self._load_cached_stances(limit=10000)
         if cached_stances:
+            logger.debug(f"从数据库加载了 {len(cached_stances)} 条 stance 记录，重新计算极化率")
             result = self._calculate_polarization_metrics(cached_stances)
             result["cached"] = True
             result["source"] = "db_cache"
+            # 更新 last_result 以避免重复计算
+            self.last_result = result
             return result
+
+        logger.warning("数据库中无 stance 记录")
 
         # 如果有历史数据，返回平均值
         if self.history:
             avg_pol = sum(self.history) / len(self.history)
+            logger.info(f"使用历史平均极化率: {avg_pol:.3f} (history_len={len(self.history)})")
             return {
                 'polarization': avg_pol,
                 'std': 0.0,
@@ -732,9 +936,11 @@ Your response:"""
                 'bimodality': 0.0,
                 'sample_size': 0,
                 'cached': True,
+                'source': 'history_fallback',
             }
 
-        # 默认返回0
+        # 默认返回0（仅当数据库完全为空时）
+        logger.error("极化缓存为空且无历史数据，返回零值")
         return {
             'polarization': 0.0,
             'std': 0.0,
@@ -783,7 +989,7 @@ Your response:"""
             'source': 'hard_zero_fallback',
         }
 
-    def _load_cached_stances(self, limit: int = 100) -> List[float]:
+    def _load_cached_stances(self, limit: int = 10000) -> List[float]:
         """从缓存表读取最近的立场分数。"""
         try:
             conn = sqlite3.connect(self.db_path)

@@ -1,0 +1,17 @@
+{
+  "version": "2.0",
+  "topics": {
+    "default": {
+      "dimension": "General support vs opposition",
+      "prompt_template": "You are analyzing social media posts about \"{topic}\".\n\nFor each post, determine the stance on a scale of 0-1:\n- 0.0: Strongly opposed/against\n- 0.5: Neutral/mixed\n- 1.0: Strongly supportive\n\nPosts:\n{posts}\n\nIMPORTANT: Return ONLY a valid JSON array of stance scores.\nFormat: [0.2, 0.7, 0.5, 0.3, 0.8]\n\nYour response:"
+    },
+    "MIDDLEEAST": {
+      "dimension": "Pro-Western/Israel vs Anti-Western/Palestine",
+      "prompt_template": "You are analyzing posts about the Middle East conflict.\n\nDetermine the stance on a scale of 0-1:\n- 0.0: Strongly anti-Western/Pro-Palestine - condemns Israel/US actions, supports Palestinian cause\n- 0.3: Leaning anti-Western - critical of military actions\n- 0.5: Neutral - acknowledges both sides\n- 0.7: Leaning pro-Western - supports Israel's right to defense\n- 1.0: Strongly pro-Western/Pro-Israel - fully supports Israel/US actions\n\nPosts:\n{posts}\n\nIMPORTANT: Return ONLY a valid JSON array of stance scores.\nFormat: [0.2, 0.7, 0.5, 0.3, 0.8]\n\nYour response:"
+    },
+    "ISRAELGAZA": {
+      "dimension": "Pro-Israel vs Pro-Palestine",
+      "prompt_template": "You are analyzing posts about the Israel-Gaza conflict.\n\nDetermine the stance on a scale of 0-1:\n- 0.0: Strongly Pro-Palestine - condemns Israel\n- 0.5: Neutral\n- 1.0: Strongly Pro-Israel - supports Israeli military actions\n\nPosts:\n{posts}\n\nIMPORTANT: Return ONLY a valid JSON array of stance scores.\nFormat: [0.2, 0.7, 0.5, 0.3, 0.8]\n\nYour response:"
+    }
+  }
+}
