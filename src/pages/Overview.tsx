@@ -64,6 +64,7 @@ export default function Overview() {
   const navigate = useNavigate();
   const [agentCount, setAgentCount] = useState([100]);
   const [subscriptionSource, setSubscriptionSource] = useState('REDDIT');
+  const [recsys, setRecsys] = useState('GLOBAL_Trending');
   const [topicBook, setTopicBook] = useState('TOPIC_01');
   const [userGroup, setUserGroup] = useState('GROUP_A');
   const [showAlgorithm, setShowAlgorithm] = useState(false);
@@ -173,11 +174,11 @@ export default function Overview() {
               <Database className="w-3 h-3" />
               订阅源
             </div>
-            <Select 
-              value={subscriptionSource} 
+            <Select
+              value={subscriptionSource}
               onValueChange={(val) => {
                 setSubscriptionSource(val);
-                simulationApi.updateConfig({ platform: val });
+                simulationApi.updateConfig({ platform: val, recsys, agentCount: agentCount[0] });
               }}
             >
               <SelectTrigger className="h-8 text-xs border-none bg-transparent w-40 text-text-primary focus:ring-0">
@@ -396,11 +397,11 @@ export default function Overview() {
                   <BookOpen className="w-3 h-3" />
                   话题选择 (Topicbook)
                 </div>
-                <Select 
-                  value={topicBook} 
+                <Select
+                  value={topicBook}
                   onValueChange={(val) => {
                     setTopicBook(val);
-                    simulationApi.updateConfig({ topics: [val] });
+                    simulationApi.updateConfig({ platform: subscriptionSource, recsys, agentCount: agentCount[0], topics: [val] });
                   }}
                 >
                   <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">

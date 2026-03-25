@@ -9,6 +9,10 @@ export interface Agent {
   status: 'active' | 'idle' | 'thinking';
   lastAction?: { type: ActionType; content?: string; reason: string };
   polarization?: number; // 添加极化值字段
+  role?: string; // Agent 角色 (e.g., 'KOL', 'Neutral', etc.)
+  influence?: number; // 影响力值
+  activity?: number; // 活跃度百分比
+  following?: string[]; // 关注的 agent IDs
 }
 
 export interface LogEntry {

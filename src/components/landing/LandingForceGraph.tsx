@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import ForceGraph from '@/components/ForceGraph';
+import { ForceGraph } from '@/components/ForceGraph';
 import { Agent } from '@/lib/types';
 
 // Mock 数据：社交网络节点
