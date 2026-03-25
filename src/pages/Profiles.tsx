@@ -1,359 +1,197 @@
-import { useState } from 'react';
-import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Badge } from '@/components/ui';
-import { UserRound, Sparkles, Download, Database, PlayCircle, ArrowRight, Globe, CheckCircle2 } from 'lucide-react';
-import { simulationApi } from '@/lib/api';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge, Tabs, TabsList, TabsTrigger, Input } from '@/components/ui';
+import { Database, Network, BrainCircuit, Users, FileJson, Share2, Sparkles, Activity, PlayCircle, FileText } from 'lucide-react';
+import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph';
+import { SubscriptionPanel } from '@/components/SubscriptionPanel';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 export default function Profiles() {
   const navigate = useNavigate();
-  const [platform, setPlatform] = useState<'REDDIT' | 'X' | 'FACEBOOK' | 'TIKTOK' | 'INSTAGRAM'>('REDDIT');
-  const [count, setCount] = useState([1000]);
-  const [seed, setSeed] = useState(42);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [topic, setTopic] = useState('POLITICS');
-  const [region, setRegion] = useState('THAILAND');
-  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'completed'>('idle');
+  const [algorithm, setAlgorithm] = useState('persona-llm');
+  const [count, setCount] = useState([1500]);
+  
+  // 模拟生成的统计数据
+  const [stats, setStats] = useState({ userCount: 0, linkCount: 0, density: 0 });
+  const [generatedData, setGeneratedData] = useState<any>(null);
 
-  const generateProfiles = async () => {
-    setLoading(true);
-    setProgress(0);
+  const handleGenerate = async () => {
+    setGenStatus('generating');
     
-    // Simulate progress
-    const interval = setInterval(() => {
-      setProgress(prev => Math.min(prev + Math.random() * 15, 95));
-    }, 500);
-    setIntervalId(interval);
-
     try {
-      const res = await simulationApi.generateUsers({
-        platform,
-        count: count[0],
-        seed,
-        topics: [topic],
-        regions: [region],
+      const response = await fetch('/api/users/generate_advanced', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userSeedPath: 'default_users.json',
+          topicSeedPath: 'default_topics.json',
+          algoType: algorithm,
+          agentCount: count[0],
+        }),
       });
-      setAgents(res.data.agents);
-      setProgress(100);
-      toast.success(`成功生成 ${res.data.total_generated} 个 ${platform} 智能体画像`, {
-        description: `画像已就绪，地区: ${region}`,
-        action: {
-          label: "前往控制中心",
-          onClick: () => navigate('/overview')
-        }
-      });
-    } catch (e) {
-      toast.error('画像生成失败，请重试');
-      console.error('Generation failed', e);
-    } finally {
-      clearInterval(interval);
-      setIntervalId(null);
-      setTimeout(() => setLoading(false), 500);
-    }
-  };
 
-  const cancelGeneration = () => {
-    if (intervalId) {
-      clearInterval(intervalId);
-      setIntervalId(null);
-    }
-    setLoading(false);
-    setProgress(0);
-    toast.info('已取消生成');
-  };
+      if (!response.ok) {
+        throw new Error('Failed to generate social network');
+      }
 
-  const getPlatformLabel = (p: string) => {
-    switch(p) {
-      case 'REDDIT': return 'Reddit 社区数据集';
-      case 'X': return 'X / Twitter 数据集';
-      case 'FACEBOOK': return 'Facebook 关系网络';
-      case 'TIKTOK': return 'TikTok 兴趣流';
-      case 'INSTAGRAM': return 'Instagram 视觉流';
-      default: return p;
+      const result = await response.json();
+      setGeneratedData({ nodes: result.nodes, edges: result.edges });
+      setStats(result.stats);
+      setGenStatus('completed');
+      toast.success(`成功基于 ${algorithm} 算法生成社交网络`);
+    } catch (error) {
+      console.error('Generation error:', error);
+      toast.error('生成社交网络失败，请检查后端服务');
+      setGenStatus('idle');
     }
   };
 
   return (
-    <div className="px-6 lg:px-12 xl:px-16 py-12">
-      <div className="max-w-7xl mx-auto space-y-8">
-      <header className="flex justify-between items-center">
+    <div className="px-6 lg:px-12 py-12 space-y-8">
+      <header className="flex justify-between items-end">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <UserRound className="w-10 h-10 text-accent" />
-            用户画像生成
+            <BrainCircuit className="w-10 h-10 text-accent" />
+            仿真画像实验室
           </h1>
-          <p className="text-text-tertiary mt-1">基于真实数据源扩展生成百万级智能体画像</p>
+          <p className="text-text-tertiary mt-1">基于真实种子数据与进化算法生成百万级仿真社会网络</p>
         </div>
-        <div className="flex gap-3">
-          {agents.length > 0 && (
-            <Button 
-              className="bg-accent hover:bg-accent-hover rounded-xl h-10 text-xs font-bold px-6 gap-2 animate-in fade-in slide-in-from-right-4"
-              onClick={() => navigate('/overview', { state: { platform, topic, region, agentCount: count[0] } })}
-            >
-              <PlayCircle className="w-4 h-4" />
-              应用并启动模拟
-            </Button>
-          )}
-          <Button variant="outline" className="rounded-xl border-border-default h-10 text-xs font-bold uppercase tracking-widest">
-            <Database className="w-3.5 h-3.5 mr-2" />
-            从 HF 加载
+        {genStatus === 'completed' && (
+          <Button variant="outline" className="rounded-xl border-accent text-accent h-10 gap-2" onClick={() => navigate('/overview')}>
+            <PlayCircle className="w-4 h-4" />
+            应用并启动仿真
           </Button>
-        </div>
+        )}
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Config Panel */}
-        <Card className="lg:col-span-4 bg-bg-secondary border-border-default p-8 space-y-8 h-fit">
-          <h2 className="text-xl font-bold border-b border-border-default pb-4 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-400" />
-            生成配置
-          </h2>
-          
-          <div className="space-y-8">
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-text-tertiary">数据源平台</label>
-              <Select value={platform} onValueChange={(v: any) => setPlatform(v)}>
-                <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                  <SelectValue placeholder="选择数据源" />
-                  <span className="text-text-secondary">{getPlatformLabel(platform)}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="REDDIT">Reddit (reddit_user_data_36.json)</SelectItem>
-                  <SelectItem value="X">X / Twitter (twitter_user_data_50.json)</SelectItem>
-                  <SelectItem value="FACEBOOK">Facebook (fb_social_graph.json)</SelectItem>
-                  <SelectItem value="TIKTOK">TikTok (tiktok_interest_v2.json)</SelectItem>
-                  <SelectItem value="INSTAGRAM">Instagram (insta_visual_v1.json)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-text-muted italic">从真实用户特征种子扩展至大规模群体</p>
-            </div>
+      {/* 新增：数据订阅中心 */}
+      <SubscriptionPanel />
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-tertiary">Topic 标签</label>
-                <Select value={topic} onValueChange={setTopic}>
-                  <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                    <SelectValue placeholder="选择Topic" />
-                    <span className="text-text-secondary">{topic}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POLITICS">Politics</SelectItem>
-                    <SelectItem value="AI">AI & Tech</SelectItem>
-                    <SelectItem value="ENTERTAINMENT">Entertainment</SelectItem>
-                    <SelectItem value="HEALTH">Health</SelectItem>
-                    <SelectItem value="TRAVEL">Travel</SelectItem>
-                    <SelectItem value="FOOD">Food</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-tertiary">国际地区</label>
-                <Select value={region} onValueChange={setRegion}>
-                  <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                    <SelectValue placeholder="选择地区" />
-                    <span className="text-text-secondary">{region}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="THAILAND">Thailand</SelectItem>
-                    <SelectItem value="CAMBODIA">Cambodia</SelectItem>
-                    <SelectItem value="INDONESIA">Indonesia</SelectItem>
-                    <SelectItem value="VIETNAM">Vietnam</SelectItem>
-                    <SelectItem value="MALAYSIA">Malaysia</SelectItem>
-                    <SelectItem value="PHILIPPINES">Philippines</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex justify-between items-end">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-tertiary">生成数量</label>
-                <div className="text-right">
-                  <span className="text-3xl font-bold text-accent font-mono tracking-tighter">{count[0].toLocaleString()}</span>
-                  <p className="text-[10px] text-text-muted font-bold uppercase">Agents</p>
+      <div className="grid grid-cols-12 gap-8">
+        {/* 左侧：精细化控制面板 */}
+        <Card className="col-span-4 bg-bg-secondary border-border-default p-6 space-y-6">
+          <section className="space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+              <Database className="w-4 h-4" /> 1. 原始种子数据
+            </h3>
+            <div className="space-y-3">
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2"><FileJson className="w-4 h-4 text-blue-400" /> 真实用户样本</span>
+                  <Badge variant="outline" className="text-[10px]">已加载: 500条</Badge>
                 </div>
               </div>
-              <Slider 
-                value={count} 
-                onValueChange={setCount} 
-                min={100} 
-                max={100000} 
-                step={100}
-                className="py-4"
-              />
-              <div className="flex justify-between text-[10px] text-text-muted font-bold uppercase tracking-tighter">
-                <span>100</span>
-                <span>1,000,000 (百万级支持)</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-tertiary">随机种子 (Seed)</label>
-                <Button variant="outline" className="h-6 px-2 text-[8px] border-border-default rounded-md" onClick={() => setSeed(Math.floor(Math.random() * 1000))}>随机生成</Button>
-              </div>
-              <Input 
-                type="number" 
-                value={seed} 
-                onChange={(e) => setSeed(parseInt(e.target.value))}
-                className="bg-bg-primary border-border-default h-12 rounded-xl font-mono"
-              />
-            </div>
-
-            <div className="space-y-4">
-              {loading ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs text-text-secondary">
-                    <span>生成进度</span>
-                    <span className="font-mono">{progress.toFixed(0)}%</span>
-                  </div>
-                  <div className="h-2 bg-bg-tertiary rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-accent transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-[10px] text-text-tertiary">
-                      预计剩余时间: {Math.max(1, Math.floor((100 - progress) / 10))} 秒
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={cancelGeneration}
-                      className="h-6 text-[10px] text-rose-500 hover:text-rose-400 hover:bg-rose-500/10"
-                    >
-                      取消生成
-                    </Button>
-                  </div>
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2"><Activity className="w-4 h-4 text-rose-400" /> 话题/语义字典</span>
+                  <Badge variant="outline" className="text-[10px]">已加载: 24个</Badge>
                 </div>
-              ) : (
-                <Button 
-                  onClick={generateProfiles} 
-                  disabled={loading}
-                  className="w-full h-16 text-lg font-black bg-accent hover:bg-accent-hover rounded-2xl shadow-xl shadow-accent-glow flex items-center justify-center gap-2 group transition-all active:scale-95"
-                >
-                  <Sparkles className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  🚀 开始生成画像
-                </Button>
-              )}
+              </div>
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2"><Network className="w-4 h-4 text-emerald-400" /> 原始社交拓扑</span>
+                  <Badge variant="outline" className="text-[10px]">未选择</Badge>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> 2. 生成策略算法
+            </h3>
+            <Select value={algorithm} onValueChange={setAlgorithm}>
+              <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
+                <SelectValue placeholder="选择生成算法" value={algorithm} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="persona-llm">
+                  <div className="font-bold">Persona-LLM (深层特征)</div>
+                  <div className="text-[10px] text-text-muted">利用LLM幻化出具有真实人格、价值观的Agent</div>
+                </SelectItem>
+                <SelectItem value="ba-structural">
+                  <div className="font-bold">Structural Preferential Attachment</div>
+                  <div className="text-[10px] text-text-muted">侧重于生成具有幂律分布特征的复杂社交网络</div>
+                </SelectItem>
+                <SelectItem value="semantic-homophily">
+                  <div className="font-bold">Semantic Homophily</div>
+                  <div className="text-[10px] text-text-muted">基于兴趣语义相似度建立社交连接</div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary">生成规模</h3>
+              <span className="font-mono text-accent">{count[0].toLocaleString()} Agents</span>
+            </div>
+            <Slider value={count} onValueChange={setCount} min={10} max={10000} step={100} />
+          </section>
+
+          <Button 
+            className="w-full h-14 rounded-2xl bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 font-bold gap-2"
+            onClick={handleGenerate}
+            disabled={genStatus === 'generating'}
+          >
+            {genStatus === 'generating' ? (
+              <>
+                <div className="w-4 h-4 border-2 border-bg-primary border-t-transparent rounded-full animate-spin" />
+                进化计算中...
+              </>
+            ) : '开始生成社交网络'}
+          </Button>
+        </Card>
+
+        {/* 右侧：预览与社交知识图谱 */}
+        <div className="col-span-8 space-y-6">
+          <div className="grid grid-cols-3 gap-4">
+            <StatsCard label="拟合用户总数" value={stats.userCount} icon={Users} />
+            <StatsCard label="生成关系边" value={stats.linkCount} icon={Share2} />
+            <StatsCard label="图密度 (Density)" value={stats.density + "%"} icon={Network} />
+          </div>
+
+          <Card className="bg-bg-secondary border-border-default overflow-hidden flex flex-col h-[600px]">
+            <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">社交知识图谱预览 (Social Knowledge Graph)</h2>
+              <div className="flex gap-2">
+                 <Badge variant="secondary" className="text-[9px]">Node: Agent</Badge>
+                 <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">Edge: Interest</Badge>
+                 <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-400">Edge: Follow</Badge>
+              </div>
+            </div>
+            <div className="flex-1 bg-bg-primary/30 relative">
+              {/* 这里调用力导向图组件 */}
+              <SocialKnowledgeGraph data={generatedData} />
               
-              {agents.length > 0 && !loading && (
-                <Button 
-                  onClick={() => navigate('/overview', { state: { platform, topic, region, agentCount: count[0] } })} 
-                  className="w-full h-12 bg-accent hover:bg-accent-hover rounded-2xl font-bold animate-in fade-in slide-in-from-bottom-4"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  生成完成 → 立即用于当前模拟并启动
-                </Button>
+              {genStatus === 'idle' && (
+                <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-bg-primary/40">
+                  <p className="text-text-muted text-sm border border-border-default px-6 py-3 rounded-full bg-bg-secondary">
+                    配置左侧参数并点击生成以查看图谱
+                  </p>
+                </div>
               )}
             </div>
-
-
-            <div className="grid grid-cols-2 gap-4 pt-4">
-              <Card 
-                className="bg-bg-primary border-border-default p-4 hover:border-accent/30 transition-colors cursor-pointer group flex flex-col items-center gap-2"
-                onClick={() => toast.info("正在准备 HF 格式导出...")}
-              >
-                <Download className="w-5 h-5 text-accent group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">导出 HF 格式</span>
-              </Card>
-              <Card 
-                className="bg-bg-primary border-border-default p-4 hover:border-blue-500/30 transition-colors cursor-pointer group flex flex-col items-center gap-2"
-                onClick={() => toast.success("已保存为自定义数据源")}
-              >
-                <Database className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary">保存为数据源</span>
-              </Card>
-            </div>
-          </div>
-        </Card>
-
-        {/* Preview Table */}
-        <Card className="lg:col-span-8 bg-bg-secondary border-border-default flex flex-col overflow-hidden min-h-[600px]">
-          <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">生成结果预览 ({agents.length})</h2>
-              {agents.length > 0 && <Badge variant="default" className="bg-accent/20 text-accent border-accent/30 h-5 text-[9px]">已就绪</Badge>}
-            </div>
-            {agents.length > 0 && (
-              <Button 
-                variant="ghost" 
-                className="h-8 text-[10px] text-text-tertiary hover:text-accent gap-1"
-                onClick={() => navigate('/overview')}
-              >
-                前往控制中心 <ArrowRight className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
-          <div className="flex-1 overflow-auto relative">
-            {agents.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
-                <div className="w-40 h-40 bg-bg-primary rounded-full flex items-center justify-center mb-8 relative">
-                  <div className="absolute inset-0 bg-accent-subtle animate-pulse rounded-full"></div>
-                  <div className="absolute inset-4 bg-accent/5 rounded-full"></div>
-                  <UserRound className="w-20 h-20 text-accent/50" />
-                  <Sparkles className="w-8 h-8 text-yellow-500 absolute top-4 right-4 animate-bounce" />
-                </div>
-                <h3 className="text-2xl font-bold text-text-primary mb-3">准备好生成您的智能体了吗？</h3>
-                <p className="text-sm text-text-tertiary max-w-md leading-relaxed">
-                  点击左侧按钮开始生成用户画像。OASIS 将基于真实数据特征，通过 LLM 扩展生成具有丰富性格、背景和兴趣的百万级智能体群体。
-                </p>
-                <div className="mt-10 grid grid-cols-2 gap-6 w-full max-w-lg">
-                  <div className="p-5 rounded-2xl bg-bg-primary/50 border border-border-default text-left hover:border-accent/30 transition-colors">
-                    <div className="w-8 h-8 rounded-lg bg-accent-subtle flex items-center justify-center mb-3">
-                      <Globe className="w-4 h-4 text-accent" />
-                    </div>
-                    <p className="text-xs font-bold text-text-primary mb-1">真实性与文化对齐</p>
-                    <p className="text-xs text-text-muted">基于真实社交媒体种子，结合选择的国际地区生成本地化特征</p>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-bg-primary/50 border border-border-default text-left hover:border-blue-500/30 transition-colors">
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3">
-                      <Database className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <p className="text-xs font-bold text-text-primary mb-1">多维兴趣与性格</p>
-                    <p className="text-xs text-text-muted">LLM 自动生成符合 Topic 设定的 MBTI、Bio 及深层兴趣标签</p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader className="bg-bg-primary/50 sticky top-0 z-10">
-                  <TableRow className="border-border-default hover:bg-transparent">
-                    <TableHead className="w-24">ID</TableHead>
-                    <TableHead className="w-32">姓名</TableHead>
-                    <TableHead>Bio 预览</TableHead>
-                    <TableHead className="w-48">兴趣标签</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agents.map((agent) => (
-                    <TableRow key={agent.id} className="border-border-default hover:bg-bg-tertiary/30 transition-colors">
-                      <TableCell className="font-mono text-xs text-accent">{agent.id}</TableCell>
-                      <TableCell className="font-bold text-text-primary">{agent.name}</TableCell>
-                      <TableCell className="text-xs text-text-secondary max-w-xs truncate italic">“{agent.bio}”</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {agent.interests.map((tag: string) => (
-                            <Badge key={tag} variant="outline" className="text-[9px] bg-bg-primary border-border-default text-text-tertiary py-0 h-4">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
       </div>
     </div>
+  );
+}
+
+function StatsCard({ label, value, icon: Icon }: any) {
+  return (
+    <Card className="p-4 bg-bg-secondary border-border-default flex items-center gap-4">
+      <div className="p-3 bg-bg-primary rounded-xl border border-border-default text-accent">
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">{label}</p>
+        <p className="text-2xl font-mono font-bold">{value}</p>
+      </div>
+    </Card>
   );
 }

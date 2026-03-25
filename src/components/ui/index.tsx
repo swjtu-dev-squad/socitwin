@@ -1,260 +1,277 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
+import * as React from "react"
+import { cn } from "@/lib/utils"
 
-export const Card = ({ className, children, ...props }: { className?: string, children: React.ReactNode, [key: string]: any }) => (
-  <div className={cn("rounded-2xl border border-border-default bg-bg-secondary shadow-xl", className)} {...props}>
-    {children}
-  </div>
-);
+// Card
+export const Card = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("rounded-3xl border bg-card text-card-foreground shadow-sm", className)} {...props} />
+)
 
-export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'outline' | 'secondary' | 'destructive' | 'ghost' }>(
-  ({ className, variant = 'default', ...props }, ref) => {
+// Button
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+  size?: 'default' | 'sm' | 'lg' | 'icon'
+}
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', size = 'default', ...props }, ref) => {
     const variants = {
-      default: "bg-accent text-white hover:bg-accent-hover glow-effect",
+      default: "bg-accent text-bg-primary hover:bg-accent-hover shadow-lg shadow-accent/10",
+      destructive: "bg-rose-500 text-white hover:bg-rose-600",
       outline: "border border-border-default bg-transparent hover:bg-bg-tertiary text-text-primary",
-      secondary: "bg-bg-tertiary text-text-primary hover:bg-bg-elevated",
-      destructive: "bg-rose-600 text-white hover:bg-rose-700",
-      ghost: "bg-transparent hover:bg-bg-tertiary/50 text-text-primary",
-    };
+      secondary: "bg-bg-tertiary text-text-primary hover:bg-border-strong",
+      ghost: "hover:bg-bg-tertiary text-text-secondary hover:text-text-primary",
+      link: "text-accent underline-offset-4 hover:underline",
+    }
+    const sizes = {
+      default: "h-11 px-6 py-2",
+      sm: "h-9 px-4 rounded-xl text-xs",
+      lg: "h-14 px-10 rounded-2xl text-base",
+      icon: "h-10 w-10",
+    }
     return (
       <button
-        ref={ref}
         className={cn(
-          "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex items-center justify-center rounded-xl text-sm font-bold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]",
           variants[variant],
+          sizes[size],
           className
         )}
+        ref={ref}
         {...props}
       />
-    );
+    )
   }
-);
+)
 
+// Badge
+export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAttributes<HTMLDivElement> & { variant?: 'default' | 'secondary' | 'destructive' | 'outline' }) => {
+  const variants = {
+    default: "bg-accent/10 text-accent border-accent/20",
+    secondary: "bg-bg-tertiary text-text-secondary border-border-default",
+    destructive: "bg-rose-500/10 text-rose-500 border-rose-500/20",
+    outline: "text-text-tertiary border-border-default",
+  }
+  return (
+    <div className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2", variants[variant], className)} {...props} />
+  )
+}
+
+// Slider (Minimal implementation)
+export const Slider = ({ value, onValueChange, min, max, step, className }: { value: number[], onValueChange: (v: number[]) => void, min: number, max: number, step: number, className?: string }) => (
+  <input
+    type="range"
+    min={min}
+    max={max}
+    step={step}
+    value={value[0]}
+    onChange={(e) => onValueChange([parseInt(e.target.value)])}
+    className={cn("w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent", className)}
+  />
+)
+
+// Progress
+export const Progress = ({ value, className }: { value: number, className?: string }) => (
+  <div className={cn("relative h-2 w-full overflow-hidden rounded-full bg-bg-tertiary", className)}>
+    <div
+      className="h-full w-full flex-1 bg-accent transition-all duration-500 ease-in-out"
+      style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+    />
+  </div>
+)
+
+// Input
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => (
+  ({ className, type, ...props }, ref) => (
     <input
-      ref={ref}
+      type={type}
       className={cn(
-        "flex h-10 w-full rounded-xl border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary ring-offset-bg-primary file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-11 w-full rounded-xl border border-border-default bg-bg-primary px-4 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 focus-visible:border-accent disabled:cursor-not-allowed disabled:opacity-50 transition-all",
         className
       )}
+      ref={ref}
       {...props}
     />
   )
-);
+)
 
-export const Badge = ({ className, variant = 'default', children, ...props }: { className?: string, variant?: 'default' | 'secondary' | 'outline' | 'destructive', children: React.ReactNode, [key: string]: any }) => {
-  const variants = {
-    default: "bg-accent-subtle text-accent border-accent/20",
-    secondary: "bg-bg-tertiary text-text-secondary border-border-default",
-    outline: "border-border-default text-text-tertiary",
-    destructive: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-  };
+// Select (Radix-like structure)
+export const Select = ({ children, value, onValueChange }: { children: React.ReactNode, value?: string, onValueChange?: (v: string) => void }) => {
+  const [open, setOpen] = React.useState(false);
   return (
-    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold transition-colors", variants[variant], className)} {...props}>
-      {children}
-    </span>
-  );
-};
-
-// Simplified versions of other components
-export const ScrollArea = ({ className, children }: { className?: string, children: React.ReactNode }) => (
-  <div className={cn("overflow-auto custom-scrollbar", className)}>{children}</div>
-);
-
-export const Select = ({ children, value, onValueChange }: any) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const selectRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen]);
-
-  // Deep clone children to pass down props to nested components
-  const enhanceChildren = (children: any): any => {
-    return React.Children.map(children, (child) => {
-      if (!React.isValidElement(child)) return child;
-
-      const childType = child.type as any;
-      const childName = childType.displayName || childType.name;
-
-      // Pass props to specific component types
-      if (childName === 'SelectTrigger' || childType === SelectTrigger) {
-        return React.cloneElement(child, {
-          isOpen,
-          setIsOpen,
-        } as any);
-      }
-
-      if (childName === 'SelectValue' || childType === SelectValue) {
-        return React.cloneElement(child, {
-          value,
-          isOpen,
-        } as any);
-      }
-
-      if (childName === 'SelectContent' || childType === SelectContent) {
-        const enhancedContentChildren = enhanceChildren(child.props.children);
-        return React.cloneElement(child, {
-          isOpen,
-          children: enhancedContentChildren,
-        } as any);
-      }
-
-      if (childName === 'SelectItem' || childType === SelectItem) {
-        return React.cloneElement(child, {
-          onValueChange,
-          setIsOpen,
-        } as any);
-      }
-
-      // Recursively enhance nested children
-      if (child.props && child.props.children) {
-        return React.cloneElement(child, {
-          children: enhanceChildren(child.props.children),
-        } as any);
-      }
-
-      return child;
-    });
-  };
-
-  return (
-    <div ref={selectRef} className="relative w-full">
-      {enhanceChildren(children)}
+    <div className="relative w-full">
+      {React.Children.map(children, child => {
+        if (React.isValidElement(child)) {
+          return React.cloneElement(child as React.ReactElement<any>, { value, onValueChange, open, setOpen });
+        }
+        return child;
+      })}
     </div>
   );
 };
-Select.displayName = 'Select';
 
-export const SelectTrigger = ({ className, children, isOpen, setIsOpen }: any) => (
-  <div
+export const SelectTrigger = ({ className, children, open, setOpen, value }: any) => (
+  <button
+    onClick={() => setOpen(!open)}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-xl border border-border-default bg-bg-primary px-3 py-2 text-sm text-text-primary cursor-pointer hover:border-border-strong transition-colors",
-      isOpen && "ring-2 ring-accent border-accent",
+      "flex h-11 w-full items-center justify-between rounded-xl border border-border-default bg-bg-primary px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 transition-all",
       className
     )}
-    onClick={() => setIsOpen(!isOpen)}
   >
     {children}
-    <svg
-      className={cn(
-        "w-4 h-4 text-text-tertiary transition-transform",
-        isOpen && "transform rotate-180"
-      )}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-    </svg>
-  </div>
+    <div className={cn("transition-transform duration-200", open ? "rotate-180" : "")}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+  </button>
 );
-SelectTrigger.displayName = 'SelectTrigger';
 
-export const SelectValue = ({ placeholder, value, isOpen }: any) => (
-  <span className={value ? "text-text-primary" : "text-text-tertiary"}>
+export const SelectValue = ({ placeholder, value }: any) => (
+  <span className={cn("block truncate", !value && "text-text-muted")}>
     {value || placeholder}
   </span>
 );
-SelectValue.displayName = 'SelectValue';
 
-export const SelectContent = ({ children, isOpen, className }: any) => {
-  if (!isOpen) return null;
-
+export const SelectContent = ({ children, open, setOpen, value, onValueChange }: any) => {
+  if (!open) return null;
   return (
-    <div className={cn(
-      "absolute z-50 w-full mt-1 bg-bg-secondary border border-border-default rounded-xl shadow-xl max-h-60 overflow-auto glass-effect",
-      className
-    )}>
+    <>
+      <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+      <div className="absolute top-full left-0 z-50 mt-2 w-full min-w-[8rem] overflow-hidden rounded-xl border border-border-default bg-bg-secondary p-1 text-text-primary shadow-xl animate-in fade-in zoom-in-95">
+        {React.Children.map(children, child => {
+          if (React.isValidElement(child)) {
+            return React.cloneElement(child as React.ReactElement<any>, { 
+              active: child.props.value === value,
+              onClick: () => {
+                onValueChange?.(child.props.value);
+                setOpen(false);
+              }
+            });
+          }
+          return child;
+        })}
+      </div>
+    </>
+  );
+};
+
+export const SelectItem = ({ children, value, active, onClick }: any) => (
+  <div
+    onClick={onClick}
+    className={cn(
+      "relative flex w-full cursor-pointer select-none items-center rounded-lg py-2 px-3 text-sm outline-none transition-colors hover:bg-bg-tertiary focus:bg-bg-tertiary",
+      active && "bg-bg-tertiary text-accent font-bold"
+    )}
+  >
+    <div className="flex flex-col gap-0.5">
       {children}
+    </div>
+    {active && (
+      <div className="absolute right-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      </div>
+    )}
+  </div>
+);
+
+// Tabs
+export const Tabs = ({ children, defaultValue, value: controlledValue, onValueChange, className }: { children: React.ReactNode, defaultValue?: string, value?: string, onValueChange?: (v: string) => void, className?: string }) => {
+  const [internalValue, setInternalValue] = React.useState(defaultValue);
+  const value = controlledValue !== undefined ? controlledValue : internalValue;
+  const setValue = (v: string) => {
+    if (controlledValue === undefined) setInternalValue(v);
+    onValueChange?.(v);
+  };
+  return (
+    <div className={cn("w-full", className)}>
+      {React.Children.map(children, child => {
+        if (React.isValidElement(child)) {
+          return React.cloneElement(child as React.ReactElement<any>, { value, setValue });
+        }
+        return child;
+      })}
     </div>
   );
 };
-SelectContent.displayName = 'SelectContent';
 
-export const SelectItem = ({ children, value, onValueChange, setIsOpen }: any) => (
-  <div
-    className="px-3 py-2 text-sm text-text-secondary hover:bg-bg-tertiary hover:text-accent cursor-pointer transition-colors first:rounded-t-xl last:rounded-b-xl"
-    onClick={(e) => {
-      e.stopPropagation();
-      onValueChange(value);
-      setIsOpen(false);
-    }}
-  >
-    {children}
+export const TabsList = ({ children, className, value, setValue }: any) => (
+  <div className={cn("inline-flex h-10 items-center justify-center rounded-xl bg-bg-tertiary p-1 text-text-secondary", className)}>
+    {React.Children.map(children, child => {
+      if (React.isValidElement(child)) {
+        return React.cloneElement(child as React.ReactElement<any>, { 
+          active: child.props.value === value,
+          onClick: () => setValue(child.props.value)
+        });
+      }
+      return child;
+    })}
   </div>
 );
-SelectItem.displayName = 'SelectItem';
 
-export const Slider = ({ value, onValueChange, min, max, step, className }: any) => {
-  const percentage = ((value[0] - min) / (max - min)) * 100;
+export const TabsTrigger = ({ children, value, active, onClick, className }: any) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+      active ? "bg-bg-primary text-text-primary shadow-sm" : "hover:text-text-primary",
+      className
+    )}
+  >
+    {children}
+  </button>
+);
 
-  return (
-    <input
-      type="range"
-      min={min}
-      max={max}
-      step={step}
-      value={value[0]}
-      onChange={(e) => onValueChange([parseInt(e.target.value)])}
-      className={cn("w-full", className)}
-      style={{ '--progress': `${percentage}%` } as any}
-    />
-  );
+export const TabsContent = ({ children, value, active }: any) => {
+  if (!active) return null;
+  return <div className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{children}</div>;
 };
 
-export const Table = ({ children }: any) => <table className="w-full text-left border-collapse">{children}</table>;
-export const TableHeader = ({ children, className }: any) => <thead className={className}>{children}</thead>;
-export const TableBody = ({ children }: any) => <tbody>{children}</tbody>;
-export const TableHead = ({ children, className }: any) => <th className={cn("p-4 text-text-tertiary font-bold text-xs uppercase tracking-widest", className)}>{children}</th>;
-export const TableRow = ({ children, className, onClick }: any) => <tr onClick={onClick} className={cn("border-b border-border-default", className)}>{children}</tr>;
-export const TableCell = ({ children, className }: any) => <td className={cn("p-4 text-sm", className)}>{children}</td>;
-
-export const Drawer = ({ children, open, onClose }: any) => open ? <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm">{children}</div> : null;
-export const DrawerContent = ({ children, className }: any) => <div className={cn("w-full max-w-2xl bg-bg-secondary border-t border-border-default rounded-t-3xl overflow-hidden animate-in slide-in-from-bottom duration-300", className)}>{children}</div>;
-export const DrawerHeader = ({ children, className }: any) => <div className={cn("p-6", className)}>{children}</div>;
-export const DrawerTitle = ({ children, className }: any) => <h2 className={cn("text-lg font-bold", className)}>{children}</h2>;
-export const DrawerDescription = ({ children, className }: any) => <p className={cn("text-sm text-text-tertiary", className)}>{children}</p>;
-export const DrawerFooter = ({ children, className }: any) => <div className={cn("p-6 border-t border-border-default", className)}>{children}</div>;
-export const DrawerClose = ({ children }: any) => children;
-
-export const Switch = ({ checked, onCheckedChange, className }: any) => (
+// Switch
+export const Switch = ({ checked, onCheckedChange, className }: { checked: boolean, onCheckedChange: (v: boolean) => void, className?: string }) => (
   <button
+    type="button"
     role="switch"
     aria-checked={checked}
-    onClick={() => onCheckedChange?.(!checked)}
+    onClick={() => onCheckedChange(!checked)}
     className={cn(
-      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-primary disabled:cursor-not-allowed disabled:opacity-50",
+      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/20 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
       checked ? "bg-accent" : "bg-bg-tertiary",
       className
     )}
   >
-    <span className={cn(
-      "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
-      checked ? "translate-x-5" : "translate-x-0"
-    )} />
-  </button>
-);
-
-export const Progress = ({ value, className }: any) => (
-  <div className={cn("relative w-full h-2 overflow-hidden rounded-full bg-bg-tertiary", className)}>
-    <div
-      className="h-full bg-gradient-to-r from-accent to-accent-light transition-all duration-300 ease-in-out"
-      style={{ width: `${value}%` }}
+    <span
+      className={cn(
+        "pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg ring-0 transition-transform",
+        checked ? "translate-x-5" : "translate-x-0"
+      )}
     />
+  </button>
+)
+
+// ScrollArea
+export const ScrollArea = React.forwardRef<HTMLDivElement, { children: React.ReactNode, className?: string }>(
+  ({ children, className }, ref) => (
+    <div ref={ref} className={cn("relative overflow-auto custom-scrollbar", className)}>
+      {children}
+    </div>
+  )
+)
+
+// Table
+export const Table = ({ className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
+  <div className="relative w-full overflow-auto">
+    <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
   </div>
-);
+)
+export const TableHeader = ({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+  <thead className={cn("[&_tr]:border-b", className)} {...props} />
+)
+export const TableBody = ({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+  <tbody className={cn("[&_tr:last-child]:border-0", className)} {...props} />
+)
+export const TableRow = ({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) => (
+  <tr className={cn("border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted", className)} {...props} />
+)
+export const TableHead = ({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+  <th className={cn("h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0", className)} {...props} />
+)
+export const TableCell = ({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+  <td className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)} {...props} />
+)
