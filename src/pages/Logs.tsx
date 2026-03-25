@@ -1,308 +1,223 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { simulationApi } from '@/lib/api';
 import {
   Card,
   Button,
   Input,
   ScrollArea,
-  Badge
+  Badge,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell
 } from '@/components/ui';
 import {
-  MessageSquare,
-  Download,
-  Pause,
-  Play,
-  Search,
-  FileText,
+  Terminal,
+  Database,
+  Cpu,
+  Activity,
+  Server,
+  Network,
   Zap,
-  RefreshCw
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
 
-// 格式化时间戳显示
-const formatTimestamp = (timestamp: string): string => {
-  try {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSecs = Math.floor(Math.abs(diffMs) / 1000);
-    const diffMins = Math.floor(diffSecs / 60);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
+// Mock data
+const MOCK_AGENTS = Array.from({ length: 12 }, (_, i) => ({
+  id: `agent_${i.toString().padStart(3, '0')}`,
+  status: i < 2 ? 'BOOTING' : 'ONLINE',
+  workingState: i % 3 === 0 ? 'THINKING' : i % 4 === 0 ? 'POSTING' : 'IDLE',
+  memoryLength: Math.floor(Math.random() * 5000) + 1000,
+  lastActive: new Date(Date.now() - Math.random() * 60000).toLocaleTimeString(),
+  cpuUsage: Math.floor(Math.random() * 40) + 10,
+}));
 
-    // 处理未来时间（时间戳比当前时间快）
-    const isFuture = diffMs < 0;
-    const suffix = isFuture ? '后' : '前';
+const MOCK_KG_LOGS = [
+  { time: '10:24:01', action: 'SYNC', detail: 'Synchronized 142 new entities from Reddit stream.' },
+  { time: '10:24:05', action: 'EXTRACT', detail: 'Extracted relation: [Agent_003] -> (AGREES_WITH) -> [Topic_AI_Ethics]' },
+  { time: '10:24:12', action: 'MERGE', detail: 'Merged duplicate nodes for "GPT-5".' },
+  { time: '10:24:18', action: 'INDEX', detail: 'Rebuilding vector index for fast semantic search...' },
+];
 
-    if (diffSecs < 60) {
-      return `${diffSecs}秒${suffix}`;
-    } else if (diffMins < 60) {
-      return `${diffMins}分钟${suffix}`;
-    } else if (diffHours < 24) {
-      return `${diffHours}小时${suffix}`;
-    } else if (diffDays < 7) {
-      return `${diffDays}天${suffix}`;
-    } else {
-      // 超过一周显示完整日期
-      return date.toLocaleDateString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
-  } catch {
-    return timestamp;
-  }
-};
+const MOCK_LLM_LOGS = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  time: new Date(Date.now() - i * 5000).toLocaleTimeString(),
+  model: i % 3 === 0 ? 'gpt-4-turbo' : 'claude-3-opus',
+  promptTokens: Math.floor(Math.random() * 1000) + 200,
+  completionTokens: Math.floor(Math.random() * 500) + 50,
+  latency: (Math.random() * 2 + 0.5).toFixed(2),
+  status: '200 OK',
+  task: i % 2 === 0 ? 'Generate Post' : 'Evaluate Sentiment'
+}));
 
 export default function Logs() {
-  const { logs, status, setLogs } = useSimulationStore();
-  const [isPaused, setIsPaused] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState('ALL');
-  const [displayLogs, setDisplayLogs] = useState(logs);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // 从数据库加载历史日志（仅组件挂载时执行一次）
-  useEffect(() => {
-    const loadLogsFromDatabase = async () => {
-      setIsLoading(true);
-      try {
-        const response = await simulationApi.getLogs();
-        if (response.data.logs) {
-          setLogs(response.data.logs);
-        }
-      } catch (error) {
-        console.error('Failed to load logs from database:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadLogsFromDatabase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Update display logs only when not paused
-  useEffect(() => {
-    if (!isPaused) {
-      setDisplayLogs(logs);
-    }
-  }, [logs, isPaused]);
-
-  const filteredLogs = useMemo(() => {
-    return displayLogs.filter(log => {
-      const matchesSearch = log.agentId.toLowerCase().includes(search.toLowerCase()) || 
-                           log.content.toLowerCase().includes(search.toLowerCase());
-      const matchesType = filterType === 'ALL' || log.actionType === filterType;
-      return matchesSearch && matchesType;
-    });
-  }, [displayLogs, search, filterType]);
-
-  const handleExportCSV = () => {
-    if (logs.length === 0) {
-      toast.error("没有可导出的日志");
-      return;
-    }
-    const headers = ['Timestamp', 'AgentID', 'Action', 'Content', 'Reason'];
-    const csvRows = logs.map(log => [
-      log.timestamp,
-      log.agentId,
-      log.actionType,
-      `"${log.content.replace(/"/g, '""')}"`,
-      `"${log.reason.replace(/"/g, '""')}"`
-    ].join(','));
-
-    const csvContent = [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `oasis_logs_${new Date().toISOString()}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("日志导出成功");
-  };
-
-  const handleRefreshLogs = async () => {
-    setIsLoading(true);
-    try {
-      const response = await simulationApi.getLogs();
-      if (response.data.logs) {
-        setLogs(response.data.logs);
-        toast.success(`从数据库加载了 ${response.data.logs.length} 条日志`);
-      }
-    } catch (error) {
-      toast.error("加载日志失败");
-      console.error('Failed to refresh logs:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const actionTypes = ['CREATE_POST', 'LIKE_POST', 'FOLLOW', 'REPORT_POST'];
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="px-6 lg:px-12 xl:px-16 py-12 h-full flex flex-col">
-      <div className="max-w-7xl mx-auto space-y-8 flex-1 min-h-0">
-      <header className="flex justify-between items-center">
+    <div className="px-6 lg:px-12 py-10 space-y-8 h-full flex flex-col overflow-hidden">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
         <div>
           <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3">
-            <FileText className="w-10 h-10 text-accent" />
-            通信日志
+            <Terminal className="w-10 h-10 text-accent" />
+            系统日志
           </h1>
-          <p className="text-text-tertiary mt-1">实时监控智能体之间的交互行为与决策逻辑</p>
+          <p className="text-text-tertiary mt-1">全栈系统运行状态监控与底层日志追踪</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
-            <div className="flex items-center gap-2">
-              <div className={cn("w-2 h-2 rounded-full",
-                status.running && !status.paused ? "bg-accent animate-pulse" :
-                status.paused ? "bg-amber-500" : "bg-text-muted"
-              )}></div>
-              <span className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">
-                {status.running && !status.paused ? '实时模式' : status.paused ? '已暂停' : '已停止'}
-              </span>
-            </div>
-            <p className="text-[10px] text-text-muted font-mono mt-0.5">已接收 {logs.length} 条日志 · 1s/次</p>
-          </div>
-          <Button
-            variant="outline"
-            className="rounded-xl border-border-default h-10 text-xs gap-2"
-            onClick={handleRefreshLogs}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            从数据库刷新
-          </Button>
-          <Button
-            variant="outline"
-            className="rounded-xl border-border-default h-10 text-xs gap-2"
-            onClick={() => setIsPaused(!isPaused)}
-          >
-            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-            {isPaused ? '恢复滚动' : '暂停滚动'}
-          </Button>
-          <Button
-            variant="default"
-            className="rounded-xl h-10 text-xs gap-2 bg-accent hover:bg-accent-hover"
-            onClick={handleExportCSV}
-          >
-            <Download className="w-4 h-4" />
-            导出 CSV
-          </Button>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="h-9 px-4 border-emerald-500/30 text-emerald-500 bg-emerald-500/10 gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            SYSTEM ONLINE
+          </Badge>
         </div>
       </header>
 
-      <Card className="flex-1 bg-bg-secondary border-border-default flex flex-col overflow-hidden">
-        <div className="p-6 border-b border-border-default bg-bg-secondary/50 flex flex-wrap gap-4 items-center">
-          <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-            <Input 
-              placeholder="搜索 Agent ID 或 内容..." 
-              className="pl-10 bg-bg-primary border-border-default h-11 rounded-xl"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              disabled={logs.length === 0}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant={filterType === 'ALL' ? 'secondary' : 'outline'} 
-              onClick={() => setFilterType('ALL')}
-              className="h-11 px-4 rounded-xl text-xs font-bold border-border-default"
-              disabled={logs.length === 0}
-            >全部</Button>
-            {actionTypes.map(type => (
-              <Button 
-                key={type}
-                variant={filterType === type ? 'secondary' : 'outline'} 
-                onClick={() => setFilterType(type)}
-                className="h-11 px-4 rounded-xl text-xs font-bold border-border-default"
-                disabled={logs.length === 0}
-              >
-                {type}
-              </Button>
-            ))}
-          </div>
-        </div>
+      <ScrollArea className="flex-1 pr-4 -mr-4 custom-scrollbar">
+        <div className="space-y-6 pb-10">
+          
+          {/* 1. Agent Working Logs */}
+          <Card className="bg-bg-secondary border-border-default overflow-hidden">
+            <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
+              <h2 className="text-sm font-bold flex items-center gap-2 text-text-primary">
+                <Cpu className="w-4 h-4 text-accent" />
+                智能体工作日志 (Agent Workers)
+              </h2>
+              <Badge variant="outline" className="text-[10px] border-accent/20 text-accent">
+                {MOCK_AGENTS.filter(a => a.status === 'ONLINE').length} / {MOCK_AGENTS.length} ONLINE
+              </Badge>
+            </div>
+            <div className="p-0">
+              <Table>
+                <TableHeader className="bg-bg-tertiary/30">
+                  <TableRow className="border-border-default hover:bg-transparent">
+                    <TableHead className="text-xs font-bold text-text-tertiary">Agent ID</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary">启动状态</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary">工作状态</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">记忆长度 (Tokens)</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">CPU 占用</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">最后活跃</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {MOCK_AGENTS.map((agent) => (
+                    <TableRow key={agent.id} className="border-border-default hover:bg-bg-tertiary/30">
+                      <TableCell className="font-mono text-xs font-bold text-text-secondary">{agent.id}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn(
+                          "text-[10px] py-0 h-5 border-none",
+                          agent.status === 'ONLINE' ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+                        )}>
+                          {agent.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {agent.workingState === 'THINKING' && <Activity className="w-3 h-3 text-blue-400 animate-pulse" />}
+                          {agent.workingState === 'POSTING' && <Terminal className="w-3 h-3 text-purple-400" />}
+                          {agent.workingState === 'IDLE' && <Clock className="w-3 h-3 text-text-muted" />}
+                          <span className="text-xs text-text-secondary">{agent.workingState}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.memoryLength.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.cpuUsage}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.lastActive}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
 
-        <ScrollArea className="flex-1 p-0">
-          {logs.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-12 text-center">
-              <div className="w-32 h-32 bg-bg-primary rounded-full flex items-center justify-center mb-8 relative">
-                <div className="absolute inset-0 bg-accent/5 animate-ping rounded-full"></div>
-                <div className="w-24 h-24 bg-bg-secondary rounded-full flex items-center justify-center border-2 border-dashed border-border-default">
-                  <MessageSquare className="w-10 h-10 text-text-muted" />
+          {/* 2. Knowledge Graph Status */}
+          <Card className="bg-bg-secondary border-border-default overflow-hidden">
+            <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
+              <h2 className="text-sm font-bold flex items-center gap-2 text-text-primary">
+                <Network className="w-4 h-4 text-purple-500" />
+                知识图谱库启动和运行状态 (Knowledge Graph)
+              </h2>
+              <div className="flex gap-4">
+                <div className="text-right">
+                  <p className="text-[9px] text-text-tertiary uppercase font-bold">Nodes</p>
+                  <p className="text-sm font-mono font-bold text-purple-400">14,205</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-text-tertiary uppercase font-bold">Edges</p>
+                  <p className="text-sm font-mono font-bold text-purple-400">48,912</p>
                 </div>
               </div>
-              <h3 className="text-xl font-bold text-text-primary mb-2">等待日志流输入...</h3>
-              <p className="text-sm text-text-tertiary max-w-sm leading-relaxed mb-8">
-                启动模拟后，智能体之间的每一条交互、决策和思考逻辑都将实时显示在这里。
-              </p>
-              <div className="flex gap-4">
-                <Link to="/overview">
-                  <Button className="bg-accent hover:bg-accent-hover rounded-xl px-8 h-12 font-bold gap-2">
-                    <Zap className="w-4 h-4" />
-                    立即前往概览页启动
-                  </Button>
-                </Link>
-                <Button variant="outline" className="rounded-xl px-8 h-12 border-border-default font-bold">注入测试日志</Button>
-              </div>
             </div>
-          ) : (
-            <div className="divide-y divide-zinc-800">
-              {filteredLogs.map((log, i) => (
-                <div 
-                  key={i} 
-                  className="p-4 hover:bg-bg-tertiary/30 transition-all flex gap-4 group relative animate-in fade-in slide-in-from-bottom-2 duration-300"
-                >
-                  <div className={cn(
-                    "absolute left-0 top-0 bottom-0 w-1",
-                    log.actionType === 'CREATE_POST' ? "bg-accent" :
-                    log.actionType === 'LIKE_POST' ? "bg-blue-500" :
-                    log.actionType === 'FOLLOW' ? "bg-purple-500" : "bg-rose-500"
-                  )}></div>
-                  <div className="w-24 shrink-0 text-[10px] font-mono text-text-tertiary pt-1" title={log.timestamp}>
-                    {formatTimestamp(log.timestamp)}
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-accent font-mono">{log.agentId}</span>
-                      <Badge 
-                        variant="outline" 
-                        className={cn(
-                          "text-[9px] py-0 h-5",
-                          log.actionType === 'CREATE_POST' ? "text-accent border-accent/20" :
-                          log.actionType === 'LIKE_POST' ? "text-blue-400 border-blue-500/20" :
-                          "text-text-tertiary border-border-default"
-                        )}
-                      >
-                        {log.actionType}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-text-primary leading-relaxed">{log.content}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-text-tertiary italic bg-bg-primary/50 p-2 rounded-lg border border-border-default/50 group-hover:border-border-strong transition-colors">
-                      <span className="text-text-muted font-bold uppercase tracking-tighter text-text-muted">Reason:</span>
-                      {log.reason}
-                    </div>
-                  </div>
+            <div className="p-4 bg-black/40 font-mono text-xs space-y-2 h-[200px] overflow-y-auto custom-scrollbar">
+              {MOCK_KG_LOGS.map((log, i) => (
+                <div key={i} className="flex gap-4 items-start">
+                  <span className="text-text-muted shrink-0">{log.time}</span>
+                  <span className={cn(
+                    "shrink-0 w-16",
+                    log.action === 'SYNC' ? "text-blue-400" :
+                    log.action === 'EXTRACT' ? "text-emerald-400" :
+                    log.action === 'MERGE' ? "text-amber-400" : "text-purple-400"
+                  )}>[{log.action}]</span>
+                  <span className="text-text-secondary">{log.detail}</span>
                 </div>
               ))}
+              <div className="flex gap-4 items-start animate-pulse">
+                <span className="text-text-muted shrink-0">10:24:22</span>
+                <span className="text-accent shrink-0 w-16">[AWAIT]</span>
+                <span className="text-text-tertiary">Listening for new entity streams...</span>
+              </div>
             </div>
-          )}
-        </ScrollArea>
-      </Card>
-      </div>
+          </Card>
+
+          {/* 3. LLM Logs */}
+          <Card className="bg-bg-secondary border-border-default overflow-hidden">
+            <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
+              <h2 className="text-sm font-bold flex items-center gap-2 text-text-primary">
+                <Server className="w-4 h-4 text-emerald-500" />
+                大模型启动与运行日志 (LLM Engine)
+              </h2>
+              <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500">
+                API HEALTHY
+              </Badge>
+            </div>
+            <div className="p-0">
+              <Table>
+                <TableHeader className="bg-bg-tertiary/30">
+                  <TableRow className="border-border-default hover:bg-transparent">
+                    <TableHead className="text-xs font-bold text-text-tertiary w-24">Time</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary">Model</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary">Task</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Prompt</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Completion</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Latency</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {MOCK_LLM_LOGS.map((log) => (
+                    <TableRow key={log.id} className="border-border-default hover:bg-bg-tertiary/30">
+                      <TableCell className="font-mono text-xs text-text-muted">{log.time}</TableCell>
+                      <TableCell className="font-mono text-xs text-accent">{log.model}</TableCell>
+                      <TableCell className="text-xs text-text-secondary">{log.task}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{log.promptTokens}t</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{log.completionTokens}t</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-amber-400">{log.latency}s</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="outline" className="text-[9px] py-0 h-5 border-none bg-emerald-500/10 text-emerald-500">
+                          {log.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+
+        </div>
+      </ScrollArea>
     </div>
   );
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(' ');
 }

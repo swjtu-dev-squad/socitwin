@@ -1,12 +1,7 @@
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-  DrawerFooter,
   Button,
-  Badge
+  Badge,
+  ScrollArea
 } from '@/components/ui';
 import { Agent } from '@/lib/types';
 import { 
@@ -16,9 +11,10 @@ import {
   Tag,
   MessageSquare,
   FileText,
-  ExternalLink
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface AgentDetailDrawerProps {
   agent: Agent | null;
@@ -31,137 +27,107 @@ export default function AgentDetailDrawer({ agent, open, onClose }: AgentDetailD
   if (!agent) return null;
 
   return (
-    <Drawer open={open} onClose={onClose}>
-      <DrawerContent className="bg-bg-secondary border-border-default text-text-primary max-w-2xl mx-auto">
-        <div className="mx-auto w-12 h-1.5 bg-bg-tertiary rounded-full mt-4" />
-        
-        <DrawerHeader className="px-8 pt-8">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 bg-accent-subtle border border-accent/50 rounded-2xl flex items-center justify-center text-3xl">
-                🤖
-              </div>
-              <div>
-                <DrawerTitle className="text-2xl font-bold flex items-center gap-3">
-                  {agent.name}
-                  <Badge variant={agent.status === 'active' ? 'default' : 'secondary'} className={agent.status === 'active' ? 'bg-accent' : ''}>
-                    {agent.status === 'active' ? '活跃' : '空闲'}
-                  </Badge>
-                </DrawerTitle>
-                <DrawerDescription className="text-text-tertiary font-mono text-xs mt-1">
-                  ID: {agent.id}
-                </DrawerDescription>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-8 text-[10px] border-border-default rounded-lg gap-1.5"
-                onClick={() => {
-                  navigate(`/logs?agent=${agent.id}`);
-                  onClose();
-                }}
-              >
-                <FileText className="w-3.5 h-3.5" />
-                日志
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-8 text-[10px] border-border-default rounded-lg gap-1.5"
-                onClick={() => {
-                  navigate(`/groupchat`);
-                  onClose();
-                }}
-              >
-                <MessageSquare className="w-3.5 h-3.5" />
-                群聊
-              </Button>
-            </div>
-          </div>
-        </DrawerHeader>
-
-        <div className="px-8 py-4 space-y-8 overflow-y-auto max-h-[60vh]">
-          {/* Profile Section */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-text-tertiary flex items-center gap-2">
-              <User className="w-4 h-4" /> 个人档案
-            </h3>
-            <div className="bg-bg-primary/50 border border-border-default rounded-2xl p-6">
-              <p className="text-text-primary leading-relaxed italic">"{agent.bio}"</p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {agent.interests.map(interest => (
-                  <Badge key={interest} variant="outline" className="bg-bg-secondary border-border-default text-text-secondary">
-                    <Tag className="w-3 h-3 mr-1" /> {interest}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* Memory Section */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-text-tertiary flex items-center gap-2">
-              <Brain className="w-4 h-4" /> 记忆检索 (Memory)
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              {[
-                { content: '观察到关于“AI伦理”的讨论，产生了浓厚兴趣', time: '2分钟前', type: 'Observation' },
-                { content: '记录了与 Agent_12 的互动，对方观点较为激进', time: '5分钟前', type: 'Interaction' },
-                { content: '在 Reddit 平台浏览了 5 条热门帖子', time: '12分钟前', type: 'Browsing' },
-              ].map((memory, i) => (
-                <div key={i} className="p-4 rounded-xl bg-bg-primary border border-border-default/50 group hover:border-accent/30 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-accent/70 bg-accent/5 px-2 py-0.5 rounded border border-accent/10">
-                      {memory.type}
-                    </span>
-                    <span className="text-[9px] text-text-muted font-mono">{memory.time}</span>
-                  </div>
-                  <p className="text-xs text-text-secondary leading-relaxed">{memory.content}</p>
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+          />
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 w-full max-w-xl bg-bg-secondary border-l border-border-default z-50 shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-border-default flex justify-between items-center bg-bg-secondary/50 backdrop-blur-md sticky top-0 z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-accent/20 flex items-center justify-center text-accent border border-accent/30">
+                  <User className="w-6 h-6" />
                 </div>
-              ))}
+                <div>
+                  <h2 className="text-xl font-bold">{agent.name}</h2>
+                  <p className="text-[10px] text-text-tertiary font-mono uppercase tracking-widest">{agent.id}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
+                <X className="w-5 h-5" />
+              </Button>
             </div>
-          </section>
 
-          {/* Action History */}
-          <section className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-text-tertiary flex items-center gap-2">
-              <History className="w-4 h-4" /> 动作历史
-            </h3>
-            <div className="space-y-4">
-              <div className="relative pl-6 border-l border-border-default space-y-6">
-                <div className="relative">
-                  <div className="absolute -left-[25px] top-1 w-2 h-2 rounded-full bg-accent shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-sm font-bold text-accent">{agent.lastAction?.type}</p>
-                      <p className="text-xs text-text-primary mt-1">“{agent.lastAction?.content}”</p>
-                      <p className="text-[10px] text-text-tertiary mt-2 italic">Reason: {agent.lastAction?.reason}</p>
+            <ScrollArea className="flex-1 p-8 space-y-10">
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-text-tertiary">
+                  <Tag className="w-3.5 h-3.5" /> 基础画像
+                </div>
+                <div className="bg-bg-primary/50 border border-border-default p-6 rounded-2xl space-y-4">
+                  <p className="text-sm text-text-secondary leading-relaxed italic">"{agent.bio}"</p>
+                  <div className="flex flex-wrap gap-2">
+                    {agent.interests.map(interest => (
+                      <Badge key={interest} variant="secondary" className="bg-bg-tertiary border-border-default text-[9px]">
+                        {interest}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-text-tertiary">
+                  <Brain className="w-3.5 h-3.5" /> 认知状态
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-bg-primary/50 border border-border-default">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase mb-1">极化程度</p>
+                    <p className="text-2xl font-mono font-bold text-rose-500">{(agent.polarization || 0).toFixed(4)}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-bg-primary/50 border border-border-default">
+                    <p className="text-[10px] font-bold text-text-tertiary uppercase mb-1">活跃状态</p>
+                    <Badge variant={agent.status === 'active' ? 'default' : 'secondary'} className="mt-1">
+                      {agent.status}
+                    </Badge>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-text-tertiary">
+                  <History className="w-3.5 h-3.5" /> 最近轨迹
+                </div>
+                <div className="space-y-4 relative pl-4 border-l border-border-default">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="relative">
+                      <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-bg-secondary border-2 border-accent" />
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-accent uppercase">Create Post</span>
+                          <span className="text-[9px] text-text-muted font-mono">2m ago</span>
+                        </div>
+                        <p className="text-xs text-text-secondary">发表了关于“AI伦理”的看法，引起了广泛讨论。</p>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-text-muted font-mono">09:12:45</span>
-                  </div>
+                  ))}
                 </div>
-              </div>
-            </div>
-          </section>
-        </div>
+              </section>
+            </ScrollArea>
 
-        <DrawerFooter className="px-8 pb-8 pt-4 border-t border-border-default">
-          <div className="flex gap-4">
-            <Button className="flex-1 bg-accent hover:bg-accent-hover rounded-xl h-12">
-              <MessageSquare className="w-4 h-4 mr-2" /> 注入动作
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 border-border-default hover:bg-bg-tertiary rounded-xl h-12"
-              onClick={onClose}
-            >
-              关闭
-            </Button>
-          </div>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+            <div className="p-6 border-t border-border-default bg-bg-secondary/50 backdrop-blur-md grid grid-cols-2 gap-4">
+              <Button variant="outline" className="rounded-xl h-12 gap-2" onClick={() => navigate(`/logs?agent=${agent.id}`)}>
+                <FileText className="w-4 h-4" />
+                查看日志
+              </Button>
+              <Button className="rounded-xl h-12 gap-2">
+                <MessageSquare className="w-4 h-4" />
+                注入指令
+              </Button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

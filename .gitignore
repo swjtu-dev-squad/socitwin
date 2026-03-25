@@ -6,34 +6,23 @@ coverage/
 *.log
 .env*
 !.env.example
-.cache/
-screenshots/
-page_texts/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+
+# Database
 *.db
-*.db-journal
 *.db-shm
 *.db-wal
-dev-logs/
 
 # Test results
 test-results/
-test_results_e2e_*.json
-*.json.test
-test-results-*.json
 
-# Python virtual environments
-venv/
-env/
-.venv/
-ENV/
-virtualenv/
-*.egg-info/
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-.pytest_cache/
-.mypy_cache/
-.coverage
-htmlcov/
+# Runtime metadata
+metadata.json
+
+# Optional: npm lock file (uncomment if needed)
+# package-lock.json

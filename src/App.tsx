@@ -1,32 +1,20 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
-import { initSocket, disconnectSocket } from './lib/socket';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './components/DashboardLayout';
-import Home from './pages/Home';
 import Overview from './pages/Overview';
-import Profiles from './pages/Profiles';
 import Agents from './pages/Agents';
 import Logs from './pages/Logs';
-import Analytics from './pages/Analytics';
-import Settings from './pages/Settings';
 import GroupChat from './pages/GroupChat';
+import Profiles from './pages/Profiles';
 import Experiments from './pages/Experiments';
+import Settings from './pages/Settings';
 import { Toaster } from 'sonner';
 
 export default function App() {
-  useEffect(() => {
-    initSocket();
-    return () => disconnectSocket();
-  }, []);
-
   return (
     <BrowserRouter>
       <Toaster position="top-right" theme="dark" richColors />
       <Routes>
-        {/* Landing page without dashboard layout */}
-        <Route path="/" element={<Home />} />
-
-        {/* Dashboard pages with layout */}
+        <Route path="/" element={<Navigate to="/overview" replace />} />
         <Route path="/overview" element={
           <DashboardLayout>
             <Overview />
@@ -47,16 +35,6 @@ export default function App() {
             <Logs />
           </DashboardLayout>
         } />
-        <Route path="/analytics" element={
-          <DashboardLayout>
-            <Analytics />
-          </DashboardLayout>
-        } />
-        <Route path="/settings" element={
-          <DashboardLayout>
-            <Settings />
-          </DashboardLayout>
-        } />
         <Route path="/groupchat" element={
           <DashboardLayout>
             <GroupChat />
@@ -67,6 +45,12 @@ export default function App() {
             <Experiments />
           </DashboardLayout>
         } />
+        <Route path="/settings" element={
+          <DashboardLayout>
+            <Settings />
+          </DashboardLayout>
+        } />
+        <Route path="*" element={<Navigate to="/overview" replace />} />
       </Routes>
     </BrowserRouter>
   );
