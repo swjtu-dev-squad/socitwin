@@ -1,42 +1,48 @@
 #!/usr/bin/env python3
 """
-E2E Test Script: Simulate Frontend Operations
+E2E Test Script: Simulate Frontend Operations with Intervention Support
 
 This script mimics the frontend workflow:
 1. Initialize simulation (POST /api/sim/config)
-2. Execute step-by-step (POST /api/sim/step)
-3. Verify OASIS paper metrics:
+2. (Optional) Add controlled agents for intervention at specific step
+3. Execute step-by-step (POST /api/sim/step)
+4. Verify OASIS paper metrics:
    - Information Propagation (scale, depth, max_breadth, nrmse)
    - Group Polarization (round comparison: moreExtreme, moreProgressive, unchanged)
    - Herd Effect (Reddit hot score: herdEffectScore, hot/cold posts)
-4. Display detailed results
-5. Generate visualization charts
+5. Display detailed results
+6. Generate visualization charts
 
 Usage:
-    python test_e2e_simulation.py [agent_count] [num_steps] [base_url] [topics]
+    python test_e2e_simulation.py [agent_count] [num_steps] [base_url] [topics] [--intervention] [--intervention-step N] [--intervention-types T1,T2,T3]
+
+Arguments:
+    agent_count: Number of normal agents (default: 5)
+    num_steps: Number of steps to execute (default: 5)
+    base_url: Backend API base URL (default: http://localhost:3000)
+    topics: Comma-separated topics (default: "AI")
+
+Options:
+    --intervention: Enable controlled agent intervention
+    --intervention-step N: Add controlled agents at step N (default: 2)
+    --intervention-types T1,T2,T3: Types of controlled agents (default: peace_messenger,fact_checker,moderator)
 
 Examples:
     python test_e2e_simulation.py
-    # Defaults: 5 agents, 5 steps, topic="AI"
+    # Defaults: 5 agents, 5 steps, topic="AI", no intervention
 
     python test_e2e_simulation.py 10 10
-    # 10 agents, 10 steps, topic="AI"
+    # 10 agents, 10 steps, topic="AI", no intervention
 
-    python test_e2e_simulation.py 5 5 http://localhost:3000 "MiddleEast"
-    # Custom topic (loads seeds from prompts/topics/middleeast.json)
+    python test_e2e_simulation.py 10 10 http://localhost:3000 "MiddleEast" --intervention
+    # 10 agents, 10 steps, topic="MiddleEast", with default intervention at step 2
 
-    python test_e2e_simulation.py 10 10 http://localhost:3000 "AI,Climate,Politics"
-    # Multiple topics (comma-separated)
+    python test_e2e_simulation.py 15 20 http://localhost:3000 "MiddleEast" --intervention --intervention-step 5 --intervention-types peace_messenger,fact_checker,moderator,humanitarian
+    # 15 agents, 20 steps, topic="MiddleEast", with 4 controlled agents at step 5
 
 Note: Seed posts are automatically loaded from the topic configuration file
       (prompts/topics/{topic}.json -> seed_posts field)
-    [
-        "The recent escalation shows clear aggression from one side.",
-        "Peace talks are the only way forward - military action will only make things worse.",
-        "International intervention is necessary to prevent further civilian casualties.",
-        "We should respect sovereignty and let regional powers handle the situation.",
-        "Economic sanctions are an effective alternative to military intervention."
-    ]
+    Controlled agents are loaded from prompts/intervention.json
 """
 
 import requests
@@ -65,8 +71,12 @@ class SimulationTester:
         self.base_url = base_url
         self.simulation_id = None
         self.steps_executed = 0
+        self.intervention_enabled = False
+        self.intervention_step = 2
+        self.intervention_types = ["peace_messenger", "fact_checker", "moderator"]
         self.results = {
             "initialization": None,
+            "intervention": None,
             "steps": [],
             "metrics": [],
             "errors": []
@@ -665,6 +675,61 @@ class SimulationTester:
         except Exception as e:
             print(f"  ⚠️  Failed to save results: {e}")
 
+    def add_controlled_agents_intervention(self) -> bool:
+        """Add controlled agents for intervention"""
+        self.print_section("Adding Controlled Agents (Intervention)")
+
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/sim/intervention/batch",
+                json={
+                    "intervention_types": self.intervention_types,
+                    "initial_step": True
+                },
+                timeout=60
+            )
+            response.raise_for_status()
+            response_data = response.json()
+
+            # Handle JSON-RPC format
+            if "result" in response_data:
+                result = response_data["result"]
+            elif "status" in response_data:
+                result = response_data
+            else:
+                result = response_data
+
+            if result.get("status") == "ok":
+                print(f"  ✅ Intervention successful")
+                print(f"    • Created: {result.get('total', 0)} controlled agents")
+
+                for agent_info in result.get("created_agents", []):
+                    print(f"      - Agent {agent_info['agent_id']}: {agent_info['user_name']} ({agent_info['type']})")
+
+                self.results["intervention"] = {
+                    "success": True,
+                    "step": self.steps_executed,
+                    "intervention_types": self.intervention_types,
+                    "created_agents": result.get("created_agents", [])
+                }
+                return True
+            else:
+                error_msg = result.get("message", "Unknown error")
+                print(f"  ❌ Intervention failed: {error_msg}")
+                self.results["errors"].append({
+                    "stage": "intervention",
+                    "error": error_msg
+                })
+                return False
+
+        except Exception as e:
+            print(f"  ❌ Intervention request failed: {e}")
+            self.results["errors"].append({
+                "stage": "intervention",
+                "error": str(e)
+            })
+            return False
+
     def run_full_test(
         self,
         agent_count: int = 5,
@@ -676,6 +741,10 @@ class SimulationTester:
         print("\n" + "🚀" * 30)
         print("  OASIS Dashboard E2E Test")
         print("  Simulating Frontend Workflow")
+
+        if self.intervention_enabled:
+            print(f"  🎭 Intervention: ENABLED (step {self.intervention_step}, types: {', '.join(self.intervention_types)})")
+
         print("🚀" * 30)
 
         # Reset
@@ -696,6 +765,12 @@ class SimulationTester:
         self.print_section(f"Executing {num_steps} Steps")
 
         for step in range(1, num_steps + 1):
+            # 检查是否需要添加干预
+            if self.intervention_enabled and step == self.intervention_step:
+                print(f"\n  🎯 Triggering intervention at step {step}...")
+                if not self.add_controlled_agents_intervention():
+                    print(f"\n  ⚠️  Intervention failed, but continuing test...")
+
             result = self.execute_step(step)
 
             if not result:
@@ -726,30 +801,47 @@ def main():
     """Main entry point"""
     import sys
     import os
+    import argparse
 
     # Parse command line arguments
-    agent_count = 5
-    num_steps = 5
-    base_url = "http://localhost:3000"
-    topics = ["AI"]
+    parser = argparse.ArgumentParser(
+        description="OASIS Dashboard E2E Test with Intervention Support",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
 
-    if len(sys.argv) > 1:
-        agent_count = int(sys.argv[1])
-    if len(sys.argv) > 2:
-        num_steps = int(sys.argv[2])
-    if len(sys.argv) > 3:
-        base_url = sys.argv[3]
-    if len(sys.argv) > 4:
-        # Support comma-separated topics: "AI,Climate,Politics"
-        topics = [t.strip() for t in sys.argv[4].split(",")]
+    parser.add_argument("agent_count", type=int, nargs="?", default=5,
+                       help="Number of normal agents (default: 5)")
+    parser.add_argument("num_steps", type=int, nargs="?", default=5,
+                       help="Number of steps to execute (default: 5)")
+    parser.add_argument("base_url", nargs="?", default="http://localhost:3000",
+                       help="Backend API base URL (default: http://localhost:3000)")
+    parser.add_argument("topics", nargs="?", default="AI",
+                       help="Comma-separated topics (default: AI)")
 
-    # Run test
-    tester = SimulationTester(base_url=base_url)
+    # Intervention arguments
+    parser.add_argument("--intervention", action="store_true",
+                       help="Enable controlled agent intervention")
+    parser.add_argument("--intervention-step", type=int, default=2, metavar="N",
+                       help="Add controlled agents at step N (default: 2)")
+    parser.add_argument("--intervention-types", default="peace_messenger,fact_checker,moderator",
+                       metavar="T1,T2,T3",
+                       help="Types of controlled agents (comma-separated, default: peace_messenger,fact_checker,moderator)")
+
+    args = parser.parse_args()
+
+    # Parse topics
+    topics = [t.strip() for t in args.topics.split(",")]
+
+    # Setup tester
+    tester = SimulationTester(base_url=args.base_url)
+    tester.intervention_enabled = args.intervention
+    tester.intervention_step = args.intervention_step
+    tester.intervention_types = args.intervention_types.split(",")
 
     try:
         success = tester.run_full_test(
-            agent_count=agent_count,
-            num_steps=num_steps,
+            agent_count=args.agent_count,
+            num_steps=args.num_steps,
             platform="reddit",
             topics=topics
         )
