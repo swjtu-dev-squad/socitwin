@@ -403,6 +403,142 @@ async function startServer() {
     }
   });
 
+  // ===== Intervention APIs =====
+
+  // POST /api/sim/intervention/batch - Batch add controlled agents
+  app.post("/api/sim/intervention/batch", async (req, res) => {
+    try {
+      const { intervention_types, initial_step } = req.body;
+
+      if (!intervention_types || !Array.isArray(intervention_types) || intervention_types.length === 0) {
+        return res.status(400).json({
+          status: "error",
+          message: "intervention_types must be a non-empty array"
+        });
+      }
+
+      console.log(`[Intervention] Adding controlled agents: ${intervention_types.join(", ")}`);
+
+      const result = await callOasisEngine("add_controlled_agents_batch", {
+        intervention_types,
+        initial_step: initial_step !== false  // default true
+      });
+
+      console.log(`[Intervention] Result:`, result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intervention] Error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to add controlled agents"
+      });
+    }
+  });
+
+  // POST /api/sim/intervention/single - Add single controlled agent
+  app.post("/api/sim/intervention/single", async (req, res) => {
+    try {
+      const { user_name, content, bio } = req.body;
+
+      if (!user_name || !content) {
+        return res.status(400).json({
+          status: "error",
+          message: "user_name and content are required"
+        });
+      }
+
+      console.log(`[Intervention] Adding single controlled agent: ${user_name}`);
+
+      const result = await callOasisEngine("add_controlled_agent", {
+        user_name,
+        content,
+        bio: bio || "Controlled agent for intervention"
+      });
+
+      console.log(`[Intervention] Result:`, result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intervention] Error:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to add controlled agent"
+      });
+    }
+  });
+
+  // POST /api/sim/intervention/force-post - Force agent to post
+  app.post("/api/sim/intervention/force-post", async (req, res) => {
+    try {
+      const { agent_id, content, refresh_recsys } = req.body;
+
+      if (agent_id === undefined || !content) {
+        return res.status(400).json({
+          status: "error",
+          message: "agent_id and content are required"
+        });
+      }
+
+      const result = await callOasisEngine("force_agent_post", {
+        agent_id,
+        content,
+        refresh_recsys: refresh_recsys !== false  // default true
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intervention] Error forcing post:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to force post"
+      });
+    }
+  });
+
+  // POST /api/sim/intervention/force-comment - Force agent to comment
+  app.post("/api/sim/intervention/force-comment", async (req, res) => {
+    try {
+      const { agent_id, post_id, content, refresh_recsys } = req.body;
+
+      if (agent_id === undefined || post_id === undefined || !content) {
+        return res.status(400).json({
+          status: "error",
+          message: "agent_id, post_id, and content are required"
+        });
+      }
+
+      const result = await callOasisEngine("force_agent_comment", {
+        agent_id,
+        post_id,
+        content,
+        refresh_recsys: refresh_recsys !== false  // default true
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intervention] Error forcing comment:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to force comment"
+      });
+    }
+  });
+
+  // GET /api/sim/intervention/list - List all controlled agents
+  app.get("/api/sim/intervention/list", async (req, res) => {
+    try {
+      const result = await callOasisEngine("list_controlled_agents", {});
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Intervention] Error listing agents:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to list controlled agents"
+      });
+    }
+  });
+
+  // ===== End Intervention APIs =====
+
   // ===== R4-01: Propagation Visualization APIs =====
 
   // GET /api/analytics/propagation-summary

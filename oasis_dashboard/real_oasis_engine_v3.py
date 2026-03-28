@@ -176,6 +176,9 @@ class RealOASISEngineV3:
         # 🆕 加载 Agent 系统提示词配置
         self.agent_prompts_config = self._load_agent_prompts_config()
 
+        # 🆕 加载干预系统配置
+        self.intervention_config = self._load_intervention_config()
+
         # 🆕 当前 topic 配置（包含人格列表）
         self.current_topic_config = None
         self.propagation_analyzer: Optional[Any] = None
@@ -673,9 +676,17 @@ class RealOASISEngineV3:
             await self.env.step(actions)
             self.total_posts = self._get_actual_post_count()
 
-            # 🔄 刷新推荐系统，让agents可以看到新创建的帖子
+            # 🔄 刷新推荐系统，让agents可以看到新创建的帖子（添加超时保护）
             print("🔄 Refreshing recommendation system...", flush=True)
-            await self.env.platform.update_rec_table()
+            try:
+                await asyncio.wait_for(
+                    self.env.platform.update_rec_table(),
+                    timeout=30.0  # 30秒超时（初始化时可能需要更长时间）
+                )
+            except asyncio.TimeoutError:
+                print("⚠️  推荐系统刷新超时（30秒），继续执行", flush=True)
+            except Exception as e:
+                print(f"⚠️  推荐系统刷新失败: {e}，继续执行", flush=True)
 
             print(f"✅ Seeded {len(actions)} initial posts", flush=True)
             print("✅ Step complete", file=sys.stderr, flush=True)  # 触发前端 WebSocket 事件
@@ -836,9 +847,23 @@ class RealOASISEngineV3:
             # 按照OASIS官方文档：从环境中获取agents
             all_agents = list(self.env.agent_graph.get_agents())
 
+            # 🆕 过滤掉 controlled agents（只让普通 agents 参与 LLM 执行）
+            normal_agents = [
+                (agent_id, agent) for agent_id, agent in all_agents
+                if not (hasattr(agent, 'user_info')
+                    and agent.user_info
+                    and agent.user_info.profile
+                    and agent.user_info.profile.get("controlled"))
+            ]
+
             # 输出进度信息（用于前端显示）
-            total_agents = len(all_agents)
+            total_agents = len(normal_agents)
             print(f"📊 Progress: 0/{total_agents} (0%)", file=sys.stderr, flush=True)
+
+            # 🆕 如果有 controlled agents，记录日志
+            controlled_count = len(all_agents) - len(normal_agents)
+            if controlled_count > 0:
+                print(f"⏭️  跳过 {controlled_count} 个 controlled agents（手动控制）", flush=True)
 
             # 🚀 并发执行每个agent，真正并行调用LLM API
             # 默认并发50（提升以充分利用DeepSeek的无并发限制特性）
@@ -864,7 +889,7 @@ class RealOASISEngineV3:
 
             tasks = [
                 asyncio.create_task(_run_single_agent(agent))
-                for _, agent in all_agents
+                for _, agent in normal_agents
             ]
 
             try:
@@ -1236,6 +1261,56 @@ class RealOASISEngineV3:
         except Exception as e:
             print(f"⚠️  加载 Agent 提示词失败: {e}，使用默认提示词", flush=True)
             return {}
+
+    def _load_intervention_config(self) -> Dict:
+        """
+        从外部配置文件加载干预系统配置
+
+        Returns:
+            干预配置字典
+        """
+        try:
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), "prompts", "intervention.json"),
+                os.path.join(os.path.dirname(__file__), "..", "oasis_dashboard", "prompts", "intervention.json"),
+                "/app/oasis_dashboard/prompts/intervention.json",
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    print(f"✅ 已加载干预配置: {path}", flush=True)
+                    return config
+
+            # 如果找不到文件，返回空配置
+            print("⚠️  未找到 intervention.json，使用默认干预配置", flush=True)
+            return self._get_default_intervention_config()
+
+        except Exception as e:
+            print(f"⚠️  加载干预配置失败: {e}，使用默认配置", flush=True)
+            return self._get_default_intervention_config()
+
+    def _get_default_intervention_config(self) -> Dict:
+        """获取默认干预配置"""
+        return {
+            "description": "默认干预配置",
+            "intervention_profiles": [
+                {
+                    "name": "neutral",
+                    "description": "中立观察者",
+                    "user_name_prefix": "controlled_agent",
+                    "bio": "Controlled agent for intervention",
+                    "system_message": "You are a CONTROLLED AGENT promoting balanced, evidence-based discussion.",
+                    "initial_posts": [
+                        "Let's consider multiple perspectives on this issue.",
+                        "Evidence-based reasoning is crucial for understanding complex topics.",
+                        "Both sides have valid points worth considering."
+                    ],
+                    "comment_style": "balanced, analytical"
+                }
+            ]
+        }
 
     def _build_enhanced_system_message_from_config(
         self,
@@ -1969,6 +2044,587 @@ You are NOT an AI assistant. You're a REAL person with emotions and opinions. Po
         except Exception:
             return 0
 
+    # ========== 干预系统方法 (Intervention System Methods) ==========
+
+    def _get_next_agent_id(self) -> int:
+        """获取下一个可用的 agent_id，避免 ID 冲突"""
+        existing_ids = {agent.social_agent_id for agent in self.agents}
+        if not existing_ids:
+            return 0
+        return max(existing_ids) + 1
+
+    def _validate_agent_exists(self, agent_id: int) -> bool:
+        """验证 agent_id 是否存在"""
+        return any(agent.social_agent_id == agent_id for agent in self.agents)
+
+    def _validate_post_exists(self, post_id: int) -> bool:
+        """验证 post_id 是否在数据库中存在"""
+        import sqlite3
+        if not os.path.exists(self.db_path):
+            return False
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM post WHERE post_id = ?", (post_id,))
+            exists = cursor.fetchone() is not None
+            conn.close()
+            return exists
+        except Exception:
+            return False
+
+    def _build_controlled_agent_system_message(self) -> BaseMessage:
+        """
+        构建 controlled agent 的系统消息
+        使用简单标记，不依赖复杂的 persona 配置
+        """
+        content = """# OBJECTIVE
+You are a CONTROLLED AGENT in a social media simulation.
+
+## CRITICAL INSTRUCTIONS
+1. You will ONLY post when explicitly instructed by the system
+2. Your posts should be concise, authentic, and natural
+3. Do NOT initiate actions on your own
+4. Wait for intervention commands
+
+## YOUR ROLE
+You are part of an intervention system to study social media dynamics.
+Follow instructions precisely and post the content provided.
+"""
+        return BaseMessage.make_assistant_message(
+            role_name="system",
+            content=content
+        )
+
+    async def add_controlled_agent(
+        self,
+        user_name: str,
+        content: str,
+        bio: str = "Controlled agent for intervention",
+    ) -> Dict:
+        """
+        添加一个 controlled agent 并立即执行首次发帖
+
+        Args:
+            user_name: Agent 用户名（如 "intervention_agent_0"）
+            content: 首次发帖内容
+            bio: 个人简介（可选）
+
+        Returns:
+            {
+                "status": "ok" | "error",
+                "agent_id": int,
+                "user_name": str,
+                "message": str,
+                "post_id": int  # 首次发帖的 ID
+            }
+        """
+        try:
+            if not self.env or not self.agent_graph:
+                return {"status": "error", "message": "环境未初始化"}
+
+            # 1. 生成新的 agent_id
+            agent_id = self._get_next_agent_id()
+
+            # 2. 构建 UserInfo，设置 controlled 标记
+            user_info = UserInfo(
+                user_name=user_name,
+                name=f"Controlled Agent {agent_id}",
+                description=f"Controlled agent for intervention - {user_name}",
+                profile={
+                    "controlled": True,  # 关键标记
+                    "other_info": {
+                        "user_profile": bio,
+                        "gender": "unknown",  # Reddit 系统消息需要
+                        "age": 30,            # Reddit 系统消息需要
+                        "mbti": "UNKNOWN",     # Reddit 系统消息需要
+                        "country": "General",  # Reddit 系统消息需要
+                    }
+                },
+                recsys_type=self.env.platform_type.value.lower(),
+            )
+
+            # 3. 构建 system_message
+            system_message = self._build_controlled_agent_system_message()
+
+            # 4. 构建 ContextRuntimeSettings（复用现有配置）
+            context_settings = ContextRuntimeSettings(
+                token_counter=self._get_token_counter_from_model(),
+                system_message=system_message,
+                context_token_limit=self.context_token_limit,
+                observation_soft_limit=max(1024, int(self.context_token_limit * 0.75)),
+                observation_hard_limit=self.context_token_limit,
+                memory_window_size=self.memory_window_size,
+                compression=compression_config_for_platform(self.env.platform_type.value.lower()),
+            )
+            context_settings.validate()
+
+            # 5. 获取 available_actions（复用现有配置）
+            available_actions = self._build_available_actions(
+                self.env.platform_type.value.lower(),
+                "smoke_dense"
+            )
+
+            # 6. 创建 ContextSocialAgent
+            agent = ContextSocialAgent(
+                agent_id=agent_id,
+                user_info=user_info,
+                agent_graph=self.agent_graph,
+                model=self.model,
+                available_actions=available_actions,
+                context_settings=context_settings,
+            )
+
+            # 7. 添加到 agent_graph 和 agents 列表
+            self.agent_graph.add_agent(agent)
+            self.agents.append(agent)
+
+            print(f"✅ 已添加 controlled agent: {agent_id} - {user_name}", flush=True)
+
+            # 8. 立即执行首次发帖
+            post_result = await self.force_agent_post(
+                agent_id=agent_id,
+                content=content,
+                refresh_recsys=True
+            )
+
+            if post_result["status"] != "ok":
+                return {
+                    "status": "error",
+                    "agent_id": agent_id,
+                    "user_name": user_name,
+                    "message": f"Agent 创建成功，但首次发帖失败: {post_result.get('message')}"
+                }
+
+            return {
+                "status": "ok",
+                "agent_id": agent_id,
+                "user_name": user_name,
+                "message": f"已添加 controlled agent 并执行首次发帖",
+                "post_id": post_result.get("post_id")
+            }
+
+        except Exception as e:
+            print(f"❌ 添加 controlled agent 失败: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "message": str(e)}
+
+    async def force_agent_post(
+        self,
+        agent_id: int,
+        content: str,
+        refresh_recsys: bool = True,
+    ) -> Dict:
+        """
+        强制指定 agent 发帖
+
+        Args:
+            agent_id: Agent ID
+            content: 帖子内容
+            refresh_recsys: 是否刷新推荐系统（默认 True）
+
+        Returns:
+            {
+                "status": "ok" | "error",
+                "agent_id": int,
+                "post_id": int,
+                "content": str,
+                "message": str
+            }
+        """
+        try:
+            # 1. 验证 agent_id 是否存在
+            if not self._validate_agent_exists(agent_id):
+                return {
+                    "status": "error",
+                    "message": f"Agent ID {agent_id} 不存在"
+                }
+
+            # 2. 验证内容不为空
+            if not content or not content.strip():
+                return {
+                    "status": "error",
+                    "message": "帖子内容不能为空"
+                }
+
+            # 3. 直接插入帖子到数据库（绕过 env.step 避免刷新推荐系统）
+            import sqlite3
+            post_id = None
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+
+                # 获取当前时间
+                import time
+                created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+                # 直接插入帖子
+                cursor.execute(
+                    """INSERT INTO post (user_id, content, created_at, num_likes, num_dislikes, num_shares, num_reports)
+                       VALUES (?, ?, ?, 0, 0, 0, 0)""",
+                    (agent_id, content, created_at)
+                )
+                post_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+
+                print(f"✅ 直接插入帖子成功: post_id={post_id}", flush=True)
+            except Exception as e:
+                print(f"❌ 插入帖子失败: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                return {"status": "error", "message": f"插入帖子失败: {str(e)}"}
+
+            # 5. 刷新推荐系统（暂时禁用，避免阻塞）
+            # 下一步执行时会自动刷新，所以这里跳过
+            if refresh_recsys:
+                print(f"⏭️  跳过推荐系统刷新（将在下一步自动刷新）", flush=True)
+
+            print(f"✅ Agent {agent_id} 发帖成功: post_id={post_id}", flush=True)
+
+            return {
+                "status": "ok",
+                "agent_id": agent_id,
+                "post_id": post_id,
+                "content": content,
+                "message": "发帖成功"
+            }
+
+        except Exception as e:
+            print(f"❌ 强制发帖失败: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "message": str(e)}
+
+    async def force_agent_comment(
+        self,
+        agent_id: int,
+        post_id: int,
+        content: str,
+        refresh_recsys: bool = True,
+    ) -> Dict:
+        """
+        强制指定 agent 评论指定帖子
+
+        Args:
+            agent_id: Agent ID
+            post_id: 帖子 ID
+            content: 评论内容
+            refresh_recsys: 是否刷新推荐系统（默认 True）
+
+        Returns:
+            {
+                "status": "ok" | "error",
+                "agent_id": int,
+                "post_id": int,
+                "comment_id": int,
+                "content": str,
+                "message": str
+            }
+        """
+        try:
+            # 1. 验证 agent_id 是否存在
+            if not self._validate_agent_exists(agent_id):
+                return {
+                    "status": "error",
+                    "message": f"Agent ID {agent_id} 不存在"
+                }
+
+            # 2. 验证 post_id 是否存在
+            if not self._validate_post_exists(post_id):
+                return {
+                    "status": "error",
+                    "message": f"Post ID {post_id} 不存在"
+                }
+
+            # 3. 验证内容不为空
+            if not content or not content.strip():
+                return {
+                    "status": "error",
+                    "message": "评论内容不能为空"
+                }
+
+            # 4. 直接插入评论到数据库（绕过 env.step 避免刷新推荐系统）
+            import sqlite3
+            comment_id = None
+            try:
+                conn = sqlite3.connect(self.db_path)
+                cursor = conn.cursor()
+
+                # 获取当前时间
+                import time
+                created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+                # 直接插入评论
+                cursor.execute(
+                    """INSERT INTO comment (post_id, user_id, content, created_at, num_likes, num_dislikes)
+                       VALUES (?, ?, ?, ?, 0, 0)""",
+                    (post_id, agent_id, content, created_at)
+                )
+                comment_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+
+                print(f"✅ 直接插入评论成功: comment_id={comment_id}", flush=True)
+            except Exception as e:
+                print(f"❌ 插入评论失败: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                return {"status": "error", "message": f"插入评论失败: {str(e)}"}
+
+            # 5. 刷新推荐系统（暂时禁用，避免阻塞）
+            # 下一步执行时会自动刷新，所以这里跳过
+            if refresh_recsys:
+                print(f"⏭️  跳过推荐系统刷新（将在下一步自动刷新）", flush=True)
+
+            print(f"✅ Agent {agent_id} 评论成功: post_id={post_id}, comment_id={comment_id}", flush=True)
+
+            return {
+                "status": "ok",
+                "agent_id": agent_id,
+                "post_id": post_id,
+                "comment_id": comment_id,
+                "content": content,
+                "message": "评论成功"
+            }
+
+        except Exception as e:
+            print(f"❌ 强制评论失败: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "message": str(e)}
+
+    async def add_controlled_agents_batch(
+        self,
+        intervention_types: List[str],
+        initial_step: bool = True,
+    ) -> Dict:
+        """
+        批量添加 controlled agents（从配置文件加载）
+
+        Args:
+            intervention_types: 干预类型列表，如 ["peace_messenger", "fact_checker", "moderator"]
+                             每个类型会创建 1 个 controlled agent
+            initial_step: 是否在创建后执行初始发帖（默认 True）
+
+        Returns:
+            {
+                "status": "ok" | "error",
+                "created_agents": [
+                    {
+                        "agent_id": int,
+                        "user_name": str,
+                        "type": str,
+                        "post_id": int  # 如果 initial_step=True
+                    },
+                    ...
+                ],
+                "total": int,
+                "message": str
+            }
+        """
+        try:
+            if not self.env or not self.agent_graph:
+                return {"status": "error", "message": "环境未初始化"}
+
+            # 获取干预配置
+            intervention_config = self.intervention_config
+            profiles_dict = {
+                p["name"]: p
+                for p in intervention_config.get("intervention_profiles", [])
+            }
+
+            created_agents = []
+
+            for intervention_type in intervention_types:
+                if intervention_type not in profiles_dict:
+                    print(f"⚠️  未找到干预类型 '{intervention_type}'，使用默认配置", flush=True)
+                    profile = profiles_dict.get("neutral", self._get_default_intervention_config()["intervention_profiles"][0])
+                else:
+                    profile = profiles_dict[intervention_type]
+
+                # 生成 user_name
+                agent_id = self._get_next_agent_id()
+                user_name = f"{profile['user_name_prefix']}_{agent_id}"
+
+                # 构建 UserInfo
+                user_info = UserInfo(
+                    user_name=user_name,
+                    name=f"{profile['description']} {agent_id}",
+                    description=f"Controlled agent - {profile['name']}",
+                    profile={
+                        "controlled": True,
+                        "other_info": {
+                            "user_profile": profile["bio"],
+                            "gender": "unknown",
+                            "age": 30,
+                            "mbti": "UNKNOWN",
+                            "country": "General",
+                        }
+                    },
+                    recsys_type=self.env.platform_type.value.lower(),
+                )
+
+                # 构建系统消息
+                system_message_content = f"""# OBJECTIVE
+You are a CONTROLLED AGENT in a social media simulation.
+
+## YOUR ROLE
+{profile.get('system_message', 'You are a controlled intervention agent.')}
+
+## CRITICAL INSTRUCTIONS
+1. You will ONLY post when explicitly instructed by the system
+2. Your posts should be concise, authentic, and natural
+3. Do NOT initiate actions on your own
+4. Wait for intervention commands
+
+## COMMENTING STYLE
+{profile.get('comment_style', 'balanced')}
+
+"""
+                system_message = BaseMessage.make_assistant_message(
+                    role_name="system",
+                    content=system_message_content
+                )
+
+                # 构建 ContextRuntimeSettings
+                context_settings = ContextRuntimeSettings(
+                    token_counter=self._get_token_counter_from_model(),
+                    system_message=system_message,
+                    context_token_limit=self.context_token_limit,
+                    observation_soft_limit=max(1024, int(self.context_token_limit * 0.75)),
+                    observation_hard_limit=self.context_token_limit,
+                    memory_window_size=self.memory_window_size,
+                    compression=compression_config_for_platform(self.env.platform_type.value.lower()),
+                )
+                context_settings.validate()
+
+                # 获取 available_actions
+                available_actions = self._build_available_actions(
+                    self.env.platform_type.value.lower(),
+                    "smoke_dense"
+                )
+
+                # 创建 ContextSocialAgent
+                agent = ContextSocialAgent(
+                    agent_id=agent_id,
+                    user_info=user_info,
+                    agent_graph=self.agent_graph,
+                    model=self.model,
+                    available_actions=available_actions,
+                    context_settings=context_settings,
+                )
+
+                # 添加到 agent_graph 和 agents 列表
+                self.agent_graph.add_agent(agent)
+                self.agents.append(agent)
+
+                print(f"✅ 已添加 controlled agent: {agent_id} - {user_name} ({intervention_type})", flush=True)
+
+                agent_info = {
+                    "agent_id": agent_id,
+                    "user_name": user_name,
+                    "type": intervention_type,
+                    "description": profile["description"]
+                }
+
+                # 如果需要，执行初始发帖
+                if initial_step:
+                    # 从配置中选择一个初始帖子
+                    initial_posts = profile.get("initial_posts", ["Default intervention post"])
+                    import random
+                    content = random.choice(initial_posts)
+
+                    post_result = await self.force_agent_post(
+                        agent_id=agent_id,
+                        content=content,
+                        refresh_recsys=True
+                    )
+
+                    if post_result["status"] == "ok":
+                        agent_info["post_id"] = post_result.get("post_id")
+
+                created_agents.append(agent_info)
+
+            return {
+                "status": "ok",
+                "created_agents": created_agents,
+                "total": len(created_agents),
+                "message": f"已批量添加 {len(created_agents)} 个 controlled agents"
+            }
+
+        except Exception as e:
+            print(f"❌ 批量添加 controlled agents 失败: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "message": str(e)}
+
+    def list_controlled_agents(self) -> Dict:
+        """
+        列出所有 controlled agents
+
+        Returns:
+            {
+                "status": "ok",
+                "controlled_agents": [
+                    {
+                        "agent_id": int,
+                        "user_name": str,
+                        "name": str,
+                        "bio": str
+                    },
+                    ...
+                ],
+                "total": int
+            }
+        """
+        try:
+            controlled_agents = []
+
+            for agent in self.agents:
+                # 检查是否为 controlled agent
+                if hasattr(agent, 'user_info') and agent.user_info:
+                    profile = agent.user_info.profile
+                    if profile and profile.get("controlled"):
+                        controlled_agents.append({
+                            "agent_id": agent.agent_id,
+                            "user_name": agent.user_info.user_name,
+                            "name": agent.user_info.name,
+                            "bio": profile.get("other_info", {}).get("user_profile", "")
+                        })
+
+            return {
+                "status": "ok",
+                "controlled_agents": controlled_agents,
+                "total": len(controlled_agents)
+            }
+
+        except Exception as e:
+            print(f"❌ 列出 controlled agents 失败: {e}", flush=True)
+            return {
+                "status": "error",
+                "message": str(e),
+                "controlled_agents": [],
+                "total": 0
+            }
+
+    def _get_token_counter_from_model(self):
+        """从 model 获取 token_counter（辅助方法）"""
+        if hasattr(self.model, 'token_counter'):
+            return self.model.token_counter
+        elif hasattr(self.model, '__iter__'):
+            # 如果是 ModelManager，尝试获取第一个 backend 的 token_counter
+            try:
+                for backend in self.model:
+                    if hasattr(backend, 'token_counter'):
+                        return backend.token_counter
+            except:
+                pass
+
+        # 降级：创建一个简单的 token counter
+        from camel.utils import OpenAITokenCounter
+        return OpenAITokenCounter()
+
     async def close(self) -> Dict:
         """关闭模拟环境"""
         if self.env is not None:
@@ -2020,6 +2676,33 @@ async def handle_rpc_request(request: Dict) -> Dict:
             result = await engine.reset()
         elif method == "close":
             result = await engine.close()
+        # 🆕 干预系统方法
+        elif method == "add_controlled_agent":
+            result = await engine.add_controlled_agent(
+                user_name=params.get("user_name"),
+                content=params.get("content"),
+                bio=params.get("bio", "Controlled agent for intervention"),
+            )
+        elif method == "force_agent_post":
+            result = await engine.force_agent_post(
+                agent_id=params.get("agent_id"),
+                content=params.get("content"),
+                refresh_recsys=params.get("refresh_recsys", True),
+            )
+        elif method == "force_agent_comment":
+            result = await engine.force_agent_comment(
+                agent_id=params.get("agent_id"),
+                post_id=params.get("post_id"),
+                content=params.get("content"),
+                refresh_recsys=params.get("refresh_recsys", True),
+            )
+        elif method == "list_controlled_agents":
+            result = engine.list_controlled_agents()
+        elif method == "add_controlled_agents_batch":
+            result = await engine.add_controlled_agents_batch(
+                intervention_types=params.get("intervention_types", []),
+                initial_step=params.get("initial_step", True),
+            )
         else:
             result = {"status": "error", "message": f"未知方法: {method}"}
         
@@ -2101,3 +2784,4 @@ if __name__ == "__main__":
     else:
         # 运行示例
         asyncio.run(main())
+# Force reload
