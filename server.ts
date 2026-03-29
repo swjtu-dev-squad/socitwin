@@ -1,22 +1,44 @@
 import express from "express";
 import { createServer } from "http";
 import multer from "multer";
-import { readFileSync } from "fs";
+import { existsSync, mkdirSync, createWriteStream } from "fs";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import { watch } from "fs";
-import { existsSync } from "fs";
 import Database from "better-sqlite3";
 import dotenv from "dotenv";
 
-// Load environment variables from .env file
-dotenv.config();
-
+// 🆕 创建日志文件（带时间戳）
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const logDir = path.join(__dirname, 'logs');
+if (!existsSync(logDir)) {
+  mkdirSync(logDir, { recursive: true });
+}
+
+const logFilePath = path.join(logDir, `oasis_engine_${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+const logStream = createWriteStream(logFilePath, { flags: 'a' });
+
+// 🆕 打印日志文件路径
+console.log(`📝 OASIS Engine log file: ${logFilePath}`);
+
+function logWithTimestamp(message: string) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] ${message}\n`;
+
+  // 写入日志文件
+  logStream.write(logLine);
+
+  // 同时打印到控制台
+  console.log(message);
+}
+
+// Load environment variables from .env file
+dotenv.config();
 
 // Python OASIS Engine Process
 let oasisProcess: any = null;
@@ -25,7 +47,7 @@ let restartTimeout: NodeJS.Timeout | null = null;
 let ioInstance: any = null;
 
 function startOasisEngine() {
-  console.log("Starting OASIS Engine...");
+  logWithTimestamp("Starting OASIS Engine...");
   oasisProcess = spawn(path.join(__dirname, ".venv", "bin", "python"), [path.join(__dirname, "oasis_dashboard", "real_oasis_engine_v3.py"), "--rpc"], {
     stdio: ["pipe", "pipe", "pipe"],
     env: {
@@ -37,21 +59,30 @@ function startOasisEngine() {
       OASIS_MODEL_URL: process.env.OASIS_MODEL_URL ?? process.env.OPENAI_BASE_URL ?? "",
       OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
       OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "",
+      // 🆕 Agent sampling configuration environment variables (Issue #52)
+      OASIS_SAMPLING_ENABLED: process.env.OASIS_SAMPLING_ENABLED ?? "false",
+      OASIS_SAMPLING_RATE: process.env.OASIS_SAMPLING_RATE ?? "0.1",
+      OASIS_SAMPLING_STRATEGY: process.env.OASIS_SAMPLING_STRATEGY ?? "random",
+      OASIS_SAMPLING_MIN_ACTIVE: process.env.OASIS_SAMPLING_MIN_ACTIVE ?? "5",
+      OASIS_SAMPLING_SEED: process.env.OASIS_SAMPLING_SEED ?? "42",
     },
   });
 
   oasisProcess.stdout.on("data", (data: Buffer) => {
     const output = data.toString();
-    console.log(`[OASIS Engine] ${output}`);
+    logWithTimestamp(`[OASIS Engine stdout] ${output.trim()}`);
     // Check for ready signal from JSON-RPC server
     if (output.includes('"status":"ready"') || output.includes("ready")) {
       oasisReady = true;
-      console.log("✅ OASIS Engine ready!");
+      logWithTimestamp("✅ OASIS Engine ready!");
     }
   });
 
   oasisProcess.stderr.on("data", (data: Buffer) => {
     const output = data.toString();
+
+    // 🆕 打印所有Python stderr输出（用于DEBUG）
+    logWithTimestamp(`[OASIS Engine stderr] ${output.trim()}`);
 
     // 解析进度信息
     const progressMatch = output.match(/📊 Progress: (\d+)\/(\d+) \((\d+)%\)/);
@@ -129,6 +160,13 @@ async function callOasisEngine(method: string, params: any = {}): Promise<any> {
     if (!oasisProcess || !oasisReady) {
       reject(new Error("OASIS Engine not ready"));
       return;
+    }
+
+    // 🆕 DEBUG: 打印请求参数
+    logWithTimestamp(`[JSON-RPC] Sending ${method} request`);
+    logWithTimestamp(`[JSON-RPC] params keys: ${Object.keys(params).join(', ')}`);
+    if (method === "initialize") {
+      logWithTimestamp(`[JSON-RPC] sampling_config: ${JSON.stringify(params.sampling_config)}`);
     }
 
     const request = {
@@ -229,7 +267,12 @@ async function startServer() {
 
   app.post("/api/sim/config", async (req, res) => {
     try {
-      const { agentCount, platform, recsys, topics, regions, topic, region, seedPosts } = req.body;
+      const { agentCount, platform, recsys, topics, regions, topic, region, seedPosts, samplingConfig, sampling_config } = req.body;
+
+      // 🆕 支持两种命名方式：snake_case (Python) 和 camelCase (TypeScript)
+      const effectiveSamplingConfig = sampling_config || samplingConfig;
+
+      logWithTimestamp(`[API /api/sim/config] Received sampling_config: ${JSON.stringify(effectiveSamplingConfig)}`);
 
       const config = {
         agent_count: agentCount || 1000,
@@ -238,6 +281,7 @@ async function startServer() {
         topics: topics || (topic ? [topic] : []),
         regions: regions || (region ? [region] : []),
         seed_posts: seedPosts || undefined,  // 🆕 自定义种子帖子
+        sampling_config: effectiveSamplingConfig || undefined,  // 🆕 Agent sampling config (Issue #52)
       };
 
       const result = await callOasisEngine("initialize", config);
