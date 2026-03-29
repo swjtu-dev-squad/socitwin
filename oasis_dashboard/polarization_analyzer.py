@@ -84,12 +84,19 @@ class PolarizationAnalyzer:
         self.last_result: Dict = {}
         self.round_0_baseline: Dict = {}  # Round 0 基线数据（用于对比）
 
+        # 🆕 增量累积统计：维护所有历史立场分数，避免重复计算
+        self.cumulative_stances: List[float] = []  # 所有已分析帖子的立场分数
+        self.max_cached_stances = 100000  # 最多缓存10万条记录（内存限制）
+
         # 🆕 加载自定义极化提示词
         self.polarization_prompts = self._load_polarization_prompts()
         self.custom_prompt = self._find_prompt_for_topic(topic)
 
         # 初始化数据库缓存表
         self._init_cache_table()
+
+        # 🆕 启动时从数据库加载历史立场分数到内存
+        self._load_cumulative_stances_from_db()
 
         logger.info(
             f"✅ 极化率分析器已初始化: topic={topic}, sample_size={sample_size}"
@@ -331,7 +338,12 @@ class PolarizationAnalyzer:
 
     async def _analyze_posts(self, posts: List[Dict]) -> Dict:
         """
-        分析帖子列表并计算极化率
+        分析帖子列表并计算极化率（增量累积统计版本）
+
+        核心改进：
+        1. 只分析新帖子的立场（避免重复计算）
+        2. 将新立场追加到累积列表
+        3. 基于所有历史帖子计算极化率
 
         Args:
             posts: 帖子列表
@@ -356,28 +368,45 @@ class PolarizationAnalyzer:
             degraded = False
             source = "llm"
 
-        # 2. 保存分析结果到缓存
+        # 2. 保存分析结果到数据库缓存
         self._save_analysis_results(
             posts,
             stances,
             confidence=confidence,
         )
 
-        # 3. 计算极化率
-        result = self._calculate_polarization_metrics(stances)
+        # 3. 🆕 增量累积：将新立场分数追加到累积列表
+        new_stances_count = len(stances)
+        self.cumulative_stances.extend(stances)
 
-        # 4. 更新历史记录
+        # 内存保护：超过上限时移除最旧的记录
+        if len(self.cumulative_stances) > self.max_cached_stances:
+            removed = len(self.cumulative_stances) - self.max_cached_stances
+            self.cumulative_stances = self.cumulative_stances[-self.max_cached_stances:]
+            logger.warning(f"累积缓存超限，移除了 {removed} 条最旧记录")
+
+        # 4. 🆕 基于所有历史帖子（累积数据）计算极化率
+        result = self._calculate_polarization_metrics(self.cumulative_stances)
+
+        # 5. 更新历史记录（用于降级）
         self.history.append(result['polarization'])
         if len(self.history) > 100:
             self.history.pop(0)
 
+        # 6. 🆕 添加额外统计信息
+        result['new_posts_analyzed'] = new_stances_count
+        result['total_posts_cumulative'] = len(self.cumulative_stances)
+        result['cumulative_mode'] = True
+
         logger.info(
-            f"✅ 极化率分析完成: {result['polarization']:.3f} "
-            f"(N={result['sample_size']}, std={result['std']:.3f})"
+            f"✅ 极化率分析完成（累积模式）: {result['polarization']:.3f} "
+            f"(新帖子={new_stances_count}, 累积总数={len(self.cumulative_stances)}, "
+            f"std={result['std']:.3f})"
         )
+
         if degraded:
             result["degraded"] = True
-        result["source"] = source
+        result["source"] = f"{source}_cumulative"
 
         return result
 
@@ -898,28 +927,52 @@ Your response:"""
 
     def get_cached_result(self) -> Dict:
         """
-        获取缓存的分析结果
+        获取缓存的分析结果（增量累积统计版本）
 
-        Returns:
-            极化率指标字典
+        逻辑：
+        1. 如果有上一次结果，直接返回（避免重复计算）
+        2. 如果没有，基于内存中的累积立场列表计算
+        3. 如果内存为空，从数据库加载
         """
-        # 检查 last_result 的有效性（必须有样本数据）
-        if self.last_result and self.last_result.get('sample_size', 0) > 0:
-            logger.debug(f"使用缓存的极化率结果: {self.last_result.get('polarization'):.3f} (sample_size={self.last_result.get('sample_size')})")
-            return self.last_result
+        # 1. 优先返回上一次的分析结果（已经基于累积数据）
+        if self.last_result:
+            total_samples = self.last_result.get('total_posts_cumulative',
+                                                self.last_result.get('sample_size', 0))
+            if total_samples > 0:
+                logger.debug(
+                    f"使用缓存的极化率结果: {self.last_result.get('polarization'):.3f} "
+                    f"(累积样本={total_samples})"
+                )
+                return self.last_result
 
-        # 检查 last_result 是否无效（sample_size=0）
-        if self.last_result and self.last_result.get('sample_size', 0) == 0:
-            logger.warning(f"last_result 的 sample_size=0，尝试从数据库重新计算")
+        # 2. 如果没有 last_result，基于内存中的累积立场计算
+        if self.cumulative_stances:
+            logger.info(
+                f"基于内存累积数据计算极化率: {len(self.cumulative_stances)} 条记录"
+            )
+            result = self._calculate_polarization_metrics(self.cumulative_stances)
+            result['total_posts_cumulative'] = len(self.cumulative_stances)
+            result['new_posts_analyzed'] = 0
+            result['cumulative_mode'] = True
+            result['cached'] = True
+            result['source'] = 'cumulative_cache'
+            self.last_result = result
+            return result
 
-        # 总是尝试从数据库重新计算（使用更大的limit）
+        # 3. 内存为空，从数据库加载（初始化场景）
+        logger.warning("内存累积缓存为空，尝试从数据库加载")
         cached_stances = self._load_cached_stances(limit=10000)
         if cached_stances:
-            logger.debug(f"从数据库加载了 {len(cached_stances)} 条 stance 记录，重新计算极化率")
+            logger.info(f"从数据库加载了 {len(cached_stances)} 条 stance 记录")
+            # 加载到内存
+            self.cumulative_stances = cached_stances
+            # 计算极化率
             result = self._calculate_polarization_metrics(cached_stances)
-            result["cached"] = True
-            result["source"] = "db_cache"
-            # 更新 last_result 以避免重复计算
+            result['total_posts_cumulative'] = len(cached_stances)
+            result['new_posts_analyzed'] = 0
+            result['cumulative_mode'] = True
+            result['cached'] = True
+            result['source'] = 'db_cumulative_init'
             self.last_result = result
             return result
 
@@ -1010,6 +1063,29 @@ Your response:"""
         except Exception as e:
             logger.warning(f"读取极化缓存失败: {e}")
             return []
+
+    def _load_cumulative_stances_from_db(self) -> None:
+        """
+        从数据库加载所有历史立场分数到内存（增量累积统计）
+
+        只在初始化时调用一次，之后每次只追加新分析的帖子
+        """
+        try:
+            # 加载所有历史立场分数
+            all_stances = self._load_cached_stances(limit=self.max_cached_stances)
+
+            if all_stances:
+                self.cumulative_stances = all_stances
+                logger.info(
+                    f"✅ 加载了 {len(self.cumulative_stances)} 条历史立场记录到累积缓存"
+                )
+            else:
+                logger.info("📊 数据库中无历史立场记录，累积缓存为空")
+                self.cumulative_stances = []
+
+        except Exception as e:
+            logger.error(f"加载累积立场缓存失败: {e}")
+            self.cumulative_stances = []
 
     def _heuristic_stance_batch(self, posts: List[Dict]) -> List[float]:
         """无需LLM的启发式估计，用于超时/空响应时保底。"""
