@@ -634,6 +634,20 @@ class RealOASISEngineV3:
             except Exception as e:
                 print(f"⚠️  Long-Term Sidecar 初始化失败: {e}", flush=True)
                 self._sidecar = None
+
+            # 🆕 自动创建初始 posts (修复环境为空导致 agents 不发帖的 bug)
+            self.total_posts = self._get_actual_post_count()
+            if self.total_posts == 0:
+                print("🌱 Environment is empty, seeding initial posts...", flush=True)
+                try:
+                    seed_result = await self._seed_initial_content()
+                    print(f"✅ Seeded {seed_result.get('seeded_posts', 0)} initial posts", flush=True)
+                    # 🆕 更新 total_posts（修复 get_status() 返回 0 的 bug）
+                    self.total_posts = self._get_actual_post_count()
+                    print(f"✅ Updated total_posts: {self.total_posts}", flush=True)
+                except Exception as e:
+                    print(f"⚠️  Failed to seed initial posts: {e}", flush=True)
+
             return {
                 "status": "ok",
                 "message": f"真实OASIS已初始化 {agent_count} 个agents",
@@ -1176,31 +1190,29 @@ class RealOASISEngineV3:
             # 执行分析
             result = await self.polarization_analyzer.analyze()
 
-              # Issue #R3-02-FIX: 当没有新帖子时，基于历史均值加小扰动计算动态极化值
-            # Issue #FIX-R3-POLARIZATION-FALLBACK: fallback 动态值不写回主历史，隔离分析层与 UI 展示层
-            curr_last_id = getattr(self.polarization_analyzer, 'last_analyzed_post_id', 0)
-            no_new_posts = (curr_last_id == prev_last_id and curr_last_id > 0)
-            if no_new_posts and self.polarization_analyzer.history:
-                # 没有新帖子，基于历史均值加上小扰动使极化值动态变化
-                try:
-                    # 使用主历史均值作为基线（只包含真实分析值，不包含 fallback 值）
-                    base_pol = sum(self.polarization_analyzer.history) / len(self.polarization_analyzer.history)
-                    import random as _random
-                    noise = _random.gauss(0, 0.025)  # 标准差 0.025 的高斯扰动
-                    dynamic_pol = max(0.0, min(1.0, base_pol + noise))
-                    result = dict(result)
-                    result['polarization'] = dynamic_pol
-                    result['source'] = 'history_dynamic'  # 显式标注来源
-                    result['is_fallback'] = True           # 显式标注是否为降级值
-                    result['history_written'] = False      # 显式标注不写入主历史
-                    print(
-                        f"📊 [Polarization] dynamic update (no new posts): base={base_pol:.4f} "
-                        f"noise={noise:.4f} result={dynamic_pol:.4f} "
-                        f"source=history_dynamic is_fallback=True history_written=False",
-                        flush=True,
-                    )
-                except Exception as _e:
-                    print(f"⚠️  [Polarization] dynamic update failed: {_e}", flush=True)
+            # 移除随机噪声逻辑：当没有新帖子时，直接返回上一次的极化率
+            # 这样可以避免引入虚假的极化率波动，使数据更真实可靠
+            # 检查结果的 source 字段来判断是否使用了缓存
+            result_source = result.get('source', 'unknown')
+            # 缓存来源包括：cached, db_cache, history_dynamic, history, historical_fallback 等
+            is_cached_result = result_source in {
+                'cached', 'db_cache', 'history_dynamic', 'history',
+                'historical_fallback', 'db_cache_fallback'
+            }
+
+            if is_cached_result and hasattr(self, 'last_polarization'):
+                # 没有新帖子时，使用缓存的极化率（上一次真实计算的值）
+                cached_pol = self.last_polarization
+                result = dict(result)
+                result['polarization'] = cached_pol
+                result['source'] = 'step_cached'  # 标注来源为step级缓存
+                result['is_fallback'] = True
+                result['history_written'] = False  # 不写入历史
+                print(
+                    f"📊 [Polarization] no new posts (source={result_source}), "
+                    f"using cached polarization: {cached_pol:.4f}",
+                    flush=True,
+                )
 
             # 更新缓存
             self.last_polarization = result.get("polarization", 0.0)
@@ -2797,6 +2809,9 @@ async def handle_rpc_request(request: Dict) -> Dict:
                 intervention_types=params.get("intervention_types", []),
                 initial_step=params.get("initial_step", True),
             )
+        elif method == "seed_initial_content":
+            # 🆕 手动创建初始 posts（用于测试或重新激活环境）
+            result = await engine._seed_initial_content()
         else:
             result = {"status": "error", "message": f"未知方法: {method}"}
         

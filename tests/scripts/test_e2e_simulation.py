@@ -49,6 +49,7 @@ import requests
 import json
 import time
 import os
+import sqlite3
 from datetime import datetime
 from typing import Dict, Any, List
 import numpy as np
@@ -487,6 +488,9 @@ class SimulationTester:
         # 3. Herd Effect Chart
         self._plot_herd_effect(steps, output_dir, timestamp)
 
+        # 4. Stance Spectrum Distribution Chart (NEW!)
+        self._plot_stance_spectrum(steps, output_dir, timestamp)
+
         print(f"\n  📊 Charts saved to: {output_dir}/")
 
     def _plot_propagation(self, steps: List[int], output_dir: str, timestamp: str):
@@ -662,6 +666,335 @@ class SimulationTester:
         plt.savefig(filepath, dpi=150, bbox_inches='tight')
         plt.close()
         print(f"  ✅ Herd Effect chart: {filepath}")
+
+    def _plot_stance_spectrum(self, steps: List[int], output_dir: str, timestamp: str):
+        """Plot Stance Spectrum Distribution - Shows distribution of post stances over time"""
+        try:
+            # 连接数据库获取立场分数
+            db_path = "/home/hv/projs/oasis-dashboard/oasis_simulation.db"
+            if not os.path.exists(db_path):
+                print(f"  ⚠️  Database not found: {db_path}")
+                return
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # 获取所有帖子的立场分数
+            cursor.execute("""
+                SELECT item_id, stance_score
+                FROM polarization_cache
+                WHERE content_type = 'post'
+                ORDER BY item_id
+            """)
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            if not rows:
+                print(f"  ⚠️  No stance data found in database")
+                return
+
+            # 提取所有立场分数
+            stance_scores = [score for _, score in rows]
+            total_posts = len(stance_scores)
+
+            if total_posts == 0:
+                print(f"  ⚠️  No posts to analyze")
+                return
+
+            # ==================== 图1: 简单直方图（最终分布） ====================
+            fig, ax = plt.subplots(figsize=(12, 6))
+
+            # 创建直方图（分成10个bins，每个0.1）
+            bins = np.linspace(0, 1, 11)
+            n, bins_edges, patches = ax.hist(stance_scores, bins=bins, edgecolor='black',
+                                           linewidth=1.5, alpha=0.7, color='steelblue')
+
+            # 为不同的区域着色
+            for i, patch in enumerate(patches):
+                if i < 2:  # 0.0-0.2 极端反
+                    patch.set_facecolor('#d62728')  # 红色
+                elif i < 4:  # 0.2-0.4 温和反
+                    patch.set_facecolor('#ff9896')  # 浅红
+                elif i < 6:  # 0.4-0.6 中立
+                    patch.set_facecolor('#98df8a')  # 绿色
+                elif i < 8:  # 0.6-0.8 温和亲
+                    patch.set_facecolor('#aec7e8')  # 浅蓝
+                else:  # 0.8-1.0 极端亲
+                    patch.set_facecolor('#1f77b4')  # 深蓝
+
+            # 添加百分比标注
+            for i, count in enumerate(n):
+                if count > 0:
+                    percentage = count / total_posts * 100
+                    bin_center = (bins_edges[i] + bins_edges[i+1]) / 2
+                    ax.text(bin_center, count + 0.3, f'{percentage:.1f}%',
+                           ha='center', fontsize=10, fontweight='bold')
+
+            # 标记干预步骤
+            if self.results.get("intervention") and self.results.get("intervention", {}).get("success"):
+                intervention_step = self.results.get("intervention", {}).get("step", 0)
+                ax.axvline(x=0.5, color='green', linestyle='--', linewidth=2,
+                          label=f'Neutral Center (0.5)', alpha=0.5)
+
+            ax.set_xlabel('Stance Score (0.0 = Extreme Anti, 1.0 = Extreme Pro)',
+                        fontsize=13, fontweight='bold')
+            ax.set_ylabel('Number of Posts', fontsize=13, fontweight='bold')
+            ax.set_title(f'Final Stance Distribution Histogram (Total: {total_posts} posts)\n' +
+                        'Red=Anti, Green=Neutral, Blue=Pro',
+                        fontsize=14, fontweight='bold')
+            ax.legend(loc='upper right', fontsize=10)
+            ax.grid(True, alpha=0.3, linestyle=':', axis='y')
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, max(n) * 1.2)
+
+            plt.tight_layout()
+            filepath = f"{output_dir}/stance_histogram_{timestamp}.png"
+            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"  ✅ Stance Histogram chart: {filepath}")
+
+            # ==================== 图2: 堆叠面积图（时间趋势） ====================
+            self._plot_stance_timeline(steps, stance_scores, output_dir, timestamp)
+
+            # ==================== 打印统计摘要 ====================
+            self._print_stance_statistics(stance_scores, total_posts)
+
+            # 创建堆叠面积图
+            fig, ax = plt.subplots(figsize=(14, 8))
+
+            # 准备数据：每个step的立场分布
+            total_posts = len(stance_scores)
+            posts_per_step = max(1, (total_posts + len(steps) - 1) // len(steps))
+
+            stance_distribution = {
+                step: {
+                    'extreme_anti': 0, 'moderate_anti': 0, 'neutral': 0,
+                    'moderate_pro': 0, 'extreme_pro': 0
+                }
+                for step in steps
+            }
+
+            # 分配帖子到steps
+            for idx, stance_score in enumerate(stance_scores):
+                step_idx = min(idx // posts_per_step, len(steps) - 1)
+                step = steps[step_idx]
+
+                if stance_score <= 0.2:
+                    stance_distribution[step]['extreme_anti'] += 1
+                elif stance_score <= 0.4:
+                    stance_distribution[step]['moderate_anti'] += 1
+                elif stance_score <= 0.6:
+                    stance_distribution[step]['neutral'] += 1
+                elif stance_score <= 0.8:
+                    stance_distribution[step]['moderate_pro'] += 1
+                else:
+                    stance_distribution[step]['extreme_pro'] += 1
+
+            # 提取数据
+            extreme_anti = [stance_distribution[s]['extreme_anti'] for s in steps]
+            moderate_anti = [stance_distribution[s]['moderate_anti'] for s in steps]
+            neutral = [stance_distribution[s]['neutral'] for s in steps]
+            moderate_pro = [stance_distribution[s]['moderate_pro'] for s in steps]
+            extreme_pro = [stance_distribution[s]['extreme_pro'] for s in steps]
+
+            # 绘制堆叠面积图
+            ax.fill_between(steps, 0, extreme_anti,
+                           label='Extreme Anti (0.0-0.2)', color='#d62728', alpha=0.8)
+            ax.fill_between(steps, extreme_anti,
+                           [e + m for e, m in zip(extreme_anti, moderate_anti)],
+                           label='Moderate Anti (0.2-0.4)', color='#ff9896', alpha=0.8)
+            ax.fill_between(steps, [e + m for e, m in zip(extreme_anti, moderate_anti)],
+                           [e + m + n for e, m, n in zip(extreme_anti, moderate_anti, neutral)],
+                           label='Neutral (0.4-0.6)', color='#98df8a', alpha=0.8)
+            ax.fill_between(steps, [e + m + n for e, m, n in zip(extreme_anti, moderate_anti, neutral)],
+                           [e + m + n + mo for e, m, n, mo in zip(extreme_anti, moderate_anti, neutral, moderate_pro)],
+                           label='Moderate Pro (0.6-0.8)', color='#aec7e8', alpha=0.8)
+            ax.fill_between(steps, [e + m + n + mo for e, m, n, mo in zip(extreme_anti, moderate_anti, neutral, moderate_pro)],
+                           [e + m + n + mo + ex for e, m, n, mo, ex in zip(extreme_anti, moderate_anti, neutral, moderate_pro, extreme_pro)],
+                           label='Extreme Pro (0.8-1.0)', color='#1f77b4', alpha=0.8)
+
+            # 标记干预步骤
+            if self.results.get("intervention") and self.results.get("intervention", {}).get("success"):
+                intervention_step = self.results.get("intervention", {}).get("step", 0)
+                ax.axvline(x=intervention_step + 1, color='red', linestyle='--', linewidth=2,
+                          label=f'Intervention (Step {intervention_step + 1})', alpha=0.7)
+
+            ax.set_xlabel('Step', fontsize=14, fontweight='bold')
+            ax.set_ylabel('Number of Posts', fontsize=14, fontweight='bold')
+            ax.set_title('Stance Spectrum Distribution Over Time\n(Shows how post positions evolve)',
+                        fontsize=16, fontweight='bold')
+            ax.legend(loc='upper left', fontsize=10, framealpha=0.9)
+            ax.grid(True, alpha=0.3, linestyle=':', axis='y')
+
+            # 添加百分比标注
+            for i, step in enumerate(steps):
+                total = (extreme_anti[i] + moderate_anti[i] + neutral[i] +
+                        moderate_pro[i] + extreme_pro[i])
+                if total > 0:
+                    # 计算中立场比例
+                    neutral_pct = neutral[i] / total * 100
+                    extreme_pct = (extreme_anti[i] + extreme_pro[i]) / total * 100
+
+                    # 在图中标注
+                    if i % 2 == 0:  # 每隔一个step标注，避免拥挤
+                        ax.text(step, total + 0.5, f'N:{neutral_pct:.0f}%',
+                               ha='center', fontsize=8, color='green')
+                        ax.text(step, total + 1.5, f'E:{extreme_pct:.0f}%',
+                               ha='center', fontsize=8, color='red')
+
+            plt.tight_layout()
+            filepath = f"{output_dir}/stance_spectrum_{timestamp}.png"
+            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            plt.close()
+            print(f"  ✅ Stance Spectrum chart: {filepath}")
+
+            # 打印最终的立场分布统计
+            print(f"\n  📊 Final Stance Distribution:")
+            final_step = steps[-1]
+            total_final = (stance_distribution[final_step]['extreme_anti'] +
+                          stance_distribution[final_step]['moderate_anti'] +
+                          stance_distribution[final_step]['neutral'] +
+                          stance_distribution[final_step]['moderate_pro'] +
+                          stance_distribution[final_step]['extreme_pro'])
+
+            if total_final > 0:
+                print(f"     Extreme Anti: {stance_distribution[final_step]['extreme_anti']} ({stance_distribution[final_step]['extreme_anti']/total_final*100:.1f}%)")
+                print(f"     Moderate Anti: {stance_distribution[final_step]['moderate_anti']} ({stance_distribution[final_step]['moderate_anti']/total_final*100:.1f}%)")
+                print(f"     Neutral: {stance_distribution[final_step]['neutral']} ({stance_distribution[final_step]['neutral']/total_final*100:.1f}%)")
+                print(f"     Moderate Pro: {stance_distribution[final_step]['moderate_pro']} ({stance_distribution[final_step]['moderate_pro']/total_final*100:.1f}%)")
+                print(f"     Extreme Pro: {stance_distribution[final_step]['extreme_pro']} ({stance_distribution[final_step]['extreme_pro']/total_final*100:.1f}%)")
+
+                # 如果有干预，对比干预前后的变化
+                if self.results.get("intervention") and self.results.get("intervention", {}).get("success"):
+                    intervention_step = self.results.get("intervention", {}).get("step", 0)
+
+                    # 🔧 修复：找到干预step在列表中的索引
+                    if intervention_step in steps:
+                        before_idx = steps.index(intervention_step)
+                        before_step = steps[before_idx]
+
+                        before_total = (
+                            stance_distribution[before_step]['extreme_anti'] +
+                            stance_distribution[before_step]['moderate_anti'] +
+                            stance_distribution[before_step]['neutral'] +
+                            stance_distribution[before_step]['moderate_pro'] +
+                            stance_distribution[before_step]['extreme_pro']
+                        )
+
+                        before_neutral_pct = stance_distribution[before_step]['neutral'] / max(1, before_total) * 100
+                        after_neutral_pct = stance_distribution[final_step]['neutral'] / total_final * 100
+
+                        change = after_neutral_pct - before_neutral_pct
+                        print(f"\n  🎯 Intervention Impact:")
+                        print(f"     Neutral stance: {before_neutral_pct:.1f}% → {after_neutral_pct:.1f}% ({change:+.1f}%)")
+
+        except Exception as e:
+            print(f"  ⚠️  Failed to generate stance spectrum chart: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _plot_stance_timeline(self, steps: List[int], stance_scores: List[float],
+                            output_dir: str, timestamp: str):
+        """Plot stance distribution over time as stacked area chart"""
+        fig, ax = plt.subplots(figsize=(14, 7))
+
+        # 准备数据：每个step的立场分布
+        total_posts = len(stance_scores)
+        posts_per_step = max(1, (total_posts + len(steps) - 1) // len(steps))
+
+        stance_distribution = {
+            step: {
+                'extreme_anti': 0, 'moderate_anti': 0, 'neutral': 0,
+                'moderate_pro': 0, 'extreme_pro': 0
+            }
+            for step in steps
+        }
+
+        # 分配帖子到steps
+        for idx, stance_score in enumerate(stance_scores):
+            step_idx = min(idx // posts_per_step, len(steps) - 1)
+            step = steps[step_idx]
+
+            if stance_score <= 0.2:
+                stance_distribution[step]['extreme_anti'] += 1
+            elif stance_score <= 0.4:
+                stance_distribution[step]['moderate_anti'] += 1
+            elif stance_score <= 0.6:
+                stance_distribution[step]['neutral'] += 1
+            elif stance_score <= 0.8:
+                stance_distribution[step]['moderate_pro'] += 1
+            else:
+                stance_distribution[step]['extreme_pro'] += 1
+
+        # 提取数据
+        extreme_anti = [stance_distribution[s]['extreme_anti'] for s in steps]
+        moderate_anti = [stance_distribution[s]['moderate_anti'] for s in steps]
+        neutral = [stance_distribution[s]['neutral'] for s in steps]
+        moderate_pro = [stance_distribution[s]['moderate_pro'] for s in steps]
+        extreme_pro = [stance_distribution[s]['extreme_pro'] for s in steps]
+
+        # 绘制堆叠面积图
+        ax.fill_between(steps, 0, extreme_anti,
+                       label='Extreme Anti (0.0-0.2)', color='#d62728', alpha=0.8)
+        ax.fill_between(steps, extreme_anti,
+                       [e + m for e, m in zip(extreme_anti, moderate_anti)],
+                       label='Moderate Anti (0.2-0.4)', color='#ff9896', alpha=0.8)
+        ax.fill_between(steps, [e + m for e, m in zip(extreme_anti, moderate_anti)],
+                       [e + m + n for e, m, n in zip(extreme_anti, moderate_anti, neutral)],
+                       label='Neutral (0.4-0.6)', color='#98df8a', alpha=0.8)
+        ax.fill_between(steps, [e + m + n for e, m, n in zip(extreme_anti, moderate_anti, neutral)],
+                       [e + m + n + mo for e, m, n, mo in zip(extreme_anti, moderate_anti, neutral, moderate_pro)],
+                       label='Moderate Pro (0.6-0.8)', color='#aec7e8', alpha=0.8)
+        ax.fill_between(steps, [e + m + n + mo for e, m, n, mo in zip(extreme_anti, moderate_anti, neutral, moderate_pro)],
+                       [e + m + n + mo + ex for e, m, n, mo, ex in zip(extreme_anti, moderate_anti, neutral, moderate_pro, extreme_pro)],
+                       label='Extreme Pro (0.8-1.0)', color='#1f77b4', alpha=0.8)
+
+        # 标记干预步骤
+        if self.results.get("intervention") and self.results.get("intervention", {}).get("success"):
+            intervention_step = self.results.get("intervention", {}).get("step", 0)
+            ax.axvline(x=intervention_step + 1, color='red', linestyle='--', linewidth=2.5,
+                      label=f'Intervention (Step {intervention_step + 1})', alpha=0.7)
+
+        ax.set_xlabel('Step', fontsize=14, fontweight='bold')
+        ax.set_ylabel('Number of Posts', fontsize=14, fontweight='bold')
+        ax.set_title('Stance Distribution Over Time (Stacked Area Chart)',
+                    fontsize=16, fontweight='bold')
+        ax.legend(loc='upper left', fontsize=10, framealpha=0.9)
+        ax.grid(True, alpha=0.3, linestyle=':', axis='y')
+
+        plt.tight_layout()
+        filepath = f"{output_dir}/stance_timeline_{timestamp}.png"
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  ✅ Stance Timeline chart: {filepath}")
+
+    def _print_stance_statistics(self, stance_scores: List[float], total_posts: int):
+        """Print stance distribution statistics"""
+        # 计算最终分布
+        extreme_anti = sum(1 for s in stance_scores if s <= 0.2)
+        moderate_anti = sum(1 for s in stance_scores if 0.2 < s <= 0.4)
+        neutral = sum(1 for s in stance_scores if 0.4 < s <= 0.6)
+        moderate_pro = sum(1 for s in stance_scores if 0.6 < s <= 0.8)
+        extreme_pro = sum(1 for s in stance_scores if s > 0.8)
+
+        print(f"\n  📊 Final Stance Distribution:")
+        print(f"     Extreme Anti (0.0-0.2): {extreme_anti} ({extreme_anti/total_posts*100:.1f}%)")
+        print(f"     Moderate Anti (0.2-0.4): {moderate_anti} ({moderate_anti/total_posts*100:.1f}%)")
+        print(f"     Neutral (0.4-0.6): {neutral} ({neutral/total_posts*100:.1f}%)")
+        print(f"     Moderate Pro (0.6-0.8): {moderate_pro} ({moderate_pro/total_posts*100:.1f}%)")
+        print(f"     Extreme Pro (0.8-1.0): {extreme_pro} ({extreme_pro/total_posts*100:.1f}%)")
+
+        # 计算统计指标
+        mean_stance = sum(stance_scores) / total_posts
+        std_stance = np.std(stance_scores)
+
+        print(f"\n  📈 Key Metrics:")
+        print(f"     Center views (Neutral): {neutral/total_posts*100:.1f}%")
+        print(f"     Moderate views: {(moderate_anti+moderate_pro)/total_posts*100:.1f}%")
+        print(f"     Extreme views: {(extreme_anti+extreme_pro)/total_posts*100:.1f}%")
+        print(f"     Mean stance: {mean_stance:.3f} (0.5 = perfect center)")
+        print(f"     Std deviation: {std_stance:.3f} (lower = more consensus)")
 
     def save_results(self, filename: str = None):
         """Save test results to JSON file"""

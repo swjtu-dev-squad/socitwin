@@ -285,13 +285,17 @@ async function startServer() {
       };
 
       const result = await callOasisEngine("initialize", config);
-      
+
+      // 🆕 Get actual status after initialize (to get total_posts, etc.)
+      const statusResult = await callOasisEngine("status", {});
+
       simulationState = {
         ...simulationState,
-        activeAgents: result.agent_count || agentCount,
+        activeAgents: statusResult.data?.activeAgents ?? (result.agent_count || agentCount),
         running: true,
         paused: false,
         currentStep: 0,
+        totalPosts: statusResult.data?.totalPosts ?? 0,  // 🆕 Get actual post count
         agents: result.agents || [],
         platform: result.platform || platform,
         recsys: result.recsys || recsys,
@@ -581,7 +585,31 @@ async function startServer() {
     }
   });
 
-  // ===== End Intervention APIs =====
+  // ===== Seed Initial Content APIs =====
+
+  // POST /api/sim/seed - Seed initial posts to activate environment
+  app.post("/api/sim/seed", async (_req, res) => {
+    try {
+      logWithTimestamp(`[Seed] Seeding initial content to activate environment`);
+      const result = await callOasisEngine("seed_initial_content", {});
+
+      if (result.status === "ok") {
+        logWithTimestamp(`[Seed] ✅ Seeded ${result.seeded_posts || 0} initial posts`);
+      } else {
+        logWithTimestamp(`[Seed] ⚠️ Seed failed: ${result.message}`);
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Seed] Error seeding initial content:", error);
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to seed initial content"
+      });
+    }
+  });
+
+  // ===== End Seed APIs =====
 
   // ===== R4-01: Propagation Visualization APIs =====
 
