@@ -117,7 +117,8 @@ class SimulationTester:
         platform: str = "reddit",
         recsys: str = "hot-score",
         topics: list = None,
-        regions: list = None
+        regions: list = None,
+        sampling_config: dict = None  # 🆕 Add sampling_config parameter (Issue #52)
     ) -> Dict:
         """Initialize simulation with configuration"""
         self.print_section("Initializing Simulation")
@@ -133,7 +134,10 @@ class SimulationTester:
             "recsys": recsys,
             "topics": topics,
             "regions": regions,
+            "sampling_config": sampling_config,  # 🆕 Add sampling_config (Issue #52)
         }
+
+        print(f"  🔍 DEBUG: Sending config to API: sampling_config = {sampling_config}")  # DEBUG
 
         print(f"  Configuration:")
         print(f"    • Agents: {agent_count}")
@@ -141,6 +145,8 @@ class SimulationTester:
         print(f"    • RecSys: {recsys}")
         print(f"    • Topics: {', '.join(topics)}")
         print(f"    • Regions: {', '.join(regions)}")
+        if sampling_config:
+            print(f"    • Sampling: {sampling_config.get('rate', 0)*100:.0f}% ({sampling_config.get('strategy', 'random')} strategy)")
         print(f"  ⏳ Initializing...")
 
         try:
@@ -735,7 +741,8 @@ class SimulationTester:
         agent_count: int = 5,
         num_steps: int = 5,
         platform: str = "reddit",
-        topics: list = None
+        topics: list = None,
+        sampling_config: dict = None  # 🆕 Add sampling_config parameter (Issue #52)
     ):
         """Run complete end-to-end test"""
         print("\n" + "🚀" * 30)
@@ -755,7 +762,8 @@ class SimulationTester:
         init_result = self.initialize_simulation(
             agent_count=agent_count,
             platform=platform,
-            topics=topics
+            topics=topics,
+            sampling_config=sampling_config  # 🆕 Pass sampling_config (Issue #52)
         )
 
         if not init_result:
@@ -827,6 +835,17 @@ def main():
                        metavar="T1,T2,T3",
                        help="Types of controlled agents (comma-separated, default: peace_messenger,fact_checker,moderator)")
 
+    # 🆕 Agent sampling arguments (Issue #52)
+    parser.add_argument("--sampling-rate", type=float, default=None, metavar="RATE",
+                       help="Agent sampling rate (0.0-1.0, e.g., 0.1 for 10%%. Default: disabled)")
+    parser.add_argument("--sampling-strategy", default="random", metavar="STRATEGY",
+                       choices=["random", "weighted", "stratified"],
+                       help="Sampling strategy: random, weighted, or stratified (default: random)")
+    parser.add_argument("--sampling-min-active", type=int, default=5, metavar="N",
+                       help="Minimum active agents when sampling (default: 5)")
+    parser.add_argument("--sampling-seed", type=int, default=42, metavar="SEED",
+                       help="Random seed for sampling reproducibility (default: 42)")
+
     args = parser.parse_args()
 
     # Parse topics
@@ -838,12 +857,29 @@ def main():
     tester.intervention_step = args.intervention_step
     tester.intervention_types = args.intervention_types.split(",")
 
+    # 🆕 Build sampling config if rate is specified (Issue #52)
+    sampling_config = None
+    print(f"  🔍 DEBUG: args.sampling_rate = {args.sampling_rate}")  # DEBUG
+    if args.sampling_rate is not None:
+        sampling_config = {
+            "enabled": True,
+            "rate": args.sampling_rate,
+            "strategy": args.sampling_strategy,
+            "min_active": args.sampling_min_active,
+            "seed": args.sampling_seed,
+        }
+        print(f"  🎯 Sampling enabled: {args.sampling_rate*100:.0f}% rate, {args.sampling_strategy} strategy")
+        print(f"  🔍 DEBUG: sampling_config = {sampling_config}")  # DEBUG
+    else:
+        print(f"  🔍 DEBUG: sampling_rate is None, sampling disabled")  # DEBUG
+
     try:
         success = tester.run_full_test(
             agent_count=args.agent_count,
             num_steps=args.num_steps,
             platform="reddit",
-            topics=topics
+            topics=topics,
+            sampling_config=sampling_config  # 🆕 Pass sampling config (Issue #52)
         )
 
         # Exit with appropriate code

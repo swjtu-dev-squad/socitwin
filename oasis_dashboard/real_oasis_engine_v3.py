@@ -18,7 +18,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 import json
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
 # 监控导入时间
@@ -178,6 +178,9 @@ class RealOASISEngineV3:
 
         # 🆕 加载干预系统配置
         self.intervention_config = self._load_intervention_config()
+
+        # 🆕 Agent采样配置 (Issue #52)
+        self.sampling_config = self._load_sampling_config()
 
         # 🆕 当前 topic 配置（包含人格列表）
         self.current_topic_config = None
@@ -346,6 +349,7 @@ class RealOASISEngineV3:
         topic: str = "general",
         topics: Optional[List[str]] = None,
         regions: Optional[List[str]] = None,
+        sampling_config: Optional[Dict] = None,  # 🆕 Add sampling_config parameter (Issue #52)
     ) -> Dict:
         """
         初始化真实 OASIS 模拟环境
@@ -357,6 +361,7 @@ class RealOASISEngineV3:
             topic: 单个话题（向后兼容）
             topics: 话题列表（新参数，优先使用）
             regions: 地区列表（新参数）
+            sampling_config: Agent采样配置（可选，Issue #52）
         """
         try:
             init_start = time.time()
@@ -373,6 +378,14 @@ class RealOASISEngineV3:
                 pass  # 使用提供的regions
             else:
                 regions = ["General"]
+
+            # 🆕 Apply sampling configuration (Issue #52)
+            print(f"🔍 DEBUG: Received sampling_config = {sampling_config}", file=sys.stderr, flush=True)  # DEBUG
+            if sampling_config is not None:
+                self.sampling_config = sampling_config
+                print(f"🎯 Sampling config: {self.sampling_config}", file=sys.stderr, flush=True)
+            else:
+                print(f"🔍 DEBUG: sampling_config is None, keeping default", file=sys.stderr, flush=True)  # DEBUG
 
             resolved_model = build_shared_model(self._build_model_runtime_spec())
             self.model = resolved_model.model
@@ -856,6 +869,15 @@ class RealOASISEngineV3:
                     and agent.user_info.profile.get("controlled"))
             ]
 
+            # 🆕 Apply agent sampling if enabled (Issue #52)
+            print(f"🔍 DEBUG: self.sampling_config = {self.sampling_config}", file=sys.stderr, flush=True)  # DEBUG
+            if self.sampling_config.get("enabled", False):
+                print(f"🔍 DEBUG: Sampling enabled! Before sampling: {len(normal_agents)} agents", file=sys.stderr, flush=True)  # DEBUG
+                normal_agents = self._sample_agents(normal_agents)
+                print(f"🔍 DEBUG: After sampling: {len(normal_agents)} agents", file=sys.stderr, flush=True)  # DEBUG
+            else:
+                print(f"🔍 DEBUG: Sampling disabled or config missing", file=sys.stderr, flush=True)  # DEBUG
+
             # 输出进度信息（用于前端显示）
             total_agents = len(normal_agents)
             print(f"📊 Progress: 0/{total_agents} (0%)", file=sys.stderr, flush=True)
@@ -1053,7 +1075,53 @@ class RealOASISEngineV3:
                 "status": "error",
                 "message": f"步骤执行失败: {str(e)}",
             }
-    
+
+    def _sample_agents(self, agents: List[Tuple[int, Any]]) -> List[Tuple[int, Any]]:
+        """Sample a subset of agents for execution (Issue #52)
+
+        Args:
+            agents: List of (agent_id, agent) tuples
+
+        Returns:
+            Sampled list of (agent_id, agent) tuples
+        """
+        config = self.sampling_config
+        total_count = len(agents)
+
+        # Calculate target count
+        target_count = max(
+            config.get("min_active", 5),
+            int(total_count * config.get("rate", 0.1))
+        )
+        target_count = min(target_count, total_count)
+
+        strategy = config.get("strategy", "random")
+
+        if strategy == "random":
+            # Simple random sampling with fixed seed for reproducibility
+            random.seed(config.get("seed", 42) + self.current_step)
+            sampled = random.sample(agents, target_count)
+
+        elif strategy == "weighted":
+            # Placeholder: weighted by recent activity
+            # TODO: Implement weighted sampling based on agent activity
+            random.seed(config.get("seed", 42) + self.current_step)
+            sampled = random.sample(agents, target_count)
+
+        elif strategy == "stratified":
+            # Placeholder: stratified sampling
+            # TODO: Implement stratified sampling by agent groups
+            random.seed(config.get("seed", 42) + self.current_step)
+            sampled = random.sample(agents, target_count)
+
+        else:
+            # Fallback to random
+            sampled = random.sample(agents, target_count)
+
+        print(f"🎯 Sampling: {target_count}/{total_count} agents ({target_count/total_count*100:.1f}%) using {strategy} strategy", flush=True)
+
+        return sampled
+
     async def reset(self) -> Dict:
         """重置模拟"""
         if self.env is not None:
@@ -1290,6 +1358,26 @@ class RealOASISEngineV3:
         except Exception as e:
             print(f"⚠️  加载干预配置失败: {e}，使用默认配置", flush=True)
             return self._get_default_intervention_config()
+
+    def _load_sampling_config(self) -> Dict:
+        """
+        从环境变量加载agent采样配置 (Issue #52)
+
+        Returns:
+            采样配置字典
+        """
+        enabled = os.environ.get("OASIS_SAMPLING_ENABLED", "false").lower() == "true"
+
+        if not enabled:
+            return {"enabled": False}
+
+        return {
+            "enabled": True,
+            "rate": float(os.environ.get("OASIS_SAMPLING_RATE", "0.1")),  # 10% default
+            "strategy": os.environ.get("OASIS_SAMPLING_STRATEGY", "random"),
+            "min_active": int(os.environ.get("OASIS_SAMPLING_MIN_ACTIVE", "5")),
+            "seed": int(os.environ.get("OASIS_SAMPLING_SEED", "42")),
+        }
 
     def _get_default_intervention_config(self) -> Dict:
         """获取默认干预配置"""
@@ -2660,6 +2748,11 @@ async def handle_rpc_request(request: Dict) -> Dict:
     
     try:
         if method == "initialize":
+            # 🆕 DEBUG: 打印接收到的所有params
+            print(f"🔍 DEBUG [JSON-RPC]: Received initialize request", file=sys.stderr, flush=True)
+            print(f"🔍 DEBUG [JSON-RPC]: params keys = {list(params.keys())}", file=sys.stderr, flush=True)
+            print(f"🔍 DEBUG [JSON-RPC]: sampling_config = {params.get('sampling_config')}", file=sys.stderr, flush=True)
+
             result = await engine.initialize(
                 agent_count=params.get("agent_count", 1),
                 platform=params.get("platform", "reddit"),
@@ -2667,6 +2760,7 @@ async def handle_rpc_request(request: Dict) -> Dict:
                 topic=params.get("topic", "general"),
                 topics=params.get("topics"),
                 regions=params.get("regions"),
+                sampling_config=params.get("sampling_config"),  # 🆕 Add sampling_config (Issue #52)
             )
         elif method == "step":
             result = await engine.step()
