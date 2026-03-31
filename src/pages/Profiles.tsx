@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge, Tabs, TabsList, TabsTrigger, Input } from '@/components/ui';
-import { Database, Network, BrainCircuit, Users, FileJson, Share2, Sparkles, Activity, PlayCircle, FileText } from 'lucide-react';
+import { Database, Network, BrainCircuit, Users, Share2, Sparkles, Activity, PlayCircle, FileText, RefreshCw, X } from 'lucide-react';
 import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph';
 import { SubscriptionPanel } from '@/components/SubscriptionPanel';
 import { toast } from 'sonner';
@@ -11,10 +11,49 @@ export default function Profiles() {
   const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'completed'>('idle');
   const [algorithm, setAlgorithm] = useState('persona-llm');
   const [count, setCount] = useState([1500]);
-  
+
+  // Persona 数据相关状态
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('');
+  const [personaStats, setPersonaStats] = useState<{
+    users: number;
+    posts: number;
+    replies: number;
+    relationships: number;
+    networks: number;
+    topics: number;
+  } | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   // 模拟生成的统计数据
   const [stats, setStats] = useState({ userCount: 0, linkCount: 0, density: 0 });
   const [generatedData, setGeneratedData] = useState<any>(null);
+
+  // 获取平台统计数据
+  const fetchPersonaStats = async (platform: string) => {
+    if (!platform) return;
+    setLoadingStats(true);
+    try {
+      const response = await fetch(`/api/persona/${platform}/stats`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch stats');
+      }
+      const data = await response.json();
+      setPersonaStats(data.stats);
+      toast.success(`已加载 ${platform} 平台数据统计`);
+    } catch (error) {
+      console.error('Fetch stats error:', error);
+      toast.error('获取统计数据失败');
+      setPersonaStats(null);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // 平台选择变化时获取统计
+  const handlePlatformChange = (platform: string) => {
+    setSelectedPlatform(platform);
+    fetchPersonaStats(platform);
+  };
 
   const handleGenerate = async () => {
     setGenStatus('generating');
@@ -77,23 +116,108 @@ export default function Profiles() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
               <Database className="w-4 h-4" /> 1. 原始种子数据
             </h3>
+
+            {/* 平台选择器 */}
             <div className="space-y-3">
-              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+              {selectedPlatform ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-accent/10 border border-accent/30 rounded-xl flex-1">
+                    <span className="text-xs font-medium text-accent flex-1">
+                      {{ twitter: 'X / Twitter', reddit: 'Reddit', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook' }[selectedPlatform]}
+                    </span>
+                    <button
+                      onClick={() => { setSelectedPlatform(''); setPersonaStats(null); }}
+                      className="text-text-tertiary hover:text-text-primary transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 rounded-xl border-border-default"
+                    onClick={() => fetchPersonaStats(selectedPlatform)}
+                    disabled={loadingStats}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingStats ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              ) : (
+                <Select value={selectedPlatform} onValueChange={handlePlatformChange}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-10 rounded-xl">
+                    <SelectValue placeholder="选择数据平台" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="twitter">X / Twitter</SelectItem>
+                    <SelectItem value="reddit">Reddit</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* 数据统计展示 */}
+            <div className="space-y-2">
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium flex items-center gap-2"><FileJson className="w-4 h-4 text-blue-400" /> 真实用户样本</span>
-                  <Badge variant="outline" className="text-[10px]">已加载: 500条</Badge>
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-400" /> 用户数据
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.users?.toLocaleString() ?? '未选择'}
+                  </Badge>
                 </div>
               </div>
-              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium flex items-center gap-2"><Activity className="w-4 h-4 text-rose-400" /> 话题/语义字典</span>
-                  <Badge variant="outline" className="text-[10px]">已加载: 24个</Badge>
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-rose-400" /> 帖子数据
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.posts?.toLocaleString() ?? '未选择'}
+                  </Badge>
                 </div>
               </div>
-              <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 cursor-pointer transition-all">
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium flex items-center gap-2"><Network className="w-4 h-4 text-emerald-400" /> 原始社交拓扑</span>
-                  <Badge variant="outline" className="text-[10px]">未选择</Badge>
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-400" /> 回复数据
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.replies?.toLocaleString() ?? '未选择'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <Network className="w-4 h-4 text-purple-400" /> 关系数据
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.relationships?.toLocaleString() ?? '未选择'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-orange-400" /> 网络数据
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.networks?.toLocaleString() ?? '未选择'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-400" /> 话题分类
+                  </span>
+                  <Badge variant="outline" className="text-[10px]">
+                    {personaStats?.topics ?? '未选择'}
+                  </Badge>
                 </div>
               </div>
             </div>

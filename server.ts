@@ -10,6 +10,13 @@ import { spawn } from "child_process";
 import { watch } from "fs";
 import Database from "better-sqlite3";
 import dotenv from "dotenv";
+import {
+  connectMongoDB,
+  getCollection,
+  getCollectionName,
+  COLLECTIONS,
+  closeMongoDB,
+} from "./src/lib/mongodb";
 
 // 🆕 创建日志文件（带时间戳）
 const __filename = fileURLToPath(import.meta.url);
@@ -232,6 +239,13 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Initialize MongoDB connection
+  try {
+    await connectMongoDB();
+  } catch (error) {
+    console.error("⚠️ MongoDB connection failed, dataset APIs will not work:", error);
+  }
 
   // Start OASIS Engine (uses ioInstance for progress updates)
   startOasisEngine();
@@ -890,6 +904,157 @@ async function startServer() {
   });
 
   // ===== End R4-02 APIs =====
+
+  // ===== Persona MongoDB APIs =====
+
+  // POST /api/persona/mongodb/import - Import data to MongoDB
+  app.post("/api/persona/mongodb/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ status: "error", message: "No file uploaded" });
+      }
+
+      const recsys_type = req.body.recsys_type;
+      const type = req.body.type as "users" | "posts" | "replies" | "relationships" | "networks" | "topics";
+
+      if (!recsys_type || !type) {
+        return res.status(400).json({ status: "error", message: "Missing required fields: recsys_type, type" });
+      }
+
+      const validTypes = ["users", "posts", "replies", "relationships", "networks", "topics"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      }
+
+      const content = req.file.buffer.toString("utf-8");
+      let data: any;
+
+      try {
+        data = JSON.parse(content);
+      } catch (e) {
+        return res.status(400).json({ status: "error", message: "Invalid JSON file" });
+      }
+
+      const collection = getCollection(getCollectionName(type));
+      let imported = 0;
+
+      if (type === "topics") {
+        // topics: split by category
+        const topicsData = [];
+        for (const [category, topics] of Object.entries(data)) {
+          topicsData.push({
+            recsys_type,
+            category,
+            topics,
+          });
+        }
+        await collection.insertMany(topicsData);
+        imported = topicsData.length;
+      } else if (type === "users") {
+        // users: direct insert (has recsys_type field already)
+        if (Array.isArray(data)) {
+          await collection.insertMany(data);
+          imported = data.length;
+        } else {
+          await collection.insertOne(data);
+          imported = 1;
+        }
+      } else {
+        // posts, replies, relationships, networks: add recsys_type
+        if (Array.isArray(data)) {
+          const dataWithPlatform = data.map((doc) => ({
+            ...doc,
+            recsys_type,
+          }));
+          await collection.insertMany(dataWithPlatform);
+          imported = data.length;
+        } else {
+          await collection.insertOne({ ...data, recsys_type });
+          imported = 1;
+        }
+      }
+
+      res.json({
+        status: "success",
+        recsys_type,
+        type,
+        imported,
+      });
+    } catch (error: any) {
+      console.error("[Persona Import Error]:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/:recsys_type/stats - Get platform statistics
+  app.get("/api/persona/:recsys_type/stats", async (req, res) => {
+    try {
+      const { recsys_type } = req.params;
+
+      const usersCollection = getCollection(COLLECTIONS.USERS);
+      const postsCollection = getCollection(COLLECTIONS.POSTS);
+      const repliesCollection = getCollection(COLLECTIONS.REPLIES);
+      const relationshipsCollection = getCollection(COLLECTIONS.RELATIONSHIPS);
+      const networksCollection = getCollection(COLLECTIONS.NETWORKS);
+      const topicsCollection = getCollection(COLLECTIONS.TOPICS);
+
+      const [usersCount, postsCount, repliesCount, relationshipsCount, networksCount, topicsCount] = await Promise.all([
+        usersCollection.countDocuments({ recsys_type }),
+        postsCollection.countDocuments({ recsys_type }),
+        repliesCollection.countDocuments({ recsys_type }),
+        relationshipsCollection.countDocuments({ recsys_type }),
+        networksCollection.countDocuments({ recsys_type }),
+        topicsCollection.countDocuments({ recsys_type }),
+      ]);
+
+      res.json({
+        recsys_type,
+        stats: {
+          users: usersCount,
+          posts: postsCount,
+          replies: repliesCount,
+          relationships: relationshipsCount,
+          networks: networksCount,
+          topics: topicsCount,
+        },
+      });
+    } catch (error: any) {
+      console.error("[Persona Stats Error]:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/:recsys_type/:type - Get data for a specific type
+  app.get("/api/persona/:recsys_type/:type", async (req, res) => {
+    try {
+      const { recsys_type, type } = req.params;
+
+      const validTypes = ["users", "posts", "replies", "relationships", "networks", "topics"];
+      if (!validTypes.includes(type)) {
+        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      }
+
+      const collection = getCollection(getCollectionName(type as any));
+      const [data, count] = await Promise.all([
+        collection.find({ recsys_type }, { projection: { _id: 0 } }).toArray(),
+        collection.countDocuments({ recsys_type }),
+      ]);
+
+      res.json({
+        recsys_type,
+        type,
+        stats: {
+          count,
+        },
+        data,
+      });
+    } catch (error: any) {
+      console.error("[Persona Query Error]:", error);
+      res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // ===== End Persona MongoDB APIs =====
 
   // ===== R4-03: Unified Recommender Interface APIs =====
 
