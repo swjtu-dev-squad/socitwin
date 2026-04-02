@@ -986,6 +986,280 @@ async function startServer() {
     }
   });
 
+  // POST /api/persona/twitter/fetch — 调用 fetch_twitter_data.py，返回用户/帖子等 JSON（不写库）
+  app.post("/api/persona/twitter/fetch", (req, res) => {
+    const pythonBin = path.join(__dirname, ".venv", "bin", "python");
+    const scriptPath = path.join(__dirname, "oasis_dashboard", "datasets", "fetch_twitter_data.py");
+    if (!existsSync(pythonBin)) {
+      return res.status(500).json({
+        status: "error",
+        message: "未找到 .venv/bin/python，请先执行: uv sync",
+      });
+    }
+    if (!existsSync(scriptPath)) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "未找到 oasis_dashboard/datasets/fetch_twitter_data.py" });
+    }
+
+    const b = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+    const opts: Record<string, number | string> = {};
+    if (b.maxTrends != null) opts.maxTrends = Number(b.maxTrends);
+    if (b.max_trends != null) opts.max_trends = Number(b.max_trends);
+    if (b.maxPosts != null) opts.maxPosts = Number(b.maxPosts);
+    if (b.max_posts != null) opts.max_posts = Number(b.max_posts);
+    if (b.maxRepliesPerPost != null) opts.maxRepliesPerPost = Number(b.maxRepliesPerPost);
+    if (b.max_replies_per_post != null) opts.max_replies_per_post = Number(b.max_replies_per_post);
+    if (b.sortOrder != null) opts.sortOrder = String(b.sortOrder);
+    if (b.sort_order != null) opts.sort_order = String(b.sort_order);
+
+    const optsJson = JSON.stringify(opts);
+    const child = spawn(pythonBin, [scriptPath, "--json", optsJson], {
+      cwd: __dirname,
+      env: { ...process.env },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (c: Buffer) => {
+      stdout += c.toString();
+    });
+    child.stderr.on("data", (c: Buffer) => {
+      stderr += c.toString();
+    });
+
+    const timeoutMs = 600_000;
+    const killTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    child.on("error", (err) => {
+      clearTimeout(killTimer);
+      res.status(500).json({ status: "error", message: err.message });
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(killTimer);
+      const trimmed = stdout.trim();
+      if (code !== 0) {
+        try {
+          const parsed = JSON.parse(trimmed) as { error?: string; status_code?: number; type?: string };
+          if (parsed?.error) {
+            const sc =
+              typeof parsed.status_code === "number" && parsed.status_code >= 400 && parsed.status_code < 600
+                ? parsed.status_code
+                : 502;
+            return res.status(sc).json({
+              status: "error",
+              message: parsed.error,
+              type: parsed.type,
+              stderr: stderr.slice(-4000),
+            });
+          }
+        } catch {
+          /* fall through */
+        }
+        return res.status(500).json({
+          status: "error",
+          message: `Python 进程退出码 ${code}`,
+          stderr: stderr.slice(-4000),
+          stdoutPreview: trimmed.slice(0, 500),
+        });
+      }
+      try {
+        const data = JSON.parse(trimmed) as { error?: string };
+        if (data?.error) {
+          return res.status(500).json({ status: "error", ...data, stderr: stderr.slice(-2000) });
+        }
+        return res.json({ status: "ok", data });
+      } catch {
+        return res.status(500).json({
+          status: "error",
+          message: "无法解析 Python 输出的 JSON",
+          stdoutPreview: trimmed.slice(0, 800),
+          stderr: stderr.slice(-2000),
+        });
+      }
+    });
+  });
+
+  // POST /api/persona/twitter/fetch-and-import — 抓取并写入 MongoDB（users/posts/topics）
+  app.post("/api/persona/twitter/fetch-and-import", async (req, res) => {
+    const recsys_type = "twitter";
+    const pythonBin = path.join(__dirname, ".venv", "bin", "python");
+    const scriptPath = path.join(__dirname, "oasis_dashboard", "datasets", "fetch_twitter_data.py");
+    if (!existsSync(pythonBin)) {
+      return res.status(500).json({
+        status: "error",
+        message: "未找到 .venv/bin/python，请先执行: uv sync",
+      });
+    }
+    if (!existsSync(scriptPath)) {
+      return res
+        .status(404)
+        .json({ status: "error", message: "未找到 oasis_dashboard/datasets/fetch_twitter_data.py" });
+    }
+
+    // Ensure MongoDB connection is available for this request
+    try {
+      await connectMongoDB();
+    } catch (e: any) {
+      return res.status(500).json({
+        status: "error",
+        message: `MongoDB 未连接：${e?.message || String(e)}`,
+      });
+    }
+
+    const b = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
+    const opts: Record<string, number | string> = {};
+    if (b.maxTrends != null) opts.maxTrends = Number(b.maxTrends);
+    if (b.max_trends != null) opts.max_trends = Number(b.max_trends);
+    if (b.maxPosts != null) opts.maxPosts = Number(b.maxPosts);
+    if (b.max_posts != null) opts.max_posts = Number(b.max_posts);
+    if (b.maxRepliesPerPost != null) opts.maxRepliesPerPost = Number(b.maxRepliesPerPost);
+    if (b.max_replies_per_post != null) opts.max_replies_per_post = Number(b.max_replies_per_post);
+    if (b.sortOrder != null) opts.sortOrder = String(b.sortOrder);
+    if (b.sort_order != null) opts.sort_order = String(b.sort_order);
+
+    const wipe = Boolean(b.wipe); // 可选：wipe=true 时先清理 twitter 的旧数据（防止重复导入）
+
+    const optsJson = JSON.stringify(opts);
+    const child = spawn(pythonBin, [scriptPath, "--json", optsJson], {
+      cwd: __dirname,
+      env: { ...process.env },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (c: Buffer) => {
+      stdout += c.toString();
+    });
+    child.stderr.on("data", (c: Buffer) => {
+      stderr += c.toString();
+    });
+
+    const timeoutMs = 600_000;
+    const killTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    const finishWithPythonError = (code: number | null) => {
+      clearTimeout(killTimer);
+      const trimmed = stdout.trim();
+      try {
+        const parsed = JSON.parse(trimmed) as { error?: string; status_code?: number; type?: string };
+        if (parsed?.error) {
+          const sc =
+            typeof parsed.status_code === "number" && parsed.status_code >= 400 && parsed.status_code < 600
+              ? parsed.status_code
+              : 502;
+          return res.status(sc).json({
+            status: "error",
+            message: parsed.error,
+            type: parsed.type,
+            stderr: stderr.slice(-4000),
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+      return res.status(500).json({
+        status: "error",
+        message: `Python 进程退出码 ${code}`,
+        stderr: stderr.slice(-4000),
+        stdoutPreview: trimmed.slice(0, 800),
+      });
+    };
+
+    child.on("error", (err) => {
+      clearTimeout(killTimer);
+      res.status(500).json({ status: "error", message: err.message });
+    });
+
+    child.on("close", async (code) => {
+      if (code !== 0) return finishWithPythonError(code);
+      clearTimeout(killTimer);
+
+      const trimmed = stdout.trim();
+      let payload: any;
+      try {
+        payload = JSON.parse(trimmed);
+      } catch {
+        return res.status(500).json({
+          status: "error",
+          message: "无法解析 Python 输出的 JSON",
+          stdoutPreview: trimmed.slice(0, 800),
+          stderr: stderr.slice(-2000),
+        });
+      }
+
+      if (payload?.error) {
+        return res.status(500).json({ status: "error", ...payload, stderr: stderr.slice(-2000) });
+      }
+
+      const users = Array.isArray(payload?.users) ? payload.users : [];
+      const posts = Array.isArray(payload?.posts) ? payload.posts : [];
+      const topicsObj = (payload?.topics_document && typeof payload.topics_document === "object")
+        ? payload.topics_document
+        : (Array.isArray(payload?.topics) ? { twitter_trends: payload.topics } : {});
+
+      try {
+        const usersCol = getCollection(COLLECTIONS.USERS);
+        const postsCol = getCollection(COLLECTIONS.POSTS);
+        const topicsCol = getCollection(COLLECTIONS.TOPICS);
+
+        if (wipe) {
+          await Promise.all([
+            usersCol.deleteMany({ recsys_type }),
+            postsCol.deleteMany({ recsys_type }),
+            topicsCol.deleteMany({ recsys_type }),
+          ]);
+        }
+
+        let importedUsers = 0;
+        let importedPosts = 0;
+        let importedTopics = 0;
+
+        if (users.length > 0) {
+          await usersCol.insertMany(users, { ordered: false });
+          importedUsers = users.length;
+        }
+
+        if (posts.length > 0) {
+          const postsWithPlatform = posts.map((p: any) => ({ ...p, recsys_type }));
+          await postsCol.insertMany(postsWithPlatform, { ordered: false });
+          importedPosts = posts.length;
+        }
+
+        const topicsDocs: Array<{ recsys_type: string; category: string; topics: any }> = [];
+        for (const [category, topics] of Object.entries(topicsObj)) {
+          topicsDocs.push({ recsys_type, category, topics });
+        }
+        if (topicsDocs.length > 0) {
+          await topicsCol.insertMany(topicsDocs, { ordered: false });
+          importedTopics = topicsDocs.length;
+        }
+
+        return res.json({
+          status: "success",
+          recsys_type,
+          imported: {
+            users: importedUsers,
+            posts: importedPosts,
+            topics: importedTopics,
+          },
+          wipe,
+          note: "本接口仅写入 users/posts/topics。replies/relationships/networks 需要对应结构化数据再导入。",
+        });
+      } catch (e: any) {
+        return res.status(500).json({
+          status: "error",
+          message: e?.message || String(e),
+        });
+      }
+    });
+  });
+
   // GET /api/persona/:recsys_type/stats - Get platform statistics
   app.get("/api/persona/:recsys_type/stats", async (req, res) => {
     try {
