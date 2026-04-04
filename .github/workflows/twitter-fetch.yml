@@ -1,0 +1,78 @@
+name: Twitter Fetch To MongoDB
+
+"on":
+  workflow_dispatch:
+    inputs:
+      max_trends:
+        description: "抓取趋势数量"
+        required: false
+        default: "3"
+      max_posts:
+        description: "每个趋势抓取帖子数"
+        required: false
+        default: "10"
+      max_replies_per_post:
+        description: "每条帖子抓取回复数"
+        required: false
+        default: "15"
+  schedule:
+    - cron: "10 0,4,8,12 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twitter-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch-twitter-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      MONGODB_DATABASE: ${{ secrets.MONGODB_DATABASE }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv pymongo
+
+      - name: Validate required secrets
+        run: |
+          python - <<'PY'
+          import os
+
+          missing = [
+              name for name in ("TWITTER_BEARER_TOKEN", "MONGODB_URI")
+              if not (os.getenv(name) or "").strip()
+          ]
+          if missing:
+              raise SystemExit(f"Missing required GitHub Secrets: {', '.join(missing)}")
+          print("Required secrets detected.")
+          PY
+
+      - name: Mask secrets
+        run: |
+          echo "::add-mask::$TWITTER_BEARER_TOKEN"
+          echo "::add-mask::$MONGODB_URI"
+          if [ -n "$MONGODB_DATABASE" ]; then
+            echo "::add-mask::$MONGODB_DATABASE"
+          fi
+
+      - name: Fetch Twitter data and import to MongoDB
+        run: |
+          python oasis_dashboard/datasets/fetch_twitter_data.py \
+            --max-trends "${{ github.event.inputs.max_trends || '3' }}" \
+            --max-posts "${{ github.event.inputs.max_posts || '10' }}" \
+            --max-replies-per-post "${{ github.event.inputs.max_replies_per_post || '15' }}"

@@ -26,3 +26,10 @@ metadata.json
 
 # Optional: npm lock file (uncomment if needed)
 # package-lock.json
+
+# AI
+.codex
+.claude
+CLAUDE.md
+.idea
+dataset/

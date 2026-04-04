@@ -44,6 +44,9 @@ export const COLLECTIONS = {
   RELATIONSHIPS: "relationships",
   NETWORKS: "networks",
   TOPICS: "topics",
+  PERSONA_DATASETS: "persona_datasets",
+  GENERATED_AGENTS: "generated_agents",
+  GENERATED_GRAPHS: "generated_graphs",
 } as const;
 
 export type CollectionType = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];

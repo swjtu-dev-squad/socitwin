@@ -17,6 +17,24 @@ import {
   COLLECTIONS,
   closeMongoDB,
 } from "./src/lib/mongodb";
+import {
+  PERSONA_RAW_TYPES,
+  PersonaProcessError,
+  buildAvailability,
+  buildDatasetLabel,
+  countDocsByDataset,
+  createDatasetId,
+  ensurePersonaIndexes,
+  emptyAvailability,
+  getDatasetManifest,
+  loadDatasetRawData,
+  normalizeImportDocs,
+  normalizeTwitterFetchForDataset,
+  normalizeTwitterFetchPreview,
+  runTwitterFetchProcess,
+  upsertDatasetManifest,
+} from "./src/lib/personaBackend";
+import { buildGeneratedArtifacts } from "./src/lib/personaGeneration";
 
 // 🆕 创建日志文件（带时间戳）
 const __filename = fileURLToPath(import.meta.url);
@@ -242,7 +260,8 @@ async function startServer() {
 
   // Initialize MongoDB connection
   try {
-    await connectMongoDB();
+    const mongoDb = await connectMongoDB();
+    await ensurePersonaIndexes(mongoDb);
   } catch (error) {
     console.error("⚠️ MongoDB connection failed, dataset APIs will not work:", error);
   }
@@ -921,9 +940,8 @@ async function startServer() {
         return res.status(400).json({ status: "error", message: "Missing required fields: recsys_type, type" });
       }
 
-      const validTypes = ["users", "posts", "replies", "relationships", "networks", "topics"];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      if (!PERSONA_RAW_TYPES.includes(type)) {
+        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${PERSONA_RAW_TYPES.join(", ")}` });
       }
 
       const content = req.file.buffer.toString("utf-8");
@@ -935,50 +953,62 @@ async function startServer() {
         return res.status(400).json({ status: "error", message: "Invalid JSON file" });
       }
 
-      const collection = getCollection(getCollectionName(type));
-      let imported = 0;
+      const db = await connectMongoDB();
+      const dataset_id =
+        typeof req.body.dataset_id === "string" && req.body.dataset_id.trim()
+          ? req.body.dataset_id.trim()
+          : createDatasetId();
+      const source =
+        typeof req.body.source === "string" && req.body.source.trim()
+          ? req.body.source.trim()
+          : "manual_import";
+      const label =
+        typeof req.body.label === "string" && req.body.label.trim()
+          ? req.body.label.trim()
+          : `${recsys_type.toUpperCase()} manual import`;
 
-      if (type === "topics") {
-        // topics: split by category
-        const topicsData = [];
-        for (const [category, topics] of Object.entries(data)) {
-          topicsData.push({
-            recsys_type,
-            category,
-            topics,
-          });
-        }
-        await collection.insertMany(topicsData);
-        imported = topicsData.length;
-      } else if (type === "users") {
-        // users: direct insert (has recsys_type field already)
-        if (Array.isArray(data)) {
-          await collection.insertMany(data);
-          imported = data.length;
-        } else {
-          await collection.insertOne(data);
-          imported = 1;
-        }
-      } else {
-        // posts, replies, relationships, networks: add recsys_type
-        if (Array.isArray(data)) {
-          const dataWithPlatform = data.map((doc) => ({
-            ...doc,
-            recsys_type,
-          }));
-          await collection.insertMany(dataWithPlatform);
-          imported = data.length;
-        } else {
-          await collection.insertOne({ ...data, recsys_type });
-          imported = 1;
-        }
+      const docs = normalizeImportDocs({
+        type,
+        data,
+        datasetId: dataset_id,
+        recsysType: recsys_type,
+        source,
+      });
+      if (docs.length > 0) {
+        await getCollection(getCollectionName(type)).insertMany(docs, { ordered: false });
       }
+
+      const existingManifest = await getDatasetManifest(db, dataset_id);
+      const counts = await countDocsByDataset(db, dataset_id);
+      const availability = existingManifest ? { ...existingManifest.availability } : emptyAvailability();
+      for (const rawType of PERSONA_RAW_TYPES) {
+        if (counts[rawType] > 0) availability[rawType] = "collected";
+      }
+
+      const dataset = await upsertDatasetManifest(db, {
+        dataset_id,
+        label: existingManifest?.label || label,
+        recsys_type,
+        source: existingManifest?.source || source,
+        ingest_status: "imported",
+        counts,
+        availability,
+        latest_generation_id: existingManifest?.latest_generation_id ?? null,
+        created_at: existingManifest?.created_at,
+        meta: {
+          ...(existingManifest?.meta || {}),
+          last_import_type: type,
+          last_import_at: new Date().toISOString(),
+        },
+      });
 
       res.json({
         status: "success",
+        dataset_id,
         recsys_type,
         type,
-        imported,
+        imported: docs.length,
+        dataset,
       });
     } catch (error: any) {
       console.error("[Persona Import Error]:", error);
@@ -986,283 +1016,340 @@ async function startServer() {
     }
   });
 
-  // POST /api/persona/twitter/fetch — 调用 fetch_twitter_data.py，返回用户/帖子等 JSON（不写库）
-  app.post("/api/persona/twitter/fetch", (req, res) => {
-    const pythonBin = path.join(__dirname, ".venv", "bin", "python");
-    const scriptPath = path.join(__dirname, "oasis_dashboard", "datasets", "fetch_twitter_data.py");
-    if (!existsSync(pythonBin)) {
-      return res.status(500).json({
-        status: "error",
-        message: "未找到 .venv/bin/python，请先执行: uv sync",
+  // POST /api/persona/twitter/fetch — 调用 oasis_dashboard/datasets/fetch_twitter_data.py，返回用户/帖子等 JSON（不写库）
+  app.post("/api/persona/twitter/fetch", async (req, res) => {
+    try {
+      const payload = await runTwitterFetchProcess(__dirname, (req.body || {}) as Record<string, unknown>);
+      const preview = normalizeTwitterFetchPreview(payload);
+      return res.json({
+        status: "ok",
+        preview: {
+          counts: preview.counts,
+          availability: preview.availability,
+          trends: Array.isArray(payload?.meta?.trends_processed) ? payload.meta.trends_processed : [],
+          sample: {
+            users: preview.payload.users.slice(0, 5),
+            posts: preview.payload.posts.slice(0, 5),
+            replies: preview.payload.replies.slice(0, 5),
+          },
+        },
+        data: preview.payload,
       });
-    }
-    if (!existsSync(scriptPath)) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "未找到 oasis_dashboard/datasets/fetch_twitter_data.py" });
-    }
-
-    const b = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-    const opts: Record<string, number | string> = {};
-    if (b.maxTrends != null) opts.maxTrends = Number(b.maxTrends);
-    if (b.max_trends != null) opts.max_trends = Number(b.max_trends);
-    if (b.maxPosts != null) opts.maxPosts = Number(b.maxPosts);
-    if (b.max_posts != null) opts.max_posts = Number(b.max_posts);
-    if (b.maxRepliesPerPost != null) opts.maxRepliesPerPost = Number(b.maxRepliesPerPost);
-    if (b.max_replies_per_post != null) opts.max_replies_per_post = Number(b.max_replies_per_post);
-    if (b.sortOrder != null) opts.sortOrder = String(b.sortOrder);
-    if (b.sort_order != null) opts.sort_order = String(b.sort_order);
-
-    const optsJson = JSON.stringify(opts);
-    const child = spawn(pythonBin, [scriptPath, "--json", optsJson], {
-      cwd: __dirname,
-      env: { ...process.env },
-    });
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (c: Buffer) => {
-      stdout += c.toString();
-    });
-    child.stderr.on("data", (c: Buffer) => {
-      stderr += c.toString();
-    });
-
-    const timeoutMs = 600_000;
-    const killTimer = setTimeout(() => {
-      child.kill("SIGTERM");
-    }, timeoutMs);
-
-    child.on("error", (err) => {
-      clearTimeout(killTimer);
-      res.status(500).json({ status: "error", message: err.message });
-    });
-
-    child.on("close", (code) => {
-      clearTimeout(killTimer);
-      const trimmed = stdout.trim();
-      if (code !== 0) {
-        try {
-          const parsed = JSON.parse(trimmed) as { error?: string; status_code?: number; type?: string };
-          if (parsed?.error) {
-            const sc =
-              typeof parsed.status_code === "number" && parsed.status_code >= 400 && parsed.status_code < 600
-                ? parsed.status_code
-                : 502;
-            return res.status(sc).json({
-              status: "error",
-              message: parsed.error,
-              type: parsed.type,
-              stderr: stderr.slice(-4000),
-            });
-          }
-        } catch {
-          /* fall through */
-        }
-        return res.status(500).json({
+    } catch (error) {
+      if (error instanceof PersonaProcessError) {
+        return res.status(error.statusCode).json({
           status: "error",
-          message: `Python 进程退出码 ${code}`,
-          stderr: stderr.slice(-4000),
-          stdoutPreview: trimmed.slice(0, 500),
+          message: error.message,
+          type: error.errorType,
+          stderr: error.stderr,
+          stdoutPreview: error.stdoutPreview,
         });
       }
-      try {
-        const data = JSON.parse(trimmed) as { error?: string };
-        if (data?.error) {
-          return res.status(500).json({ status: "error", ...data, stderr: stderr.slice(-2000) });
-        }
-        return res.json({ status: "ok", data });
-      } catch {
-        return res.status(500).json({
-          status: "error",
-          message: "无法解析 Python 输出的 JSON",
-          stdoutPreview: trimmed.slice(0, 800),
-          stderr: stderr.slice(-2000),
-        });
-      }
-    });
+      return res.status(500).json({ status: "error", message: (error as Error).message });
+    }
   });
 
-  // POST /api/persona/twitter/fetch-and-import — 抓取并写入 MongoDB（users/posts/topics）
+  // POST /api/persona/twitter/fetch-and-import — 抓取并写入 MongoDB（users/posts/replies/topics）
   app.post("/api/persona/twitter/fetch-and-import", async (req, res) => {
-    const recsys_type = "twitter";
-    const pythonBin = path.join(__dirname, ".venv", "bin", "python");
-    const scriptPath = path.join(__dirname, "oasis_dashboard", "datasets", "fetch_twitter_data.py");
-    if (!existsSync(pythonBin)) {
-      return res.status(500).json({
-        status: "error",
-        message: "未找到 .venv/bin/python，请先执行: uv sync",
-      });
-    }
-    if (!existsSync(scriptPath)) {
-      return res
-        .status(404)
-        .json({ status: "error", message: "未找到 oasis_dashboard/datasets/fetch_twitter_data.py" });
-    }
-
-    // Ensure MongoDB connection is available for this request
     try {
-      await connectMongoDB();
-    } catch (e: any) {
-      return res.status(500).json({
-        status: "error",
-        message: `MongoDB 未连接：${e?.message || String(e)}`,
-      });
-    }
+      const db = await connectMongoDB();
+      const recsys_type = "twitter";
+      const requestBody = (req.body || {}) as Record<string, unknown>;
+      const payload = await runTwitterFetchProcess(__dirname, requestBody);
+      const dataset_id = createDatasetId();
+      const wipe = Boolean(requestBody.wipe);
 
-    const b = (req.body && typeof req.body === "object" ? req.body : {}) as Record<string, unknown>;
-    const opts: Record<string, number | string> = {};
-    if (b.maxTrends != null) opts.maxTrends = Number(b.maxTrends);
-    if (b.max_trends != null) opts.max_trends = Number(b.max_trends);
-    if (b.maxPosts != null) opts.maxPosts = Number(b.maxPosts);
-    if (b.max_posts != null) opts.max_posts = Number(b.max_posts);
-    if (b.maxRepliesPerPost != null) opts.maxRepliesPerPost = Number(b.maxRepliesPerPost);
-    if (b.max_replies_per_post != null) opts.max_replies_per_post = Number(b.max_replies_per_post);
-    if (b.sortOrder != null) opts.sortOrder = String(b.sortOrder);
-    if (b.sort_order != null) opts.sort_order = String(b.sort_order);
+      if (wipe) {
+        const staleDatasets = await db
+          .collection(COLLECTIONS.PERSONA_DATASETS)
+          .find({ recsys_type }, { projection: { dataset_id: 1, latest_generation_id: 1, _id: 0 } })
+          .toArray();
+        const staleDatasetIds = staleDatasets.map((item: any) => item.dataset_id).filter(Boolean);
+        const staleGenerationIds = staleDatasets.map((item: any) => item.latest_generation_id).filter(Boolean);
 
-    const wipe = Boolean(b.wipe); // 可选：wipe=true 时先清理 twitter 的旧数据（防止重复导入）
+        await Promise.all([
+          getCollection(COLLECTIONS.USERS).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.POSTS).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.REPLIES).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.RELATIONSHIPS).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.NETWORKS).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.TOPICS).deleteMany({ recsys_type }),
+          getCollection(COLLECTIONS.PERSONA_DATASETS).deleteMany({ recsys_type }),
+        ]);
 
-    const optsJson = JSON.stringify(opts);
-    const child = spawn(pythonBin, [scriptPath, "--json", optsJson], {
-      cwd: __dirname,
-      env: { ...process.env },
-    });
-
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (c: Buffer) => {
-      stdout += c.toString();
-    });
-    child.stderr.on("data", (c: Buffer) => {
-      stderr += c.toString();
-    });
-
-    const timeoutMs = 600_000;
-    const killTimer = setTimeout(() => {
-      child.kill("SIGTERM");
-    }, timeoutMs);
-
-    const finishWithPythonError = (code: number | null) => {
-      clearTimeout(killTimer);
-      const trimmed = stdout.trim();
-      try {
-        const parsed = JSON.parse(trimmed) as { error?: string; status_code?: number; type?: string };
-        if (parsed?.error) {
-          const sc =
-            typeof parsed.status_code === "number" && parsed.status_code >= 400 && parsed.status_code < 600
-              ? parsed.status_code
-              : 502;
-          return res.status(sc).json({
-            status: "error",
-            message: parsed.error,
-            type: parsed.type,
-            stderr: stderr.slice(-4000),
-          });
-        }
-      } catch {
-        /* ignore */
-      }
-      return res.status(500).json({
-        status: "error",
-        message: `Python 进程退出码 ${code}`,
-        stderr: stderr.slice(-4000),
-        stdoutPreview: trimmed.slice(0, 800),
-      });
-    };
-
-    child.on("error", (err) => {
-      clearTimeout(killTimer);
-      res.status(500).json({ status: "error", message: err.message });
-    });
-
-    child.on("close", async (code) => {
-      if (code !== 0) return finishWithPythonError(code);
-      clearTimeout(killTimer);
-
-      const trimmed = stdout.trim();
-      let payload: any;
-      try {
-        payload = JSON.parse(trimmed);
-      } catch {
-        return res.status(500).json({
-          status: "error",
-          message: "无法解析 Python 输出的 JSON",
-          stdoutPreview: trimmed.slice(0, 800),
-          stderr: stderr.slice(-2000),
-        });
-      }
-
-      if (payload?.error) {
-        return res.status(500).json({ status: "error", ...payload, stderr: stderr.slice(-2000) });
-      }
-
-      const users = Array.isArray(payload?.users) ? payload.users : [];
-      const posts = Array.isArray(payload?.posts) ? payload.posts : [];
-      const topicsObj = (payload?.topics_document && typeof payload.topics_document === "object")
-        ? payload.topics_document
-        : (Array.isArray(payload?.topics) ? { twitter_trends: payload.topics } : {});
-
-      try {
-        const usersCol = getCollection(COLLECTIONS.USERS);
-        const postsCol = getCollection(COLLECTIONS.POSTS);
-        const topicsCol = getCollection(COLLECTIONS.TOPICS);
-
-        if (wipe) {
+        if (staleDatasetIds.length > 0) {
           await Promise.all([
-            usersCol.deleteMany({ recsys_type }),
-            postsCol.deleteMany({ recsys_type }),
-            topicsCol.deleteMany({ recsys_type }),
+            getCollection(COLLECTIONS.GENERATED_AGENTS).deleteMany({ dataset_id: { $in: staleDatasetIds } }),
+            getCollection(COLLECTIONS.GENERATED_GRAPHS).deleteMany({ dataset_id: { $in: staleDatasetIds } }),
           ]);
         }
-
-        let importedUsers = 0;
-        let importedPosts = 0;
-        let importedTopics = 0;
-
-        if (users.length > 0) {
-          await usersCol.insertMany(users, { ordered: false });
-          importedUsers = users.length;
+        if (staleGenerationIds.length > 0) {
+          await Promise.all([
+            getCollection(COLLECTIONS.GENERATED_AGENTS).deleteMany({ generation_id: { $in: staleGenerationIds } }),
+            getCollection(COLLECTIONS.GENERATED_GRAPHS).deleteMany({ generation_id: { $in: staleGenerationIds } }),
+          ]);
         }
+      }
 
-        if (posts.length > 0) {
-          const postsWithPlatform = posts.map((p: any) => ({ ...p, recsys_type }));
-          await postsCol.insertMany(postsWithPlatform, { ordered: false });
-          importedPosts = posts.length;
-        }
+      const normalized = normalizeTwitterFetchForDataset({
+        datasetId: dataset_id,
+        payload,
+      });
+      await Promise.all(
+        PERSONA_RAW_TYPES.map(async (type) => {
+          const docs = normalized.docs[type];
+          if (!docs.length) return;
+          await getCollection(getCollectionName(type as any)).insertMany(docs, { ordered: false });
+        }),
+      );
 
-        const topicsDocs: Array<{ recsys_type: string; category: string; topics: any }> = [];
-        for (const [category, topics] of Object.entries(topicsObj)) {
-          topicsDocs.push({ recsys_type, category, topics });
-        }
-        if (topicsDocs.length > 0) {
-          await topicsCol.insertMany(topicsDocs, { ordered: false });
-          importedTopics = topicsDocs.length;
-        }
+      const manifest = await upsertDatasetManifest(db, {
+        dataset_id,
+        label: buildDatasetLabel({
+          recsysType: recsys_type,
+          source: "twitter_live_fetch",
+          trends: payload?.meta?.trends_processed,
+        }),
+        recsys_type,
+        source: "twitter_live_fetch",
+        ingest_status: "collected",
+        counts: normalized.counts,
+        availability: {
+          ...normalized.availability,
+          relationships: "not_collected",
+          networks: "unsupported",
+        },
+        meta: {
+          fetch_options: requestBody,
+          trends_processed: payload?.meta?.trends_processed || [],
+          collected_at: payload?.meta?.collected_at || new Date().toISOString(),
+          trends_data: payload?.meta?.trends_data || [],
+        },
+      });
 
-        return res.json({
-          status: "success",
-          recsys_type,
-          imported: {
-            users: importedUsers,
-            posts: importedPosts,
-            topics: importedTopics,
-          },
-          wipe,
-          note: "本接口仅写入 users/posts/topics。replies/relationships/networks 需要对应结构化数据再导入。",
-        });
-      } catch (e: any) {
-        return res.status(500).json({
+      return res.json({
+        status: "success",
+        dataset_id,
+        dataset: manifest,
+        imported: normalized.counts,
+        availability: manifest.availability,
+        wipe,
+      });
+    } catch (e: any) {
+      if (e instanceof PersonaProcessError) {
+        return res.status(e.statusCode).json({
           status: "error",
-          message: e?.message || String(e),
+          message: e.message,
+          type: e.errorType,
+          stderr: e.stderr,
+          stdoutPreview: e.stdoutPreview,
         });
       }
-    });
+      return res.status(500).json({
+        status: "error",
+        message: e?.message || String(e),
+      });
+    }
+  });
+
+  // GET /api/persona/datasets - List dataset manifests
+  app.get("/api/persona/datasets", async (_req, res) => {
+    try {
+      await connectMongoDB();
+      const datasets = await getCollection(COLLECTIONS.PERSONA_DATASETS)
+        .find({}, { projection: { _id: 0 } })
+        .sort({ updated_at: -1 })
+        .toArray();
+      return res.json({ datasets });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/datasets/:dataset_id - Dataset detail
+  app.get("/api/persona/datasets/:dataset_id", async (req, res) => {
+    try {
+      const db = await connectMongoDB();
+      const dataset = await getDatasetManifest(db, req.params.dataset_id);
+      if (!dataset) {
+        return res.status(404).json({ status: "error", message: `Dataset '${req.params.dataset_id}' not found` });
+      }
+
+      let latest_graph: Record<string, any> | null = null;
+      if (dataset.latest_generation_id) {
+        latest_graph = await getCollection(COLLECTIONS.GENERATED_GRAPHS).findOne(
+          { generation_id: dataset.latest_generation_id },
+          { projection: { _id: 0, generation_id: 1, algorithm: 1, stats: 1, created_at: 1 } },
+        );
+      }
+
+      return res.json({ dataset: { ...dataset, latest_graph } });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/datasets/:dataset_id/raw/:type - Paginated raw dataset access
+  app.get("/api/persona/datasets/:dataset_id/raw/:type", async (req, res) => {
+    try {
+      const { dataset_id, type } = req.params;
+      if (!PERSONA_RAW_TYPES.includes(type as any)) {
+        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${PERSONA_RAW_TYPES.join(", ")}` });
+      }
+
+      await connectMongoDB();
+      const page = Math.max(1, Number(req.query.page || 1));
+      const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize || 50)));
+      const skip = (page - 1) * pageSize;
+      const collection = getCollection(getCollectionName(type as any));
+
+      const [data, count] = await Promise.all([
+        collection.find({ dataset_id }, { projection: { _id: 0 } }).skip(skip).limit(pageSize).toArray(),
+        collection.countDocuments({ dataset_id }),
+      ]);
+
+      return res.json({
+        dataset_id,
+        type,
+        stats: {
+          count,
+          page,
+          pageSize,
+          totalPages: Math.max(1, Math.ceil(count / pageSize)),
+        },
+        data,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // POST /api/persona/datasets/:dataset_id/generate - Generate agents and graph from a dataset
+  app.post("/api/persona/datasets/:dataset_id/generate", async (req, res) => {
+    try {
+      const db = await connectMongoDB();
+      const { dataset_id } = req.params;
+      const dataset = await getDatasetManifest(db, dataset_id);
+      if (!dataset) {
+        return res.status(404).json({ status: "error", message: `Dataset '${dataset_id}' not found` });
+      }
+
+      const raw = await loadDatasetRawData(db, dataset_id);
+      const agentCount = Number((req.body?.agentCount ?? req.body?.agent_count ?? dataset.counts.users) || 0);
+      const generation = buildGeneratedArtifacts({
+        dataset,
+        raw,
+        options: {
+          algorithm: req.body?.algorithm,
+          agentCount: Number.isFinite(agentCount) && agentCount > 0 ? agentCount : dataset.counts.users,
+        },
+      });
+
+      if (generation.generatedAgents.length > 0) {
+        await getCollection(COLLECTIONS.GENERATED_AGENTS).insertMany(generation.generatedAgents, { ordered: false });
+      }
+      await getCollection(COLLECTIONS.GENERATED_GRAPHS).insertOne(generation.graphDocument);
+
+      const updatedDataset = await upsertDatasetManifest(db, {
+        ...dataset,
+        latest_generation_id: generation.generationId,
+        updated_at: new Date().toISOString(),
+        meta: {
+          ...(dataset.meta || {}),
+          latest_generation: {
+            generation_id: generation.generationId,
+            algorithm: generation.graphDocument.algorithm,
+            created_at: generation.graphDocument.created_at,
+            stats: generation.graphDocument.stats,
+          },
+        },
+      });
+
+      return res.json({
+        status: "success",
+        dataset_id,
+        generation_id: generation.generationId,
+        dataset: updatedDataset,
+        graph: generation.graphDocument,
+        stats: generation.graphDocument.stats,
+        explanation: generation.graphDocument.algorithm_explanation,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/generations/:generation_id/agents - Get generated agents
+  app.get("/api/persona/generations/:generation_id/agents", async (req, res) => {
+    try {
+      await connectMongoDB();
+      const { generation_id } = req.params;
+      const agents = await getCollection(COLLECTIONS.GENERATED_AGENTS)
+        .find({ generation_id }, { projection: { _id: 0 } })
+        .sort({ generated_agent_id: 1 })
+        .toArray();
+
+      if (agents.length === 0) {
+        return res.status(404).json({ status: "error", message: `Generation '${generation_id}' not found` });
+      }
+
+      return res.json({
+        generation_id,
+        dataset_id: agents[0].dataset_id,
+        stats: { count: agents.length },
+        agents,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/generations/:generation_id/graph - Get generated graph
+  app.get("/api/persona/generations/:generation_id/graph", async (req, res) => {
+    try {
+      await connectMongoDB();
+      const { generation_id } = req.params;
+      const graph = await getCollection(COLLECTIONS.GENERATED_GRAPHS).findOne(
+        { generation_id },
+        { projection: { _id: 0 } },
+      );
+      if (!graph) {
+        return res.status(404).json({ status: "error", message: `Generation '${generation_id}' not found` });
+      }
+      return res.json({ graph });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
+  });
+
+  // GET /api/persona/generations/:generation_id/explanation - Get generation explanation
+  app.get("/api/persona/generations/:generation_id/explanation", async (req, res) => {
+    try {
+      await connectMongoDB();
+      const { generation_id } = req.params;
+      const graph = await getCollection(COLLECTIONS.GENERATED_GRAPHS).findOne(
+        { generation_id },
+        { projection: { _id: 0, generation_id: 1, dataset_id: 1, algorithm_explanation: 1, stats: 1, created_at: 1 } },
+      );
+      if (!graph) {
+        return res.status(404).json({ status: "error", message: `Generation '${generation_id}' not found` });
+      }
+      return res.json({
+        generation_id,
+        dataset_id: graph.dataset_id,
+        explanation: graph.algorithm_explanation,
+        stats: graph.stats,
+        created_at: graph.created_at,
+      });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message });
+    }
   });
 
   // GET /api/persona/:recsys_type/stats - Get platform statistics
   app.get("/api/persona/:recsys_type/stats", async (req, res) => {
     try {
+      await connectMongoDB();
       const { recsys_type } = req.params;
 
       const usersCollection = getCollection(COLLECTIONS.USERS);
@@ -1301,11 +1388,11 @@ async function startServer() {
   // GET /api/persona/:recsys_type/:type - Get data for a specific type
   app.get("/api/persona/:recsys_type/:type", async (req, res) => {
     try {
+      await connectMongoDB();
       const { recsys_type, type } = req.params;
 
-      const validTypes = ["users", "posts", "replies", "relationships", "networks", "topics"];
-      if (!validTypes.includes(type)) {
-        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${validTypes.join(", ")}` });
+      if (!PERSONA_RAW_TYPES.includes(type as any)) {
+        return res.status(400).json({ status: "error", message: `Invalid type. Must be one of: ${PERSONA_RAW_TYPES.join(", ")}` });
       }
 
       const collection = getCollection(getCollectionName(type as any));
