@@ -1158,7 +1158,7 @@ async function startServer() {
       await connectMongoDB();
       const datasets = await getCollection(COLLECTIONS.PERSONA_DATASETS)
         .find({}, { projection: { _id: 0 } })
-        .sort({ updated_at: -1 })
+        .sort({ created_at: -1, updated_at: -1 })
         .toArray();
       return res.json({ datasets });
     } catch (error: any) {

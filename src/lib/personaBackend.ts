@@ -349,12 +349,13 @@ export async function upsertDatasetManifest(
     status: patch.status || determineDatasetStatus(availability),
     meta: patch.meta ?? {},
   };
+  const { created_at: _ignoredCreatedAt, ...manifestWithoutCreatedAt } = manifest;
 
   await db.collection(COLLECTIONS.PERSONA_DATASETS).updateOne(
     { dataset_id: manifest.dataset_id },
     {
       $set: {
-        ...manifest,
+        ...manifestWithoutCreatedAt,
         updated_at: updatedAt,
       },
       $setOnInsert: {

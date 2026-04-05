@@ -118,6 +118,23 @@ function formatDatasetOption(dataset: PersonaDatasetSummary) {
   return `${formatBeijingTime(dataset.created_at)} | ${dataset.dataset_id}`;
 }
 
+function formatDatasetTrendSummary(dataset: PersonaDatasetSummary) {
+  const trends = Array.isArray(dataset.meta?.trends_processed)
+    ? dataset.meta.trends_processed.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+  if (trends.length === 0) return dataset.label;
+  const shown = trends.slice(0, 3);
+  const suffix = trends.length > shown.length ? ` +${trends.length - shown.length}` : '';
+  return `${shown.join(' / ')}${suffix}`;
+}
+
+function datasetSnapshotTimestamp(dataset: Pick<PersonaDatasetSummary, 'created_at' | 'updated_at'>) {
+  const createdAt = new Date(dataset.created_at).getTime();
+  if (Number.isFinite(createdAt) && createdAt > 0) return createdAt;
+  const updatedAt = new Date(dataset.updated_at).getTime();
+  return Number.isFinite(updatedAt) ? updatedAt : 0;
+}
+
 function formatDensityPercent(value: number | undefined) {
   return `${((value || 0) * 100).toFixed(2)}%`;
 }
@@ -146,7 +163,10 @@ export default function Profiles() {
   const [agentCount, setAgentCount] = useState('0');
 
   const platformDatasets = useMemo(
-    () => datasets.filter((dataset) => dataset.recsys_type === selectedPlatform),
+    () =>
+      datasets
+        .filter((dataset) => dataset.recsys_type === selectedPlatform)
+        .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left)),
     [datasets, selectedPlatform],
   );
 
@@ -154,7 +174,7 @@ export default function Profiles() {
     () =>
       datasets.reduce<Record<string, PersonaDatasetSummary>>((acc, dataset) => {
         const existing = acc[dataset.recsys_type];
-        if (!existing || new Date(dataset.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+        if (!existing || datasetSnapshotTimestamp(dataset) > datasetSnapshotTimestamp(existing)) {
           acc[dataset.recsys_type] = dataset;
         }
         return acc;
@@ -163,6 +183,7 @@ export default function Profiles() {
   );
 
   const latestPlatformDataset = latestDatasetsByPlatform[selectedPlatform] || null;
+  const selectedDatasetOption = platformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId) || null;
 
   const graphStats = useMemo(
     () => ({
@@ -195,7 +216,7 @@ export default function Profiles() {
           id: platform.id,
           name: platform.name,
           status: subscriptionLoadingPlatform === platform.id ? 'syncing' : checked ? 'connected' : 'standby',
-          latency: latestDataset ? formatBeijingTime(latestDataset.updated_at).split(' ')[1] || 'ready' : '-',
+          latency: latestDataset ? formatBeijingTime(latestDataset.created_at).split(' ')[1] || 'ready' : '-',
           progress: subscriptionLoadingPlatform === platform.id ? 65 : checked ? 100 : 0,
           checked,
           canToggle: true,
@@ -439,17 +460,33 @@ export default function Profiles() {
             <div className="space-y-2">
               <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择数据集</label>
               <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-                <SelectTrigger className="bg-bg-primary border-border-default h-10 rounded-xl">
-                  <SelectValue
-                    placeholder={datasetsLoading ? '数据集加载中...' : '请先订阅平台，再选择已同步的数据集'}
-                    value={platformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId)?.label || selectedDatasetId}
-                  />
+                <SelectTrigger className="bg-bg-primary border-border-default h-auto min-h-[64px] rounded-xl py-3">
+                  {selectedDatasetOption ? (
+                    <div className="min-w-0 pr-4 text-left">
+                      <div className="text-xs font-bold leading-tight">{formatBeijingTime(selectedDatasetOption.created_at)}</div>
+                      <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-tertiary">
+                        {selectedDatasetOption.dataset_id}
+                      </div>
+                      <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
+                        {formatDatasetTrendSummary(selectedDatasetOption)}
+                      </div>
+                    </div>
+                  ) : (
+                    <SelectValue placeholder={datasetsLoading ? '数据集加载中...' : '请先订阅平台，再选择已同步的数据集'} />
+                  )}
                 </SelectTrigger>
                 <SelectContent>
                   {platformDatasets.map((dataset) => (
                     <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
-                      <div className="font-bold">{dataset.label}</div>
-                      <div className="text-[10px] text-text-muted">{formatDatasetOption(dataset)}</div>
+                      <div className="pr-6">
+                        <div className="font-bold leading-tight">{formatBeijingTime(dataset.created_at)}</div>
+                        <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-muted">
+                          {dataset.dataset_id}
+                        </div>
+                        <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
+                          {formatDatasetTrendSummary(dataset)}
+                        </div>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -457,7 +494,7 @@ export default function Profiles() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <InfoMetric label="最新快照时间" value={latestPlatformDataset ? formatBeijingTime(latestPlatformDataset.updated_at) : '暂无'} />
+              <InfoMetric label="最新快照时间" value={latestPlatformDataset ? formatBeijingTime(latestPlatformDataset.created_at) : '暂无'} />
               <InfoMetric label="最新 dataset_id" value={latestPlatformDataset?.dataset_id || '暂无'} mono />
             </div>
 
@@ -484,7 +521,6 @@ export default function Profiles() {
                 </div>
                 <div className="text-[11px] text-text-tertiary space-y-1">
                   <p>采集时间：{formatBeijingTime(selectedDataset.created_at)}</p>
-                  <p>最近更新：{formatBeijingTime(selectedDataset.updated_at)}</p>
                   <p>来源：{selectedDataset.source}</p>
                 </div>
               </div>
