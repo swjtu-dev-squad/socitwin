@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Database,
   Network,
@@ -9,7 +9,6 @@ import {
   Activity,
   PlayCircle,
   FileText,
-  RefreshCw,
   GitBranch,
 } from 'lucide-react';
 import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Input } from '@/components/ui';
@@ -19,7 +18,6 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
   generateDatasetArtifacts,
-  getGeneratedGraph,
   getPersonaDataset,
   listPersonaDatasets,
 } from '@/lib/personaApi';
@@ -52,22 +50,22 @@ const EMPTY_COUNTS = {
 };
 
 const ALGORITHM_DESCRIPTIONS: Record<string, string> = {
+  'community-homophily': '推荐策略：先保留真实互动边，再按话题社区、内容同质性和三角闭包补齐网络结构。',
   'real-seed-fusion': '真实种子优先，先保留已有互动与结构线索，再用最小必要补边生成稳定图谱。',
-  'persona-llm': '利用真实用户画像和文本特征补全 persona，再生成更像人的仿真 agent。',
   'ba-structural': '结构优先，适合在真实关系稀疏时补出更完整的网络骨架。',
   'semantic-homophily': '基于兴趣语义相似度与真实互动边混合生成关系网络。',
 };
 
 const ALGORITHM_OUTPUTS: Record<string, string[]> = {
+  'community-homophily': ['社区优先补边', '同质性约束', '三角闭包收紧结构'],
   'real-seed-fusion': ['保留真实种子结构', '最小必要补边', '稳定输出图谱'],
-  'persona-llm': ['拟合用户画像', '补全 agent 设定', '生成初始关系图'],
   'ba-structural': ['补齐关系边', '强化网络骨架', '提升连通性'],
   'semantic-homophily': ['基于兴趣连边', '混合真实互动', '优化图密度'],
 };
 
 const ALGORITHM_SEED_KEYS = {
+  'community-homophily': ['users', 'posts', 'replies', 'topics'],
   'real-seed-fusion': ['users', 'posts', 'replies', 'topics'],
-  'persona-llm': ['users', 'posts', 'replies', 'topics'],
   'semantic-homophily': ['users', 'posts', 'replies', 'topics'],
   'ba-structural': ['users', 'posts', 'replies', 'topics', 'relationships', 'networks'],
 } as const;
@@ -114,8 +112,18 @@ function formatBeijingTime(value: string | undefined | null) {
     .replace(/\//g, '-');
 }
 
-function formatDatasetOption(dataset: PersonaDatasetSummary) {
-  return `${formatBeijingTime(dataset.created_at)} | ${dataset.dataset_id}`;
+function formatBeijingDay(value: string | undefined | null) {
+  if (!value) return '未分组';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '未分组';
+  const parts = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.year}-${lookup.month}-${lookup.day}`;
 }
 
 function formatDatasetTrendSummary(dataset: PersonaDatasetSummary) {
@@ -135,6 +143,10 @@ function datasetSnapshotTimestamp(dataset: Pick<PersonaDatasetSummary, 'created_
   return Number.isFinite(updatedAt) ? updatedAt : 0;
 }
 
+function formatDayOption(day: string, count: number) {
+  return `${day} · ${count} 份快照`;
+}
+
 function formatDensityPercent(value: number | undefined) {
   return `${((value || 0) * 100).toFixed(2)}%`;
 }
@@ -143,6 +155,7 @@ export default function Profiles() {
   const navigate = useNavigate();
 
   const [selectedPlatform, setSelectedPlatform] = useState<string>('');
+  const [selectedSnapshotDay, setSelectedSnapshotDay] = useState('');
   const [datasets, setDatasets] = useState<PersonaDatasetSummary[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState('');
   const [selectedDataset, setSelectedDataset] = useState<PersonaDatasetDetail | null>(null);
@@ -159,7 +172,7 @@ export default function Profiles() {
     instagram: false,
     facebook: false,
   });
-  const [algorithm, setAlgorithm] = useState('real-seed-fusion');
+  const [algorithm, setAlgorithm] = useState('community-homophily');
   const [agentCount, setAgentCount] = useState('0');
 
   const platformDatasets = useMemo(
@@ -170,20 +183,21 @@ export default function Profiles() {
     [datasets, selectedPlatform],
   );
 
-  const latestDatasetsByPlatform = useMemo(
+  const availableSnapshotDays = useMemo(
     () =>
-      datasets.reduce<Record<string, PersonaDatasetSummary>>((acc, dataset) => {
-        const existing = acc[dataset.recsys_type];
-        if (!existing || datasetSnapshotTimestamp(dataset) > datasetSnapshotTimestamp(existing)) {
-          acc[dataset.recsys_type] = dataset;
-        }
-        return acc;
-      }, {}),
-    [datasets],
+      Array.from(new Set(platformDatasets.map((dataset) => formatBeijingDay(dataset.created_at)))).filter(Boolean),
+    [platformDatasets],
   );
 
-  const latestPlatformDataset = latestDatasetsByPlatform[selectedPlatform] || null;
-  const selectedDatasetOption = platformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId) || null;
+  const filteredPlatformDatasets = useMemo(
+    () =>
+      selectedSnapshotDay
+        ? platformDatasets.filter((dataset) => formatBeijingDay(dataset.created_at) === selectedSnapshotDay)
+        : platformDatasets,
+    [platformDatasets, selectedSnapshotDay],
+  );
+
+  const selectedDatasetOption = filteredPlatformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId) || null;
 
   const graphStats = useMemo(
     () => ({
@@ -208,15 +222,17 @@ export default function Profiles() {
   const platformCards = useMemo<SubscriptionPlatformCard[]>(
     () =>
       PLATFORM_META.map((platform) => {
-        const latestDataset = latestDatasetsByPlatform[platform.id];
-        const datasetCount = datasets.filter((dataset) => dataset.recsys_type === platform.id).length;
+        const platformItems = datasets
+          .filter((dataset) => dataset.recsys_type === platform.id)
+          .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left));
+        const datasetCount = platformItems.length;
+        const dayCount = new Set(platformItems.map((dataset) => formatBeijingDay(dataset.created_at))).size;
         const checked = liveSubscriptions[platform.id];
 
         return {
           id: platform.id,
           name: platform.name,
           status: subscriptionLoadingPlatform === platform.id ? 'syncing' : checked ? 'connected' : 'standby',
-          latency: latestDataset ? formatBeijingTime(latestDataset.created_at).split(' ')[1] || 'ready' : '-',
           progress: subscriptionLoadingPlatform === platform.id ? 65 : checked ? 100 : 0,
           checked,
           canToggle: true,
@@ -225,13 +241,12 @@ export default function Profiles() {
             subscriptionLoadingPlatform === platform.id
               ? '正在读取可用数据集。'
               : datasetCount > 0
-                ? `已发现 ${datasetCount} 份数据集。`
+                ? `已发现 ${datasetCount} 份快照，覆盖 ${dayCount} 天。`
                 : '暂未发现可用数据集。',
-          lastDatasetId: latestDataset?.dataset_id,
           colorClass: platform.colorClass,
         };
       }),
-    [datasets, latestDatasetsByPlatform, liveSubscriptions, subscriptionLoadingPlatform],
+    [datasets, liveSubscriptions, subscriptionLoadingPlatform],
   );
 
   const loadDatasets = async (preferredDatasetId?: string) => {
@@ -263,20 +278,13 @@ export default function Profiles() {
     }
 
     setDatasetDetailLoading(true);
+    setGeneratedGraph(null);
+    setCurrentGenerationId(null);
     try {
       const { dataset } = await getPersonaDataset(datasetId);
       const detail = dataset as PersonaDatasetDetail;
       setSelectedDataset(detail);
       setAgentCount(String(detail.counts.users || 0));
-
-      if (detail.latest_generation_id) {
-        const { graph } = await getGeneratedGraph(detail.latest_generation_id);
-        setGeneratedGraph(graph);
-        setCurrentGenerationId(detail.latest_generation_id);
-      } else {
-        setGeneratedGraph(null);
-        setCurrentGenerationId(null);
-      }
     } catch (error) {
       console.error('Load dataset detail error:', error);
       toast.error('加载数据集详情失败');
@@ -290,6 +298,7 @@ export default function Profiles() {
 
   useEffect(() => {
     if (!liveSubscriptions[selectedPlatform]) {
+      if (selectedSnapshotDay) setSelectedSnapshotDay('');
       if (selectedDatasetId) setSelectedDatasetId('');
       setSelectedDataset(null);
       setGeneratedGraph(null);
@@ -298,14 +307,29 @@ export default function Profiles() {
     }
 
     if (!platformDatasets.length) {
+      if (selectedSnapshotDay) setSelectedSnapshotDay('');
       if (selectedDatasetId) setSelectedDatasetId('');
       return;
     }
+  }, [liveSubscriptions, platformDatasets.length, selectedPlatform, selectedSnapshotDay, selectedDatasetId]);
 
-    if (!platformDatasets.some((dataset) => dataset.dataset_id === selectedDatasetId)) {
-      setSelectedDatasetId(platformDatasets[0].dataset_id);
+  useEffect(() => {
+    if (!liveSubscriptions[selectedPlatform] || !availableSnapshotDays.length) return;
+    if (!selectedSnapshotDay || !availableSnapshotDays.includes(selectedSnapshotDay)) {
+      setSelectedSnapshotDay(availableSnapshotDays[0]);
     }
-  }, [platformDatasets, selectedDatasetId]);
+  }, [availableSnapshotDays, liveSubscriptions, selectedPlatform, selectedSnapshotDay]);
+
+  useEffect(() => {
+    if (!liveSubscriptions[selectedPlatform]) return;
+    if (!filteredPlatformDatasets.length) {
+      if (selectedDatasetId) setSelectedDatasetId('');
+      return;
+    }
+    if (!filteredPlatformDatasets.some((dataset) => dataset.dataset_id === selectedDatasetId)) {
+      setSelectedDatasetId(filteredPlatformDatasets[0].dataset_id);
+    }
+  }, [filteredPlatformDatasets, liveSubscriptions, selectedDatasetId, selectedPlatform]);
 
   useEffect(() => {
     loadDatasetDetail(selectedDatasetId).catch(() => {
@@ -335,12 +359,15 @@ export default function Profiles() {
     setSubscriptionLoadingPlatform(platformId);
     try {
       setSelectedPlatform(platformId);
+      setSelectedSnapshotDay('');
       setSelectedDatasetId('');
       setSelectedDataset(null);
       setGeneratedGraph(null);
       setCurrentGenerationId(null);
       const items = await loadDatasets();
-      const subscribedDatasets = items.filter((dataset) => dataset.recsys_type === platformId);
+      const subscribedDatasets = items
+        .filter((dataset) => dataset.recsys_type === platformId)
+        .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left));
       setLiveSubscriptions({
         twitter: false,
         reddit: false,
@@ -350,9 +377,11 @@ export default function Profiles() {
         [platformId]: true,
       });
       if (subscribedDatasets[0]?.dataset_id) {
+        setSelectedSnapshotDay(formatBeijingDay(subscribedDatasets[0].created_at));
         setSelectedDatasetId(subscribedDatasets[0].dataset_id);
         toast.success(`已载入 ${subscribedDatasets.length} 份 ${platformName} 数据集`);
       } else {
+        setSelectedSnapshotDay('');
         setSelectedDatasetId('');
         setSelectedDataset(null);
         setGeneratedGraph(null);
@@ -373,15 +402,6 @@ export default function Profiles() {
     } finally {
       setSubscriptionLoadingPlatform(null);
     }
-  };
-
-  const handleRefresh = async () => {
-    if (!selectedPlatform || !liveSubscriptions[selectedPlatform]) {
-      toast.info('请先订阅一个平台');
-      return;
-    }
-    await loadDatasets(selectedDatasetId || undefined);
-    toast.success('已刷新数据集列表');
   };
 
   const handleGenerate = async () => {
@@ -429,7 +449,6 @@ export default function Profiles() {
       <SubscriptionPanel
         platforms={platformCards}
         selectedPlatform={selectedPlatform}
-        refreshing={datasetsLoading || subscriptionLoadingPlatform !== null}
         onSelectPlatform={(platformId) => {
           if (liveSubscriptions[platformId]) {
             setSelectedPlatform(platformId);
@@ -437,9 +456,6 @@ export default function Profiles() {
         }}
         onTogglePlatform={(platformId, checked) => {
           void handleTogglePlatform(platformId, checked);
-        }}
-        onRefresh={() => {
-          void handleRefresh();
         }}
       />
 
@@ -453,9 +469,39 @@ export default function Profiles() {
             <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-bold">当前平台：{PLATFORM_LABELS[selectedPlatform] || selectedPlatform || '未选择'}</span>
-                <Badge variant="outline">{platformDatasets.length} datasets</Badge>
+                <Badge variant="outline">{platformDatasets.length} snapshots</Badge>
               </div>
+              {selectedSnapshotDay ? (
+                <p className="text-[11px] text-text-tertiary">
+                  当前日期：{selectedSnapshotDay}，当天共 {filteredPlatformDatasets.length} 份快照
+                </p>
+              ) : null}
             </div>
+
+            {availableSnapshotDays.length > 1 ? (
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择日期</label>
+                <Select value={selectedSnapshotDay} onValueChange={setSelectedSnapshotDay}>
+                  <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
+                    <SelectValue
+                      placeholder={datasetsLoading ? '日期加载中...' : '先订阅平台，再选择快照日期'}
+                      value={selectedSnapshotDay ? formatDayOption(selectedSnapshotDay, filteredPlatformDatasets.length) : undefined}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSnapshotDays.map((day) => {
+                      const count = platformDatasets.filter((dataset) => formatBeijingDay(dataset.created_at) === day).length;
+                      return (
+                        <SelectItem key={day} value={day}>
+                          <div className="font-bold">{day}</div>
+                          <div className="text-[10px] text-text-muted">{count} 份快照</div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择数据集</label>
@@ -476,7 +522,7 @@ export default function Profiles() {
                   )}
                 </SelectTrigger>
                 <SelectContent>
-                  {platformDatasets.map((dataset) => (
+                  {filteredPlatformDatasets.map((dataset) => (
                     <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
                       <div className="pr-6">
                         <div className="font-bold leading-tight">{formatBeijingTime(dataset.created_at)}</div>
@@ -493,40 +539,9 @@ export default function Profiles() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <InfoMetric label="最新快照时间" value={latestPlatformDataset ? formatBeijingTime(latestPlatformDataset.created_at) : '暂无'} />
-              <InfoMetric label="最新 dataset_id" value={latestPlatformDataset?.dataset_id || '暂无'} mono />
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => {
-                void handleRefresh();
-              }}
-              disabled={datasetsLoading}
-            >
-              <RefreshCw className={`w-4 h-4 ${datasetsLoading ? 'animate-spin' : ''}`} />
-              刷新数据集列表
-            </Button>
-
-            {selectedDataset ? (
-              <div className="rounded-2xl border border-border-default bg-bg-primary p-4 space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold">{selectedDataset.label}</p>
-                    <p className="text-[11px] text-text-muted font-mono break-all">{selectedDataset.dataset_id}</p>
-                  </div>
-                  <Badge variant="secondary">{selectedDataset.status.toUpperCase()}</Badge>
-                </div>
-                <div className="text-[11px] text-text-tertiary space-y-1">
-                  <p>采集时间：{formatBeijingTime(selectedDataset.created_at)}</p>
-                  <p>来源：{selectedDataset.source}</p>
-                </div>
-              </div>
-            ) : (
-              <EmptyState text={datasetDetailLoading ? '正在加载数据集详情...' : '当前平台还没有可用数据集，可切换平台或稍后刷新。'} />
-            )}
+            {!selectedDataset ? (
+              <EmptyState text={datasetDetailLoading ? '正在加载数据集详情...' : '当前平台还没有可用数据集，可切换平台。'} />
+            ) : null}
 
             <div className="space-y-2">
               {visibleSeedMetrics.map((metric) => (
@@ -545,29 +560,29 @@ export default function Profiles() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> 2. 生成策略算法
             </h3>
-            <Select value={algorithm} onValueChange={setAlgorithm}>
-              <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                <SelectValue placeholder="选择生成算法" value={algorithm} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="real-seed-fusion">
-                  <div className="font-bold">Real Seed Fusion</div>
-                  <div className="text-[10px] text-text-muted">真实种子优先，建议作为默认策略</div>
-                </SelectItem>
-                <SelectItem value="persona-llm">
-                  <div className="font-bold">Persona-LLM</div>
-                  <div className="text-[10px] text-text-muted">强化真实用户画像与人格表达</div>
-                </SelectItem>
-                <SelectItem value="ba-structural">
-                  <div className="font-bold">Structural Preferential Attachment</div>
-                  <div className="text-[10px] text-text-muted">结构优先补边，快速补齐网络骨架</div>
-                </SelectItem>
-                <SelectItem value="semantic-homophily">
-                  <div className="font-bold">Semantic Homophily</div>
-                  <div className="text-[10px] text-text-muted">基于兴趣与文本相似度建立连接</div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={algorithm} onValueChange={setAlgorithm}>
+                <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
+                  <SelectValue placeholder="选择生成算法" value={algorithm} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="community-homophily">
+                    <div className="font-bold">Community Homophily</div>
+                    <div className="text-[10px] text-text-muted">推荐默认策略，社区结构 + 同质性 + 三角闭包</div>
+                  </SelectItem>
+                  <SelectItem value="real-seed-fusion">
+                    <div className="font-bold">Real Seed Fusion</div>
+                    <div className="text-[10px] text-text-muted">旧版稳健策略，真实边优先后做少量补边</div>
+                  </SelectItem>
+                  <SelectItem value="ba-structural">
+                    <div className="font-bold">Structural Preferential Attachment</div>
+                    <div className="text-[10px] text-text-muted">实验策略，按结构优先快速补齐网络骨架</div>
+                  </SelectItem>
+                  <SelectItem value="semantic-homophily">
+                    <div className="font-bold">Semantic Homophily</div>
+                    <div className="text-[10px] text-text-muted">实验策略，按兴趣与文本相似度连边</div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             <p className="text-xs text-text-tertiary">{ALGORITHM_DESCRIPTIONS[algorithm]}</p>
 
             <div className="rounded-2xl border border-border-default bg-bg-primary p-4 space-y-3">
@@ -585,6 +600,11 @@ export default function Profiles() {
               <p className="text-[11px] text-text-tertiary">
                 算法会基于当前选中的种子数据，生成拟合用户、关系边以及最终的社交知识图谱结构。
               </p>
+              {selectedDataset?.latest_generation_id ? (
+                <p className="text-[11px] text-text-muted">
+                  当前数据集已有历史生成结果，但不会自动加载；点击“开始生成社交网络”后会按当前算法重新生成。
+                </p>
+              ) : null}
             </div>
           </section>
 
@@ -635,6 +655,40 @@ export default function Profiles() {
             <StatsCard label="图密度 (Density)" value={graphStats.densityLabel} icon={Network} />
           </div>
 
+          <Card className="bg-bg-secondary border-border-default p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary">图谱元素说明</h3>
+              <Badge variant="secondary" className="text-[9px]">点击生成后展示</Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-text-tertiary">
+              <GraphLegendItem
+                swatch={<span className="inline-flex h-3 w-3 rounded-full border border-sky-400 bg-sky-500/80" />}
+                title="蓝色圆点"
+                description="生成后的用户节点，每个节点对应一个 agent；同类节点现在统一大小和颜色。"
+              />
+              <GraphLegendItem
+                swatch={<span className="inline-flex h-3 w-3 rotate-45 border border-rose-400 bg-rose-500/80" />}
+                title="红色方块"
+                description="话题节点，表示当前图谱中的高频 topic，会比用户节点略大一些。"
+              />
+              <GraphLegendItem
+                swatch={<span className="inline-flex h-[2px] w-8 rounded bg-sky-400" />}
+                title="蓝色实线"
+                description="真实边，来自 reply、mention、relationship、network 等真实互动。"
+              />
+              <GraphLegendItem
+                swatch={<span className="inline-flex h-[2px] w-8 border-t-2 border-dashed border-amber-400" />}
+                title="黄色虚线"
+                description="算法补边，用来补齐社区结构、闭合三角关系和连接孤立节点。"
+              />
+              <GraphLegendItem
+                swatch={<span className="inline-flex h-[2px] w-8 rounded bg-rose-400" />}
+                title="红色连线"
+                description="话题归属边，表示某个用户节点与 topic node 的关联。"
+              />
+            </div>
+          </Card>
+
           <Card className="bg-bg-secondary border-border-default overflow-hidden flex flex-col h-[600px]">
             <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
               <div>
@@ -648,9 +702,9 @@ export default function Profiles() {
               <div className="flex flex-wrap gap-2">
                 {selectedDatasetId ? <Badge variant="outline" className="text-[9px]">{selectedDatasetId}</Badge> : null}
                 {currentGenerationId ? <Badge variant="secondary" className="text-[9px]">{currentGenerationId}</Badge> : null}
-                <Badge variant="secondary" className="text-[9px]">Node: Agent</Badge>
-                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">Edge: Interest</Badge>
-                <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-400">Edge: Follow</Badge>
+                <Badge variant="secondary" className="text-[9px]">Node: Agent / Topic</Badge>
+                <Badge variant="outline" className="text-[9px] border-sky-500/30 text-sky-400">Edge: Real</Badge>
+                <Badge variant="outline" className="text-[9px] border-amber-500/30 text-amber-400">Edge: Synthetic</Badge>
               </div>
             </div>
 
@@ -660,7 +714,7 @@ export default function Profiles() {
               {!generatedGraph && (
                 <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-bg-primary/40">
                   <p className="text-text-muted text-sm border border-border-default px-6 py-3 rounded-full bg-bg-secondary text-center">
-                    先选择一份算法种子数据，再配置生成策略算法并生成图谱
+                    选择种子数据后，点击“开始生成社交网络”才会生成并展示图谱
                   </p>
                 </div>
               )}
@@ -699,15 +753,6 @@ function SeedMetric({
   );
 }
 
-function InfoMetric({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="p-3 bg-bg-primary border border-border-default rounded-xl">
-      <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-2">{label}</p>
-      <p className={`text-xs text-text-primary break-all ${mono ? 'font-mono' : ''}`}>{value}</p>
-    </div>
-  );
-}
-
 function StatsCard({ label, value, icon: Icon }: { label: string; value: string | number; icon: any }) {
   return (
     <Card className="p-4 bg-bg-secondary border-border-default flex items-center gap-4">
@@ -726,6 +771,28 @@ function EmptyState({ text }: { text: string }) {
   return (
     <div className="rounded-2xl border border-dashed border-border-default bg-bg-primary/60 px-4 py-6 text-center text-sm text-text-muted">
       {text}
+    </div>
+  );
+}
+
+function GraphLegendItem({
+  swatch,
+  title,
+  description,
+}: {
+  swatch: ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border-default bg-bg-primary px-3 py-3">
+      <div className="flex items-center gap-3">
+        <span className="inline-flex min-w-8 items-center justify-center">{swatch}</span>
+        <div>
+          <p className="text-xs font-bold text-text-primary">{title}</p>
+          <p className="mt-1 text-[11px] leading-5 text-text-tertiary">{description}</p>
+        </div>
+      </div>
     </div>
   );
 }

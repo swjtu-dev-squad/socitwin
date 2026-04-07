@@ -10,24 +10,48 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
 
   const graphData = useMemo(() => {
     if (!data) return { nodes: [], links: [] };
-    
-    // Ensure nodes have degree centrality for coloring
+
+    const normalizedLinks = (Array.isArray(data.edges) ? data.edges : [])
+      .map((edge: any) => ({
+        ...edge,
+        source: typeof edge.source === 'object' ? edge.source?.id : edge.source,
+        target: typeof edge.target === 'object' ? edge.target?.id : edge.target,
+      }))
+      .filter((edge: any) => edge.source && edge.target);
+
+    const nodeIds = new Set((Array.isArray(data.nodes) ? data.nodes : []).map((node: any) => node.id));
+    const links = normalizedLinks.filter((edge: any) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+
+    const degreeById = new Map<string, number>();
+    for (const link of links) {
+      degreeById.set(link.source, (degreeById.get(link.source) || 0) + 1);
+      degreeById.set(link.target, (degreeById.get(link.target) || 0) + 1);
+    }
+
     const nodes = data.nodes.map((node: any) => {
-      const degree = data.edges.filter((e: any) => e.source === node.id || e.target === node.id).length;
+      const degree = degreeById.get(node.id) || 0;
       return {
         ...node,
         degree,
-        val: 1 + degree * 0.5 // Size based on degree
+        val: node.type === 'topic' ? 6 : 5,
       };
     });
 
-    return { nodes, links: data.edges };
+    return { nodes, links };
   }, [data]);
 
   useEffect(() => {
-    if (fgRef.current) {
-      fgRef.current.d3Force('charge').strength(-120);
-      fgRef.current.d3Force('link').distance(60);
+    if (fgRef.current && graphData.nodes.length > 0) {
+      fgRef.current.d3Force('charge').strength(-68);
+      fgRef.current
+        .d3Force('link')
+        .distance((link: any) => (link.type === 'topic_link' ? 54 : 72))
+        .strength((link: any) => (link.type === 'topic_link' ? 0.7 : 0.95));
+      fgRef.current.d3ReheatSimulation?.();
+      const timer = window.setTimeout(() => {
+        fgRef.current?.zoomToFit?.(600, 50);
+      }, 250);
+      return () => window.clearTimeout(timer);
     }
   }, [graphData]);
 
@@ -59,56 +83,49 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
         nodeRelSize={6}
         nodeColor={(node: any) => {
           if (node.type === 'topic') return '#f43f5e';
-          // Color depth based on degree centrality
-          const intensity = Math.min(node.degree * 20 + 40, 100);
-          return `hsl(217, 91%, ${100 - intensity}%)`; // Blue scale
+          return '#38bdf8';
         }}
         linkColor={(link: any) => {
           if (link.type === 'topic_link') return '#f43f5e';
-          return link.type === 'follow' ? '#3b82f6' : '#52525b';
+          if (link.origin === 'real') return '#38bdf8';
+          if (link.origin === 'synthetic') return '#f59e0b';
+          return '#64748b';
         }}
-        linkWidth={(link: any) => (link.type === 'follow' || link.type === 'topic_link' ? 2 : 1)}
-        linkLineDash={(link: any) => (link.type === 'interest' ? [2, 2] : [])}
+        linkWidth={(link: any) => (link.type === 'topic_link' ? 2.2 : link.origin === 'real' ? 1.9 : 1.4)}
+        linkLineDash={(link: any) => (link.origin === 'synthetic' ? [4, 3] : [])}
         backgroundColor="transparent"
+        cooldownTicks={100}
         onNodeClick={(node: any) => {
           console.log('Clicked node:', node);
         }}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
-          const label = node.name;
-          const fontSize = 10 / globalScale;
-          ctx.font = `${fontSize}px Inter`;
-          
-          const r = node.val * 2;
+          const label = node.name || node.id;
+          const fontSize = Math.max(8, 11 / globalScale);
+          ctx.font = `${fontSize}px sans-serif`;
+
+          const r = node.val;
           
           if (node.type === 'topic') {
-            // Draw square for topics
             ctx.fillStyle = '#f43f5e';
             ctx.fillRect(node.x - r, node.y - r, r * 2, r * 2);
             ctx.strokeStyle = '#fb7185';
             ctx.lineWidth = 2 / globalScale;
             ctx.strokeRect(node.x - r, node.y - r, r * 2, r * 2);
           } else {
-            // Draw node circle for users
             ctx.beginPath();
             ctx.arc(node.x, node.y, r, 0, 2 * Math.PI, false);
-            
-            // Gradient for "social heat"
-            const intensity = Math.min(node.degree * 20 + 40, 100);
-            ctx.fillStyle = `hsl(217, 91%, ${100 - intensity}%)`;
+            ctx.fillStyle = '#38bdf8';
             ctx.fill();
-            
-            // Border
-            ctx.strokeStyle = '#3b82f6';
-            ctx.lineWidth = 1 / globalScale;
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.2 / globalScale;
             ctx.stroke();
           }
 
-          // Label
-          if (globalScale > 1.5) {
+          if (globalScale > 1.2) {
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.textBaseline = 'top';
             ctx.fillStyle = '#fafafa';
-            ctx.fillText(label, node.x, node.y + r + fontSize);
+            ctx.fillText(label, node.x, node.y + r + 2);
           }
         }}
       />

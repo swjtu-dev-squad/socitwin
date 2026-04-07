@@ -117,7 +117,7 @@ const FEATURE_WEIGHTS: FeatureWeights = {
   followers_similarity: 0.10,
 };
 
-const PERSONA_VERSION = "profiles-real-data-v2";
+const PERSONA_VERSION = "profiles-real-data-v3";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -336,6 +336,9 @@ function buildPersonaText(feature: SourceUserFeature, algorithm: string, synthet
   if (algorithm === "persona-llm") {
     parts.push("Persona is enriched from real profile metadata, recent posts, and reply behavior.");
   }
+  if (algorithm === "community-homophily") {
+    parts.push("Persona preserves real community signals and prioritizes homophily with triadic closure during graph expansion.");
+  }
   if (algorithm === "real-seed-fusion") {
     parts.push("Persona preserves the real seed profile first, then adds minimal graph-fitting enrichment.");
   }
@@ -435,6 +438,80 @@ function similarityScore(a: GeneratedAgentFeature, b: GeneratedAgentFeature): nu
   );
 }
 
+function communityKey(feature: GeneratedAgentFeature): string {
+  return (
+    normalizeString(feature.topics[0]).toLowerCase() ||
+    normalizeString(feature.country).toLowerCase() ||
+    normalizeString(feature.userType).toLowerCase() ||
+    "general"
+  );
+}
+
+function buildNeighborMap(edges: Array<Record<string, any>>): Map<string, Set<string>> {
+  const neighbors = new Map<string, Set<string>>();
+  for (const edge of edges) {
+    const source = normalizeString(typeof edge.source === "object" ? edge.source?.id : edge.source);
+    const target = normalizeString(typeof edge.target === "object" ? edge.target?.id : edge.target);
+    if (!source || !target || source === target) continue;
+    if (!neighbors.has(source)) neighbors.set(source, new Set());
+    if (!neighbors.has(target)) neighbors.set(target, new Set());
+    neighbors.get(source)!.add(target);
+    neighbors.get(target)!.add(source);
+  }
+  return neighbors;
+}
+
+function countSharedNeighbors(neighbors: Map<string, Set<string>>, source: string, target: string): number {
+  const sourceNeighbors = neighbors.get(source);
+  const targetNeighbors = neighbors.get(target);
+  if (!sourceNeighbors || !targetNeighbors || !sourceNeighbors.size || !targetNeighbors.size) return 0;
+  let shared = 0;
+  for (const node of sourceNeighbors) {
+    if (targetNeighbors.has(node)) shared += 1;
+  }
+  return shared;
+}
+
+function buildAgentComponents(agentNodeIds: string[], edges: Array<Record<string, any>>): string[][] {
+  const adjacency = new Map<string, Set<string>>();
+  for (const nodeId of agentNodeIds) {
+    adjacency.set(nodeId, new Set());
+  }
+
+  for (const edge of edges) {
+    const source = normalizeString(typeof edge.source === "object" ? edge.source?.id : edge.source);
+    const target = normalizeString(typeof edge.target === "object" ? edge.target?.id : edge.target);
+    if (!source.startsWith("agent_") || !target.startsWith("agent_")) continue;
+    if (!adjacency.has(source) || !adjacency.has(target)) continue;
+    adjacency.get(source)!.add(target);
+    adjacency.get(target)!.add(source);
+  }
+
+  const visited = new Set<string>();
+  const components: string[][] = [];
+
+  for (const nodeId of agentNodeIds) {
+    if (visited.has(nodeId)) continue;
+    const queue = [nodeId];
+    const component: string[] = [];
+    visited.add(nodeId);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      component.push(current);
+      for (const neighbor of adjacency.get(current) || []) {
+        if (visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        queue.push(neighbor);
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components.sort((left, right) => right.length - left.length);
+}
+
 function addEdge(
   edges: Array<Record<string, any>>,
   edgeKeys: Set<string>,
@@ -455,6 +532,62 @@ function addEdge(
     ...params,
   });
   return true;
+}
+
+function ensureConnectedAgentGraph(
+  generated: GeneratedAgentFeature[],
+  edges: Array<Record<string, any>>,
+  algorithm: string,
+): Array<Record<string, any>> {
+  const candidateByNodeId = new Map(generated.map((agent) => [`agent_${agent.generatedId}`, agent]));
+  const edgeKeys = new Set(edges.map((edge) => `${edge.source}|${edge.target}|${edge.type}`));
+  const nodeIds = Array.from(candidateByNodeId.keys());
+  const nextEdges = [...edges];
+  let components = buildAgentComponents(nodeIds, nextEdges);
+
+  while (components.length > 1) {
+    const baseComponent = components[0];
+    let bestBridge:
+      | {
+          source: string;
+          target: string;
+          score: number;
+        }
+      | undefined;
+
+    for (let componentIndex = 1; componentIndex < components.length; componentIndex += 1) {
+      const targetComponent = components[componentIndex];
+      for (const sourceId of baseComponent) {
+        for (const targetId of targetComponent) {
+          const sourceFeature = candidateByNodeId.get(sourceId);
+          const targetFeature = candidateByNodeId.get(targetId);
+          if (!sourceFeature || !targetFeature) continue;
+          const score =
+            similarityScore(sourceFeature, targetFeature) +
+            (communityKey(sourceFeature) === communityKey(targetFeature) ? 0.08 : 0);
+          if (!bestBridge || score > bestBridge.score) {
+            bestBridge = {
+              source: sourceId,
+              target: targetId,
+              score,
+            };
+          }
+        }
+      }
+    }
+
+    if (!bestBridge) break;
+    addEdge(nextEdges, edgeKeys, {
+      source: bestBridge.source,
+      target: bestBridge.target,
+      type: algorithm === "community-homophily" ? "community_homophily" : "synthetic_bridge",
+      origin: "synthetic",
+      reason: "connectivity-bridge",
+    });
+    components = buildAgentComponents(nodeIds, nextEdges);
+  }
+
+  return nextEdges;
 }
 
 function buildRealGraphBackbone(
@@ -656,6 +789,138 @@ function buildSyntheticEdges(
     ...agent,
     nodeId: `agent_${agent.generatedId}`,
   }));
+
+  if (algorithm === "community-homophily") {
+    const targetAverageDegree =
+      existingEdges.length > 0
+        ? Math.min(4.2, Math.max(2.4, (existingEdges.length * 2) / Math.max(generated.length, 1) + 0.8))
+        : 2.8;
+    const targetTotalEdges = Math.max(existingEdges.length + 1, Math.ceil((generated.length * targetAverageDegree) / 2));
+    const communities = new Map<string, Array<(typeof candidates)[number]>>();
+    const neighborMap = buildNeighborMap(edges);
+
+    const registerEdge = (
+      source: string,
+      target: string,
+      reason: string,
+      type = "community_homophily",
+    ) => {
+      const added = addEdge(edges, edgeKeys, {
+        source,
+        target,
+        type,
+        origin: "synthetic",
+        reason,
+      });
+      if (!added) return false;
+      degree.set(source, (degree.get(source) || 0) + 1);
+      degree.set(target, (degree.get(target) || 0) + 1);
+      if (!neighborMap.has(source)) neighborMap.set(source, new Set());
+      if (!neighborMap.has(target)) neighborMap.set(target, new Set());
+      neighborMap.get(source)!.add(target);
+      neighborMap.get(target)!.add(source);
+      return true;
+    };
+
+    for (const candidate of candidates) {
+      const key = communityKey(candidate);
+      const bucket = communities.get(key) || [];
+      bucket.push(candidate);
+      communities.set(key, bucket);
+    }
+
+    for (const members of [...communities.values()].sort((left, right) => right.length - left.length)) {
+      if (edges.length >= targetTotalEdges) break;
+      const ranked = [...members].sort(
+        (left, right) =>
+          right.followersCount +
+          right.activityCount * 30 +
+          (degree.get(right.nodeId) || 0) * 20 -
+          (left.followersCount + left.activityCount * 30 + (degree.get(left.nodeId) || 0) * 20),
+      );
+      const anchors = ranked.slice(0, Math.min(2, ranked.length));
+      for (const member of ranked) {
+        if (edges.length >= targetTotalEdges) break;
+        if ((degree.get(member.nodeId) || 0) >= 1) continue;
+        const bestAnchor = anchors
+          .filter((anchor) => anchor.nodeId !== member.nodeId)
+          .map((anchor) => ({
+            anchor,
+            score: similarityScore(member, anchor),
+          }))
+          .sort((left, right) => right.score - left.score)[0]?.anchor;
+        if (!bestAnchor) continue;
+        registerEdge(member.nodeId, bestAnchor.nodeId, "community-anchor");
+      }
+    }
+
+    for (const agent of [...candidates].sort((left, right) => (degree.get(left.nodeId) || 0) - (degree.get(right.nodeId) || 0))) {
+      if (edges.length >= targetTotalEdges) break;
+      if ((degree.get(agent.nodeId) || 0) >= 2) continue;
+
+      const rankedCandidates = candidates
+        .filter((candidate) => candidate.nodeId !== agent.nodeId && communityKey(candidate) === communityKey(agent))
+        .map((candidate) => {
+          const similarity = similarityScore(agent, candidate);
+          const sharedNeighbors = countSharedNeighbors(neighborMap, agent.nodeId, candidate.nodeId);
+          return {
+            candidate,
+            score: sharedNeighbors * 0.45 + similarity * 0.55,
+            sharedNeighbors,
+            similarity,
+          };
+        })
+        .sort((left, right) => right.score - left.score);
+
+      for (const item of rankedCandidates) {
+        if (item.sharedNeighbors < 1 && item.similarity < 0.14) continue;
+        const added = registerEdge(agent.nodeId, item.candidate.nodeId, item.sharedNeighbors > 0 ? "triadic-closure" : "assortative-mixing");
+        if (added) break;
+      }
+    }
+
+    const communityAnchors = [...communities.values()]
+      .map((members) =>
+        [...members].sort(
+          (left, right) => right.followersCount + right.activityCount * 30 - (left.followersCount + left.activityCount * 30),
+        )[0],
+      )
+      .filter(Boolean);
+
+    const maxBridgeEdges = Math.max(1, Math.ceil(communityAnchors.length / 2));
+    let bridgeEdges = 0;
+    for (let i = 0; i < communityAnchors.length; i += 1) {
+      if (edges.length >= targetTotalEdges || bridgeEdges >= maxBridgeEdges) break;
+      const source = communityAnchors[i];
+      const bestBridge = communityAnchors
+        .filter((target) => target.nodeId !== source.nodeId && communityKey(target) !== communityKey(source))
+        .map((target) => ({
+          target,
+          score: similarityScore(source, target),
+        }))
+        .sort((left, right) => right.score - left.score)[0];
+      if (!bestBridge || bestBridge.score < 0.08) continue;
+      if (registerEdge(source.nodeId, bestBridge.target.nodeId, "community-bridge")) {
+        bridgeEdges += 1;
+      }
+    }
+
+    for (const agent of [...candidates].sort((left, right) => (degree.get(left.nodeId) || 0) - (degree.get(right.nodeId) || 0))) {
+      if (edges.length >= targetTotalEdges) break;
+      if ((degree.get(agent.nodeId) || 0) >= 2) continue;
+      const fallback = candidates
+        .filter((candidate) => candidate.nodeId !== agent.nodeId)
+        .map((candidate) => ({
+          candidate,
+          score: similarityScore(agent, candidate),
+        }))
+        .sort((left, right) => right.score - left.score)[0];
+      if (!fallback || fallback.score < 0.12) continue;
+      registerEdge(agent.nodeId, fallback.candidate.nodeId, "assortative-mixing");
+    }
+
+    return edges;
+  }
 
   if (algorithm === "real-seed-fusion") {
     const desiredSyntheticEdges = Math.max(1, Math.ceil(generated.length * 0.7));
@@ -894,11 +1159,36 @@ function buildAlgorithmExplanation(params: {
   const personaMode =
     algorithm === "persona-llm"
       ? "heuristic_real_profile_enrichment"
+      : algorithm === "community-homophily"
+        ? "community_homophily_enrichment"
       : algorithm === "real-seed-fusion"
         ? "real_seed_priority_enrichment"
         : "template_real_profile_enrichment";
   const syntheticEdgeRules: SyntheticRule[] =
-    algorithm === "ba-structural"
+    algorithm === "community-homophily"
+      ? [
+          {
+            rule: "community-anchor",
+            trigger: "Applied when a topic community has sparse or isolated nodes after importing real edges.",
+            description: "Attach low-degree users to stronger in-community anchors before broader synthetic expansion.",
+          },
+          {
+            rule: "triadic-closure",
+            trigger: "Applied when two users share neighbors or reply neighborhoods but remain disconnected.",
+            description: "Close likely triangles inside the same community to improve local clustering and graph readability.",
+          },
+          {
+            rule: "community-bridge",
+            trigger: "Applied when separate topic communities need a small number of bridge links for overall connectivity.",
+            description: "Add limited cross-community links between anchor users with compatible content signals.",
+          },
+          {
+            rule: "connectivity-bridge",
+            trigger: "Applied when the agent graph still has multiple disconnected components after community expansion.",
+            description: "Add the minimum number of synthetic bridges needed to keep the main agent graph connected.",
+          },
+        ]
+      : algorithm === "ba-structural"
       ? [
           {
             rule: "preferential-attachment",
@@ -948,7 +1238,7 @@ export function buildGeneratedArtifacts(params: {
     throw new Error("数据集中没有可用于生成的 users 数据");
   }
 
-  const algorithm = normalizeString(options?.algorithm) || "real-seed-fusion";
+  const algorithm = normalizeString(options?.algorithm) || "community-homophily";
   const requestedAgentCount = options?.agentCount && options.agentCount > 0 ? Math.floor(options.agentCount) : sourceUsers.length;
   const generatedFeatures = expandAgents(sourceUsers, dataset, algorithm, requestedAgentCount);
   const generationId = createGenerationId();
@@ -956,6 +1246,7 @@ export function buildGeneratedArtifacts(params: {
 
   const realBackbone = buildRealGraphBackbone(raw, generatedFeatures, sourceUsers);
   const withSyntheticEdges = buildSyntheticEdges(generatedFeatures, realBackbone.edges, algorithm);
+  const connectedEdges = ensureConnectedAgentGraph(generatedFeatures, withSyntheticEdges, algorithm);
   const agentNodes = generatedAgents.map((agent) => ({
     id: `agent_${agent.generated_agent_id}`,
     type: "agent",
@@ -965,7 +1256,7 @@ export function buildGeneratedArtifacts(params: {
     userType: agent.user_type,
     sourceUserKey: agent.source_user_key,
   }));
-  const topicGraph = buildTopicNodesAndEdges(generatedAgents, withSyntheticEdges);
+  const topicGraph = buildTopicNodesAndEdges(generatedAgents, connectedEdges);
   const nodes = [...agentNodes, ...topicGraph.nodes];
   const edges = topicGraph.edges;
 
