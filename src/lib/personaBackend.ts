@@ -647,6 +647,273 @@ export async function runTwitterFetchProcess(
   return payload;
 }
 
+export interface LlmPersonaWorkerPayload {
+  seed_users: Record<string, unknown>[];
+  target_count: number;
+  dataset_id: string;
+  recsys_type: string;
+  batch_size?: number;
+  seed_sample?: number;
+  max_retries?: number;
+  kol_normal_ratio?: string;
+}
+
+/** 从 stdout 中取最后一行可解析的 JSON 对象（兼容依赖库往 stdout 打日志的情况） */
+function parseLastJsonObjectFromStdout(raw: string): Record<string, unknown> {
+  const lines = raw.split(/\n/).map((l) => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    if (!line.startsWith("{") && !line.startsWith("[")) continue;
+    try {
+      const parsed = JSON.parse(line) as Record<string, unknown>;
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch {
+      continue;
+    }
+  }
+  throw new SyntaxError("stdout 中未找到合法 JSON 对象");
+}
+
+function buildLlmWorkerIoHint(stderrTail: string, stdoutRaw: string): string {
+  const parts: string[] = [];
+  const st = stderrTail.trim();
+  const so = stdoutRaw.trim();
+  if (st) parts.push(`Python stderr（节选）:\n${stderrTail.slice(-2500)}`);
+  if (so) parts.push(`Python stdout（节选）:\n${so.trim().slice(0, 2000)}`);
+  if (!parts.length) {
+    return (
+      "（子进程几乎无输出：常见于达到 OASIS_LLM_PERSONA_TIMEOUT_MS 被 SIGTERM 结束、OOM(SIGKILL)、或进程在写出 JSON 前崩溃。可增大超时、减小生成数量或 llmBatchSize。）"
+    );
+  }
+  return parts.join("\n\n");
+}
+
+function describeLlmWorkerExit(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  timeoutMs: number,
+): string {
+  if (signal) {
+    return `Python 子进程被信号终止（${signal}）。常见原因：超时（OASIS_LLM_PERSONA_TIMEOUT_MS=${timeoutMs}ms）、内存不足(OOM) 或外部杀进程。`;
+  }
+  if (code === null) {
+    return `Python 子进程异常结束（退出码为空，可能被信号终止但未上报 signal）。当前超时配置: ${timeoutMs}ms。`;
+  }
+  return `Python 进程退出码 ${code}`;
+}
+
+/**
+ * 调用 Python `oasis_dashboard.persona_llm_worker`：根据种子用户批量 LLM 生成 raw.users 形态文档。
+ * 日志应在 stderr；若第三方库污染 stdout，会尝试解析最后一行 JSON。
+ */
+export async function runLlmPersonaWorker(
+  repoRoot: string,
+  payload: LlmPersonaWorkerPayload,
+): Promise<{ status: string; users: Record<string, any>[]; meta?: Record<string, unknown>; error?: string }> {
+  const pythonBin = path.join(repoRoot, ".venv", "bin", "python");
+  if (!existsSync(pythonBin)) {
+    throw new PersonaProcessError("未找到 .venv/bin/python，请先执行: uv sync", { statusCode: 500 });
+  }
+
+  const timeoutMs = Number(process.env.OASIS_LLM_PERSONA_TIMEOUT_MS || 900_000);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(pythonBin, ["-m", "oasis_dashboard.persona_llm_worker"], {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const killTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(killTimer);
+      reject(new PersonaProcessError(error.message, { stderr }));
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(killTimer);
+      const stderrTail = stderr.slice(-8000);
+      let parsed: {
+        status?: string;
+        users?: Record<string, any>[];
+        meta?: Record<string, unknown>;
+        error?: string;
+        type?: string;
+      };
+      try {
+        parsed = parseLastJsonObjectFromStdout(stdout) as typeof parsed;
+      } catch {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        const hint = buildLlmWorkerIoHint(stderrTail, stdout);
+        reject(
+          new PersonaProcessError(
+            code === 0 && !signal
+              ? `无法解析 Python 输出的 JSON。\n${hint}`
+              : `${exitDesc}\n且无法解析最后一行 JSON。\n${hint}`,
+            {
+              statusCode: 502,
+              stderr: stderrTail,
+              stdoutPreview: stdout.trim().slice(0, 2000),
+            },
+          ),
+        );
+        return;
+      }
+
+      if (parsed?.status === "error" || parsed?.error) {
+        reject(
+          new PersonaProcessError(
+            `${String(parsed.error || "LLM 用户生成失败")}${stderrTail ? `\n${stderrTail.slice(-2000)}` : ""}`,
+            {
+              statusCode: 502,
+              stderr: stderrTail,
+              errorType: typeof parsed.type === "string" ? parsed.type : undefined,
+            },
+          ),
+        );
+        return;
+      }
+      if (code !== 0 || signal) {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        reject(
+          new PersonaProcessError(
+            `${exitDesc}${stderrTail ? `\n${stderrTail.slice(-2500)}` : ""}`,
+            {
+              stderr: stderrTail,
+              stdoutPreview: stdout.trim().slice(0, 2000),
+            },
+          ),
+        );
+        return;
+      }
+      if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
+        reject(
+          new PersonaProcessError("LLM 未返回任何用户", {
+            stderr: stderrTail,
+            stdoutPreview: stdout.trim().slice(0, 2000),
+          }),
+        );
+        return;
+      }
+      resolve({
+        status: parsed.status || "ok",
+        users: parsed.users,
+        meta: parsed.meta,
+      });
+    });
+
+    const input = JSON.stringify(payload);
+    child.stdin.write(input, "utf8");
+    child.stdin.end();
+  });
+}
+
+export interface Neo4jImportWorkerPayload {
+  generation_id: string;
+  dataset_id: string;
+  agents: Record<string, any>[];
+  graph: Record<string, any>;
+}
+
+/**
+ * 调用 Python `oasis_dashboard.neo4j_import_worker`：将生成的 agents + graph 实时写入 Neo4j。
+ * - 依赖通过 uv 安装（pyproject.toml 已包含 neo4j / neo4j-driver）
+ * - 通过环境变量 NEO4J_URI/NEO4J_PASSWORD 配置连接
+ */
+export async function runNeo4jImportWorker(
+  repoRoot: string,
+  payload: Neo4jImportWorkerPayload,
+): Promise<{ status: string; counts?: Record<string, number>; error?: string; type?: string }> {
+  const pythonBin = path.join(repoRoot, ".venv", "bin", "python");
+  if (!existsSync(pythonBin)) {
+    throw new PersonaProcessError("未找到 .venv/bin/python，请先执行: uv sync", { statusCode: 500 });
+  }
+
+  const timeoutMs = Number(process.env.OASIS_NEO4J_IMPORT_TIMEOUT_MS || 120_000);
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(pythonBin, ["-m", "oasis_dashboard.neo4j_import_worker"], {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const killTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(killTimer);
+      reject(new PersonaProcessError(error.message, { stderr: stderr.slice(-4000) }));
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(killTimer);
+      const stderrTail = stderr.slice(-8000);
+      let parsed: { status?: string; counts?: Record<string, number>; error?: string; type?: string };
+      try {
+        parsed = parseLastJsonObjectFromStdout(stdout) as typeof parsed;
+      } catch {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        reject(
+          new PersonaProcessError(`${exitDesc}\n且无法解析 Neo4j 导入 JSON。`, {
+            statusCode: 502,
+            stderr: stderrTail,
+            stdoutPreview: stdout.trim().slice(0, 2000),
+          }),
+        );
+        return;
+      }
+
+      if (parsed?.status === "error" || parsed?.error) {
+        reject(
+          new PersonaProcessError(String(parsed.error || "Neo4j 导入失败"), {
+            statusCode: 502,
+            stderr: stderrTail,
+            errorType: typeof parsed.type === "string" ? parsed.type : undefined,
+          }),
+        );
+        return;
+      }
+
+      if (code !== 0 || signal) {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        reject(
+          new PersonaProcessError(`${exitDesc}${stderrTail ? `\n${stderrTail.slice(-2500)}` : ""}`, {
+            statusCode: 502,
+            stderr: stderrTail,
+            stdoutPreview: stdout.trim().slice(0, 2000),
+          }),
+        );
+        return;
+      }
+
+      resolve({
+        status: parsed.status || "ok",
+        counts: parsed.counts,
+      });
+    });
+
+    child.stdin.write(JSON.stringify(payload), "utf8");
+    child.stdin.end();
+  });
+}
+
 export function buildDatasetLabel(params: {
   recsysType: string;
   source: string;

@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import type {
   GeneratedAgentRecord,
   GeneratedGraphRecord,
@@ -72,20 +74,58 @@ export async function fetchAndImportTwitter(params: Record<string, unknown>) {
   }>(response);
 }
 
-export async function generateDatasetArtifacts(datasetId: string, params: Record<string, unknown>) {
+export type GenerateDatasetArtifactsParams = {
+  algorithm?: string;
+  agentCount?: number;
+  /** 为 true 时由 Python 子进程调用大模型批量生成模拟 users，再构建图谱（耗时较长） */
+  useLlmPersonas?: boolean;
+  llmBatchSize?: number;
+  llmSeedSample?: number;
+  llmMaxRetries?: number;
+  /** 手动指定 KOL:normal 比例，形如 "1:8" */
+  llmKolNormalRatio?: string;
+  /** 话题节点数量（Top-K） */
+  topicTopK?: number;
+  /** 每个用户最多连到多少个话题 */
+  topicsPerAgent?: number;
+};
+
+/** 前端等待 /generate 返回的最长时间（毫秒）；超时后 fetch 会中止，避免界面一直转圈。可在 .env 设置 VITE_PERSONA_GENERATE_TIMEOUT_MS */
+const _rawTimeout = import.meta.env.VITE_PERSONA_GENERATE_TIMEOUT_MS;
+const _parsedTimeout =
+  _rawTimeout != null && String(_rawTimeout).trim() !== "" ? Number(_rawTimeout) : NaN;
+export const PERSONA_GENERATE_FETCH_TIMEOUT_MS =
+  Number.isFinite(_parsedTimeout) && _parsedTimeout > 0 ? _parsedTimeout : 1_200_000;
+
+export async function generateDatasetArtifacts(
+  datasetId: string,
+  params: GenerateDatasetArtifactsParams,
+) {
+  const signal =
+    typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(PERSONA_GENERATE_FETCH_TIMEOUT_MS)
+      : undefined;
   const response = await fetch(`/api/persona/datasets/${datasetId}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
+    signal,
   });
-  return parseJson<{
+  const payload = await response.json();
+  if (!response.ok) {
+    const base = payload?.message || payload?.error || "Request failed";
+    const stderr = typeof payload?.stderr === "string" ? payload.stderr.trim() : "";
+    throw new Error(stderr ? `${base}\n\n${stderr}` : base);
+  }
+  return payload as {
     status: string;
     generation_id: string;
     dataset_id: string;
     graph: GeneratedGraphRecord;
     stats: GeneratedGraphRecord["stats"];
     explanation: PersonaGenerationExplanation;
-  }>(response);
+    llm_meta?: Record<string, unknown>;
+  };
 }
 
 export async function getGeneratedAgents(generationId: string): Promise<{

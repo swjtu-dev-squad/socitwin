@@ -32,6 +32,8 @@ import {
   normalizeTwitterFetchForDataset,
   normalizeTwitterFetchPreview,
   runTwitterFetchProcess,
+  runLlmPersonaWorker,
+  runNeo4jImportWorker,
   upsertDatasetManifest,
 } from "./src/lib/personaBackend";
 import { buildGeneratedArtifacts } from "./src/lib/personaGeneration";
@@ -1234,14 +1236,51 @@ async function startServer() {
         return res.status(404).json({ status: "error", message: `Dataset '${dataset_id}' not found` });
       }
 
-      const raw = await loadDatasetRawData(db, dataset_id);
-      const agentCount = Number((req.body?.agentCount ?? req.body?.agent_count ?? dataset.counts.users) || 0);
+      // 默认使用 LLM 生成模拟画像（不再由请求体开关控制）
+      const useLlm = true;
+
+      let raw = await loadDatasetRawData(db, dataset_id);
+      let llmMeta: Record<string, unknown> | undefined;
+
+      if (!raw.users?.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "当前数据集没有 users，无法作为大模型种子；请先导入或抓取数据。",
+        });
+      }
+      const requested = Number(req.body?.agentCount ?? req.body?.agent_count ?? dataset.counts.users);
+      const targetCount = Math.max(
+        1,
+        Math.floor(Number.isFinite(requested) && requested > 0 ? requested : dataset.counts.users),
+      );
+      const seeds = raw.users.slice(0, 500);
+      const llmOut = await runLlmPersonaWorker(__dirname, {
+        seed_users: seeds as Record<string, unknown>[],
+        target_count: targetCount,
+        dataset_id,
+        recsys_type: String(dataset.recsys_type || "unknown"),
+        batch_size: Number(req.body?.llmBatchSize ?? req.body?.llm_batch_size ?? 8) || 8,
+        seed_sample: Number(req.body?.llmSeedSample ?? req.body?.llm_seed_sample ?? 12) || 12,
+        max_retries: Number(req.body?.llmMaxRetries ?? req.body?.llm_max_retries ?? 3) || 3,
+        kol_normal_ratio: String(req.body?.llmKolNormalRatio ?? req.body?.llm_kol_normal_ratio ?? "1:8"),
+      });
+      raw = { ...raw, users: llmOut.users };
+      llmMeta = llmOut.meta;
+
+      const agentCount = useLlm
+        ? raw.users.length
+        : Number((req.body?.agentCount ?? req.body?.agent_count ?? dataset.counts.users) || 0);
+
+      const algorithmFromBody = req.body?.algorithm as string | undefined;
       const generation = buildGeneratedArtifacts({
         dataset,
         raw,
         options: {
-          algorithm: req.body?.algorithm,
-          agentCount: Number.isFinite(agentCount) && agentCount > 0 ? agentCount : dataset.counts.users,
+          algorithm: algorithmFromBody || (useLlm ? "persona-llm" : undefined),
+          agentCount:
+            Number.isFinite(agentCount) && agentCount > 0 ? agentCount : dataset.counts.users,
+          topicTopK: Number(req.body?.topicTopK ?? req.body?.topic_top_k ?? 12) || 12,
+          topicsPerAgent: Number(req.body?.topicsPerAgent ?? req.body?.topics_per_agent ?? 3) || 3,
         },
       });
 
@@ -1249,6 +1288,29 @@ async function startServer() {
         await getCollection(COLLECTIONS.GENERATED_AGENTS).insertMany(generation.generatedAgents, { ordered: false });
       }
       await getCollection(COLLECTIONS.GENERATED_GRAPHS).insertOne(generation.graphDocument);
+
+      // 🆕 实时写入 Neo4j（best-effort，避免影响现有流程）
+      // 开关：设置 NEO4J_PASSWORD（或 NEO4J_AUTH）即启用；如需失败即返回 502，可设 OASIS_NEO4J_IMPORT_STRICT=1
+      let neo4jImport: Record<string, unknown> | undefined;
+      const neo4jEnabled = Boolean(process.env.NEO4J_PASSWORD?.trim() || process.env.NEO4J_AUTH?.trim());
+      const strictNeo4j = String(process.env.OASIS_NEO4J_IMPORT_STRICT || "").trim() === "1";
+      if (neo4jEnabled) {
+        try {
+          const out = await runNeo4jImportWorker(__dirname, {
+            generation_id: generation.generationId,
+            dataset_id,
+            agents: generation.generatedAgents as any,
+            graph: generation.graphDocument as any,
+          });
+          neo4jImport = { status: out.status, counts: out.counts };
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          neo4jImport = { status: "error", message: msg };
+          if (strictNeo4j) {
+            return res.status(502).json({ status: "error", message: `Neo4j 导入失败: ${msg}` });
+          }
+        }
+      }
 
       const updatedDataset = await upsertDatasetManifest(db, {
         ...dataset,
@@ -1262,6 +1324,7 @@ async function startServer() {
             created_at: generation.graphDocument.created_at,
             stats: generation.graphDocument.stats,
           },
+          ...(useLlm && llmMeta ? { last_llm_persona_generation: llmMeta } : {}),
         },
       });
 
@@ -1273,9 +1336,23 @@ async function startServer() {
         graph: generation.graphDocument,
         stats: generation.graphDocument.stats,
         explanation: generation.graphDocument.algorithm_explanation,
+        ...(useLlm && llmMeta ? { llm_meta: llmMeta } : {}),
+        ...(neo4jImport ? { neo4j_import: neo4jImport } : {}),
       });
     } catch (error: any) {
-      return res.status(500).json({ status: "error", message: error.message });
+      const msg = error?.message || String(error);
+      const code =
+        error?.name === "PersonaProcessError" &&
+        typeof error?.statusCode === "number" &&
+        error.statusCode >= 400 &&
+        error.statusCode < 600
+          ? error.statusCode
+          : 500;
+      const body: Record<string, unknown> = { status: "error", message: msg };
+      if (error?.name === "PersonaProcessError" && typeof error.stderr === "string" && error.stderr.length > 0) {
+        body.stderr = error.stderr.slice(-8000);
+      }
+      return res.status(code).json(body);
     }
   });
 

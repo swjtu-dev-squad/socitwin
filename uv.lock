@@ -1084,6 +1084,18 @@ wheels = [
 ]
 
 [[package]]
+name = "neo4j-driver"
+version = "5.28.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/55/80f8bea1bec2a8fc864215e424a3cffade11108fc9190722685dc6d1ae31/neo4j_driver-5.28.3.tar.gz", hash = "sha256:c58dc0be4cd81f056068ada94e0ebeba4ebf0f25cef7e157ed8cb5f6c7546ef4", size = 232243, upload-time = "2026-01-12T10:42:41.931Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8e/ed/150b29216d22362756ec17ab315b785c1ccff48388403d14b397b62defd3/neo4j_driver-5.28.3-py3-none-any.whl", hash = "sha256:2d5bba27fd578029558513a991909515fc368f8574641d190b8b2a5452dabe6b", size = 313568, upload-time = "2026-01-12T10:42:38.466Z" },
+]
+
+[[package]]
 name = "networkx"
 version = "3.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1337,6 +1349,7 @@ dependencies = [
     { name = "camel-oasis" },
     { name = "datasets" },
     { name = "neo4j" },
+    { name = "neo4j-driver" },
     { name = "pymongo" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -1347,6 +1360,7 @@ requires-dist = [
     { name = "camel-oasis", specifier = ">=0.2.0" },
     { name = "datasets", specifier = ">=4.8.4" },
     { name = "neo4j", specifier = ">=5.0.0" },
+    { name = "neo4j-driver", specifier = ">=5.28.3" },
     { name = "pymongo", specifier = ">=4.8.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.28.0" },

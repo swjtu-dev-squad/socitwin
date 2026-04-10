@@ -20,6 +20,10 @@ type FeatureWeights = {
 export interface GenerationOptions {
   algorithm?: string;
   agentCount?: number;
+  /** topic 节点数量（Top-K），默认 12 */
+  topicTopK?: number;
+  /** 每个 agent 最多连到多少个 topic，默认 3 */
+  topicsPerAgent?: number;
 }
 
 export interface GeneratedAgentDocument {
@@ -590,6 +594,70 @@ function ensureConnectedAgentGraph(
   return nextEdges;
 }
 
+function augmentAgentEdgesWithKnn(
+  generated: GeneratedAgentFeature[],
+  edges: Array<Record<string, any>>,
+  algorithm: string,
+  k: number,
+): Array<Record<string, any>> {
+  const kk = Math.max(0, Math.floor(k));
+  if (kk <= 0 || generated.length <= 1) return edges;
+
+  const candidateByNodeId = new Map(generated.map((agent) => [`agent_${agent.generatedId}`, agent]));
+  const nodeIds = Array.from(candidateByNodeId.keys());
+  const nextEdges = [...edges];
+  const edgeKeys = new Set(nextEdges.map((edge) => `${edge.source}|${edge.target}|${edge.type}`));
+
+  const adjacency = new Map<string, Set<string>>();
+  for (const nodeId of nodeIds) adjacency.set(nodeId, new Set());
+  for (const edge of nextEdges) {
+    const source = normalizeString(edge.source);
+    const target = normalizeString(edge.target);
+    if (!source.startsWith("agent_") || !target.startsWith("agent_")) continue;
+    if (!adjacency.has(source) || !adjacency.has(target)) continue;
+    adjacency.get(source)!.add(target);
+    adjacency.get(target)!.add(source);
+  }
+
+  for (const nodeId of nodeIds) {
+    const neighbors = adjacency.get(nodeId)!;
+    const need = kk - neighbors.size;
+    if (need <= 0) continue;
+    const feature = candidateByNodeId.get(nodeId);
+    if (!feature) continue;
+
+    const scored: Array<{ id: string; score: number }> = [];
+    for (const otherId of nodeIds) {
+      if (otherId === nodeId) continue;
+      if (neighbors.has(otherId)) continue;
+      const other = candidateByNodeId.get(otherId);
+      if (!other) continue;
+      const score =
+        similarityScore(feature, other) + (communityKey(feature) === communityKey(other) ? 0.05 : 0);
+      scored.push({ id: otherId, score });
+    }
+    scored.sort((a, b) => b.score - a.score);
+
+    for (let i = 0; i < Math.min(need, scored.length); i += 1) {
+      const targetId = scored[i].id;
+      if (
+        addEdge(nextEdges, edgeKeys, {
+          source: nodeId,
+          target: targetId,
+          type: algorithm === "community-homophily" ? "community_homophily" : "knn_link",
+          origin: "synthetic",
+          reason: "knn-augmentation",
+        })
+      ) {
+        neighbors.add(targetId);
+        adjacency.get(targetId)!.add(nodeId);
+      }
+    }
+  }
+
+  return nextEdges;
+}
+
 function buildRealGraphBackbone(
   raw: RawDataset,
   generated: GeneratedAgentFeature[],
@@ -1092,40 +1160,158 @@ function buildSyntheticEdges(
 function buildTopicNodesAndEdges(
   generatedAgents: GeneratedAgentDocument[],
   graphEdges: Array<Record<string, any>>,
+  options?: Pick<GenerationOptions, "topicTopK" | "topicsPerAgent">,
 ): { nodes: Array<Record<string, any>>; edges: Array<Record<string, any>> } {
-  const topicCounts = new Map<string, number>();
+  const topicTopK = Math.max(1, Math.floor(options?.topicTopK ?? 12));
+  const topicsPerAgent = Math.max(1, Math.floor(options?.topicsPerAgent ?? 3));
+  const normalizeTopicKey = (raw: unknown): string => {
+    const s = String(raw ?? "").trim();
+    if (!s) return "";
+    // 基础规范化：去掉常见前缀、统一大小写、合并空白
+    const noPrefix = s.replace(/^[#@]+/g, "");
+    const collapsed = noPrefix.replace(/\s+/g, " ").trim().toLowerCase();
+    // 进一步：去掉仅作分隔的符号（保留字母数字与常见中文/泰文等 Unicode 字母）
+    const cleaned = collapsed.replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
+    return cleaned;
+  };
+
+  // key -> {count, bestName}
+  const topicAgg = new Map<string, { count: number; bestName: string; bestNameCount: number }>();
   for (const agent of generatedAgents) {
     for (const topic of agent.interests) {
-      topicCounts.set(topic, (topicCounts.get(topic) || 0) + 1);
+      const key = normalizeTopicKey(topic);
+      if (!key) continue;
+      const original = String(topic).trim();
+      const current = topicAgg.get(key);
+      if (!current) {
+        topicAgg.set(key, { count: 1, bestName: original, bestNameCount: 1 });
+        continue;
+      }
+      current.count += 1;
+      // 选择更“好看”的展示名：优先出现次数多的 variant；次数相同则取更短的
+      if (original === current.bestName) {
+        current.bestNameCount += 1;
+      } else if (current.bestNameCount <= 1) {
+        // 当 bestName 很弱时，用更短/更干净的替换
+        if (original.length < current.bestName.length) {
+          current.bestName = original;
+          current.bestNameCount = 1;
+        }
+      }
     }
   }
 
-  const topicNodes = Array.from(topicCounts.entries())
-    .sort((left, right) => right[1] - left[1])
-    .slice(0, 12)
-    .map(([topic, count], index) => ({
+  let topicNodes = Array.from(topicAgg.entries())
+    .sort((left, right) => right[1].count - left[1].count)
+    .slice(0, topicTopK)
+    .map(([key, meta], index) => ({
       id: `topic_${index}`,
       type: "topic",
-      name: topic,
-      heat: count,
+      name: meta.bestName,
+      heat: meta.count,
       source: "persona-dataset",
+      key,
     }));
 
-  const topicIdByName = new Map(topicNodes.map((node) => [node.name, node.id]));
+  const topicIdByKey = new Map(topicNodes.map((node) => [String((node as any).key), node.id]));
   const edgeKeys = new Set(graphEdges.map((edge) => `${edge.source}|${edge.target}|${edge.type}`));
   const edges = [...graphEdges];
+  const agentTopicDegree = new Map<string, number>();
+  const incAgentTopic = (agentId: string) => agentTopicDegree.set(agentId, (agentTopicDegree.get(agentId) || 0) + 1);
 
   for (const agent of generatedAgents) {
-    for (const topic of agent.interests.slice(0, 3)) {
-      const topicNodeId = topicIdByName.get(topic);
+    for (const topic of agent.interests.slice(0, topicsPerAgent)) {
+      const topicNodeId = topicIdByKey.get(normalizeTopicKey(topic));
       if (!topicNodeId) continue;
-      addEdge(edges, edgeKeys, {
+      const added = addEdge(edges, edgeKeys, {
         source: `agent_${agent.generated_agent_id}`,
         target: topicNodeId,
         type: "topic_link",
         origin: "topic",
         reason: "topic-membership",
       });
+      if (added) incAgentTopic(`agent_${agent.generated_agent_id}`);
+    }
+  }
+
+  // 算法兜底：不允许任何 agent 孤立（至少连 1 个 topic），但不引入“other”这类虚拟话题。
+  // 做法：如果某个 agent 在 Top-K 话题集合中一个都没命中，则从其 interests 中挑选“最像种子分布”的话题追加进 topic 节点集合，再连边。
+  for (const agent of generatedAgents) {
+    const agentId = `agent_${agent.generated_agent_id}`;
+    if ((agentTopicDegree.get(agentId) || 0) > 0) continue;
+    const ranked = agent.interests
+      .map((t) => ({ raw: t, key: normalizeTopicKey(t) }))
+      .filter((row) => row.key)
+      .map((row) => ({
+        ...row,
+        count: topicAgg.get(row.key)?.count ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+    const pick = ranked[0];
+    if (!pick) continue;
+    let topicNodeId = topicIdByKey.get(pick.key);
+    if (!topicNodeId) {
+      const meta = topicAgg.get(pick.key);
+      topicNodeId = `topic_${topicNodes.length}`;
+      topicNodes = [
+        ...topicNodes,
+        {
+          id: topicNodeId,
+          type: "topic",
+          name: meta?.bestName || String(pick.raw).trim() || pick.key,
+          heat: meta?.count ?? 0,
+          source: "persona-dataset",
+          key: pick.key,
+        },
+      ];
+      topicIdByKey.set(pick.key, topicNodeId);
+    }
+    const added = addEdge(edges, edgeKeys, {
+      source: agentId,
+      target: topicNodeId,
+      type: "topic_link",
+      origin: "topic",
+      reason: "topic-coverage",
+    });
+    if (added) incAgentTopic(agentId);
+  }
+
+  // 方案 C（kNN 混合）的一部分：确保 topic 节点不会孤立。
+  // 如果某个 topic 被选入 top-N 节点，但在任何用户的前 3 个兴趣里都没出现，会导致 topic 节点度为 0。
+  // 这里为每个孤立 topic 找到最相关的若干 agent 强制补边（相当于 topic->agent 的 kNN）。
+  const topicDegree = new Map<string, number>();
+  for (const node of topicNodes) topicDegree.set(node.id, 0);
+  for (const edge of edges) {
+    if (typeof edge.target === "string" && edge.target.startsWith("topic_")) {
+      topicDegree.set(edge.target, (topicDegree.get(edge.target) || 0) + 1);
+    }
+    if (typeof edge.source === "string" && edge.source.startsWith("topic_")) {
+      topicDegree.set(edge.source, (topicDegree.get(edge.source) || 0) + 1);
+    }
+  }
+  for (const topicNode of topicNodes) {
+    if ((topicDegree.get(topicNode.id) || 0) > 0) continue;
+    const topicKey = String((topicNode as any).key || normalizeTopicKey(topicNode.name));
+    const candidates = generatedAgents
+      .map((agent) => {
+        const idx = agent.interests.findIndex((t) => normalizeTopicKey(t) === topicKey);
+        return { agent, idx };
+      })
+      .filter((row) => row.idx >= 0)
+      .sort((a, b) => a.idx - b.idx);
+    for (let i = 0; i < Math.min(2, candidates.length); i += 1) {
+      const agent = candidates[i].agent;
+      if (
+        addEdge(edges, edgeKeys, {
+          source: `agent_${agent.generated_agent_id}`,
+          target: topicNode.id,
+          type: "topic_link",
+          origin: "topic",
+          reason: "topic-knn-fill",
+        })
+      ) {
+        topicDegree.set(topicNode.id, (topicDegree.get(topicNode.id) || 0) + 1);
+      }
     }
   }
 
@@ -1245,8 +1431,8 @@ export function buildGeneratedArtifacts(params: {
   const generatedAgents = buildGeneratedAgentDocs(generatedFeatures, dataset, generationId, algorithm);
 
   const realBackbone = buildRealGraphBackbone(raw, generatedFeatures, sourceUsers);
-  const withSyntheticEdges = buildSyntheticEdges(generatedFeatures, realBackbone.edges, algorithm);
-  const connectedEdges = ensureConnectedAgentGraph(generatedFeatures, withSyntheticEdges, algorithm);
+  // 只展示“种子数据中的真实关系” + “用户-话题关系”，不生成用户-用户的合成关系边
+  const connectedEdges = realBackbone.edges;
   const agentNodes = generatedAgents.map((agent) => ({
     id: `agent_${agent.generated_agent_id}`,
     type: "agent",
@@ -1256,7 +1442,10 @@ export function buildGeneratedArtifacts(params: {
     userType: agent.user_type,
     sourceUserKey: agent.source_user_key,
   }));
-  const topicGraph = buildTopicNodesAndEdges(generatedAgents, connectedEdges);
+  const topicGraph = buildTopicNodesAndEdges(generatedAgents, connectedEdges, {
+    topicTopK: options?.topicTopK,
+    topicsPerAgent: options?.topicsPerAgent,
+  });
   const nodes = [...agentNodes, ...topicGraph.nodes];
   const edges = topicGraph.edges;
 

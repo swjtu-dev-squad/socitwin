@@ -18,10 +18,12 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
   generateDatasetArtifacts,
+  getGeneratedAgents,
   getPersonaDataset,
   listPersonaDatasets,
+  PERSONA_GENERATE_FETCH_TIMEOUT_MS,
 } from '@/lib/personaApi';
-import type { GeneratedGraphRecord, PersonaDatasetSummary } from '@/lib/types';
+import type { GeneratedAgentRecord, GeneratedGraphRecord, PersonaDatasetSummary } from '@/lib/types';
 
 type PersonaDatasetDetail = PersonaDatasetSummary & {
   latest_graph?: {
@@ -161,9 +163,13 @@ export default function Profiles() {
   const [selectedDataset, setSelectedDataset] = useState<PersonaDatasetDetail | null>(null);
   const [generatedGraph, setGeneratedGraph] = useState<GeneratedGraphRecord | null>(null);
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null);
+  /** 本次生成写入 Mongo 的拟合用户（与图谱节点一一对应，列表展示用） */
+  const [generatedAgentsList, setGeneratedAgentsList] = useState<GeneratedAgentRecord[]>([]);
+  const [agentsListLoading, setAgentsListLoading] = useState(false);
   const [datasetsLoading, setDatasetsLoading] = useState(false);
   const [datasetDetailLoading, setDatasetDetailLoading] = useState(false);
   const [generationLoading, setGenerationLoading] = useState(false);
+  const [generationElapsedSec, setGenerationElapsedSec] = useState(0);
   const [subscriptionLoadingPlatform, setSubscriptionLoadingPlatform] = useState<string | null>(null);
   const [liveSubscriptions, setLiveSubscriptions] = useState<Record<string, boolean>>({
     twitter: false,
@@ -174,6 +180,9 @@ export default function Profiles() {
   });
   const [algorithm, setAlgorithm] = useState('community-homophily');
   const [agentCount, setAgentCount] = useState('0');
+  /** 为 true 时走 Python 子进程 + 大模型批量生成模拟 users，再构建图谱 */
+  // 默认使用 LLM 生成模拟画像（不再提供开关）
+  const useLlmPersonas = true;
 
   const platformDatasets = useMemo(
     () =>
@@ -337,6 +346,12 @@ export default function Profiles() {
     });
   }, [selectedDatasetId]);
 
+  useEffect(() => {
+    setGeneratedAgentsList([]);
+    setCurrentGenerationId(null);
+    setGeneratedGraph(null);
+  }, [selectedDatasetId]);
+
   const handleTogglePlatform = async (platformId: string, checked: boolean) => {
     const platformName = PLATFORM_LABELS[platformId] || platformId;
     if (!checked) {
@@ -404,6 +419,18 @@ export default function Profiles() {
     }
   };
 
+  useEffect(() => {
+    if (!generationLoading) {
+      setGenerationElapsedSec(0);
+      return;
+    }
+    const t0 = Date.now();
+    const id = window.setInterval(() => {
+      setGenerationElapsedSec(Math.floor((Date.now() - t0) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [generationLoading]);
+
   const handleGenerate = async () => {
     if (!selectedDatasetId) {
       toast.error('请先订阅并选择一个数据集');
@@ -412,17 +439,52 @@ export default function Profiles() {
 
     setGenerationLoading(true);
     try {
+      {
+        const minWait = Math.ceil(PERSONA_GENERATE_FETCH_TIMEOUT_MS / 60_000);
+        toast.info(
+          `将使用大模型生成模拟画像：需多次调用模型，人数较多时可能需数分钟；按钮上会显示已等待时间。若超过约 ${minWait} 分钟仍无结果，前端会主动超时并提示。`,
+        );
+      }
       const result = await generateDatasetArtifacts(selectedDatasetId, {
         algorithm,
         agentCount: Math.max(1, Number(agentCount) || selectedDataset?.counts.users || 1),
+        useLlmPersonas,
+        // 默认更稳的参数：减小单次返回 JSON 的长度，降低网关/模型超时概率
+        llmBatchSize: 4,
+        llmSeedSample: 10,
+        llmMaxRetries: 1,
+        llmKolNormalRatio: '1:8',
       });
       setGeneratedGraph(result.graph);
       setCurrentGenerationId(result.generation_id);
+      setAgentsListLoading(true);
+      try {
+        const agentsRes = await getGeneratedAgents(result.generation_id);
+        setGeneratedAgentsList(agentsRes.agents);
+      } catch (e) {
+        console.error('Load generated agents list:', e);
+        setGeneratedAgentsList([]);
+        toast.message('图谱已生成，但拟合用户列表加载失败，可在图谱悬停节点查看单点信息。');
+      } finally {
+        setAgentsListLoading(false);
+      }
       await loadDatasets(selectedDatasetId);
       toast.success(`已基于 ${selectedDatasetId} 生成社交网络`);
     } catch (error) {
       console.error('Generation error:', error);
-      toast.error((error as Error).message || '生成社交网络失败');
+      const err = error as Error & { name?: string };
+      const isAbort =
+        err?.name === 'AbortError' ||
+        (typeof err?.message === 'string' &&
+          (err.message.includes('aborted') || err.message.includes('signal is aborted')));
+      if (isAbort) {
+        const min = Math.round(PERSONA_GENERATE_FETCH_TIMEOUT_MS / 60_000);
+        toast.error(
+          `生成请求已超时（前端等待超过 ${min} 分钟）。可尝试减小生成规模、检查大模型服务与网络，或在 .env 中增大 VITE_PERSONA_GENERATE_TIMEOUT_MS（需与后端 OASIS_LLM_PERSONA_TIMEOUT_MS 等配置协调）。`,
+        );
+      } else {
+        toast.error(err.message || '生成社交网络失败');
+      }
     } finally {
       setGenerationLoading(false);
     }
@@ -545,13 +607,14 @@ export default function Profiles() {
 
             <div className="space-y-2">
               {visibleSeedMetrics.map((metric) => (
-                <SeedMetric
-                  key={metric.key}
-                  label={metric.label}
-                  value={metric.value}
-                  icon={metric.icon}
-                  colorClass={metric.colorClass}
-                />
+                <div key={metric.key}>
+                  <SeedMetric
+                    label={metric.label}
+                    value={metric.value}
+                    icon={metric.icon}
+                    colorClass={metric.colorClass}
+                  />
+                </div>
               ))}
             </div>
           </section>
@@ -630,7 +693,11 @@ export default function Profiles() {
             {generationLoading ? (
               <>
                 <div className="w-4 h-4 border-2 border-bg-primary border-t-transparent rounded-full animate-spin" />
-                进化计算中...
+                进化计算中…
+                <span className="font-mono text-xs opacity-90 tabular-nums">
+                  {Math.floor(generationElapsedSec / 60)}:
+                  {String(generationElapsedSec % 60).padStart(2, '0')}
+                </span>
               </>
             ) : (
               <>
@@ -654,6 +721,57 @@ export default function Profiles() {
             <StatsCard label="生成关系边" value={graphStats.linkCount} icon={Share2} />
             <StatsCard label="图密度 (Density)" value={graphStats.densityLabel} icon={Network} />
           </div>
+
+          <Card className="bg-bg-secondary border-border-default p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                拟合用户列表
+              </h3>
+              <Badge variant="outline" className="text-[9px]">
+                {agentsListLoading ? '加载中…' : `${generatedAgentsList.length} 人`}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-text-tertiary leading-relaxed">
+              与下方力导图中<strong className="text-text-secondary">蓝色圆点</strong>一一对应；悬停节点可快速看简介与兴趣。此处为 MongoDB{' '}
+              <code className="rounded bg-bg-primary px-1 font-mono text-[10px]">generated_agents</code> 中的完整画像字段。
+            </p>
+            {!generatedGraph ? (
+              <p className="text-sm text-text-muted">生成社交网络后将在此展示拟合用户卡片。</p>
+            ) : agentsListLoading ? (
+              <p className="text-sm text-text-muted">正在加载用户列表…</p>
+            ) : generatedAgentsList.length === 0 ? (
+              <p className="text-sm text-text-muted">暂无列表数据（可刷新页面后重试生成）。</p>
+            ) : (
+              <div className="max-h-[min(420px,50vh)] space-y-2 overflow-y-auto pr-1">
+                {generatedAgentsList.map((agent) => (
+                  <div
+                    key={`${agent.generation_id}-${agent.generated_agent_id}`}
+                    className="rounded-xl border border-border-default bg-bg-primary/80 p-3 text-left"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-bold text-sm text-text-primary">{agent.name}</span>
+                      <span className="font-mono text-[10px] text-text-muted">@{agent.user_name}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-text-tertiary line-clamp-2">{agent.description || agent.profile?.other_info?.user_profile || '—'}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(agent.interests?.length ? agent.interests : agent.profile?.other_info?.topics || []).slice(0, 8).map((t) => (
+                        <Badge key={t} variant="secondary" className="text-[8px] font-normal">
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-[9px] text-text-muted">
+                      {agent.user_type ? <span>类型 {agent.user_type}</span> : null}
+                      {agent.profile?.other_info?.country ? <span>{String(agent.profile.other_info.country)}</span> : null}
+                      {agent.profile?.other_info?.gender != null ? <span>{String(agent.profile.other_info.gender)}</span> : null}
+                      {agent.profile?.other_info?.age != null ? <span>{String(agent.profile.other_info.age)} 岁</span> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
 
           <Card className="bg-bg-secondary border-border-default p-4 space-y-3">
             <div className="flex items-center justify-between gap-3">
@@ -726,14 +844,13 @@ export default function Profiles() {
   );
 }
 
+/** 列表项请在外层写 key={...}；不要把 key 写进 props，React 不会传入子组件。 */
 function SeedMetric({
   label,
   value,
   icon: Icon,
   colorClass,
-  key: _key,
 }: {
-  key?: string;
   label: string;
   value: number;
   icon: any;

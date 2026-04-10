@@ -8,6 +8,7 @@ dependencies = [
     "camel-oasis>=0.2.0",
     "datasets>=4.8.4",
     "neo4j>=5.0.0",
+    "neo4j-driver>=5.28.3",
     "pymongo>=4.8.0",
     "python-dotenv>=1.0.0",
     "requests>=2.28.0",
