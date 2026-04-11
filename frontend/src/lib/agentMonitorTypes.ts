@@ -1,0 +1,152 @@
+export type AgentStatus = "active" | "idle" | "thinking";
+export type AgentMemoryContentSource = "system_prompt" | "retrieval";
+export type AgentMemoryRetrievalStatus = "not_configured" | "ready" | "empty" | "error";
+
+export interface AgentMemoryRetrievalItem {
+  id: string;
+  content: string;
+  score?: number;
+  source?: string;
+  createdAt?: string;
+}
+
+export interface AgentMemorySnapshot {
+  length: number;
+  content: string;
+  contentSource: AgentMemoryContentSource;
+  systemPrompt: {
+    length: number;
+    content: string;
+  };
+  retrieval: {
+    enabled: boolean;
+    status: AgentMemoryRetrievalStatus;
+    content: string;
+    items: AgentMemoryRetrievalItem[];
+  };
+}
+
+export interface AgentGraphNode {
+  id: string;
+  name: string;
+  role: string;
+  roleLabel: string;
+  influence: number;
+  activity: number;
+  status: AgentStatus;
+  country?: string;
+  city?: string;
+}
+
+export interface AgentGraphEdge {
+  source: string;
+  target: string;
+  type: "follow" | "interaction";
+  actionType?: string;
+  weight?: number;
+  active?: boolean;
+}
+
+export interface AgentOverview {
+  id: string;
+  name: string;
+  role: string;
+  roleLabel: string;
+  bio: string;
+  status: AgentStatus;
+  influence: number;
+  activity: number;
+  lastAction?: {
+    type: string;
+    content: string;
+    reason: string;
+    timestamp?: string;
+  } | null;
+  actionContent?: string;
+  country?: string;
+  city?: string;
+  occupation?: string;
+  tags: string[];
+  following: string[];
+  followerCount: number;
+  followingCount: number;
+  interactionCount: number;
+  memory: AgentMemorySnapshot;
+}
+
+export interface AgentMonitorResponse {
+  simulation: {
+    running: boolean;
+    paused: boolean;
+    currentStep: number;
+    currentRound?: number | null;
+    platform?: string;
+    recsys?: string;
+    topic?: string | null;
+    polarization?: number;
+    propagationVelocity?: number;
+    herdIndex?: number;
+  };
+  graph: {
+    nodes: AgentGraphNode[];
+    edges: AgentGraphEdge[];
+  };
+  agents: AgentOverview[];
+  updatedAt: string;
+}
+
+export interface AgentDetailResponse {
+  profile: {
+    id: string;
+    name: string;
+    bio: string;
+    personaKey: string;
+    personaDescription: string;
+    roleLabel: string;
+    gender?: string;
+    age?: number;
+    mbti?: string;
+    country?: string;
+    city?: string;
+    occupation?: string;
+    tags: string[];
+  };
+  status: {
+    state: AgentStatus;
+    influence: number;
+    activity: number;
+    followerCount: number;
+    followingCount: number;
+    interactionCount: number;
+    polarization?: number;
+    contextTokens?: number;
+    retrievedMemories?: number;
+    seenAgentsCount?: number;
+  };
+  currentViewpoint?: string;
+  lastAction?: {
+    type: string;
+    content: string;
+    reason: string;
+    timestamp?: string;
+  } | null;
+  recentTimeline: Array<{
+    timestamp: string;
+    type: string;
+    content: string;
+    reason?: string;
+  }>;
+  seenPosts: Array<{
+    postId: string;
+    author: string;
+    content: string;
+    timestamp: string;
+    numLikes?: number;
+  }>;
+  memory: AgentMemorySnapshot;
+}
+
+export interface AgentDirtyEvent {
+  currentStep: number;
+  updatedAt: string;
+}

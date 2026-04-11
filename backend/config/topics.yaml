@@ -1,0 +1,53 @@
+# Topic Configuration File
+# This file defines simulation topics with initial posts for agent-based social media simulations
+
+topics:
+  # Example: Climate change debate topic
+  - id: "climate_change_debate"
+    name: "Climate Change Debate"
+    description: "Agents discuss climate policy with varying viewpoints"
+    initial_post:
+      content: "Climate change is the most urgent crisis of our time. We must act now before it's too late!"
+      agent_id: 0
+    settings:
+      trigger_refresh: true
+
+  # Example: AI regulation discussion
+  - id: "tech_ai_regulation"
+    name: "AI Regulation Discussion"
+    description: "Discussion on government AI oversight and development"
+    initial_post:
+      content: "Should governments regulate AI development? The debate continues as technology advances rapidly..."
+      agent_id: 1
+    settings:
+      trigger_refresh: true
+
+  # Example: Remote work debate
+  - id: "remote_work_debate"
+    name: "Remote Work Debate"
+    description: "Agents discuss the pros and cons of remote work"
+    initial_post:
+      content: "Remote work is here to stay. Companies need to adapt or lose top talent!"
+      agent_id: 2
+    settings:
+      trigger_refresh: true
+
+  # Example: Cryptocurrency discussion
+  - id: "crypto_discussion"
+    name: "Cryptocurrency Discussion"
+    description: "Agents debate the future of digital currencies"
+    initial_post:
+      content: "Bitcoin just hit another all-time high! Is this the future of finance or a bubble waiting to burst?"
+      agent_id: 3
+    settings:
+      trigger_refresh: true
+
+  # Example: Space exploration topic
+  - id: "space_exploration"
+    name: "Space Exploration"
+    description: "Discussion on space exploration and Mars colonization"
+    initial_post:
+      content: "Mars colonization by 2030? Ambitious, but humanity needs a Plan B. What do you think?"
+      agent_id: 4
+    settings:
+      trigger_refresh: true

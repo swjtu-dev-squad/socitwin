@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(uv :*)",
+      "Bash(python*)",
+      "Bash(apt list:*)",
+      "Bash(pyenv versions:*)",
+      "Bash(lsof -ti:*)",
+      "Bash(ls -la :*)",
+      "Bash(find :*)",
+      "Bash(xargs sed:*)",
+      "Bash(curl -s :*)",
+      "Bash(uvicorn :*)",
+      "Bash(sqlite3 :*)",
+      "Read(//usr/**)",
+      "Read(/home/hv/projs/**)",
+      "Bash(curl -s http://localhost:8000/api/sim/status)",
+      "Bash(kill 511357)",
+      "Bash(curl -s -X POST http://localhost:8000/api/sim/config -H 'Content-Type: application/json' -d '{:*)",
+      "Bash(find /home/hv/projs/socitwin/backend -name \"*.py\" -exec grep -l \"HTTPException\\\\|Exception\\\\|Error\" {} \\\\;)",
+      "Bash(find /home/hv/projs/socitwin/backend/app -name \"*.py\" -exec wc -l {} \\\\;)",
+      "Bash(curl -s http://localhost:8000/health)"
+    ],
+    "additionalDirectories": [
+      "/home/hv/projs/socitwin/backend/**"
+    ]
+  }
+}

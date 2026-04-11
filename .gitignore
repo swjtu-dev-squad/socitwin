@@ -1,0 +1,134 @@
+# ==============================================================================
+# Socitwin Project - Unified .gitignore
+# ==============================================================================
+
+# ==============================================================================
+# Python (Backend)
+# ==============================================================================
+
+# Python-generated files
+__pycache__/
+__pycache__/**/*
+*.py[oc]
+*.py[cod]
+*$py.class
+*.pyc
+*.so
+.Python
+build/
+dist/
+wheels/
+*.egg-info
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+
+# Environment variables
+.env
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Simulation data directories
+backend/data/simulations/
+backend/data/simulations/**/*
+backend/log/
+backend/log/**/*
+
+# Python testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Test results
+backend/test-result/
+
+# uv
+.python-version
+uv.lock
+
+# ==============================================================================
+# Node.js / Frontend
+# ==============================================================================
+
+# Logs
+logs/
+logs/**/*
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist
+dist-ssr
+*.local
+
+# ==============================================================================
+# IDE & Editors
+# ==============================================================================
+
+# VSCode
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# JetBrains
+.idea/
+
+# Vim
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==============================================================================
+# Operating Systems
+# ==============================================================================
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# ==============================================================================
+# Simulation Data
+# ==============================================================================
+
+# OASIS simulation databases
+backend/data/simulations/*.db
+backend/data/simulations/**/*
+backend/log/*.log
+backend/log/**/*
+
+# ==============================================================================
+# Temporary Files
+# ==============================================================================
+
+*.tmp
+*.temp
+*.bak
+*.cache
