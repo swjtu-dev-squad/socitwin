@@ -1,5 +1,17 @@
 import axios from 'axios';
-import type { SimulationStatus, GenerateUsersRequest, GenerateUsersResponse, LogEntry } from './types';
+import type {
+  SimulationStatus,
+  GenerateUsersRequest,
+  GenerateUsersResponse,
+  LogEntry,
+  TopicListResponse,
+  TopicDetail,
+  TopicActivationResult,
+  MetricsSummary,
+  PropagationMetrics,
+  PolarizationMetrics,
+  HerdEffectMetrics
+} from './types';
 
 const api = axios.create({
   baseURL: '/api',  // 使用相对路径，自动适配本地开发和部署环境
@@ -9,22 +21,19 @@ const api = axios.create({
 export const simulationApi = {
   updateConfig: (config: {
     platform: string;
-    recsys: string;
     agentCount: number;
-    topics?: string[];
-    regions?: string[];
-    sampling_config?: {
-      enabled: boolean;
-      rate: number;
-      strategy: string;
-      min_active?: number;
-      seed?: number;
-    };
-  }) => api.post('/sim/config', config),
+    maxSteps?: number;
+    recsysType?: string;
+  }) => api.post('/sim/config', {
+    platform: config.platform,
+    agent_count: config.agentCount,
+    recsys_type: config.recsysType || 'twitter',
+    max_steps: config.maxSteps || 50
+  }),
 
   getStatus: () => api.get<SimulationStatus>('/sim/status'),
 
-  step: () => api.post<SimulationStatus>('/sim/step'),
+  step: (stepType: 'auto' | 'manual' = 'auto') => api.post('/sim/step', { step_type: stepType }),
 
   pause: () => api.post<SimulationStatus>('/sim/pause'),
 
@@ -40,29 +49,42 @@ export const simulationApi = {
 
   getLogs: () => api.get<{ logs: LogEntry[] }>('/sim/logs'),
 
-  getTopics: () => api.get<{ status: string; topics: Array<{ id: string; filename: string; seed_posts: string[]; agent_profiles_count: number }> }>('/topics'),
+  getTopics: () => api.get<TopicListResponse>('/topics'),
 
-  // Analytics APIs
-  getOpinionDistribution: () => api.get<{ distribution: Array<{ name: string; value: number; count: number }>; total: number }>('/analytics/opinion-distribution'),
+  getTopicById: (topicId: string) => api.get<TopicDetail>(`/topics/${topicId}`),
 
-  getHerdIndex: () => api.get<{ trend: Array<{ step: number; herdIndex: number }>; current: number }>('/analytics/herd-index'),
+  activateTopic: (topicId: string) => api.post<TopicActivationResult>(`/topics/${topicId}/activate`),
 
-  // Intervention APIs
-  getInterventionProfiles: () => api.get<{ status: string; intervention_profiles: Array<{
-    name: string;
-    description: string;
-    user_name_prefix: string;
-    bio: string;
-    system_message: string;
-    initial_posts: string[];
-    comment_style: string;
-  }> }>('/intervention/profiles'),
+  reloadTopics: () => api.post<{ success: boolean; message: string; topics_count: number }>('/topics/reload'),
 
-  addControlledAgentsBatch: (interventionTypes: string[], initialStep: boolean = true) =>
-    api.post('/sim/intervention/batch', {
-      intervention_types: interventionTypes,
-      initial_step: initialStep
-    }),
+  // Metrics APIs
+  getMetricsSummary: () => api.get<MetricsSummary>('/metrics/summary'),
 
-  listControlledAgents: () => api.get('/sim/intervention/list'),
+  getPropagationMetrics: (postId?: number) =>
+    api.get<PropagationMetrics>('/metrics/propagation', { params: postId ? { post_id: postId } : {} }),
+
+  getPolarizationMetrics: (agentIds?: string) =>
+    api.get<PolarizationMetrics>('/metrics/polarization', { params: agentIds ? { agent_ids: agentIds } : {} }),
+
+  getHerdEffectMetrics: (timeWindowSeconds?: number) =>
+    api.get<HerdEffectMetrics>('/metrics/herd-effect', { params: timeWindowSeconds ? { time_window_seconds: timeWindowSeconds } : {} }),
+
+  getMetricsHistory: (params?: {
+    metric_type?: string;
+    step_from?: number;
+    step_to?: number;
+    limit?: number;
+  }) => api.get<{
+    history: Array<{
+      id: number;
+      step_number: number;
+      metric_type: string;
+      metric_data: any;
+      calculated_at: string;
+    }>;
+    total_count: number;
+  }>('/metrics/history', { params }),
+
+  getLatestMetrics: (metricType: string) =>
+    api.get<any>(`/metrics/history/latest`, { params: { metric_type: metricType } }),
 };

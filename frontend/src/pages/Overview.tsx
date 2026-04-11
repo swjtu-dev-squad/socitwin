@@ -1,8 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { Card, Button, Badge, Slider, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ScrollArea } from '@/components/ui';
+import { Card, Button, Badge, Slider, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
+import {
+  useSimulationStatusLightweight,
+  useTopics,
+  useMetricsHistory,
+  useStepDrivenMetrics
+} from '@/hooks/useSimulationData';
 import {
   Users,
   Activity,
@@ -14,16 +20,11 @@ import {
   Pause,
   StepForward,
   ShieldAlert,
-  Lightbulb,
   Share2,
-  Database,
   BookOpen,
-  Users2,
-  Wand2,
+  RotateCcw,
   Info,
-  Target,
   BarChart3,
-  Network,
   ArrowUpRight,
   ArrowDownRight,
   AlertCircle,
@@ -37,8 +38,6 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
-  Legend,
-  ReferenceLine,
   LineChart,
   Line,
   BarChart,
@@ -51,268 +50,216 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SituationalAwarenessChart } from '@/components/SituationalAwarenessChart';
 
 export default function Overview() {
-  const { status, history, setStatus, stepProgress, isStepping, setIsStepping } = useSimulationStore();
+  const { status, setStatus, isStepping, setIsStepping } = useSimulationStore();
   const navigate = useNavigate();
-  const [agentCount, setAgentCount] = useState([100]);
-  const [subscriptionSource, setSubscriptionSource] = useState('REDDIT');
-  const [recsys, setRecsys] = useState('GLOBAL_Trending');
-  const [selectedTopic, setSelectedTopic] = useState<string>('ai-employment');
-  const [userGroupMode, setUserGroupMode] = useState<'follow' | 'custom'>('follow');
-  const [showAlgorithm, setShowAlgorithm] = useState(false);
-  const [samplingRate, setSamplingRate] = useState([10]); // Default 10% sampling
-  const [availableTopics, setAvailableTopics] = useState<Array<{ id: string; filename: string; seed_posts: string[]; agent_profiles_count: number }>>([]);
-  const [opinionDistribution, setOpinionDistribution] = useState<Array<{ name: string; value: number; count: number; color: string }>>([]);
-  const [herdIndexTrend, setHerdIndexTrend] = useState<Array<{ step: number; herdIndex: number }>>([]);
-  const [interventionProfiles, setInterventionProfiles] = useState<Array<{
-    name: string;
-    description: string;
-    user_name_prefix: string;
-    bio: string;
-    system_message: string;
-    initial_posts: string[];
-    comment_style: string;
-  }>>([]);
-  const [selectedInterventionTypes, setSelectedInterventionTypes] = useState<string[]>([]);
-  const [interventionCount, setInterventionCount] = useState(1);
-  const [isIntervening, setIsIntervening] = useState(false);
-  const [interventionResult, setInterventionResult] = useState<any>(null);
-  
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await simulationApi.getStatus();
-        setStatus(res.data);
-      } catch (error) {
-        console.error('Failed to fetch status:', error);
-      }
-    };
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
-    return () => clearInterval(interval);
-  }, [setStatus]);
 
-  // Load available topics from backend
-  useEffect(() => {
-    const fetchTopics = async () => {
-      try {
-        const res = await simulationApi.getTopics();
-        if (res.data.status === 'ok') {
-          setAvailableTopics(res.data.topics);
-          // Set default topic if none selected
-          if (!selectedTopic && res.data.topics.length > 0) {
-            setSelectedTopic(res.data.topics[0].id);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to fetch topics:', error);
-      }
-    };
-    fetchTopics();
-  }, []);
+  // Use custom hooks for data fetching
+  const { data: statusData, currentStep } = useSimulationStatusLightweight(2000);
+  const { data: topics, isLoading: topicsLoading } = useTopics();
+  const { data: chartHistory, isLoading: historyLoading } = useMetricsHistory(currentStep);
+  const { latestMetrics } = useStepDrivenMetrics(currentStep || 0);
 
-  // Extract real data from history for trend charts
-  const chartData: any[] = useMemo(() => {
-    if (!history || history.length === 0) {
-      // Return empty array if no history
+  // Use the latest status from hook if available, otherwise fall back to store
+  const currentStatus = statusData || status;
+
+  // Derive opinion distribution from step-driven polarization data
+  const opinionDistribution = useMemo(() => {
+    if (!latestMetrics?.polarization?.agent_polarization) {
       return [];
     }
 
-    return history.map((entry, index) => ({
-      currentStep: entry.currentStep || index,
-      polarization: entry.polarization || 0,
-      propagation: ((entry.propagation?.scale || 0) / Math.max((entry.activeAgents || status.activeAgents || 1), 1)), // Normalize scale by active agents
-      herding: entry.herdHhi || 0,
+    const directionMap: Record<string, string> = {
+      'EXTREME_CONSERVATIVE': 'Right',
+      'MODERATE_CONSERVATIVE': 'Right',
+      'NEUTRAL': 'Center',
+      'MODERATE_PROGRESSIVE': 'Left',
+      'EXTREME_PROGRESSIVE': 'Left',
+    };
+
+    const colorMap: Record<string, string> = {
+      'Left': '#f43f5e',
+      'Center': '#71717a',
+      'Right': '#3b82f6'
+    };
+
+    const nameMap: Record<string, string> = {
+      'Left': '极左',
+      'Center': '中立',
+      'Right': '极右'
+    };
+
+    // Count agents in each category
+    const counts: Record<string, number> = { 'Left': 0, 'Center': 0, 'Right': 0 };
+    latestMetrics.polarization.agent_polarization.forEach(agent => {
+      const category = directionMap[agent.direction] || 'Center';
+      counts[category]++;
+    });
+
+    // Calculate percentages
+    const total = latestMetrics.polarization.agent_polarization.length;
+    return Object.entries(counts).map(([category, count]) => ({
+      name: nameMap[category] || category,
+      value: total > 0 ? Math.round((count / total) * 100) : 0,
+      count,
+      color: colorMap[category] || '#71717a'
     }));
-  }, [history, status.activeAgents]);
+  }, [latestMetrics?.polarization]);
+
+  // Local state for UI controls
+  const [agentCount, setAgentCount] = useState([10]); // 默认10个agents
+  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [showAlgorithm, setShowAlgorithm] = useState(false);
+
+  // Update store status when hook data changes
+  useEffect(() => {
+    if (statusData) {
+      setStatus(statusData);
+    }
+  }, [statusData, setStatus]);
+
+  // Set default topic if none selected and topics are loaded
+  useEffect(() => {
+    if (!selectedTopic && topics && topics.length > 0) {
+      setSelectedTopic(topics[0].id);
+    }
+  }, [topics, selectedTopic]);
+
+  // Extract real data from history for trend charts
+  // NEW: Use database history (step-based) instead of store history (time-based)
+  const chartData: any[] = useMemo(() => {
+    if (!chartHistory || chartHistory.length === 0) {
+      return [];
+    }
+
+    // Map database history to chart format
+    return chartHistory.map(point => ({
+      currentStep: point.step,
+      polarization: point.polarization || 0,
+      propagation: point.propagation || 0,
+      herding: point.herdEffect || 0,
+    }));
+  }, [chartHistory]);
 
   const stats = [
-    { label: '活跃 Agents', value: (status.activeAgents || 0).toLocaleString(), icon: Users, color: 'text-accent', path: '/agents' },
-    { label: '当前步数', value: (status.currentStep || 0).toLocaleString(), icon: Zap, color: 'text-amber-400', path: '/overview' },
+    { label: '活跃 Agents', value: (currentStatus.activeAgents || 0).toLocaleString(), icon: Users, color: 'text-accent', path: '/agents' },
+    { label: '当前步数', value: (currentStatus.currentStep || 0).toLocaleString(), icon: Zap, color: 'text-amber-400', path: '/overview' },
   ];
 
   // Industrial Border Style
-  const industrialCardClass = "bg-bg-secondary border-2 border-accent/30 relative overflow-hidden before:absolute before:top-0 before:left-0 before:w-2 before:h-2 before:border-t-2 before:border-l-2 before:border-accent after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:border-b-2 after:border-r-2 after:border-accent";
+  const industrialCardClass = "bg-bg-secondary border-2 border-accent/30 relative overflow-hidden before:absolute before:top-0 before:left-0 before:w-2 before:h-2 before:border-t-2 before:border-l-2 before:border-accent after:absolute after:bottom-0 after:right-0 after:w-2 after:h-2 after:border-b-2 after:border-r-2 before:border-accent";
 
-  // Cognitive Warning Logic (based on real data)
+  // Cognitive Warning Logic (based on historical metrics from database)
   const threatLevel = useMemo(() => {
-    // Use current status if available, otherwise fall back to latest history entry
-    const currentPol = status.polarization || 0;
-    const currentProp = ((status.propagation?.scale || 0) / Math.max(status.activeAgents || 1, 1));
-    const currentHerd = status.herdHhi || 0;
+    const currentPol = latestMetrics?.polarization?.average_magnitude ?? 0;
+    const currentProp = (latestMetrics?.propagation?.scale || 0) / Math.max(currentStatus.activeAgents || 1, 1);
+    const currentHerd = latestMetrics?.herdEffect?.conformity_index ?? 0;
     const avg = (currentPol + currentProp + currentHerd) / 3;
 
     if (avg > 0.7) return { label: '高危', color: 'text-rose-500', bg: 'bg-rose-500/10', border: 'border-rose-500/20' };
     if (avg > 0.4) return { label: '中等', color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500/20' };
     return { label: '安全', color: 'text-accent', bg: 'bg-accent/10', border: 'border-accent/20' };
-  }, [status]);
+  }, [latestMetrics, currentStatus.activeAgents]);
 
-  // Load opinion distribution from backend
-  useEffect(() => {
-    const fetchOpinionDistribution = async () => {
-      try {
-        const res = await simulationApi.getOpinionDistribution();
-        if (res.data && res.data.distribution) {
-          // Map backend data to frontend format with colors
-          const colorMap: Record<string, string> = {
-            'Left': '#f43f5e',
-            'Center': '#71717a',
-            'Right': '#3b82f6'
-          };
-          const nameMap: Record<string, string> = {
-            'Left': '极左',
-            'Center': '中立',
-            'Right': '极右'
-          };
-          const distribution = res.data.distribution.map((item: { name: string; value: number; count: number }) => ({
-            ...item,
-            name: nameMap[item.name] || item.name,
-            color: colorMap[item.name] || '#71717a'
-          }));
-          setOpinionDistribution(distribution);
-        }
-      } catch (error) {
-        console.error('Failed to fetch opinion distribution:', error);
-      }
-    };
-    fetchOpinionDistribution();
-    const interval = setInterval(fetchOpinionDistribution, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+  // Calculate core metrics based on historical data from database (step-driven)
+  const coreMetrics = useMemo(() => {
+    // Debug: Log latestMetrics and chartHistory
+    console.log('[Overview] latestMetrics:', latestMetrics);
+    console.log('[Overview] chartHistory length:', chartHistory.length);
+    console.log('[Overview] chartHistory last entry:', chartHistory[chartHistory.length - 1]);
 
-  // Load herd index trend from backend
-  useEffect(() => {
-    const fetchHerdIndex = async () => {
-      try {
-        const res = await simulationApi.getHerdIndex();
-        if (res.data && res.data.trend) {
-          setHerdIndexTrend(res.data.trend);
-        }
-      } catch (error) {
-        console.error('Failed to fetch herd index:', error);
-      }
-    };
-    fetchHerdIndex();
-    const interval = setInterval(fetchHerdIndex, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    // Priority: Use latestMetrics if available, otherwise fall back to latest entry from chartHistory
+    let polValue = null;
+    let propValue = null;
+    let herdValue = null;
 
-  // Load intervention profiles from backend
-  useEffect(() => {
-    const fetchInterventionProfiles = async () => {
-      try {
-        const res = await simulationApi.getInterventionProfiles();
-        if (res.data && res.data.intervention_profiles) {
-          setInterventionProfiles(res.data.intervention_profiles);
-        }
-      } catch (error) {
-        console.error('Failed to fetch intervention profiles:', error);
-      }
-    };
-    fetchInterventionProfiles();
-  }, []);
-
-  // Handle intervention type selection
-  const toggleInterventionType = (typeName: string) => {
-    setSelectedInterventionTypes(prev =>
-      prev.includes(typeName)
-        ? prev.filter(t => t !== typeName)
-        : [...prev, typeName]
-    );
-  };
-
-  // Handle applying intervention
-  const handleApplyIntervention = async () => {
-    if (selectedInterventionTypes.length === 0) {
-      toast.error('请至少选择一种干预类型');
-      return;
+    // Try to get from latestMetrics first
+    if (latestMetrics?.polarization?.average_magnitude !== undefined && latestMetrics?.polarization?.average_magnitude !== null) {
+      polValue = latestMetrics.polarization.average_magnitude;
+    }
+    if (latestMetrics?.propagation?.scale !== undefined && latestMetrics?.propagation?.scale !== null) {
+      propValue = latestMetrics.propagation.scale;
+    }
+    if (latestMetrics?.herdEffect?.conformity_index !== undefined && latestMetrics?.herdEffect?.conformity_index !== null) {
+      herdValue = latestMetrics.herdEffect.conformity_index;
     }
 
-    setIsIntervening(true);
-    try {
-      const res = await simulationApi.addControlledAgentsBatch(
-        selectedInterventionTypes,
-        true  // initial_step
-      );
-
-      if (res.data && res.data.status === 'ok') {
-        setInterventionResult(res.data);
-        toast.success(`成功添加 ${res.data.total || 0} 个受控 agents`);
-
-        // Refresh status
-        const statusRes = await simulationApi.getStatus();
-        setStatus(statusRes.data);
-      } else {
-        toast.error('干预失败');
+    // Fall back to chartHistory if latestMetrics doesn't have data
+    if (chartHistory.length > 0) {
+      const latestEntry = chartHistory[chartHistory.length - 1];
+      if (polValue === null && latestEntry.polarization !== undefined) {
+        polValue = latestEntry.polarization;
       }
-    } catch (error) {
-      console.error('Intervention failed:', error);
-      toast.error('干预请求失败');
-    } finally {
-      setIsIntervening(false);
+      if (propValue === null && latestEntry.propagation !== undefined) {
+        propValue = latestEntry.propagation;
+      }
+      if (herdValue === null && latestEntry.herdEffect !== undefined) {
+        herdValue = latestEntry.herdEffect;
+      }
     }
-  };
 
-  // Calculate metrics based on real data
-  const metrics = useMemo(() => {
-    // Calculate trends based on history
-    let polTrend = '+0.0%';
-    let propTrend = '+0';
-    let herdTrend = '+0.0%';
+    console.log('[Overview] Final values - polValue:', polValue, 'propValue:', propValue, 'herdValue:', herdValue);
 
-    if (history.length >= 2) {
-      const prev = history[history.length - 2];
-      const curr = history[history.length - 1];
+    // Calculate trend from database history (not from store history with real-time values)
+    let polTrend = '--';
+    let propTrend = '--';
+    let herdTrend = '--';
 
-      const polChangeValue = (curr.polarization - prev.polarization) * 100;
+    if (chartHistory.length >= 2) {
+      const prev = chartHistory[chartHistory.length - 2];
+      const curr = chartHistory[chartHistory.length - 1];
+
+      const polChangeValue = ((curr.polarization || 0) - (prev.polarization || 0)) * 100;
       polTrend = `${polChangeValue >= 0 ? '+' : ''}${polChangeValue.toFixed(1)}%`;
 
-      // 使用 propagation.scale 计算传播规模趋势
-      const prevPropScale = (prev.propagation?.scale || 0);
-      const currPropScale = (curr.propagation?.scale || 0);
-      const propChangeValue = currPropScale - prevPropScale;
+      const propChangeValue = (curr.propagation || 0) - (prev.propagation || 0);
       propTrend = `${propChangeValue >= 0 ? '+' : ''}${propChangeValue} 人`;
 
-      const herdChangeValue = ((curr.herdHhi || 0) - (prev.herdHhi || 0)) * 100;
+      const herdChangeValue = ((curr.herdEffect || 0) - (prev.herdEffect || 0)) * 100;
       herdTrend = `${herdChangeValue >= 0 ? '+' : ''}${herdChangeValue.toFixed(1)}%`;
     }
 
     return [
       {
         label: '群体极化率',
-        value: `${(status.polarization * 100).toFixed(1)}%`,
+        value: polValue !== null ? `${(polValue * 100).toFixed(1)}%` : '--',
         trend: polTrend,
-        up: !polTrend.startsWith('-'),
+        up: polValue !== null && !polTrend.startsWith('-'),
         icon: Zap,
         color: 'text-rose-500'
       },
       {
         label: '信息传播规模',
-        value: `${status.propagation?.scale || 0} 人`,
+        value: propValue !== null ? `${propValue} 人` : '--',
         trend: propTrend,
-        up: !propTrend.startsWith('-'),
+        up: propValue !== null && !propTrend.startsWith('-'),
         icon: TrendingUp,
         color: 'text-emerald-500'
       },
       {
         label: '从众效应指数',
-        value: `${((status.herdHhi || 0) * 100).toFixed(1)}%`,
+        value: herdValue !== null ? `${(herdValue * 100).toFixed(1)}%` : '--',
         trend: herdTrend,
-        up: !herdTrend.startsWith('-'),
+        up: herdValue !== null && !herdTrend.startsWith('-'),
         icon: Users,
         color: 'text-blue-500'
       },
-      {
-        label: '活跃节点密度',
-        value: status.activeAgents > 0 ? (status.activeAgents / (status.agents?.length || 1)).toFixed(2) : '0.00',
-        trend: history.length >= 2 ?
-              (((history[history.length - 1].activeAgents || 0) - (history[history.length - 2].activeAgents || 0)) >= 0 ? '+0.01' : '-0.01') :
-              '+0.00',
-        up: true,
-        icon: Activity,
-        color: 'text-amber-500'
-      },
     ];
-  }, [status, history]);
+  }, [latestMetrics, chartHistory]);
+
+  // Calculate active node density metric (updates with status polling)
+  const activeNodeDensityMetric = useMemo(() => {
+    return {
+      label: '活跃节点密度',
+      value: currentStatus.activeAgents > 0 ? (currentStatus.activeAgents / (currentStatus.agents?.length || 1)).toFixed(2) : '--',
+      trend: '--',
+      up: true,
+      icon: Activity,
+      color: 'text-amber-500'
+    };
+  }, [currentStatus.activeAgents, currentStatus.agents]);
+
+  // Combine core metrics and active node density
+  const metrics = [...coreMetrics, activeNodeDensityMetric];
 
   return (
     <div className="px-6 lg:px-12 py-10 space-y-8 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] min-h-screen">
@@ -324,51 +271,45 @@ export default function Overview() {
           </h1>
           <p className="text-text-tertiary mt-1 font-mono text-sm uppercase tracking-wider">Real-time simulation & cognitive trend analysis // Secure Environment</p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3 bg-bg-secondary/80 backdrop-blur-sm p-1.5 pl-4 rounded-lg border-2 border-accent/30">
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
-              <Database className="w-3 h-3" />
-              订阅源
-            </div>
-            <Select
-              value={subscriptionSource}
-              onValueChange={(val) => {
-                setSubscriptionSource(val);
-                // 只更新本地状态，不调用 API
-              }}
-            >
-              <SelectTrigger className="h-8 text-xs border-none bg-transparent w-40 text-text-primary focus:ring-0">
-                <SelectValue placeholder="选择订阅源" value={subscriptionSource} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="REDDIT">Reddit (Global)</SelectItem>
-                <SelectItem value="TWITTER">Twitter (X)</SelectItem>
-                <SelectItem value="TIKTOK">TikTok (Short-term)</SelectItem>
-                <SelectItem value="XHS">Xiaohongshu (Quality)</SelectItem>
-                <SelectItem value="PINTEREST">Pinterest (Visual)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <AnimatePresence mode="wait">
               <motion.div
-                key={status.running ? 'running' : 'stopped'}
+                key={currentStatus.state || currentStatus.originalState || (currentStatus.running ? 'running' : 'idle')}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 className={cn(
                   "h-9 flex items-center gap-2 px-4 rounded-lg border-2 text-xs font-bold uppercase tracking-widest",
-                  status.running && !status.paused ? "bg-accent/10 border-accent/50 text-accent shadow-[0_0_15px_rgba(0,242,255,0.2)]" :
-                  status.paused ? "bg-amber-500/10 border-amber-500/50 text-amber-500" : "bg-bg-tertiary border-border-default text-text-tertiary"
+                  // Use state field if available, otherwise fall back to running/paused
+                  (currentStatus.state === 'running' || currentStatus.running) && currentStatus.state !== 'paused' && !currentStatus.paused ? "bg-accent/10 border-accent/50 text-accent shadow-[0_0_15px_rgba(0,242,255,0.2)]" :
+                  (currentStatus.state === 'paused' || currentStatus.paused) ? "bg-amber-500/10 border-amber-500/50 text-amber-500" :
+                  currentStatus.state === 'complete' ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-500" :
+                  currentStatus.state === 'error' ? "bg-rose-500/10 border-rose-500/50 text-rose-500" :
+                  "bg-bg-tertiary border-border-default text-text-tertiary"
                 )}
               >
                 <div className={cn("w-2 h-2 rounded-full",
-                  status.running && !status.paused ? "bg-accent animate-pulse shadow-[0_0_8px_#00f2ff]" :
-                  status.paused ? "bg-amber-500" : "bg-text-muted"
+                  (currentStatus.state === 'running' || currentStatus.running) && currentStatus.state !== 'paused' && !currentStatus.paused ? "bg-accent animate-pulse shadow-[0_0_8px_#00f2ff]" :
+                  (currentStatus.state === 'paused' || currentStatus.paused) ? "bg-amber-500" :
+                  currentStatus.state === 'complete' ? "bg-emerald-500" :
+                  currentStatus.state === 'error' ? "bg-rose-500" :
+                  "bg-text-muted"
                 )}></div>
-                {status.running && !status.paused ? 'Active' : status.paused ? 'Paused' : 'Idle'}
+                {
+                  // Use state field if available
+                  currentStatus.state ?
+                    (currentStatus.state === 'running' ? 'Active' :
+                     currentStatus.state === 'paused' ? 'Paused' :
+                     currentStatus.state === 'complete' ? 'Complete' :
+                     currentStatus.state === 'error' ? 'Error' :
+                     currentStatus.state === 'ready' ? 'Ready' :
+                     currentStatus.state.charAt(0).toUpperCase() + currentStatus.state.slice(1))
+                    :
+                    // Fall back to running/paused for compatibility
+                    (currentStatus.running && !currentStatus.paused ? 'Active' : currentStatus.paused ? 'Paused' : 'Idle')
+                }
               </motion.div>
             </AnimatePresence>
 
@@ -434,23 +375,23 @@ export default function Overview() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] font-bold text-text-tertiary uppercase">
                     <span>极化指数</span>
-                    <span className="text-rose-500">{(status.polarization * 100).toFixed(0)}</span>
+                    <span className="text-rose-500">{((latestMetrics?.polarization?.average_magnitude ?? 0) * 100).toFixed(0)}</span>
                   </div>
-                  <Progress value={status.polarization * 100} className="h-1 bg-bg-tertiary" />
+                  <Progress value={(latestMetrics?.polarization?.average_magnitude ?? 0) * 100} className="h-1 bg-bg-tertiary" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] font-bold text-text-tertiary uppercase">
                     <span>传播规模</span>
-                    <span className="text-emerald-500">{status.propagation?.scale || 0}</span>
+                    <span className="text-emerald-500">{latestMetrics?.propagation?.scale || 0}</span>
                   </div>
-                  <Progress value={Math.min(((status.propagation?.scale || 0) / Math.max(status.activeAgents || 1, 1)) * 100, 100)} className="h-1 bg-bg-tertiary" />
+                  <Progress value={Math.min(((latestMetrics?.propagation?.scale || 0) / Math.max(currentStatus.activeAgents || 1, 1)) * 100, 100)} className="h-1 bg-bg-tertiary" />
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] font-bold text-text-tertiary uppercase">
                     <span>从众效应</span>
-                    <span className="text-amber-500">{((status.herdHhi || 0) * 100).toFixed(0)}</span>
+                    <span className="text-amber-500">{((latestMetrics?.herdEffect?.conformity_index ?? 0) * 100).toFixed(0)}</span>
                   </div>
-                  <Progress value={(status.herdHhi || 0) * 100} className="h-1 bg-bg-tertiary" />
+                  <Progress value={(latestMetrics?.herdEffect?.conformity_index ?? 0) * 100} className="h-1 bg-bg-tertiary" />
                 </div>
               </div>
             </div>
@@ -479,64 +420,6 @@ export default function Overview() {
         </Card>
       </div>
 
-      {/* Combined Chart Section (Situational Awareness) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-accent/10 border border-accent/20">
-              <TrendingUp className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold uppercase tracking-tight">综合态势趋势演化 // SITUATIONAL_AWARENESS</h2>
-              <p className="text-xs text-text-tertiary font-mono">MODEL: COGNITIVE_DYNAMICS_V4 // REAL-TIME SENSING</p>
-            </div>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest border-accent/30 text-accent hover:bg-accent/10"
-            onClick={() => setShowAlgorithm(!showAlgorithm)}
-          >
-            <Info className="w-3.5 h-3.5" />
-            分析算法说明
-          </Button>
-        </div>
-
-        <AnimatePresence>
-          {showAlgorithm && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="p-4 rounded-lg bg-bg-primary border border-accent/30 text-xs text-text-tertiary leading-relaxed grid grid-cols-1 md:grid-cols-3 gap-6 font-mono">
-                <div className="space-y-2">
-                  <h4 className="font-bold text-accent uppercase tracking-widest flex items-center gap-2">
-                    <Target className="w-3 h-3" /> 极化计算模型
-                  </h4>
-                  <p>采用 Esteban-Ray 极化测度算法，量化认知极端化程度。</p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-                    <BarChart3 className="w-3 h-3" /> 传播动力学
-                  </h4>
-                  <p>基于改进的 SIRS 模型，实时计算信息渗透速率。</p>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                    <Network className="w-3 h-3" /> 从众效应评估
-                  </h4>
-                  <p>利用 Asch 范式数字化模型，监测群体压力影响。</p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <SituationalAwarenessChart />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Deduction Control Section */}
         <Card className={cn("lg:col-span-6 p-8 space-y-8", industrialCardClass)}>
@@ -557,51 +440,23 @@ export default function Overview() {
                 <Select
                   value={selectedTopic}
                   onValueChange={(val) => {
-                    setSelectedTopic(val);
-                    // 只更新本地状态，不调用 API
+                    if (!topicsLoading) {
+                      setSelectedTopic(val);
+                    }
                   }}
                 >
-                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
-                    <SelectValue placeholder="选择话题" value={selectedTopic} />
+                  <SelectTrigger className={cn(
+                    "bg-bg-primary border-accent/20 text-text-primary",
+                    topicsLoading && "opacity-50 cursor-not-allowed"
+                  )}>
+                    <SelectValue placeholder={topicsLoading ? "加载话题中..." : "选择话题"} value={selectedTopic} />
                   </SelectTrigger>
                   <SelectContent>
-                    {availableTopics.map((topic: { id: string; filename: string; seed_posts: string[]; agent_profiles_count: number }) => (
+                    {topics?.map((topic) => (
                       <SelectItem key={topic.id} value={topic.id}>
-                        {topic.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                        <span className="text-xs text-text-muted ml-2">
-                          ({topic.agent_profiles_count} profiles)
-                        </span>
+                        {topic.name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
-                  <Users2 className="w-3 h-3" />
-                  用户群体匹配
-                </div>
-                <Select
-                  value={userGroupMode}
-                  onValueChange={(val: 'follow' | 'custom') => setUserGroupMode(val)}
-                >
-                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
-                    <SelectValue placeholder="选择模式" value={userGroupMode} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="follow">
-                      跟随话题配置
-                      <span className="text-xs text-text-muted ml-2 block">
-                        使用话题预定义的 Agent Profiles
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="custom" disabled>
-                      自定义数据集
-                      <span className="text-xs text-text-muted ml-2 block">
-                        (即将推出)
-                      </span>
-                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -626,69 +481,67 @@ export default function Overview() {
                 />
               </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-end">
-                  <div className="flex flex-col">
-                    <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">采样率</label>
-                    <span className="text-[9px] text-text-muted font-mono mt-0.5">每步活跃 Agents 比例</span>
-                  </div>
-                  <span className="text-xl font-mono font-bold text-accent">{samplingRate[0]}%</span>
-                </div>
-                <Slider
-                  value={samplingRate}
-                  onValueChange={(val) => {
-                    setSamplingRate(val);
-                    // 只更新本地状态，不调用 API
-                  }}
-                  min={1}
-                  max={100}
-                  step={1}
-                  className="py-2"
-                />
-                <div className="flex justify-between text-[9px] text-text-muted font-mono">
-                  <span>1% (采样)</span>
-                  <span>100% (全部)</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <Button
                   className={cn("h-12 rounded-lg font-bold gap-2 shadow-lg transition-all active:scale-95",
-                    status.running && !status.paused ? "bg-bg-tertiary hover:bg-border-strong text-text-primary" : "bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20"
+                    // Use state field if available, otherwise fall back to running/paused
+                    ((currentStatus.state === 'running' || currentStatus.running) && currentStatus.state !== 'paused' && !currentStatus.paused) ?
+                      "bg-bg-tertiary hover:bg-border-strong text-text-primary" :
+                      "bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20"
                   )}
                   onClick={async () => {
                     try {
-                      if (status.running && !status.paused) {
+                      // Use state field if available
+                      const isRunning = currentStatus.state ? currentStatus.state === 'running' : (currentStatus.running && !currentStatus.paused);
+
+                      if (isRunning) {
                         // 暂停
                         await simulationApi.pause();
-                        setStatus({ ...status, paused: true });
+                        // 重新获取状态
+                        const statusRes = await simulationApi.getStatus();
+                        setStatus(statusRes.data);
                         toast.info('仿真已暂停');
                       } else {
-                        // 启动：先应用配置，再启动
+                        // 启动：只配置模拟
                         await simulationApi.updateConfig({
-                          platform: subscriptionSource,
-                          recsys: recsys,
+                          platform: 'twitter',
                           agentCount: agentCount[0],
-                          topics: [selectedTopic],
-                          regions: [],
-                          sampling_config: {
-                            enabled: samplingRate[0] < 100,
-                            rate: samplingRate[0] / 100,
-                            strategy: 'random',
-                            min_active: 5,
-                            seed: 42
-                          }
+                          maxSteps: 100
                         });
-                        setStatus({ ...status, running: true, paused: false });
-                        toast.success(`仿真已启动: ${selectedTopic} (${agentCount[0]} agents, ${samplingRate[0]}% sampling)`);
+
+                        // 激活话题（如果有选择话题）
+                        if (selectedTopic) {
+                          await simulationApi.activateTopic(selectedTopic);
+                        }
+
+                        // 重新获取状态
+                        const statusRes = await simulationApi.getStatus();
+                        setStatus(statusRes.data);
+
+                        toast.success(`仿真已配置: ${selectedTopic} (${agentCount[0]} agents)`);
                       }
                     } catch (e) {
+                      console.error('启动/暂停失败:', e);
                       toast.error('操作失败');
                     }
                   }}
                 >
-                  {status.running && !status.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                  {status.running && !status.paused ? '暂停' : '启动'}
+                  {
+                    // Use state field if available, otherwise fall back to running/paused
+                    (currentStatus.state ?
+                      (currentStatus.state === 'running' ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                      :
+                      (currentStatus.running && !currentStatus.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                    )
+                  }
+                  {
+                    // Use state field if available, otherwise fall back to running/paused
+                    (currentStatus.state ?
+                      (currentStatus.state === 'running' ? '暂停' : '启动')
+                      :
+                      (currentStatus.running && !currentStatus.paused ? '暂停' : '启动')
+                    )
+                  }
                 </Button>
                 <Button
                   variant="secondary"
@@ -697,11 +550,12 @@ export default function Overview() {
                   onClick={async () => {
                     setIsStepping(true);
                     try {
-                      await simulationApi.step();
+                      await simulationApi.step('auto');
                       const res = await simulationApi.getStatus();
                       setStatus(res.data);
                       toast.success('步进完成');
                     } catch (e) {
+                      console.error('步进失败:', e);
                       toast.error('步进失败');
                     } finally {
                       setIsStepping(false);
@@ -711,173 +565,100 @@ export default function Overview() {
                   <StepForward className={cn("w-4 h-4", isStepping && "animate-spin")} />
                   单步
                 </Button>
+                <Button
+                  variant="secondary"
+                  className="h-12 rounded-lg font-bold gap-2 border-rose-500/30 hover:bg-rose-500/10 transition-all active:scale-95"
+                  onClick={async () => {
+                    try {
+                      await simulationApi.reset();
+                      // 重新获取状态
+                      const statusRes = await simulationApi.getStatus();
+                      setStatus(statusRes.data);
+                      toast.success('仿真已重置');
+                    } catch (e) {
+                      console.error('重置失败:', e);
+                      toast.error('重置失败');
+                    }
+                  }}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  重置
+                </Button>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Guided Decision Section - Intervention Hub */}
-        <Card className={cn("lg:col-span-6 p-8 space-y-6", industrialCardClass)}>
-          <div className="flex items-center justify-between">
+        {/* Combined Chart Section (Situational Awareness) */}
+        <div className="lg:col-span-6 space-y-4">
+          <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-accent/10 border border-accent/20">
-                <Lightbulb className="w-5 h-5 text-accent" />
+                <TrendingUp className="w-5 h-5 text-accent" />
               </div>
-              <h2 className="text-lg font-bold uppercase tracking-tight">干预决策中心 // INTERVENTION_HUB</h2>
+              <div>
+                <h2 className="text-lg font-bold uppercase tracking-tight">综合态势趋势演化 // SITUATIONAL_AWARENESS</h2>
+                <p className="text-xs text-text-tertiary font-mono">MODEL: COGNITIVE_DYNAMICS_V4 // REAL-TIME SENSING</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge className="text-[10px] font-mono bg-accent/10 text-accent border-accent/20">
-                Step: {status.currentStep}
-              </Badge>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest border-accent/30 text-accent hover:bg-accent/10"
+              onClick={() => setShowAlgorithm(!showAlgorithm)}
+            >
+              <Info className="w-3.5 h-3.5" />
+              分析算法说明
+            </Button>
           </div>
 
-          <div className="space-y-4">
-            {/* Intervention Type Selection */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">
-                选择干预类型
-              </label>
-              <ScrollArea className="h-[200px] rounded-lg border border-accent/20 bg-bg-primary/50">
-                <div className="p-3 space-y-2">
-                  {interventionProfiles.map((profile) => (
-                    <div
-                      key={profile.name}
-                      className={cn(
-                        "p-3 rounded-lg border-2 cursor-pointer transition-all",
-                        selectedInterventionTypes.includes(profile.name)
-                          ? "bg-accent/10 border-accent"
-                          : "bg-bg-primary border-border-default hover:border-accent/30"
-                      )}
-                      onClick={() => toggleInterventionType(profile.name)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className={cn(
-                              "w-4 h-4 rounded border-2 flex items-center justify-center",
-                              selectedInterventionTypes.includes(profile.name)
-                                ? "bg-accent border-accent"
-                                : "border-text-muted"
-                            )}>
-                              {selectedInterventionTypes.includes(profile.name) && (
-                                <div className="w-2 h-2 rounded-full bg-bg-primary" />
-                              )}
-                            </div>
-                            <span className="text-sm font-bold text-text-primary">
-                              {profile.description}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-text-muted font-mono mt-1">
-                            {profile.comment_style}
-                          </p>
-                          <p className="text-[9px] text-text-tertiary mt-2 line-clamp-2">
-                            {profile.initial_posts[0]}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-
-            {/* Intervention Count Input */}
-            <div className="space-y-3">
-              <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">
-                每种类型的 Agent 数量
-              </label>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-8 rounded-lg p-0 border-accent/30"
-                  onClick={() => setInterventionCount(Math.max(1, interventionCount - 1))}
-                  disabled={interventionCount <= 1}
-                >
-                  -
-                </Button>
-                <div className="flex-1 text-center">
-                  <span className="text-2xl font-mono font-bold text-accent">{interventionCount}</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 w-8 rounded-lg p-0 border-accent/30"
-                  onClick={() => setInterventionCount(Math.min(10, interventionCount + 1))}
-                  disabled={interventionCount >= 10}
-                >
-                  +
-                </Button>
-              </div>
-              <p className="text-[9px] text-text-tertiary font-mono text-center">
-                总计将添加: {selectedInterventionTypes.length * interventionCount} 个 agents
-              </p>
-            </div>
-
-            {/* Apply Intervention Button */}
-            <Button
-              className={cn(
-                "w-full h-12 rounded-lg font-bold gap-2 transition-all",
-                selectedInterventionTypes.length === 0 || isIntervening
-                  ? "bg-bg-tertiary text-text-muted cursor-not-allowed"
-                  : "bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20"
-              )}
-              onClick={handleApplyIntervention}
-              disabled={selectedInterventionTypes.length === 0 || isIntervening}
-            >
-              {isIntervening ? (
-                <>
-                  <Cpu className="w-4 h-4 animate-spin" />
-                  正在添加干预 Agents...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4" />
-                  应用干预 ({selectedInterventionTypes.length} 种类型 × {interventionCount})
-                </>
-              )}
-            </Button>
-
-            {/* Intervention Result */}
-            {interventionResult && (
+          <AnimatePresence>
+            {showAlgorithm && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
-                className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-2"
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
               >
-                <div className="flex items-center gap-2 text-emerald-500">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold uppercase tracking-widest">干预成功</span>
-                </div>
-                <div className="text-[10px] text-text-secondary space-y-1">
-                  <p>✓ 已添加 {interventionResult.total || 0} 个受控 agents</p>
-                  {interventionResult.created_agents && interventionResult.created_agents.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <p className="font-mono text-[9px] text-text-tertiary uppercase">创建的 Agents:</p>
-                      {interventionResult.created_agents.slice(0, 5).map((agent: any, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 text-[9px] font-mono">
-                          <span className="text-accent">ID:{agent.agent_id}</span>
-                          <span className="text-text-primary">{agent.user_name}</span>
-                          <span className="text-text-tertiary">({agent.type})</span>
-                        </div>
-                      ))}
-                      {interventionResult.created_agents.length > 5 && (
-                        <p className="text-[9px] text-text-tertiary italic">
-                          ... 还有 {interventionResult.created_agents.length - 5} 个 agents
-                        </p>
-                      )}
-                    </div>
-                  )}
+                <div className="p-4 rounded-lg bg-bg-primary border border-accent/30 text-xs text-text-tertiary leading-relaxed grid grid-cols-1 md:grid-cols-3 gap-6 font-mono">
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-accent uppercase tracking-widest flex items-center gap-2">
+                      <Zap className="w-3 h-3" /> 极化计算模型
+                    </h4>
+                    <p>采用 Esteban-Ray 极化测度算法，量化认知极端化程度。</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                      <BarChart3 className="w-3 h-3" /> 传播动力学
+                    </h4>
+                    <p>基于改进的 SIRS 模型，实时计算信息渗透速率。</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
+                      <Activity className="w-3 h-3" /> 从众效应评估
+                    </h4>
+                    <p>利用 Asch 范式数字化模型，监测群体压力影响。</p>
+                  </div>
                 </div>
               </motion.div>
             )}
-          </div>
-        </Card>
+          </AnimatePresence>
+
+          <SituationalAwarenessChart currentStep={currentStep || 0} />
+        </div>
       </div>
 
       {/* Analytics Merge Section */}
       <div className="pt-12 border-t border-accent/20 space-y-8">
+        {/* Loading State for History */}
+        {historyLoading && (
+          <div className="col-span-full flex items-center justify-center p-12">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm text-text-tertiary">加载历史指标数据中...</p>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex-1">
             <h2 className="text-2xl font-bold tracking-tight flex items-center gap-3 text-accent drop-shadow-[0_0_10px_rgba(0,242,255,0.3)]">
@@ -936,7 +717,7 @@ export default function Overview() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="currentStep" hide />
+                    <XAxis dataKey="currentStep" stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} domain={[0, 1]} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '10px' }}
@@ -965,7 +746,7 @@ export default function Overview() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="currentStep" hide />
+                    <XAxis dataKey="currentStep" stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} />
                     <YAxis stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '10px' }} />
                     <Line type="stepAfter" dataKey="propagation" stroke="#10b981" strokeWidth={2} dot={false} />
@@ -986,7 +767,7 @@ export default function Overview() {
               观点分布
             </h3>
             <div className="flex-1 min-h-0 flex flex-col justify-center">
-              {opinionDistribution.length > 0 ? (
+              {opinionDistribution && opinionDistribution.length > 0 ? (
                 <>
                   <ResponsiveContainer width="100%" height={120}>
                     <BarChart data={opinionDistribution} layout="vertical" margin={{ left: -20 }}>
@@ -1014,7 +795,10 @@ export default function Overview() {
                 </>
               ) : (
                 <div className="flex items-center justify-center h-full text-text-tertiary text-xs">
-                  等待数据...
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                    <span>加载观点分布数据中...</span>
+                  </div>
                 </div>
               )}
             </div>

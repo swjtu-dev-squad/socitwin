@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge, Tabs, TabsList, TabsTrigger, Input } from '@/components/ui';
-import { Database, Network, BrainCircuit, Users, FileJson, Share2, Sparkles, Activity, PlayCircle, FileText } from 'lucide-react';
+import { useState } from 'react';
+import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Badge } from '@/components/ui';
+import { Database, Network, BrainCircuit, Users, FileJson, Share2, Sparkles, Activity, PlayCircle } from 'lucide-react';
 import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph';
 import { SubscriptionPanel } from '@/components/SubscriptionPanel';
 import { toast } from 'sonner';

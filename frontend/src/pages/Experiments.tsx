@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { FlaskConical, BarChart3, Archive, Play, Plus, Search, Filter, ChevronRight, Settings2 } from 'lucide-react';
+import { FlaskConical, Archive, Play, Plus, Search, Filter, ChevronRight, Settings2 } from 'lucide-react';
 import { Card, Button, Badge, Input, ScrollArea } from '@/components/ui';
-import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import type { PlatformStrategy, InferenceTask } from '@/lib/labTypes';
 import { LabParamSettings } from '@/components/LabParamSettings';

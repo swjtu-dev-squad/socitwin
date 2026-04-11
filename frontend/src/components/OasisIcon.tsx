@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface SocitwinIconProps {
   className?: string;
   size?: number;

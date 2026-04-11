@@ -7,6 +7,7 @@ import { Network, List, Search } from 'lucide-react';
 import { getAgentDetail, getAgentMonitor } from '@/lib/agentMonitorApi';
 import type { AgentDetailResponse, AgentDirtyEvent, AgentMonitorResponse, AgentOverview } from '@/lib/agentMonitorTypes';
 import { initSocket } from '@/lib/socket';
+import { displayPercentageFormatted, displayMetricFormatted } from '@/lib/safeDisplay';
 
 export default function SocialNetworkMonitor() {
   const [monitor, setMonitor] = useState<AgentMonitorResponse | null>(null);
@@ -152,9 +153,9 @@ export default function SocialNetworkMonitor() {
         </div>
         
         <div className="flex gap-8 px-6 border-l border-border-default">
-          <StatMini label="群体极化率" value={`${((monitor?.simulation.polarization || 0) * 100).toFixed(1)}%`} color="text-rose-500" />
-          <StatMini label="信息传播速度" value={`${(monitor?.simulation.propagationVelocity || 0).toFixed(1)} msg/s`} color="text-emerald-500" />
-          <StatMini label="从众效应指数" value={`${((monitor?.simulation.herdIndex || 0) * 100).toFixed(1)}%`} color="text-blue-500" />
+          <StatMini label="群体极化率" value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)} color="text-rose-500" />
+          <StatMini label="信息传播速度" value={`${displayMetricFormatted(monitor?.simulation.propagationVelocity)} msg/s`} color="text-emerald-500" />
+          <StatMini label="从众效应指数" value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)} color="text-blue-500" />
         </div>
       </header>
 

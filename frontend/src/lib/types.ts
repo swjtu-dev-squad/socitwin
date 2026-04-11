@@ -26,8 +26,14 @@ export interface LogEntry {
 
 
 export interface SimulationStatus {
+  // Backend state field (enum: uninitialized, configured, ready, running, paused, complete, error)
+  state?: string;
+  originalState?: string; // Keep for reference
+
+  // Frontend compatibility fields
   running: boolean;
   paused: boolean;
+
   currentStep: number;
   currentRound?: number;     // 🆕 Current round number (10 steps = 1 round)
   activeAgents: number;
@@ -120,4 +126,123 @@ export interface GenerateUsersResponse {
     bio: string;
     interests: string[];
   }>;
+}
+
+// ========== Topic Types (matching backend/app/models/topics.py) ==========
+
+export interface TopicInitialPost {
+  content: string;
+  agent_id: number;
+}
+
+export interface TopicSettings {
+  trigger_refresh: boolean;
+}
+
+export interface Topic {
+  id: string;
+  name: string;
+  description: string;
+  initial_post: TopicInitialPost;
+  settings: TopicSettings;
+}
+
+export interface TopicListItem {
+  id: string;
+  name: string;
+  description: string;
+  has_initial_post?: boolean;
+  settings_trigger_refresh?: boolean;
+}
+
+export interface TopicListResponse {
+  success: boolean;
+  count: number;
+  topics: TopicListItem[];
+}
+
+export interface TopicDetail extends Topic {}
+
+export interface TopicActivationResult {
+  success: boolean;
+  message: string;
+  topic_id: string;
+  initial_post_created?: boolean;
+  agents_refreshed?: number;
+  execution_time?: number;
+  error?: string;
+}
+
+// ========== Metrics Types (matching backend/app/models/metrics.py) ==========
+
+export interface PropagationMetrics {
+  scale: number;
+  depth: number;
+  max_breadth: number;
+  post_id?: number;
+  calculated_at: string;
+}
+
+export interface AgentPolarization {
+  agent_id: number;
+  agent_name: string;
+  direction: string;
+  magnitude: number;
+  reasoning?: string;
+}
+
+export interface PolarizationMetrics {
+  average_direction: string;
+  average_magnitude: number;
+  total_agents_evaluated: number;
+  agent_polarization?: AgentPolarization[];
+  calculated_at: string;
+}
+
+export interface HotPost {
+  post_id: number;
+  user_id: number;
+  content: string;
+  net_score: number;
+  hot_score: number;
+  created_at: string;
+}
+
+export interface HerdEffectMetrics {
+  average_post_score: number;
+  disagree_score: number;
+  conformity_index: number;
+  hot_posts?: HotPost[];
+  calculated_at: string;
+}
+
+export interface MetricsSummary {
+  propagation: PropagationMetrics;
+  polarization: PolarizationMetrics;
+  herd_effect: HerdEffectMetrics;
+  current_step: number;
+  timestamp: string;
+}
+
+// ========== Metrics History Types (from database) ==========
+
+export interface MetricsHistoryEntry {
+  id: number;
+  step_number: number;
+  metric_type: 'propagation' | 'polarization' | 'herd_effect';
+  metric_data: PropagationMetrics | PolarizationMetrics | HerdEffectMetrics;
+  calculated_at: string;
+}
+
+export interface MetricsHistoryResponse {
+  history: MetricsHistoryEntry[];
+  total_count: number;
+}
+
+// Chart data point (step-based)
+export interface ChartDataPoint {
+  step: number;
+  polarization?: number;       // from polarization.average_magnitude
+  propagation?: number;        // from propagation.scale
+  herdEffect?: number;         // from herd_effect.conformity_index
 }

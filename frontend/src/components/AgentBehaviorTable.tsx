@@ -1,6 +1,7 @@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } from '@/components/ui';
 import type { AgentOverview } from '@/lib/agentMonitorTypes';
 import { getDisplayMemoryContent } from '@/lib/agentMemoryDisplay';
+import { displayMetric, displayPercentage } from '@/lib/safeDisplay';
 import { cn } from '@/lib/utils';
 
 export function AgentBehaviorTable({
@@ -46,8 +47,8 @@ export function AgentBehaviorTable({
               <TableCell>
                 <Badge variant="outline" className="text-[10px]">{agent.roleLabel || agent.role}</Badge>
               </TableCell>
-              <TableCell className="font-mono text-accent">{agent.influence}</TableCell>
-              <TableCell className="font-mono text-emerald-500">{agent.activity}%</TableCell>
+              <TableCell className="font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
+              <TableCell className="font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
               <TableCell>
                 <Badge className="bg-bg-tertiary text-text-secondary border-border-default text-[9px]">
                   {agent.lastAction?.type || '-'}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Play, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import { runExperiment, ExperimentFormState, ExperimentRunResult } from '../lib/experimentApi';
+import { runExperiment, type ExperimentFormState, type ExperimentRunResult } from '../lib/experimentApi';
 
 const RECOMMENDERS = [
   { id: 'tiktok', label: 'TikTok', desc: '短期兴趣 + 完播率' },

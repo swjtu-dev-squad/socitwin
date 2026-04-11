@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Download, ChevronDown, ChevronUp } from 'lucide-react';
-import { getExperimentResult, ExperimentRunResult } from '../lib/experimentArchiveApi';
+import { getExperimentResult, type ExperimentRunResult } from '../lib/experimentArchiveApi';
 
 interface Props {
   experimentId: string | null;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSimulationStore } from '@/lib/store';
 import { Card, Badge, Button, Input, ScrollArea, Switch } from '@/components/ui';
-import { Users, MessageCircle, Send, Search, Hash, RefreshCw, MessageSquare, Video } from 'lucide-react';
+import { MessageCircle, Send, Search, Hash, RefreshCw, MessageSquare, Video } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils';
 const Twitter = MessageCircle;
 const Instagram = MessageCircle;
 const Facebook = MessageCircle;
-const Plus = MessageCircle;
 
 // Mock data for platforms
 const PLATFORMS = [

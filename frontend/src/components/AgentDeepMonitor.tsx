@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui';
 import { getDisplayMemoryContent } from '@/lib/agentMemoryDisplay';
 import type { AgentDetailResponse, AgentMemorySnapshot } from '@/lib/agentMonitorTypes';
+import { displayMetric, displayPercentage, displayCount, displayText, displayLocation, displayRatio } from '@/lib/safeDisplay';
 
 type AgentDeepMonitorProps = {
   detail: AgentDetailResponse | null;
@@ -41,11 +42,11 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
         <div className="grid grid-cols-2 gap-4">
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">职业</p>
-              <p className="text-sm font-bold text-text-primary">{profile.occupation || '未知'}</p>
+              <p className="text-sm font-bold text-text-primary">{displayText(profile.occupation) || '未知'}</p>
            </div>
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">地址</p>
-              <p className="text-sm font-bold text-text-primary">{[profile.country, profile.city].filter(Boolean).join(' / ') || '未知'}</p>
+              <p className="text-sm font-bold text-text-primary">{displayLocation(profile.country, profile.city) || '未知'}</p>
            </div>
         </div>
         <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
@@ -116,19 +117,19 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
         <div className="grid grid-cols-2 gap-4">
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">影响力 (Influence)</p>
-              <p className="text-xl font-mono text-rose-500">{status.influence}</p>
+              <p className="text-xl font-mono text-rose-500">{displayMetric(status.influence)}</p>
            </div>
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">活跃度 (Activity)</p>
-              <p className="text-xl font-mono text-emerald-500">{status.activity}%</p>
+              <p className="text-xl font-mono text-emerald-500">{displayPercentage(status.activity)}</p>
            </div>
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">关注 / 粉丝</p>
-              <p className="text-sm font-mono text-text-primary">{status.followingCount} / {status.followerCount}</p>
+              <p className="text-sm font-mono text-text-primary">{displayRatio(status.followingCount, status.followerCount)}</p>
            </div>
            <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
               <p className="text-[9px] text-text-muted font-bold">交互次数</p>
-              <p className="text-sm font-mono text-text-primary">{status.interactionCount}</p>
+              <p className="text-sm font-mono text-text-primary">{displayCount(status.interactionCount)}</p>
            </div>
         </div>
       </div>
@@ -171,7 +172,7 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
                 <span>{formatTime(post.timestamp)}</span>
               </div>
               <p className="mt-2 text-sm text-text-primary">{post.content}</p>
-              <p className="mt-1 text-[11px] text-text-muted">Likes: {post.numLikes ?? 0}</p>
+              <p className="mt-1 text-[11px] text-text-muted">Likes: {displayMetric(post.numLikes)}</p>
             </div>
           )) : <p className="text-sm text-text-tertiary">暂无可见帖子</p>}
         </div>

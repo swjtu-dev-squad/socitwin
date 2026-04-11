@@ -1,9 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useSimulationStore } from '@/lib/store';
 import {
   Card,
-  Button,
-  Input,
   ScrollArea,
   Badge,
   Table,
@@ -15,17 +11,13 @@ import {
 } from '@/components/ui';
 import {
   Terminal,
-  Database,
   Cpu,
   Activity,
   Server,
   Network,
-  Zap,
-  CheckCircle2,
   Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
 
 // Mock data
 const MOCK_AGENTS = Array.from({ length: 12 }, (_, i) => ({
@@ -56,8 +48,6 @@ const MOCK_LLM_LOGS = Array.from({ length: 20 }, (_, i) => ({
 }));
 
 export default function Logs() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   return (
     <div className="px-6 lg:px-12 py-10 space-y-8 h-full flex flex-col overflow-hidden">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">

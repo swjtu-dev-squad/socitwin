@@ -16,10 +16,10 @@ export default function TypewriterText({
 
   useEffect(() => {
     let index = 0;
-    let timer: NodeJS.Timeout;
+    let timer: number;
 
     const startTyping = () => {
-      timer = setInterval(() => {
+      timer = window.setInterval(() => {
         if (index < text.length) {
           setDisplayText(text.slice(0, index + 1));
           index++;

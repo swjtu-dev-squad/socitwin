@@ -150,3 +150,46 @@ export interface AgentDirtyEvent {
   currentStep: number;
   updatedAt: string;
 }
+
+// ============================================================================
+// Backend Response Types (from backend/app/models/simulation.py)
+// ============================================================================
+
+/**
+ * Backend Agent model matching Python class Agent(BaseModel)
+ * From: backend/app/models/simulation.py
+ */
+export interface BackendAgent {
+  id: number;
+  user_name: string;
+  name: string;
+  description: string;
+  bio?: string | null;
+  status: string;
+  polarization: number;
+  influence: number;
+  activity: number;
+  interests: string[];
+}
+
+/**
+ * Backend SimulationStatus model matching Python class SimulationStatus(BaseModel)
+ * From: backend/app/models/simulation.py
+ */
+export interface BackendSimulationStatus {
+  state: string;
+  current_step: number;
+  total_steps: number;
+  agent_count: number;
+  platform: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  background_task_id?: string | null;
+  total_posts: number;
+  total_interactions: number;
+  polarization: number;
+  active_agents: number;
+  agents: BackendAgent[];
+  metrics_summary?: any;
+  error_message?: string | null;
+}

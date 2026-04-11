@@ -33,6 +33,7 @@ interface SimulationStore {
 
 export const useSimulationStore = create<SimulationStore>((set) => ({
   status: {
+    state: 'uninitialized',
     running: false,
     paused: false,
     currentStep: 0,

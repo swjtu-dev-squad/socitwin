@@ -1,15 +1,12 @@
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   UserRound,
   Users,
   MessageSquare,
-  BarChart3,
   Settings as SettingsIcon,
   MessageCircle,
   Eye,
-  FlaskConical,
-  LayoutDashboard
+  FlaskConical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';

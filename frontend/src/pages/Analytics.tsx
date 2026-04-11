@@ -337,7 +337,7 @@ export default function Analytics() {
                     contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
                     itemStyle={{ color: '#10b981', fontSize: '12px', fontWeight: 'bold' }}
                     labelStyle={{ color: '#1A1A1A', fontSize: '10px', marginBottom: '4px' }}
-                    formatter={(value: number) => [`${value.toFixed(3)} msg/s`, '速度']}
+                    formatter={(value: any) => [`${Number(value).toFixed(3)} msg/s`, '速度']}
                   />
                   <Line
                     type="monotone"
@@ -393,7 +393,7 @@ export default function Analytics() {
                     contentStyle={{ backgroundColor: '#0D0D0D', border: '1px solid #24201E', borderRadius: '12px' }}
                     itemStyle={{ color: '#3b82f6', fontSize: '12px', fontWeight: 'bold' }}
                     labelStyle={{ color: '#1A1A1A', fontSize: '10px', marginBottom: '4px' }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'HHI']}
+                    formatter={(value: any) => [`${Number(value).toFixed(1)}%`, 'HHI']}
                   />
                   <Line
                     type="monotone"

@@ -70,23 +70,6 @@
 
 ---
 
-## 🏗️ Architecture
-
-```
-socitwin/
-├── 📁 backend/              # FastAPI + OASIS simulation engine
-│   ├── 📁 app/
-│   │   ├── 📁 api/         # REST API endpoints
-│   │   ├── 📁 core/        # Core services (OASIS manager, config)
-│   │   ├── 📁 models/      # Pydantic data models
-│   │   ├── 📁 services/    # Business logic layer
-│   │   └── 📁 config/      # Topic configurations
-│   ├── 📁 test/            # E2E testing framework
-│   ├── 📁 data/            # Simulation databases
-│   └── 📁 test-result/     # Test results
-├── 📁 frontend/            # React + Vite web interface
-└── 📁 docs/                # Documentation
-```
 
 ### Technology Stack
 
@@ -176,35 +159,6 @@ curl -X POST http://localhost:8000/api/sim/step \
 
 ---
 
-## 📚 API Documentation
-
-### Core Endpoints
-
-#### Simulation Management
-- `POST /api/sim/config` - Configure simulation
-- `POST /api/sim/step` - Execute simulation step
-- `GET /api/sim/status` - Get simulation status
-- `POST /api/sim/pause` - Pause simulation
-- `POST /api/sim/resume` - Resume simulation
-- `POST /api/sim/reset` - Reset simulation
-
-#### Topics
-- `GET /api/topics` - List available topics
-- `GET /api/topics/{id}` - Get topic details
-- `POST /api/topics/{id}/activate` - Activate topic
-- `POST /api/topics/reload` - Reload topic configuration
-
-#### Agents
-- `GET /api/sim/agents` - List all agents
-- `GET /api/sim/actions` - List available actions
-
-### Interactive Documentation
-
-Once the server is running, visit:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
----
 
 ## 🧪 Testing
 

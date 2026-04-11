@@ -1,4 +1,9 @@
 import type { AgentDetailResponse, AgentMonitorResponse } from './agentMonitorTypes';
+import {
+  transformToMonitorResponse,
+  transformToAgentDetail,
+  type BackendSimulationStatus,
+} from './agentDataTransform';
 
 async function readJson<T>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => null);
@@ -10,23 +15,40 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function getAgentMonitor(): Promise<AgentMonitorResponse> {
-  const response = await fetch('/api/agents/monitor', {
+  // Call real backend endpoint /api/sim/status
+  const response = await fetch('/api/sim/status', {
     method: 'GET',
     cache: 'no-store',
     headers: {
       'Accept': 'application/json',
     },
   });
-  return readJson<AgentMonitorResponse>(response);
+
+  const backendData = await readJson<BackendSimulationStatus>(response);
+
+  // Transform backend data to frontend format
+  return transformToMonitorResponse(backendData);
 }
 
 export async function getAgentDetail(agentId: string): Promise<AgentDetailResponse> {
-  const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/detail`, {
+  // Call real backend endpoint /api/sim/status and extract agent data
+  const response = await fetch('/api/sim/status', {
     method: 'GET',
     cache: 'no-store',
     headers: {
       'Accept': 'application/json',
     },
   });
-  return readJson<AgentDetailResponse>(response);
+
+  const backendData = await readJson<BackendSimulationStatus>(response);
+
+  // Find the agent by ID (convert to string for comparison)
+  const agent = backendData.agents.find((a) => String(a.id) === agentId);
+
+  if (!agent) {
+    throw new Error(`Agent not found: ${agentId}`);
+  }
+
+  // Transform backend data to frontend format
+  return transformToAgentDetail(agent, backendData);
 }

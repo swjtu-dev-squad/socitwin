@@ -1,17 +1,11 @@
 import type { Agent } from '@/lib/types';
-import LandingForceGraph from './LandingForceGraph';
 
 interface VisualColumnProps {
   className?: string;
   onNodeClick?: (agent: Agent) => void;
 }
 
-export default function VisualColumn({ className = '', onNodeClick }: VisualColumnProps) {
-  const handleNodeClick = (agent: Agent) => {
-    if (onNodeClick) {
-      onNodeClick(agent);
-    }
-  };
+export default function VisualColumn({ className = '' }: VisualColumnProps) {
 
   return (
     <div className={`relative w-full h-full flex items-center justify-center p-4 lg:p-6 ${className}`}>

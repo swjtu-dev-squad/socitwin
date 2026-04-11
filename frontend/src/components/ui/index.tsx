@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 // Card
@@ -96,11 +97,33 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
 // Select (Radix-like structure)
 export const Select = ({ children, value, onValueChange }: { children: React.ReactNode, value?: string, onValueChange?: (v: string) => void }) => {
   const [open, setOpen] = React.useState(false);
+  const [triggerRect, setTriggerRect] = React.useState({ top: 0, left: 0, width: 0 });
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+
+  const handleOpen = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setTriggerRect({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+    setOpen(!open);
+  };
+
   return (
     <div className="relative w-full">
       {React.Children.map(children, child => {
         if (React.isValidElement(child)) {
-          return React.cloneElement(child as React.ReactElement<any>, { value, onValueChange, open, setOpen });
+          return React.cloneElement(child as React.ReactElement<any>, {
+            value,
+            onValueChange,
+            open,
+            setOpen: handleOpen,
+            triggerRef,
+            triggerRect
+          });
         }
         return child;
       })}
@@ -108,9 +131,10 @@ export const Select = ({ children, value, onValueChange }: { children: React.Rea
   );
 };
 
-export const SelectTrigger = ({ className, children, open, setOpen, value }: any) => (
+export const SelectTrigger = ({ className, children, open, setOpen, triggerRef }: any) => (
   <button
-    onClick={() => setOpen(!open)}
+    ref={triggerRef}
+    onClick={setOpen}
     className={cn(
       "flex h-11 w-full items-center justify-between rounded-xl border border-border-default bg-bg-primary px-4 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent disabled:cursor-not-allowed disabled:opacity-50 transition-all",
       className
@@ -129,18 +153,27 @@ export const SelectValue = ({ placeholder, value }: any) => (
   </span>
 );
 
-export const SelectContent = ({ children, open, setOpen, value, onValueChange }: any) => {
+export const SelectContent = ({ children, open, setOpen, value, onValueChange, triggerRect }: any) => {
   if (!open) return null;
-  return (
+
+  const content = (
     <>
-      <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-      <div className="absolute top-full left-0 z-50 mt-2 w-full min-w-[8rem] overflow-hidden rounded-xl border border-border-default bg-bg-secondary p-1 text-text-primary shadow-xl animate-in fade-in zoom-in-95">
+      <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+      <div
+        className="fixed z-[9999] min-w-[8rem] overflow-hidden rounded-xl border border-border-default bg-bg-secondary p-1 text-text-primary shadow-xl animate-in fade-in zoom-in-95 max-h-[300px] overflow-y-auto"
+        style={{
+          top: `${triggerRect.top}px`,
+          left: `${triggerRect.left}px`,
+          width: `${triggerRect.width}px`
+        }}
+      >
         {React.Children.map(children, child => {
           if (React.isValidElement(child)) {
-            return React.cloneElement(child as React.ReactElement<any>, { 
-              active: child.props.value === value,
+            const childProps = child.props as any;
+            return React.cloneElement(child as React.ReactElement<any>, {
+              active: childProps.value === value,
               onClick: () => {
-                onValueChange?.(child.props.value);
+                onValueChange?.(childProps.value);
                 setOpen(false);
               }
             });
@@ -150,9 +183,11 @@ export const SelectContent = ({ children, open, setOpen, value, onValueChange }:
       </div>
     </>
   );
+
+  return createPortal(content, document.body);
 };
 
-export const SelectItem = ({ children, value, active, onClick }: any) => (
+export const SelectItem = ({ children, value: _value, active, onClick }: any) => (
   <div
     onClick={onClick}
     className={cn(
@@ -195,9 +230,10 @@ export const TabsList = ({ children, className, value, setValue }: any) => (
   <div className={cn("inline-flex h-10 items-center justify-center rounded-xl bg-bg-tertiary p-1 text-text-secondary", className)}>
     {React.Children.map(children, child => {
       if (React.isValidElement(child)) {
-        return React.cloneElement(child as React.ReactElement<any>, { 
-          active: child.props.value === value,
-          onClick: () => setValue(child.props.value)
+        const childProps = child.props as any;
+        return React.cloneElement(child as React.ReactElement<any>, {
+          active: childProps.value === value,
+          onClick: () => setValue(childProps.value)
         });
       }
       return child;
@@ -205,7 +241,7 @@ export const TabsList = ({ children, className, value, setValue }: any) => (
   </div>
 );
 
-export const TabsTrigger = ({ children, value, active, onClick, className }: any) => (
+export const TabsTrigger = ({ children, value: _value, active, onClick, className }: any) => (
   <button
     onClick={onClick}
     className={cn(
@@ -218,7 +254,7 @@ export const TabsTrigger = ({ children, value, active, onClick, className }: any
   </button>
 );
 
-export const TabsContent = ({ children, value, active }: any) => {
+export const TabsContent = ({ children, value: _value, active }: any) => {
   if (!active) return null;
   return <div className="mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{children}</div>;
 };
