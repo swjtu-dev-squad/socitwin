@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 import requests
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for server environments
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 
 # ============================================================================
@@ -108,6 +112,26 @@ class SimulationAPIClient:
     def reset_simulation(self) -> Dict[str, Any]:
         """Reset the simulation"""
         return self._request("POST", "/api/sim/reset")
+
+    # ============================================================================
+    # Metrics API methods
+    # ============================================================================
+
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Get metrics summary"""
+        return self._request("GET", "/api/metrics/summary")
+
+    def get_propagation_metrics(self) -> Dict[str, Any]:
+        """Get information propagation metrics"""
+        return self._request("GET", "/api/metrics/propagation")
+
+    def get_polarization_metrics(self) -> Dict[str, Any]:
+        """Get group polarization metrics"""
+        return self._request("GET", "/api/metrics/polarization")
+
+    def get_herd_effect_metrics(self) -> Dict[str, Any]:
+        """Get herd effect metrics"""
+        return self._request("GET", "/api/metrics/herd-effect")
 
 
 # ============================================================================
@@ -238,6 +262,47 @@ class SimulationTestRunner:
 
             # Generate summary
             self.results["summary"] = self._generate_summary(final_status)
+
+            # Collect final OASIS metrics
+            self._print("\n" + "="*60, Colors.HEADER)
+            self._print("Step 5: Collect Final OASIS Metrics", Colors.HEADER)
+            self._print("="*60, Colors.HEADER)
+
+            final_metrics = self._collect_oasis_metrics()
+            if final_metrics:
+                self.results["summary"]["final_oasis_metrics"] = final_metrics
+
+                # Print final metrics
+                if final_metrics.get("propagation"):
+                    prop = final_metrics["propagation"]
+                    self._print(f"✓ Propagation Metrics:", Colors.OKGREEN)
+                    self._print(f"  - Scale (users): {prop.get('scale', 0)}", Colors.OKCYAN)
+                    self._print(f"  - Depth (levels): {prop.get('depth', 0)}", Colors.OKCYAN)
+                    self._print(f"  - Max breadth: {prop.get('max_breadth', 0)}", Colors.OKCYAN)
+
+                if final_metrics.get("herd_effect"):
+                    herd = final_metrics["herd_effect"]
+                    self._print(f"✓ Herd Effect Metrics:", Colors.OKGREEN)
+                    self._print(f"  - Conformity index: {herd.get('conformity_index', 0):.3f}", Colors.OKCYAN)
+                    self._print(f"  - Average post score: {herd.get('average_post_score', 0):.3f}", Colors.OKCYAN)
+                    self._print(f"  - Disagree score: {herd.get('disagree_score', 0):.3f}", Colors.OKCYAN)
+
+                if final_metrics.get("polarization"):
+                    pol = final_metrics["polarization"]
+                    self._print(f"✓ Polarization Metrics:", Colors.OKGREEN)
+                    self._print(f"  - Average magnitude: {pol.get('average_magnitude', 0):.3f}", Colors.OKCYAN)
+                    self._print(f"  - Average direction: {pol.get('average_direction', 'N/A')}", Colors.OKCYAN)
+                    self._print(f"  - Agents evaluated: {pol.get('total_agents_evaluated', 0)}", Colors.OKCYAN)
+            else:
+                self._print("⚠ Could not collect final OASIS metrics", Colors.WARNING)
+
+            # Validate metrics
+            self._print("\n" + "="*60, Colors.HEADER)
+            self._print("Step 6: Validate Metrics", Colors.HEADER)
+            self._print("="*60, Colors.HEADER)
+
+            validation_results = self._validate_metrics(final_metrics)
+            self.results["summary"]["metrics_validation"] = validation_results
             self.results["test_config"]["test_end_time"] = datetime.now().isoformat()
 
             return self.results
@@ -264,6 +329,9 @@ class SimulationTestRunner:
         # Get status after step
         status_after = self.client.get_simulation_status()
 
+        # Get OASIS metrics after step
+        oasis_metrics = self._collect_oasis_metrics()
+
         # Collect step information
         step_info = {
             "step_number": step_num,
@@ -287,7 +355,8 @@ class SimulationTestRunner:
                 "delta": {
                     "posts_added": status_after.get("total_posts", 0) - status_before.get("total_posts", 0),
                     "interactions_added": status_after.get("total_interactions", 0) - status_before.get("total_interactions", 0),
-                }
+                },
+                "oasis_metrics": oasis_metrics,
             },
             "state": status_after.get("state", "unknown"),
         }
@@ -300,10 +369,172 @@ class SimulationTestRunner:
                 f"Interactions: +{step_info['metrics']['delta']['interactions_added']}, "
                 f"Time: {execution_time:.2f}s"
             )
+
+            # Print OASIS metrics summary
+            if oasis_metrics and oasis_metrics.get("propagation"):
+                prop = oasis_metrics["propagation"]
+                self._print(
+                    f"  └─ Propagation: scale={prop.get('scale', 0)}, "
+                    f"depth={prop.get('depth', 0)}, "
+                    f"max_breadth={prop.get('max_breadth', 0)}",
+                    Colors.OKCYAN
+                )
+
+            if oasis_metrics and oasis_metrics.get("herd_effect"):
+                herd = oasis_metrics["herd_effect"]
+                self._print(
+                    f"  └─ Herd Effect: conformity={herd.get('conformity_index', 0):.2f}, "
+                    f"avg_score={herd.get('average_post_score', 0):.2f}",
+                    Colors.OKCYAN
+                )
+
+            if oasis_metrics and oasis_metrics.get("polarization"):
+                pol = oasis_metrics["polarization"]
+                self._print(
+                    f"  └─ Polarization: magnitude={pol.get('average_magnitude', 0):.2f}, "
+                    f"direction={pol.get('average_direction', 'N/A')}",
+                    Colors.OKCYAN
+                )
         else:
             self._print_step(step_num, total_steps, f"Step failed: {step_result.get('message')}")
 
         return step_info
+
+    def _collect_oasis_metrics(self) -> Dict[str, Any]:
+        """Collect all three OASIS metrics after a step"""
+        try:
+            # Get metrics summary (contains all three metrics)
+            summary = self.client.get_metrics_summary()
+
+            return {
+                "propagation": summary.get("propagation"),
+                "polarization": summary.get("polarization"),
+                "herd_effect": summary.get("herd_effect"),
+                "current_step": summary.get("current_step"),
+                "timestamp": summary.get("timestamp"),
+            }
+
+        except Exception as e:
+            # If metrics API fails, return None and continue
+            self._print(f"  ⚠ Failed to collect OASIS metrics: {str(e)}", Colors.WARNING)
+            return None
+
+    def _validate_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        验证三大指标的合理性
+
+        Args:
+            metrics: 指标数据字典
+
+        Returns:
+            验证结果字典
+        """
+        validation = {
+            "propagation": {"valid": False, "checks": []},
+            "polarization": {"valid": False, "checks": []},
+            "herd_effect": {"valid": False, "checks": []},
+        }
+
+        if not metrics:
+            self._print("⚠ No metrics to validate", Colors.WARNING)
+            return validation
+
+        # 验证传播指标
+        if metrics.get("propagation"):
+            prop = metrics["propagation"]
+            checks = []
+
+            # 检查1: 规模 >= 0
+            if prop.get("scale", -1) >= 0:
+                checks.append({"check": "scale >= 0", "passed": True, "value": prop.get("scale")})
+            else:
+                checks.append({"check": "scale >= 0", "passed": False, "value": prop.get("scale")})
+
+            # 检查2: 深度 >= 0
+            if prop.get("depth", -1) >= 0:
+                checks.append({"check": "depth >= 0", "passed": True, "value": prop.get("depth")})
+            else:
+                checks.append({"check": "depth >= 0", "passed": False, "value": prop.get("depth")})
+
+            # 检查3: 最大宽度 >= 0
+            if prop.get("max_breadth", -1) >= 0:
+                checks.append({"check": "max_breadth >= 0", "passed": True, "value": prop.get("max_breadth")})
+            else:
+                checks.append({"check": "max_breadth >= 0", "passed": False, "value": prop.get("max_breadth")})
+
+            # 检查4: 如果有帖子，规模应该 > 0
+            if prop.get("scale", 0) > 0 and prop.get("post_id"):
+                checks.append({"check": "has_propagation", "passed": True, "value": f"scale={prop.get('scale')}"})
+            else:
+                checks.append({"check": "has_propagation", "passed": False, "value": "no propagation detected"})
+
+            validation["propagation"]["checks"] = checks
+            validation["propagation"]["valid"] = all(c["passed"] for c in checks)
+
+            self._print(f"{'✓' if validation['propagation']['valid'] else '⚠'} Propagation: {len([c for c in checks if c['passed']])}/{len(checks)} checks passed",
+                        Colors.OKGREEN if validation['propagation']['valid'] else Colors.WARNING)
+
+        # 验证羊群效应
+        if metrics.get("herd_effect"):
+            herd = metrics["herd_effect"]
+            checks = []
+
+            # 检查1: 一致性指数在 [0, 1] 范围内
+            if 0 <= herd.get("conformity_index", -1) <= 1:
+                checks.append({"check": "0 <= conformity_index <= 1", "passed": True, "value": herd.get("conformity_index")})
+            else:
+                checks.append({"check": "0 <= conformity_index <= 1", "passed": False, "value": herd.get("conformity_index")})
+
+            # 检查2: 分歧得分 >= 0
+            if herd.get("disagree_score", -1) >= 0:
+                checks.append({"check": "disagree_score >= 0", "passed": True, "value": herd.get("disagree_score")})
+            else:
+                checks.append({"check": "disagree_score >= 0", "passed": False, "value": herd.get("disagree_score")})
+
+            # 检查3: 有热门帖子数据
+            hot_posts = herd.get("hot_posts", [])
+            if isinstance(hot_posts, list):
+                checks.append({"check": "has_hot_posts", "passed": True, "value": f"{len(hot_posts)} posts"})
+            else:
+                checks.append({"check": "has_hot_posts", "passed": False, "value": "invalid data type"})
+
+            validation["herd_effect"]["checks"] = checks
+            validation["herd_effect"]["valid"] = all(c["passed"] for c in checks)
+
+            self._print(f"{'✓' if validation['herd_effect']['valid'] else '⚠'} Herd Effect: {len([c for c in checks if c['passed']])}/{len(checks)} checks passed",
+                        Colors.OKGREEN if validation['herd_effect']['valid'] else Colors.WARNING)
+
+        # 验证极化率
+        if metrics.get("polarization"):
+            pol = metrics["polarization"]
+            checks = []
+
+            # 检查1: 幅度在 [0, 1] 范围内
+            if 0 <= pol.get("average_magnitude", -1) <= 1:
+                checks.append({"check": "0 <= magnitude <= 1", "passed": True, "value": pol.get("average_magnitude")})
+            else:
+                checks.append({"check": "0 <= magnitude <= 1", "passed": False, "value": pol.get("average_magnitude")})
+
+            # 检查2: 有有效的方向
+            valid_directions = ["EXTREME_CONSERVATIVE", "MODERATE_CONSERVATIVE", "NEUTRAL", "MODERATE_PROGRESSIVE", "EXTREME_PROGRESSIVE"]
+            if pol.get("average_direction") in valid_directions:
+                checks.append({"check": "valid_direction", "passed": True, "value": pol.get("average_direction")})
+            else:
+                checks.append({"check": "valid_direction", "passed": False, "value": pol.get("average_direction")})
+
+            # 检查3: 评估了至少1个agent
+            if pol.get("total_agents_evaluated", 0) > 0:
+                checks.append({"check": "agents_evaluated > 0", "passed": True, "value": pol.get("total_agents_evaluated")})
+            else:
+                checks.append({"check": "agents_evaluated > 0", "passed": False, "value": "no agents evaluated"})
+
+            validation["polarization"]["checks"] = checks
+            validation["polarization"]["valid"] = all(c["passed"] for c in checks)
+
+            self._print(f"{'✓' if validation['polarization']['valid'] else '⚠'} Polarization: {len([c for c in checks if c['passed']])}/{len(checks)} checks passed",
+                        Colors.OKGREEN if validation['polarization']['valid'] else Colors.WARNING)
+
+        return validation
 
     def _generate_summary(self, final_status: Dict[str, Any]) -> Dict[str, Any]:
         """Generate test summary statistics"""
@@ -344,20 +575,286 @@ class SimulationTestRunner:
 # ============================================================================
 
 class ResultExporter:
-    """Export test results to JSON file"""
+    """Export test results to JSON file and generate metrics charts"""
 
     def __init__(self, output_dir: str = "test-result"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def export(self, results: Dict[str, Any]) -> str:
-        """Export results to JSON file"""
+        """Export results to JSON file and generate charts"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"test-result-{timestamp}.json"
-        filepath = self.output_dir / filename
 
-        with open(filepath, 'w', encoding='utf-8') as f:
+        # Create timestamped subdirectory
+        test_output_dir = self.output_dir / timestamp
+        test_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save JSON file
+        json_filename = f"test-result-{timestamp}.json"
+        json_filepath = test_output_dir / json_filename
+
+        with open(json_filepath, 'w', encoding='utf-8') as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
+
+        # Generate metrics charts
+        chart_files = self._generate_metrics_charts(results, test_output_dir, timestamp)
+
+        # Return the directory path instead of file path
+        return str(test_output_dir)
+
+    def _generate_metrics_charts(
+        self,
+        results: Dict[str, Any],
+        output_dir: Path,
+        timestamp: str
+    ) -> List[str]:
+        """
+        Generate charts for all three OASIS metrics
+
+        Args:
+            results: Test results dictionary
+            output_dir: Directory to save charts
+            timestamp: Timestamp for filenames
+
+        Returns:
+            List of generated chart file paths
+        """
+        steps = results.get('steps', [])
+
+        if not steps:
+            print("Warning: No step data available for chart generation")
+            return []
+
+        # Extract step numbers and metrics data
+        step_numbers = []
+        propagation_scales = []
+        propagation_depths = []
+        propagation_breadths = []
+
+        polarization_magnitudes = []
+        polarization_agents_evaluated = []
+
+        herd_conformity = []
+        herd_avg_score = []
+        herd_disagree = []
+
+        for step in steps:
+            if not step.get('success'):
+                continue
+
+            step_num = step.get('step_number')
+            metrics = step.get('metrics', {}).get('oasis_metrics', {})
+
+            step_numbers.append(step_num)
+
+            # Propagation metrics
+            prop = metrics.get('propagation', {})
+            propagation_scales.append(prop.get('scale', 0))
+            propagation_depths.append(prop.get('depth', 0))
+            propagation_breadths.append(prop.get('max_breadth', 0))
+
+            # Polarization metrics
+            pol = metrics.get('polarization', {})
+            polarization_magnitudes.append(pol.get('average_magnitude', 0))
+            polarization_agents_evaluated.append(pol.get('total_agents_evaluated', 0))
+
+            # Herd effect metrics
+            herd = metrics.get('herd_effect', {})
+            herd_conformity.append(herd.get('conformity_index', 0))
+            herd_avg_score.append(herd.get('average_post_score', 0))
+            herd_disagree.append(herd.get('disagree_score', 0))
+
+        if not step_numbers:
+            print("Warning: No successful steps with metrics data")
+            return []
+
+        chart_files = []
+
+        # Generate three charts
+        chart_files.append(self._plot_propagation_metrics(
+            step_numbers, propagation_scales, propagation_depths, propagation_breadths,
+            output_dir, timestamp
+        ))
+
+        chart_files.append(self._plot_polarization_metrics(
+            step_numbers, polarization_magnitudes, polarization_agents_evaluated,
+            output_dir, timestamp
+        ))
+
+        chart_files.append(self._plot_herd_effect_metrics(
+            step_numbers, herd_conformity, herd_avg_score, herd_disagree,
+            output_dir, timestamp
+        ))
+
+        return chart_files
+
+    def _plot_propagation_metrics(
+        self,
+        steps: List[int],
+        scales: List[int],
+        depths: List[int],
+        breadths: List[int],
+        output_dir: Path,
+        timestamp: str
+    ) -> str:
+        """Plot information propagation metrics over time"""
+        fig, axes = plt.subplots(3, 1, figsize=(10, 12))
+        fig.suptitle('Information Propagation Metrics Over Time', fontsize=16, fontweight='bold')
+
+        # Scale (number of users)
+        axes[0].plot(steps, scales, marker='o', linewidth=2, markersize=6, color='#2E86AB')
+        axes[0].fill_between(steps, scales, alpha=0.3, color='#2E86AB')
+        axes[0].set_ylabel('Scale (Users)', fontsize=12, fontweight='bold')
+        axes[0].set_title('Propagation Scale - Total Users Reached', fontsize=11)
+        axes[0].grid(True, alpha=0.3, linestyle='--')
+        axes[0].set_xlabel('Simulation Step', fontsize=11)
+
+        # Depth (number of levels)
+        axes[1].plot(steps, depths, marker='s', linewidth=2, markersize=6, color='#A23B72')
+        axes[1].fill_between(steps, depths, alpha=0.3, color='#A23B72')
+        axes[1].set_ylabel('Depth (Levels)', fontsize=12, fontweight='bold')
+        axes[1].set_title('Propagation Depth - Maximum Cascading Levels', fontsize=11)
+        axes[1].grid(True, alpha=0.3, linestyle='--')
+        axes[1].set_xlabel('Simulation Step', fontsize=11)
+
+        # Max Breadth (users per level)
+        axes[2].plot(steps, breadths, marker='^', linewidth=2, markersize=6, color='#F18F01')
+        axes[2].fill_between(steps, breadths, alpha=0.3, color='#F18F01')
+        axes[2].set_ylabel('Max Breadth (Users)', fontsize=12, fontweight='bold')
+        axes[2].set_title('Maximum Breadth - Largest Single-Level Spread', fontsize=11)
+        axes[2].grid(True, alpha=0.3, linestyle='--')
+        axes[2].set_xlabel('Simulation Step', fontsize=11)
+
+        plt.tight_layout()
+
+        filename = f"propagation-metrics-{timestamp}.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        return str(filepath)
+
+    def _plot_polarization_metrics(
+        self,
+        steps: List[int],
+        magnitudes: List[float],
+        agents_evaluated: List[int],
+        output_dir: Path,
+        timestamp: str
+    ) -> str:
+        """Plot group polarization metrics over time"""
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+        fig.suptitle('Group Polarization Metrics Over Time', fontsize=16, fontweight='bold')
+
+        # Magnitude (0.0 - 1.0)
+        color1 = '#C73E1D'
+        ax1.plot(steps, magnitudes, marker='o', linewidth=2.5, markersize=7, color=color1)
+        ax1.fill_between(steps, magnitudes, alpha=0.3, color=color1)
+        ax1.set_ylabel('Magnitude', fontsize=12, fontweight='bold')
+        ax1.set_title('Polarization Magnitude - Average Opinion Shift Intensity', fontsize=11)
+        ax1.set_ylim(0, 1.0)
+        ax1.grid(True, alpha=0.3, linestyle='--')
+        ax1.axhline(y=0.5, color='gray', linestyle=':', linewidth=1.5, alpha=0.7, label='Moderate')
+        ax1.legend(loc='upper right')
+        ax1.set_xlabel('Simulation Step', fontsize=11)
+
+        # Add interpretation text
+        if magnitudes:
+            latest_mag = magnitudes[-1]
+            interpretation = "Neutral" if latest_mag < 0.3 else ("Moderate" if latest_mag < 0.7 else "Extreme")
+            ax1.text(0.02, 0.98, f'Latest: {latest_mag:.3f} ({interpretation})',
+                    transform=ax1.transAxes, fontsize=10, verticalalignment='top',
+                    bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Agents evaluated
+        color2 = '#6B4C9A'
+        ax2.bar(steps, agents_evaluated, color=color2, alpha=0.7, edgecolor='black', linewidth=1.2)
+        ax2.set_ylabel('Agents Count', fontsize=12, fontweight='bold')
+        ax2.set_title('Number of Agents Evaluated for Polarization', fontsize=11)
+        ax2.set_xlabel('Simulation Step', fontsize=11)
+        ax2.grid(True, alpha=0.3, linestyle='--', axis='y')
+
+        # Add count labels on bars
+        for i, (step, count) in enumerate(zip(steps, agents_evaluated)):
+            if count > 0:
+                ax2.text(step, count + 0.1, str(count), ha='center', va='bottom', fontsize=9, fontweight='bold')
+
+        plt.tight_layout()
+
+        filename = f"polarization-metrics-{timestamp}.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+
+        return str(filepath)
+
+    def _plot_herd_effect_metrics(
+        self,
+        steps: List[int],
+        conformity: List[float],
+        avg_score: List[float],
+        disagree_score: List[float],
+        output_dir: Path,
+        timestamp: str
+    ) -> str:
+        """Plot herd effect metrics over time"""
+        fig, axes = plt.subplots(3, 1, figsize=(10, 12))
+        fig.suptitle('Herd Effect Metrics Over Time', fontsize=16, fontweight='bold')
+
+        # Conformity Index (Gini coefficient, 0-1)
+        axes[0].plot(steps, conformity, marker='o', linewidth=2.5, markersize=7, color='#E63946')
+        axes[0].fill_between(steps, conformity, alpha=0.3, color='#E63946')
+        axes[0].set_ylabel('Conformity Index', fontsize=12, fontweight='bold')
+        axes[0].set_title('Conformity Index - Engagement Inequality (Gini Coefficient)', fontsize=11)
+        axes[0].set_ylim(0, 1.0)
+        axes[0].grid(True, alpha=0.3, linestyle='--')
+
+        # Add interpretation zones
+        axes[0].axhspan(0, 0.3, alpha=0.2, color='green', label='Low Conformity')
+        axes[0].axhspan(0.3, 0.7, alpha=0.2, color='yellow', label='Moderate')
+        axes[0].axhspan(0.7, 1.0, alpha=0.2, color='red', label='High Conformity')
+        axes[0].legend(loc='upper right', fontsize=9)
+        axes[0].set_xlabel('Simulation Step', fontsize=11)
+
+        # Add interpretation text
+        if conformity:
+            latest_conf = conformity[-1]
+            level = "Low" if latest_conf < 0.3 else ("Moderate" if latest_conf < 0.7 else "High")
+            axes[0].text(0.02, 0.98, f'Latest: {latest_conf:.3f} ({level})',
+                        transform=axes[0].transAxes, fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        # Average Post Score (likes - dislikes)
+        axes[1].plot(steps, avg_score, marker='s', linewidth=2, markersize=7, color='#457B9D')
+        axes[1].axhline(y=0, color='black', linestyle='-', linewidth=1.5, alpha=0.5)
+        axes[1].fill_between(steps, avg_score, alpha=0.3, color='#457B9D')
+        axes[1].set_ylabel('Average Score', fontsize=12, fontweight='bold')
+        axes[1].set_title('Average Post Score - Mean Net Engagement (Likes - Dislikes)', fontsize=11)
+        axes[1].grid(True, alpha=0.3, linestyle='--')
+        axes[1].set_xlabel('Simulation Step', fontsize=11)
+
+        # Disagree Score (content diversity)
+        axes[2].plot(steps, disagree_score, marker='^', linewidth=2.5, markersize=7, color='#1D3557')
+        axes[2].fill_between(steps, disagree_score, alpha=0.3, color='#1D3557')
+        axes[2].set_ylabel('Disagree Score', fontsize=12, fontweight='bold')
+        axes[2].set_title('Disagree Score - Content Diversity & Viewpoint Variance', fontsize=11)
+        axes[2].grid(True, alpha=0.3, linestyle='--')
+        axes[2].set_xlabel('Simulation Step', fontsize=11)
+
+        # Add interpretation text
+        if disagree_score:
+            latest_dis = disagree_score[-1]
+            diversity = "Low" if latest_dis < 0.3 else ("Medium" if latest_dis < 0.7 else "High")
+            axes[2].text(0.02, 0.98, f'Latest: {latest_dis:.3f} ({diversity} Diversity)',
+                        transform=axes[2].transAxes, fontsize=10, verticalalignment='top',
+                        bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.tight_layout()
+
+        filename = f"herd-effect-metrics-{timestamp}.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
 
         return str(filepath)
 
@@ -459,8 +956,8 @@ Examples:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="../test-result",
-        help="Output directory for test results (default: ../test-result)"
+        default="test-result",
+        help="Output directory for test results (default: test-result)"
     )
 
     parser.add_argument(
@@ -511,13 +1008,30 @@ def main():
 
         # Export results
         exporter = ResultExporter(output_dir=args.output_dir)
-        result_file = exporter.export(results)
+        result_dir = exporter.export(results)
+
+        # List generated files
+        result_path = Path(result_dir)
+        files = sorted(result_path.glob("*"))
+        json_files = [f for f in files if f.suffix == '.json']
+        image_files = [f for f in files if f.suffix == '.png']
 
         # Print success message
         print("\n" + Colors.OKGREEN + "="*60)
         print("✓ Test Completed Successfully!")
         print("="*60 + Colors.ENDC)
-        print(f"\nResults saved to: {result_file}")
+        print(f"\n📁 Results directory: {result_dir}")
+        print(f"\nGenerated files ({len(files)} total):")
+
+        if json_files:
+            print(f"\n  📄 Data Files ({len(json_files)}):")
+            for f in json_files:
+                print(f"    - {f.name}")
+
+        if image_files:
+            print(f"\n  📊 Charts ({len(image_files)}):")
+            for f in image_files:
+                print(f"    - {f.name}")
 
         # Print summary
         summary = results["summary"]
@@ -529,6 +1043,50 @@ def main():
         print(f"  Avg step time: {summary['average_step_time']:.2f}s")
         print(f"  Posts created: {summary['total_posts_added']}")
         print(f"  Interactions: {summary['total_interactions_added']}")
+
+        # Print OASIS metrics summary
+        if summary.get("final_oasis_metrics"):
+            metrics = summary["final_oasis_metrics"]
+            print(f"\nFinal OASIS Metrics:")
+
+            if metrics.get("propagation"):
+                prop = metrics["propagation"]
+                print(f"  Information Propagation:")
+                print(f"    - Scale: {prop.get('scale', 0)} users")
+                print(f"    - Depth: {prop.get('depth', 0)} levels")
+                print(f"    - Max breadth: {prop.get('max_breadth', 0)} users")
+
+            if metrics.get("herd_effect"):
+                herd = metrics["herd_effect"]
+                print(f"  Herd Effect:")
+                print(f"    - Conformity index: {herd.get('conformity_index', 0):.3f}")
+                print(f"    - Average post score: {herd.get('average_post_score', 0):.3f}")
+                print(f"    - Disagree score: {herd.get('disagree_score', 0):.3f}")
+
+            if metrics.get("polarization"):
+                pol = metrics["polarization"]
+                print(f"  Group Polarization:")
+                print(f"    - Average magnitude: {pol.get('average_magnitude', 0):.3f}")
+                print(f"    - Average direction: {pol.get('average_direction', 'N/A')}")
+                print(f"    - Agents evaluated: {pol.get('total_agents_evaluated', 0)}")
+
+        # Print metrics validation results
+        if summary.get("metrics_validation"):
+            validation = summary["metrics_validation"]
+            print(f"\nMetrics Validation:")
+
+            for metric_name, results in validation.items():
+                if results.get("checks"):
+                    passed = len([c for c in results["checks"] if c["passed"]])
+                    total = len(results["checks"])
+                    status = "✓" if results["valid"] else "⚠"
+                    print(f"  {status} {metric_name.capitalize()}: {passed}/{total} checks passed")
+
+                    # 显示失败的检查
+                    failed_checks = [c for c in results["checks"] if not c["passed"]]
+                    if failed_checks:
+                        for check in failed_checks:
+                            print(f"      - {check['check']}: {check['value']}")
 
         return 0
 

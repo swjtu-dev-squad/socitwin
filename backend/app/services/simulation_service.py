@@ -109,6 +109,11 @@ class SimulationService:
             self.total_interactions = 0
             self.polarization = 0.0
 
+            # 重置 MetricsManager 单例（使用新数据库）
+            from app.core.dependencies import reset_metrics_manager
+            await reset_metrics_manager()
+            logger.info("MetricsManager singleton reset for new simulation")
+
             return ConfigResult(
                 success=True,
                 message="Simulation configured successfully",
@@ -274,8 +279,41 @@ class SimulationService:
 
                 logger.debug(f"Statistics updated: {self.total_posts} posts, {self.total_interactions} interactions")
 
+                # 触发异步高级指标计算（非阻塞）
+                await self._calculate_advanced_metrics()
+
         except Exception as e:
             logger.warning(f"Failed to update statistics: {e}")
+
+    async def _calculate_advanced_metrics(self):
+        """计算高级指标（信息传播、极化率、羊群效应）"""
+        try:
+            from app.core.dependencies import get_metrics_manager
+            from app.core.config import get_settings
+
+            metrics_manager = await get_metrics_manager()
+            if not metrics_manager:
+                logger.debug("Metrics manager not available, skipping advanced metrics")
+                return
+
+            current_step = self.oasis_manager._current_step
+            settings = get_settings()
+
+            # 每5步计算一次极化率（根据配置）
+            force_polarization = (
+                current_step % getattr(settings, 'POLARIZATION_CALCULATION_INTERVAL', 5) == 0
+            )
+
+            # 非阻塞计算指标
+            logger.info(f"🔄 Triggering metrics update at step {current_step}, force_polarization={force_polarization}")
+            await metrics_manager.update_all_metrics(
+                current_step=current_step,
+                force_polarization=force_polarization
+            )
+            logger.info(f"✅ Metrics update completed at step {current_step}")
+
+        except Exception as e:
+            logger.warning(f"Failed to schedule advanced metrics calculation: {e}")
 
     # ========================================================================
     # 状态控制
@@ -368,6 +406,19 @@ class SimulationService:
                 interests=profile.get('interests', []),
             ))
 
+        # 尝试获取高级指标摘要
+        metrics_summary = None
+        try:
+            from app.core.dependencies import get_metrics_manager
+            metrics_manager = await get_metrics_manager()
+            if metrics_manager:
+                metrics_summary = await metrics_manager.get_metrics_summary()
+                # 更新polarization字段以保持兼容性
+                if metrics_summary and metrics_summary.polarization:
+                    self.polarization = metrics_summary.polarization.average_magnitude
+        except Exception as e:
+            logger.debug(f"Could not fetch metrics summary: {e}")
+
         return SimulationStatus(
             state=self.oasis_manager.state,
             current_step=state_info["current_step"],
@@ -381,6 +432,7 @@ class SimulationService:
             polarization=self.polarization,
             active_agents=len(agents),
             agents=agents,
+            metrics_summary=metrics_summary,
         )
 
     # ========================================================================

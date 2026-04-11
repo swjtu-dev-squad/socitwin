@@ -123,6 +123,7 @@ PROFESSIONS = [
 # ============================================================================
 
 BIO_TEMPLATES = [
+    # 原有模板（不包含政治倾向）
     "A {profession} passionate about {main_interest}. Based in {country}.",
     "{profession} | {mbti} | Love {main_interest} and {secondary_interest}",
     "Exploring the world of {main_interest}. {profession} by day, {hobby} by night.",
@@ -132,7 +133,18 @@ BIO_TEMPLATES = [
     "{profession} interested in {main_interest}, {secondary_interest}, and {hobby}.",
     " lifelong learner passionate about {main_interest}. Working as a {profession}.",
     "Sharing my journey in {main_interest}. {profession} based in {country}.",
-    "Enthusiast of {main_interest} and {secondary_interest}. {profession} | {country}"
+    "Enthusiast of {main_interest} and {secondary_interest}. {profession} | {country}",
+
+    # 新增模板（包含政治倾向）
+    "{profession} | {mbti} | {political_leaning} | Passionate about {main_interest}",
+    "{profession} with {political_leaning} views. Love {main_interest} and {secondary_interest}. Based in {country}.",
+    "{political_leaning_title} {profession} interested in {main_interest}. {mbti} | {country}",
+    "{profession} | {political_leaning} | {mbti} | Exploring {main_interest} and {secondary_interest}",
+    "Just a {profession} with {political_leaning} perspectives. Passionate about {main_interest}. Living in {country}.",
+    "{profession} | {mbti} | {political_leaning} | Love {main_interest}, {hobby}, and {secondary_interest}",
+    "{profession} based in {country}. {political_leaning} views on {main_interest} and social issues.",
+    "{profession} | {political_leaning} | {mbti} | {country} | Interest in {main_interest} and {secondary_interest}",
+    "{political_leaning} {profession} passionate about {main_interest}. {mbti} | Living in {country}."
 ]
 
 HOBBIES = [

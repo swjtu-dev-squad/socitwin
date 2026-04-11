@@ -110,13 +110,13 @@ class AgentGenerator:
         user_name = self._generate_user_name(agent_id, platform)
         name = self._generate_name(gender, country)
 
-        # 4. 生成 Bio
-        bio = self._generate_bio(profession, interests, country, mbti)
-
-        # 5. 可选属性（用于高级研究）
+        # 4. 生成可选属性（用于高级研究）
         political_leaning = random.choice(POLITICAL_LEANINGS)
         topic_preference = random.choice(TOPIC_PREFERENCES)
         activity_level = random.choice(list(ACTIVITY_LEVELS.keys()))
+
+        # 5. 生成 Bio（包含政治倾向）
+        bio = self._generate_bio(profession, interests, country, mbti, political_leaning)
 
         profile = AgentProfile(
             agent_id=agent_id,
@@ -134,7 +134,7 @@ class AgentGenerator:
             activity_level=activity_level
         )
 
-        logger.debug(f"Generated agent {agent_id}: {user_name} ({mbti}, {country})")
+        logger.debug(f"Generated agent {agent_id}: {user_name} ({mbti}, {political_leaning}, {country})")
         return profile
 
     def generate_batch(self, count: int, platform: str = "twitter") -> List[AgentProfile]:
@@ -200,7 +200,7 @@ class AgentGenerator:
         return f"{first_name} {last_name}"
 
     def _generate_bio(self, profession: str, interests: List[str],
-                     country: str, mbti: str) -> str:
+                     country: str, mbti: str, political_leaning: str = None) -> str:
         """
         生成个人简介
 
@@ -209,6 +209,7 @@ class AgentGenerator:
             interests: 兴趣列表
             country: 国家
             mbti: MBTI类型
+            political_leaning: 政治倾向（可选）
 
         Returns:
             Bio字符串
@@ -227,14 +228,28 @@ class AgentGenerator:
         # 选择模板并填充
         template = random.choice(BIO_TEMPLATES)
 
-        bio = template.format(
-            profession=profession,
-            main_interest=main_interest,
-            secondary_interest=secondary_interest,
-            country=country,
-            mbti=mbti,
-            hobby=hobby
-        )
+        # 准备政治倾向的标题格式（首字母大写，连字符转空格）
+        pol_title = political_leaning if political_leaning else "center"
+        pol_title = pol_title.replace("-", " ").title()
+
+        # 准备模板变量
+        template_vars = {
+            "profession": profession,
+            "main_interest": main_interest,
+            "secondary_interest": secondary_interest,
+            "country": country,
+            "mbti": mbti,
+            "hobby": hobby,
+            "political_leaning": political_leaning if political_leaning else "center",
+            "political_leaning_title": pol_title
+        }
+
+        try:
+            bio = template.format(**template_vars)
+        except KeyError as e:
+            # 如果模板使用了某个字段但该字段未提供，使用默认值
+            logger.warning(f"Template variable missing: {e}, using fallback")
+            bio = f"{profession} passionate about {main_interest}. Based in {country}."
 
         return bio
 

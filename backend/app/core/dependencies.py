@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 _simulation_service = None
 _topic_service = None
+_metrics_manager = None
 
 
 async def get_simulation_service():
@@ -149,6 +150,88 @@ async def get_topic_service_dependency():
 
 
 # ============================================================================
+# Metrics Manager
+# ============================================================================
+
+async def get_metrics_manager():
+    """
+    获取指标管理器单例
+
+    Returns:
+        MetricsManager: 指标管理器实例
+
+    Note:
+        提供集中化的指标计算和缓存功能
+    """
+    from app.services.metrics.metrics_manager import MetricsManager
+    from app.core.config import get_settings
+
+    global _metrics_manager
+
+    if _metrics_manager is None:
+        oasis_manager = await get_oasis_manager()
+        db_path = oasis_manager._db_path
+
+        if db_path:
+            settings = get_settings()
+            _metrics_manager = MetricsManager(
+                db_path,
+                enable_db_persistence=settings.METRICS_ENABLE_DB_PERSISTENCE
+            )
+            logger.info("Metrics Manager singleton created")
+        else:
+            logger.warning("Cannot create Metrics Manager: no database path")
+            return None
+
+    return _metrics_manager
+
+
+async def reset_metrics_manager():
+    """
+    重置指标管理器单例
+
+    在重新配置模拟时调用，确保使用新的数据库路径。
+    """
+    global _metrics_manager
+
+    if _metrics_manager is not None:
+        logger.info("Resetting MetricsManager singleton")
+        _metrics_manager = None
+    else:
+        logger.debug("MetricsManager singleton is None, nothing to reset")
+
+
+async def get_metrics_manager_dependency():
+    """
+    指标管理器依赖注入
+
+    Yields:
+        MetricsManager: 指标管理器实例
+
+    Example:
+        @router.get("/metrics/summary")
+        async def get_metrics_summary(
+            manager: MetricsManager = Depends(get_metrics_manager_dependency)
+        ):
+            return await manager.get_metrics_summary()
+    """
+    manager = await get_metrics_manager()
+
+    if manager is None:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=503,
+            detail="Metrics manager not available"
+        )
+
+    try:
+        yield manager
+    except Exception as e:
+        logger.error(f"Error in metrics manager dependency: {e}")
+        raise
+
+
+# ============================================================================
 # 生命周期管理
 # ============================================================================
 
@@ -196,6 +279,17 @@ async def shutdown_event():
             logger.error(f"Error cleaning up simulation service: {e}")
         finally:
             _simulation_service = None
+
+    # 清理指标管理器
+    global _metrics_manager
+    if _metrics_manager:
+        try:
+            # MetricsManager doesn't have cleanup method
+            logger.info("Metrics Manager reference cleared")
+        except Exception as e:
+            logger.error(f"Error cleaning up metrics manager: {e}")
+        finally:
+            _metrics_manager = None
 
     # 清理 OASIS 管理器
     try:

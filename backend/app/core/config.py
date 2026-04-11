@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     # DeepSeek Settings (required for OASIS)
     DEEPSEEK_API_KEY: str
 
+    # Metrics Settings
+    METRICS_CACHE_TTL: int = 0  # Cache disabled for development (set to 0)
+    METRICS_MAX_CACHE_SIZE: int = 1000  # Maximum cache entries
+    METRICS_CALCULATION_TIMEOUT: int = 60  # seconds
+    METRICS_ENABLE_DB_PERSISTENCE: bool = True  # Enable/disable database persistence
+
+    # Polarization LLM Settings
+    POLARIZATION_LLM_MODEL: str = "deepseek-chat"
+    POLARIZATION_LLM_TEMPERATURE: float = 0.3
+    POLARIZATION_BATCH_SIZE: int = 10  # agents per LLM batch
+    POLARIZATION_CALCULATION_INTERVAL: int = 2  # Calculate every N steps
+
     # Environment
     ENVIRONMENT: str = "development"
     DEBUG: bool = True

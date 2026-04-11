@@ -51,3 +51,14 @@ topics:
       agent_id: 4
     settings:
       trigger_refresh: true
+
+  # Example: Middle East conflict topic
+  - id: "middleeast_conflict"
+    name: "Middle East Conflict"
+    description: "Discussion on Middle East geopolitical tensions and military actions"
+    initial_post:
+      content: "US and Israeli coalition bombing of Iran resulted in the deaths of hundreds of students at a school. This is a humanitarian tragedy that demands international attention. How should the world respond?"
+      agent_id: 0
+    settings:
+      trigger_refresh: true
+

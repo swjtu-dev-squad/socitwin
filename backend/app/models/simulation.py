@@ -216,6 +216,9 @@ class SimulationStatus(BaseModel):
     active_agents: int = 0
     agents: List[Agent] = Field(default_factory=list)
 
+    # 高级指标摘要（可选）
+    metrics_summary: Optional['MetricsSummary'] = None
+
     # 错误信息
     error_message: Optional[str] = None
 
@@ -304,3 +307,20 @@ class ExportResult(BaseModel):
     file_path: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     export_time: Optional[float] = None
+
+
+# Resolve forward references for MetricsSummary
+# This must be called after MetricsSummary is defined in metrics.py
+def resolve_simulation_forward_refs():
+    """Resolve forward references in simulation models"""
+    from app.models.metrics import MetricsSummary
+    SimulationStatus.model_rebuild()
+
+
+# Auto-resolve on import
+try:
+    resolve_simulation_forward_refs()
+except ImportError:
+    # Metrics module not imported yet, will be resolved when metrics is imported
+    pass
+

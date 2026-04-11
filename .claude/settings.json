@@ -20,10 +20,40 @@
       "Bash(curl -s -X POST http://localhost:8000/api/sim/config -H 'Content-Type: application/json' -d '{:*)",
       "Bash(find /home/hv/projs/socitwin/backend -name \"*.py\" -exec grep -l \"HTTPException\\\\|Exception\\\\|Error\" {} \\\\;)",
       "Bash(find /home/hv/projs/socitwin/backend/app -name \"*.py\" -exec wc -l {} \\\\;)",
-      "Bash(curl -s http://localhost:8000/health)"
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s http://localhost:8000/api/metrics/health)",
+      "Bash(jq)",
+      "Bash(tail -50 /tmp/uvicorn-*.log)",
+      "Bash(timeout 5 curl -v http://localhost:8000/health)",
+      "Bash(.venv/bin/python3 -c \"from app.api.metrics import router; print\\('Import successful'\\)\")",
+      "Bash(curl -s http://localhost:8000/api/metrics/summary)",
+      "Bash(curl -s http://localhost:8000/docs)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s http://localhost:8000/openapi.json)",
+      "Bash(curl -s -X POST http://localhost:8000/api/sim/step -H 'Content-Type: application/json' -d '{\"step_type\": \"auto\"}')",
+      "Bash(curl -s http://localhost:8000/api/metrics/herd-effect)",
+      "Bash(curl -s \"http://localhost:8000/api/metrics/polarization?agent_ids=0,1,2\")",
+      "Bash(.venv/bin/python3 -c \"from app.api.metrics import router; print\\('Import OK'\\)\")",
+      "Bash(.venv/bin/python3 -c ':*)",
+      "Bash(.venv/bin/python3 -m py_compile app/api/metrics.py)",
+      "Bash(xargs sqlite3:*)",
+      "Bash(ls data/simulations/*.db)",
+      "Bash(ls -la backend/data/simulations/*.db)",
+      "Bash(kill -9 1185348)",
+      "Bash(.venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000)",
+      "Bash(ls -lht data/simulations/*.db)",
+      "Bash(tee /tmp/middleeast_test.log)",
+      "Bash(find /home/hv/projs/socitwin/backend/.venv/lib/python3.11/site-packages/oasis/ -name \"*.sql\" -exec cat {} \\\\;)",
+      "Bash(.venv/bin/python -m pytest test/e2e_simulation_test.py::test_simulation_with_topic -v --tb=short)",
+      "Bash(.venv/bin/python test/e2e_simulation_test.py --agent-count 10 --max-steps 20 --topic middleeast_conflict)",
+      "Bash(kill -9 1189970)",
+      "Bash(.venv/bin/python test/e2e_simulation_test.py --agent-count 5 --max-steps 10 --topic middleeast_conflict)",
+      "Bash(curl -s -X POST http://localhost:8000/api/sim/step -H 'Content-Type: application/json' -d '{:*)",
+      "Bash(curl -s -X POST http://localhost:8000/api/sim/step -H 'Content-Type: application/json' -d '{\"step_type\": \"auto\", \"action_count\": 5}' --max-time 120)"
     ],
     "additionalDirectories": [
-      "/home/hv/projs/socitwin/backend/**"
+      "/home/hv/projs/socitwin/backend/**",
+      "/tmp"
     ]
   }
 }
