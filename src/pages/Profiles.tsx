@@ -10,6 +10,11 @@ import {
   PlayCircle,
   FileText,
   GitBranch,
+  X,
+  Plus,
+  Loader2,
+  Wand2,
+  Tags,
 } from 'lucide-react';
 import { Card, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, Input } from '@/components/ui';
 import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph';
@@ -20,10 +25,17 @@ import {
   generateDatasetArtifacts,
   getGeneratedAgents,
   getPersonaDataset,
+  getTwitterSqliteTopicsList,
   listPersonaDatasets,
+  postTwitterSqliteTopicsPersonasLlm,
+  postTwitterSqliteTopicSeed,
   PERSONA_GENERATE_FETCH_TIMEOUT_MS,
+  type TwitterSqliteTopicOption,
 } from '@/lib/personaApi';
 import type { GeneratedAgentRecord, GeneratedGraphRecord, PersonaDatasetSummary } from '@/lib/types';
+
+/** 右侧「仿真话题列表」预览项（与两阶段 LLM 返回的 topics 一致） */
+type SqlitePreviewTopic = { title: string; summary: string };
 
 type PersonaDatasetDetail = PersonaDatasetSummary & {
   latest_graph?: {
@@ -184,6 +196,67 @@ export default function Profiles() {
   // 默认使用 LLM 生成模拟画像（不再提供开关）
   const useLlmPersonas = true;
 
+  /** Twitter：SQLite 话题多选 + 合并种子统计 */
+  const [sqliteTopicsLoading, setSqliteTopicsLoading] = useState(false);
+  const [sqliteTopicRows, setSqliteTopicRows] = useState<TwitterSqliteTopicOption[]>([]);
+  /** topic_key -> 是否参与合并抽样（加载后默认全为 true） */
+  const [sqliteTopicSelected, setSqliteTopicSelected] = useState<Record<string, boolean>>({});
+  const [sqliteSeedLoading, setSqliteSeedLoading] = useState(false);
+  const [sqliteSeedCounts, setSqliteSeedCounts] = useState<{ users: number; posts: number; replies: number; topics: number } | null>(
+    null,
+  );
+  /** 种子用户目标人数（与选中话题下帖子/评论作者池抽样相关） */
+  const [sqliteSeedUserCount, setSqliteSeedUserCount] = useState('100');
+  /** 本地 LLM 画像预览，展示在右侧「拟合用户列表」（与图谱生成后的 Mongo 列表二选一优先 Mongo） */
+  const [sqlitePreviewAgents, setSqlitePreviewAgents] = useState<GeneratedAgentRecord[]>([]);
+  /** 本地 LLM 仿真话题预览，展示在右侧「仿真话题列表」 */
+  const [sqlitePreviewTopics, setSqlitePreviewTopics] = useState<SqlitePreviewTopic[]>([]);
+  /** 大模型先生成仿真话题再生成画像（与「仅画像」分流） */
+  const [syntheticTopicCount, setSyntheticTopicCount] = useState('5');
+  const [sqliteTopicsPersonasLoading, setSqliteTopicsPersonasLoading] = useState(false);
+
+  const sqliteSelectedTopicKeys = useMemo(
+    () => sqliteTopicRows.filter((row) => sqliteTopicSelected[row.topic_key]).map((row) => row.topic_key),
+    [sqliteTopicRows, sqliteTopicSelected],
+  );
+
+  const sqliteSelectedKeysSignature = useMemo(() => [...sqliteSelectedTopicKeys].sort().join('\0'), [sqliteSelectedTopicKeys]);
+
+  useEffect(() => {
+    setSqlitePreviewAgents([]);
+    setSqlitePreviewTopics([]);
+  }, [sqliteSelectedKeysSignature]);
+
+  const sqliteSeedUserCountParsed = useMemo(() => {
+    const x = Math.floor(Number.parseInt(String(sqliteSeedUserCount).trim(), 10));
+    if (!Number.isFinite(x) || x < 1) return 100;
+    return Math.min(2000, x);
+  }, [sqliteSeedUserCount]);
+
+  const syntheticTopicCountParsed = useMemo(() => {
+    const x = Math.floor(Number.parseInt(String(syntheticTopicCount).trim(), 10));
+    if (!Number.isFinite(x) || x < 1) return 5;
+    return Math.min(64, x);
+  }, [syntheticTopicCount]);
+
+  const llmUserTargetParsed = useMemo(() => {
+    const x = Math.floor(Number.parseInt(String(agentCount).trim(), 10));
+    if (!Number.isFinite(x) || x < 1) return 1;
+    return Math.min(2000, x);
+  }, [agentCount]);
+
+  const displayAgentsList = useMemo(() => {
+    if (generatedGraph) {
+      if (agentsListLoading) return [];
+      if (generatedAgentsList.length > 0) return generatedAgentsList;
+    }
+    return sqlitePreviewAgents;
+  }, [generatedGraph, agentsListLoading, generatedAgentsList, sqlitePreviewAgents]);
+
+  const showingSqlitePreview =
+    sqlitePreviewAgents.length > 0 && !(generatedGraph && !agentsListLoading && generatedAgentsList.length > 0);
+  const agentsPanelBusy = agentsListLoading || sqliteTopicsPersonasLoading;
+
   const platformDatasets = useMemo(
     () =>
       datasets
@@ -208,24 +281,49 @@ export default function Profiles() {
 
   const selectedDatasetOption = filteredPlatformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId) || null;
 
-  const graphStats = useMemo(
-    () => ({
-      userCount: generatedGraph?.stats.agentCount || 0,
-      linkCount: generatedGraph?.stats.edgeCount || 0,
-      densityLabel: formatDensityPercent(generatedGraph?.stats.density),
-    }),
-    [generatedGraph],
-  );
+  const graphStats = useMemo(() => {
+    if (generatedGraph?.stats) {
+      const s = generatedGraph.stats;
+      return {
+        userCount: s.agentCount || 0,
+        linkCount: s.edgeCount || 0,
+        densityLabel: formatDensityPercent(s.density),
+      };
+    }
+    const previewN = sqlitePreviewAgents.length;
+    return {
+      userCount: previewN,
+      linkCount: 0,
+      densityLabel: formatDensityPercent(undefined),
+    };
+  }, [generatedGraph, sqlitePreviewAgents.length]);
 
-  const selectedCounts = selectedDataset?.counts || EMPTY_COUNTS;
+  const mongoCounts = selectedDataset?.counts || EMPTY_COUNTS;
+  const effectiveSeedCounts = useMemo(() => {
+    let base = mongoCounts;
+    if (selectedPlatform === 'twitter' && sqliteSelectedTopicKeys.length > 0 && sqliteSeedCounts) {
+      base = {
+        ...mongoCounts,
+        users: sqliteSeedCounts.users,
+        posts: sqliteSeedCounts.posts,
+        replies: sqliteSeedCounts.replies,
+        topics: sqliteSeedCounts.topics,
+      };
+    }
+    if (selectedPlatform === 'twitter' && sqlitePreviewAgents.length > 0) {
+      return { ...base, users: sqlitePreviewAgents.length };
+    }
+    return base;
+  }, [mongoCounts, selectedPlatform, sqliteSeedCounts, sqliteSelectedKeysSignature, sqlitePreviewAgents.length]);
+
   const visibleSeedMetrics = useMemo<SeedMetricDescriptor[]>(
     () =>
       ALGORITHM_SEED_KEYS[algorithm].map((key) => ({
         key,
         ...SEED_METRIC_META[key],
-        value: selectedCounts[key],
+        value: effectiveSeedCounts[key],
       })),
-    [algorithm, selectedCounts],
+    [algorithm, effectiveSeedCounts],
   );
 
   const platformCards = useMemo<SubscriptionPlatformCard[]>(
@@ -293,7 +391,6 @@ export default function Profiles() {
       const { dataset } = await getPersonaDataset(datasetId);
       const detail = dataset as PersonaDatasetDetail;
       setSelectedDataset(detail);
-      setAgentCount(String(detail.counts.users || 0));
     } catch (error) {
       console.error('Load dataset detail error:', error);
       toast.error('加载数据集详情失败');
@@ -352,6 +449,144 @@ export default function Profiles() {
     setGeneratedGraph(null);
   }, [selectedDatasetId]);
 
+  useEffect(() => {
+    if (selectedPlatform !== 'twitter') {
+      setSqliteTopicRows([]);
+      setSqliteTopicSelected({});
+      setSqliteSeedCounts(null);
+      setSqliteSeedUserCount('100');
+      setSqlitePreviewAgents([]);
+      setSqlitePreviewTopics([]);
+      setSyntheticTopicCount('5');
+    }
+  }, [selectedPlatform]);
+
+  useEffect(() => {
+    if (selectedPlatform !== 'twitter') return;
+    let cancelled = false;
+    setSqliteTopicsLoading(true);
+    void getTwitterSqliteTopicsList({ recentPool: 2000 })
+      .then((res) => {
+        if (cancelled) return;
+        const rows = res.topics;
+        setSqliteTopicRows(rows);
+        const nextSel: Record<string, boolean> = {};
+        for (const row of rows) nextSel[row.topic_key] = true;
+        setSqliteTopicSelected(nextSel);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('SQLite topics:', error);
+          toast.error((error as Error).message || '加载 SQLite 话题失败');
+          setSqliteTopicRows([]);
+          setSqliteTopicSelected({});
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSqliteTopicsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlatform]);
+
+  useEffect(() => {
+    if (selectedPlatform !== 'twitter' || sqliteSelectedTopicKeys.length === 0) {
+      setSqliteSeedCounts(null);
+      return;
+    }
+    let cancelled = false;
+    setSqliteSeedLoading(true);
+    void postTwitterSqliteTopicSeed(sqliteSelectedTopicKeys, sqliteSeedUserCountParsed)
+      .then((res) => {
+        if (cancelled) return;
+        setSqliteSeedCounts(res.counts);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('SQLite topic seed:', error);
+          toast.error((error as Error).message || '加载话题种子统计失败');
+          setSqliteSeedCounts(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setSqliteSeedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlatform, sqliteSelectedKeysSignature, sqliteSeedUserCountParsed]);
+
+  useEffect(() => {
+    const users = selectedDataset?.counts?.users;
+    if (selectedPlatform !== 'twitter') {
+      if (users != null && users > 0) {
+        setAgentCount(String(users));
+        return;
+      }
+      setAgentCount('0');
+      return;
+    }
+    if (users != null && users > 0) {
+      setAgentCount(String(users));
+      return;
+    }
+    setAgentCount((prev) => {
+      const n = Number.parseInt(String(prev).trim(), 10);
+      return Number.isFinite(n) && n > 0 ? prev : '10';
+    });
+  }, [selectedDataset?.counts?.users, selectedPlatform]);
+
+  const handleSqliteTopicsPersonasLlm = async () => {
+    if (selectedPlatform !== 'twitter' || sqliteSelectedTopicKeys.length === 0) {
+      toast.error('请先勾选至少一个话题');
+      return;
+    }
+    setSqliteTopicsPersonasLoading(true);
+    setSqlitePreviewAgents([]);
+    setSqlitePreviewTopics([]);
+    try {
+      toast.info(
+        `将先根据已选话题用大模型生成 ${syntheticTopicCountParsed} 条仿真话题，再结合种子用户生成 ${llmUserTargetParsed} 条画像。`,
+      );
+      const res = await postTwitterSqliteTopicsPersonasLlm({
+        topic_keys: sqliteSelectedTopicKeys,
+        seed_user_count: sqliteSeedUserCountParsed,
+        synthetic_topic_count: syntheticTopicCountParsed,
+        user_target_count: llmUserTargetParsed,
+        llmBatchSize: 4,
+        llmSeedSample: 10,
+        llmMaxRetries: 1,
+        llmKolNormalRatio: '1:10',
+      });
+      setSqlitePreviewAgents(
+        (res.users ?? []).map((u, idx) =>
+          mapSqliteLlmUserToAgent(u as Record<string, unknown>, idx, res.dataset_id, 'topics_personas'),
+        ),
+      );
+      setSqlitePreviewTopics(
+        (res.topics ?? []).map((t) => ({
+          title: String(t.title ?? '').trim() || '（无标题）',
+          summary: String(t.summary ?? '').trim(),
+        })),
+      );
+      const nUsers = res.users?.length ?? 0;
+      if (nUsers > 0) {
+        setAgentCount(String(nUsers));
+      }
+      const p = res.sqlite_persist;
+      toast.success('用户画像和话题数据已生成');
+      if (p?.ok === false) {
+        toast.error(`SQLite 写入失败：${p.error ?? '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('SQLite topics+personas LLM:', error);
+      toast.error((error as Error).message || '仿真话题与用户画像生成失败');
+    } finally {
+      setSqliteTopicsPersonasLoading(false);
+    }
+  };
+
   const handleTogglePlatform = async (platformId: string, checked: boolean) => {
     const platformName = PLATFORM_LABELS[platformId] || platformId;
     if (!checked) {
@@ -394,13 +629,30 @@ export default function Profiles() {
       if (subscribedDatasets[0]?.dataset_id) {
         setSelectedSnapshotDay(formatBeijingDay(subscribedDatasets[0].created_at));
         setSelectedDatasetId(subscribedDatasets[0].dataset_id);
-        toast.success(`已载入 ${subscribedDatasets.length} 份 ${platformName} 数据集`);
       } else {
         setSelectedSnapshotDay('');
         setSelectedDatasetId('');
         setSelectedDataset(null);
         setGeneratedGraph(null);
         setCurrentGenerationId(null);
+      }
+
+      if (platformId === 'twitter') {
+        try {
+          const topicRes = await getTwitterSqliteTopicsList({ recentPool: 2000 });
+          const n = topicRes.topics.length;
+          if (n > 0) {
+            toast.success(`已从本地库加载 ${n} 个话题`);
+          } else {
+            toast.info('未从本地库读取到话题，请检查 oasis_datasets.db 或 TWITTER_DATASET_SQLITE_PATH');
+          }
+        } catch (e) {
+          console.error('Twitter sqlite topics (toast):', e);
+          toast.error((e as Error).message || '读取本地话题失败');
+        }
+      } else if (subscribedDatasets[0]?.dataset_id) {
+        toast.success(`已载入 ${subscribedDatasets.length} 份 ${platformName} 数据集`);
+      } else {
         toast.info(`${platformName} 暂无可用数据集`);
       }
     } catch (error) {
@@ -447,16 +699,18 @@ export default function Profiles() {
       }
       const result = await generateDatasetArtifacts(selectedDatasetId, {
         algorithm,
-        agentCount: Math.max(1, Number(agentCount) || selectedDataset?.counts.users || 1),
+        agentCount: Math.max(1, llmUserTargetParsed || selectedDataset?.counts.users || 1),
         useLlmPersonas,
         // 默认更稳的参数：减小单次返回 JSON 的长度，降低网关/模型超时概率
         llmBatchSize: 4,
         llmSeedSample: 10,
         llmMaxRetries: 1,
-        llmKolNormalRatio: '1:8',
+        llmKolNormalRatio: '1:10',
       });
       setGeneratedGraph(result.graph);
       setCurrentGenerationId(result.generation_id);
+      setSqlitePreviewAgents([]);
+      setSqlitePreviewTopics([]);
       setAgentsListLoading(true);
       try {
         const agentsRes = await getGeneratedAgents(result.generation_id);
@@ -531,78 +785,176 @@ export default function Profiles() {
             <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm font-bold">当前平台：{PLATFORM_LABELS[selectedPlatform] || selectedPlatform || '未选择'}</span>
-                <Badge variant="outline">{platformDatasets.length} snapshots</Badge>
+                {selectedPlatform === 'twitter' ? (
+                  <Badge variant="outline" className="shrink-0 text-[10px] tabular-nums">
+                    {sqliteTopicsLoading ? 'SQLite · …' : `SQLite · ${sqliteTopicRows.length} 话题`}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {platformDatasets.length} snapshots
+                  </Badge>
+                )}
               </div>
-              {selectedSnapshotDay ? (
+              {selectedPlatform !== 'twitter' && selectedSnapshotDay ? (
                 <p className="text-[11px] text-text-tertiary">
                   当前日期：{selectedSnapshotDay}，当天共 {filteredPlatformDatasets.length} 份快照
                 </p>
               ) : null}
             </div>
 
-            {availableSnapshotDays.length > 1 ? (
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择日期</label>
-                <Select value={selectedSnapshotDay} onValueChange={setSelectedSnapshotDay}>
-                  <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                    <SelectValue
-                      placeholder={datasetsLoading ? '日期加载中...' : '先订阅平台，再选择快照日期'}
-                      value={selectedSnapshotDay ? formatDayOption(selectedSnapshotDay, filteredPlatformDatasets.length) : undefined}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSnapshotDays.map((day) => {
-                      const count = platformDatasets.filter((dataset) => formatBeijingDay(dataset.created_at) === day).length;
-                      return (
-                        <SelectItem key={day} value={day}>
-                          <div className="font-bold">{day}</div>
-                          <div className="text-[10px] text-text-muted">{count} 份快照</div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+            {selectedPlatform === 'twitter' ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
+                    话题列表（按话题下帖子与评论作者）
+                  </label>
+                  <Badge variant="outline" className="shrink-0 text-[10px] tabular-nums">
+                    已选 {sqliteSelectedTopicKeys.length}/{sqliteTopicRows.length}
+                  </Badge>
+                </div>
+                <div className="max-h-[min(40vh,280px)] overflow-y-auto overscroll-y-contain rounded-xl border border-border-default bg-bg-primary shadow-inner">
+                  {sqliteTopicsLoading ? (
+                    <p className="p-4 text-xs text-text-muted">话题加载中…</p>
+                  ) : sqliteTopicRows.length === 0 ? (
+                    <p className="p-4 text-xs leading-relaxed text-text-muted">
+                      暂无话题（请确认 oasis_dashboard/datasets/oasis_datasets.db 或环境变量 TWITTER_DATASET_SQLITE_PATH）
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border-default">
+                      {sqliteTopicRows.map((row) => {
+                        const on = Boolean(sqliteTopicSelected[row.topic_key]);
+                        return (
+                          <li
+                            key={row.topic_key}
+                            className={`flex items-start gap-2 px-3 py-2.5 transition-colors ${
+                              on ? 'bg-accent/5' : 'bg-bg-primary/40 opacity-75'
+                            }`}
+                          >
+                            <p className="min-w-0 flex-1 text-xs leading-snug text-text-secondary">{row.topic_label}</p>
+                            {on ? (
+                              <button
+                                type="button"
+                                aria-label="取消选择该话题"
+                                className="shrink-0 rounded-lg p-1.5 text-text-muted transition-colors hover:bg-rose-500/10 hover:text-rose-400"
+                                onClick={() =>
+                                  setSqliteTopicSelected((prev) => ({
+                                    ...prev,
+                                    [row.topic_key]: false,
+                                  }))
+                                }
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                aria-label="重新选择该话题"
+                                className="shrink-0 rounded-lg p-1.5 text-accent transition-colors hover:bg-accent/10"
+                                onClick={() =>
+                                  setSqliteTopicSelected((prev) => ({
+                                    ...prev,
+                                    [row.topic_key]: true,
+                                  }))
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">种子用户目标人数</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={2000}
+                    value={sqliteSeedUserCount}
+                    onChange={(e) => setSqliteSeedUserCount(e.target.value)}
+                    className="h-11 rounded-xl border-border-default bg-bg-primary font-mono text-sm"
+                  />
+                </div>
+                {sqliteSeedLoading ? (
+                  <p className="text-[11px] text-text-muted">正在按帖子/评论池计算种子…</p>
+                ) : null}
               </div>
             ) : null}
 
-            <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择数据集</label>
-              <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-                <SelectTrigger className="bg-bg-primary border-border-default h-auto min-h-[64px] rounded-xl py-3">
-                  {selectedDatasetOption ? (
-                    <div className="min-w-0 pr-4 text-left">
-                      <div className="text-xs font-bold leading-tight">{formatBeijingTime(selectedDatasetOption.created_at)}</div>
-                      <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-tertiary">
-                        {selectedDatasetOption.dataset_id}
-                      </div>
-                      <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
-                        {formatDatasetTrendSummary(selectedDatasetOption)}
-                      </div>
-                    </div>
-                  ) : (
-                    <SelectValue placeholder={datasetsLoading ? '数据集加载中...' : '请先订阅平台，再选择已同步的数据集'} />
-                  )}
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredPlatformDatasets.map((dataset) => (
-                    <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
-                      <div className="pr-6">
-                        <div className="font-bold leading-tight">{formatBeijingTime(dataset.created_at)}</div>
-                        <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-muted">
-                          {dataset.dataset_id}
-                        </div>
-                        <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
-                          {formatDatasetTrendSummary(dataset)}
-                        </div>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {selectedPlatform !== 'twitter' ? (
+              <>
+                {availableSnapshotDays.length > 1 ? (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择日期</label>
+                    <Select value={selectedSnapshotDay} onValueChange={setSelectedSnapshotDay}>
+                      <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
+                        <SelectValue
+                          placeholder={datasetsLoading ? '日期加载中...' : '先订阅平台，再选择快照日期'}
+                          value={selectedSnapshotDay ? formatDayOption(selectedSnapshotDay, filteredPlatformDatasets.length) : undefined}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSnapshotDays.map((day) => {
+                          const count = platformDatasets.filter((dataset) => formatBeijingDay(dataset.created_at) === day).length;
+                          return (
+                            <SelectItem key={day} value={day}>
+                              <div className="font-bold">{day}</div>
+                              <div className="text-[10px] text-text-muted">{count} 份快照</div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
 
-            {!selectedDataset ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">选择数据集</label>
+                  <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
+                    <SelectTrigger className="bg-bg-primary border-border-default h-auto min-h-[64px] rounded-xl py-3">
+                      {selectedDatasetOption ? (
+                        <div className="min-w-0 pr-4 text-left">
+                          <div className="text-xs font-bold leading-tight">{formatBeijingTime(selectedDatasetOption.created_at)}</div>
+                          <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-tertiary">
+                            {selectedDatasetOption.dataset_id}
+                          </div>
+                          <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
+                            {formatDatasetTrendSummary(selectedDatasetOption)}
+                          </div>
+                        </div>
+                      ) : (
+                        <SelectValue placeholder={datasetsLoading ? '数据集加载中...' : '请先订阅平台，再选择已同步的数据集'} />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredPlatformDatasets.map((dataset) => (
+                        <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
+                          <div className="pr-6">
+                            <div className="font-bold leading-tight">{formatBeijingTime(dataset.created_at)}</div>
+                            <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-muted">
+                              {dataset.dataset_id}
+                            </div>
+                            <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
+                              {formatDatasetTrendSummary(dataset)}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            ) : null}
+
+            {!selectedDataset && selectedPlatform !== 'twitter' ? (
               <EmptyState text={datasetDetailLoading ? '正在加载数据集详情...' : '当前平台还没有可用数据集，可切换平台。'} />
+            ) : null}
+            {!selectedDataset && selectedPlatform === 'twitter' ? (
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                当前没有已同步的 MongoDB 数据集；仍可查看上方 SQLite 话题的种子统计。生成社交网络需先完成数据同步（将自动选用当前平台最新一份数据集）。
+              </p>
             ) : null}
 
             <div className="space-y-2">
@@ -674,21 +1026,74 @@ export default function Profiles() {
           <section className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary">生成规模</h3>
-              <span className="font-mono text-accent">{formatNumber(Number(agentCount) || 0)} Agents</span>
+              <span className="font-mono text-accent">{formatNumber(llmUserTargetParsed)} Agents</span>
             </div>
-            <Input
-              type="number"
-              min={1}
-              value={agentCount}
-              onChange={(event) => setAgentCount(event.target.value)}
-              className="bg-bg-primary border-border-default"
-            />
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
+                大模型拟生成用户数
+              </label>
+              <Input
+                type="number"
+                min={1}
+                max={2000}
+                value={agentCount}
+                onChange={(event) => setAgentCount(event.target.value)}
+                className="bg-bg-primary border-border-default h-11 rounded-xl font-mono text-sm"
+              />
+            </div>
+            {selectedPlatform === 'twitter' ? (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
+                    仿真话题数量（LLM）
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={64}
+                    value={syntheticTopicCount}
+                    onChange={(e) => setSyntheticTopicCount(e.target.value)}
+                    className="bg-bg-primary border-border-default h-11 rounded-xl font-mono text-sm"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full h-11 rounded-xl border border-accent/30 font-semibold"
+                  disabled={
+                    sqliteTopicsPersonasLoading ||
+                    sqliteSeedLoading ||
+                    sqliteTopicsLoading ||
+                    sqliteSelectedTopicKeys.length === 0
+                  }
+                  onClick={() => void handleSqliteTopicsPersonasLlm()}
+                >
+                  {sqliteTopicsPersonasLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      正在生成仿真话题与画像…
+                    </>
+                  ) : (
+                    <>
+                      <Wand2 className="mr-2 h-4 w-4" />
+                      生成仿真话题与用户画像
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : null}
           </section>
 
           <Button
             className="w-full h-14 rounded-2xl bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 font-bold gap-2"
             onClick={handleGenerate}
-            disabled={generationLoading || !selectedDatasetId}
+            disabled={
+              generationLoading ||
+              !selectedDatasetId ||
+              (selectedPlatform === 'twitter' &&
+                sqlitePreviewAgents.length === 0 &&
+                !generatedGraph)
+            }
           >
             {generationLoading ? (
               <>
@@ -725,35 +1130,72 @@ export default function Profiles() {
           <Card className="bg-bg-secondary border-border-default p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                <Tags className="w-4 h-4" />
+                仿真话题列表
+              </h3>
+              <Badge variant="outline" className="text-[9px]">
+                {sqliteTopicsPersonasLoading && sqlitePreviewTopics.length === 0
+                  ? '生成中…'
+                  : `${sqlitePreviewTopics.length} 条`}
+              </Badge>
+            </div>
+            {sqliteTopicsPersonasLoading && sqlitePreviewTopics.length === 0 ? (
+              <p className="text-sm text-text-muted">正在生成仿真话题…</p>
+            ) : sqlitePreviewTopics.length === 0 ? null : (
+              <div className="max-h-[min(320px,40vh)] space-y-2 overflow-y-auto pr-1">
+                {sqlitePreviewTopics.map((topic, idx) => (
+                  <div
+                    key={`sqlite-topic-preview-${idx}`}
+                    className="rounded-xl border border-border-default bg-bg-primary/80 p-3 text-left"
+                  >
+                    <div className="font-bold text-sm text-text-primary leading-snug">{topic.title}</div>
+                    {topic.summary ? (
+                      <p className="mt-1.5 text-[11px] text-text-tertiary leading-snug line-clamp-3">{topic.summary}</p>
+                    ) : (
+                      <p className="mt-1.5 text-[11px] text-text-muted">—</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="bg-bg-secondary border-border-default p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
                 <Users className="w-4 h-4" />
                 拟合用户列表
               </h3>
               <Badge variant="outline" className="text-[9px]">
-                {agentsListLoading ? '加载中…' : `${generatedAgentsList.length} 人`}
+                {agentsPanelBusy && displayAgentsList.length === 0
+                  ? sqliteTopicsPersonasLoading
+                    ? '生成中…'
+                    : '加载中…'
+                  : `${displayAgentsList.length} 人`}
               </Badge>
             </div>
-            <p className="text-[11px] text-text-tertiary leading-relaxed">
-              与下方力导图中<strong className="text-text-secondary">蓝色圆点</strong>一一对应；悬停节点可快速看简介与兴趣。此处为 MongoDB{' '}
-              <code className="rounded bg-bg-primary px-1 font-mono text-[10px]">generated_agents</code> 中的完整画像字段。
-            </p>
-            {!generatedGraph ? (
-              <p className="text-sm text-text-muted">生成社交网络后将在此展示拟合用户卡片。</p>
-            ) : agentsListLoading ? (
-              <p className="text-sm text-text-muted">正在加载用户列表…</p>
-            ) : generatedAgentsList.length === 0 ? (
-              <p className="text-sm text-text-muted">暂无列表数据（可刷新页面后重试生成）。</p>
-            ) : (
+            {agentsPanelBusy && displayAgentsList.length === 0 ? (
+              <p className="text-sm text-text-muted">
+                {sqliteTopicsPersonasLoading ? '正在调用大模型生成用户画像…' : '正在加载用户列表…'}
+              </p>
+            ) : displayAgentsList.length === 0 ? null : (
               <div className="max-h-[min(420px,50vh)] space-y-2 overflow-y-auto pr-1">
-                {generatedAgentsList.map((agent) => (
+                {displayAgentsList.map((agent) => (
                   <div
-                    key={`${agent.generation_id}-${agent.generated_agent_id}`}
+                    key={
+                      showingSqlitePreview
+                        ? `sqlite-llm-${agent.dataset_id}-${agent.generated_agent_id}`
+                        : `${agent.generation_id}-${agent.generated_agent_id}`
+                    }
                     className="rounded-xl border border-border-default bg-bg-primary/80 p-3 text-left"
                   >
                     <div className="flex flex-wrap items-baseline justify-between gap-2">
                       <span className="font-bold text-sm text-text-primary">{agent.name}</span>
                       <span className="font-mono text-[10px] text-text-muted">@{agent.user_name}</span>
                     </div>
-                    <p className="mt-1 text-[11px] text-text-tertiary line-clamp-2">{agent.description || agent.profile?.other_info?.user_profile || '—'}</p>
+                    <p className="mt-1 text-[11px] text-text-tertiary line-clamp-2">
+                      {agent.description || agent.profile?.other_info?.user_profile || '—'}
+                    </p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {(agent.interests?.length ? agent.interests : agent.profile?.other_info?.topics || []).slice(0, 8).map((t) => (
                         <Badge key={t} variant="secondary" className="text-[8px] font-normal">
@@ -811,11 +1253,6 @@ export default function Profiles() {
             <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex flex-col gap-3 lg:flex-row lg:justify-between lg:items-center">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-widest text-text-tertiary">社交知识图谱预览 (Social Knowledge Graph)</h2>
-                {selectedDataset ? (
-                  <p className="text-xs text-text-tertiary mt-1">
-                  当前快照：{selectedDataset.dataset_id} · 采集时间 {formatBeijingTime(selectedDataset.created_at)}
-                </p>
-              ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 {selectedDatasetId ? <Badge variant="outline" className="text-[9px]">{selectedDatasetId}</Badge> : null}
@@ -842,6 +1279,64 @@ export default function Profiles() {
       </div>
     </div>
   );
+}
+
+/** 将 SQLite LLM 返回的 user 文档映射为与图谱列表一致的 GeneratedAgentRecord（仅前端预览）。 */
+function mapSqliteLlmUserToAgent(
+  row: Record<string, unknown>,
+  idx: number,
+  datasetId: string,
+  kind: 'personas' | 'topics_personas',
+): GeneratedAgentRecord {
+  const prof =
+    typeof row.profile === 'object' && row.profile !== null
+      ? (row.profile as GeneratedAgentRecord['profile'])
+      : undefined;
+  const rawOi = prof?.other_info as
+    | (GeneratedAgentRecord['profile']['other_info'] & { user_type?: string })
+    | undefined;
+  const oi = rawOi ?? {
+    user_profile: '',
+    topics: [] as string[],
+    gender: null,
+    age: null,
+    mbti: null,
+    country: null,
+  };
+  const topics = Array.isArray(oi.topics) ? oi.topics.map((t) => String(t)) : [];
+  const ageRaw = oi.age;
+  let age: number | null = null;
+  if (typeof ageRaw === 'number' && Number.isFinite(ageRaw)) {
+    age = Math.round(ageRaw);
+  } else if (typeof ageRaw === 'string' && /^\d+$/.test(ageRaw)) {
+    age = Number(ageRaw);
+  }
+
+  return {
+    generation_id: `sqlite_llm_${kind}`,
+    dataset_id: String(row.dataset_id ?? datasetId),
+    algorithm: kind,
+    generated_agent_id: idx + 1,
+    source_user_key: String(row.twitter_user_id ?? row.user_name ?? idx),
+    user_name: String(row.user_name ?? ''),
+    name: String(row.name ?? ''),
+    description: String(row.description ?? ''),
+    profile: {
+      other_info: {
+        user_profile: String(oi.user_profile ?? ''),
+        topics,
+        gender: oi.gender != null ? String(oi.gender) : null,
+        age,
+        mbti: oi.mbti != null ? String(oi.mbti) : null,
+        country: oi.country != null ? String(oi.country) : null,
+      },
+    },
+    recsys_type: String(row.recsys_type ?? 'twitter'),
+    user_type: String(rawOi?.user_type ?? 'normal'),
+    interests: topics,
+    metadata: {},
+    created_at: '',
+  };
 }
 
 /** 列表项请在外层写 key={...}；不要把 key 写进 props，React 不会传入子组件。 */

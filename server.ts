@@ -34,9 +34,22 @@ import {
   runTwitterFetchProcess,
   runLlmPersonaWorker,
   runNeo4jImportWorker,
+  runTopicsThenUsersLlmWorker,
   upsertDatasetManifest,
 } from "./src/lib/personaBackend";
 import { buildGeneratedArtifacts } from "./src/lib/personaGeneration";
+import {
+  assertSqliteDbReadable,
+  buildSeedUsersForLlmFromSqlite,
+  computeMultiTopicSeedSample,
+  getTopicLabelsForKeys,
+  listRecentTopicsOrdered,
+  listRecentTopicsThenShuffle,
+  openTwitterDatasetReadonly,
+  resolveTwitterDatasetSqlitePath,
+  type TwitterSqliteDb,
+} from "./src/lib/twitterDatasetSqliteServer";
+import { persistLlmTopicsAndUsersSqlite } from "./src/lib/twitterDatasetSqliteLlmPersist";
 
 // 🆕 创建日志文件（带时间戳）
 const __filename = fileURLToPath(import.meta.url);
@@ -1151,6 +1164,320 @@ async function startServer() {
         status: "error",
         message: e?.message || String(e),
       });
+    }
+  });
+
+  // GET /api/persona/twitter/sqlite-topics — 默认随机子集；format=list 时返回近期全量列表（按时间倒序，供多选）
+  app.get("/api/persona/twitter/sqlite-topics", async (req, res) => {
+    let db: TwitterSqliteDb | null = null;
+    try {
+      const dbPath = resolveTwitterDatasetSqlitePath(__dirname);
+      assertSqliteDbReadable(dbPath);
+      db = await openTwitterDatasetReadonly(dbPath);
+      const format = String(req.query.format ?? "").toLowerCase();
+      if (format === "list") {
+        const recentPool = Math.min(5000, Math.max(1, Number(req.query.recent_pool ?? 500) || 500));
+        const topics = listRecentTopicsOrdered(db, recentPool);
+        db.close();
+        db = null;
+        return res.json({ status: "ok", topics, total: topics.length, format: "list" });
+      }
+      const recentPool = Math.max(30, Math.min(500, Number(req.query.recent_pool ?? 120) || 120));
+      const minTopics = Math.max(1, Math.min(200, Number(req.query.min_topics ?? 30) || 30));
+      const { topics, total_recent } = listRecentTopicsThenShuffle(db, { recentPool, minTopics });
+      db.close();
+      db = null;
+      return res.json({ status: "ok", topics, total_recent, min_topics: minTopics });
+    } catch (error: any) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      const code = error?.code;
+      const status = code === "SQLITE_DB_MISSING" ? 404 : 500;
+      return res.status(status).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // GET /api/persona/twitter/sqlite-topic-seed — 支持 topic_key 单话题，或多次 topic_keys= 合并话题池抽样
+  app.get("/api/persona/twitter/sqlite-topic-seed", async (req, res) => {
+    let db: TwitterSqliteDb | null = null;
+    try {
+      const rawKeys = req.query.topic_keys;
+      const topicKeys: string[] = Array.isArray(rawKeys)
+        ? rawKeys.flatMap((k) => String(k).split(",").map((s) => s.trim()).filter(Boolean))
+        : rawKeys
+          ? String(rawKeys).split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+      const single = String(req.query.topic_key ?? "").trim();
+      if (single) topicKeys.push(single);
+      const deduped = [...new Set(topicKeys)];
+      if (deduped.length === 0) {
+        return res.status(400).json({ status: "error", message: "缺少 topic_key 或 topic_keys" });
+      }
+      const userLimit = Math.max(1, Math.min(2000, Number(req.query.user_limit ?? 100) || 100));
+      const includeIds = String(req.query.include_ids ?? "") === "1";
+      const dbPath = resolveTwitterDatasetSqlitePath(__dirname);
+      assertSqliteDbReadable(dbPath);
+      db = await openTwitterDatasetReadonly(dbPath);
+      const result = computeMultiTopicSeedSample(db, deduped, userLimit);
+      db.close();
+      db = null;
+      const payload: Record<string, unknown> = {
+        status: "ok",
+        topic_key: result.topic_key,
+        topic_keys: deduped,
+        user_limit_requested: result.user_limit_requested,
+        users_selected: result.users_selected,
+        kol_selected: result.kol_selected,
+        normal_selected: result.normal_selected,
+        counts: result.counts,
+      };
+      if (includeIds) payload.external_user_ids = result.external_user_ids;
+      return res.json(payload);
+    } catch (error: any) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      const code = error?.code;
+      const status = code === "SQLITE_DB_MISSING" ? 404 : 500;
+      return res.status(status).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // POST /api/persona/twitter/sqlite-topic-seed — body: { topic_keys, seed_user_count | user_limit }
+  app.post("/api/persona/twitter/sqlite-topic-seed", async (req, res) => {
+    let db: TwitterSqliteDb | null = null;
+    try {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const raw = body.topic_keys;
+      const topicKeys = Array.isArray(raw)
+        ? [...new Set(raw.map((k) => String(k).trim()).filter(Boolean))]
+        : [];
+      if (topicKeys.length === 0) {
+        return res.status(400).json({ status: "error", message: "缺少 body.topic_keys（非空数组）" });
+      }
+      const rawLimit = body.seed_user_count ?? body.user_limit ?? 100;
+      const userLimit = Math.max(1, Math.min(2000, Number(rawLimit) || 100));
+      const includeIds = Boolean(body.include_ids);
+      const dbPath = resolveTwitterDatasetSqlitePath(__dirname);
+      assertSqliteDbReadable(dbPath);
+      db = await openTwitterDatasetReadonly(dbPath);
+      const result = computeMultiTopicSeedSample(db, topicKeys, userLimit);
+      db.close();
+      db = null;
+      const payload: Record<string, unknown> = {
+        status: "ok",
+        topic_key: result.topic_key,
+        topic_keys: topicKeys,
+        user_limit_requested: result.user_limit_requested,
+        users_selected: result.users_selected,
+        kol_selected: result.kol_selected,
+        normal_selected: result.normal_selected,
+        counts: result.counts,
+      };
+      if (includeIds) payload.external_user_ids = result.external_user_ids;
+      return res.json(payload);
+    } catch (error: any) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      const code = error?.code;
+      const status = code === "SQLITE_DB_MISSING" ? 404 : 500;
+      return res.status(status).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // POST /api/persona/twitter/sqlite-personas-llm — 按当前话题+人数抽样 SQLite 种子用户，补全 bio 后调用 persona_llm_worker 生成画像
+  app.post("/api/persona/twitter/sqlite-personas-llm", async (req, res) => {
+    let db: TwitterSqliteDb | null = null;
+    try {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const raw = body.topic_keys;
+      const topicKeys = Array.isArray(raw) ? [...new Set(raw.map((k) => String(k).trim()).filter(Boolean))] : [];
+      if (topicKeys.length === 0) {
+        return res.status(400).json({ status: "error", message: "缺少 body.topic_keys（非空数组）" });
+      }
+      const seedUserCount = Math.max(1, Math.min(2000, Number(body.seed_user_count ?? 100) || 100));
+
+      const dbPath = resolveTwitterDatasetSqlitePath(__dirname);
+      assertSqliteDbReadable(dbPath);
+      db = await openTwitterDatasetReadonly(dbPath);
+      const seedResult = computeMultiTopicSeedSample(db, topicKeys, seedUserCount);
+      const seeds = buildSeedUsersForLlmFromSqlite(db, seedResult.external_user_ids);
+      db.close();
+      db = null;
+
+      if (!seeds.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "未从 SQLite 组装到任何种子用户（请确认话题下有帖子且作者存在于 users 表）",
+        });
+      }
+
+      const rawTarget =
+        body.target_count != null && String(body.target_count).trim() !== "" ? Number(body.target_count) : NaN;
+      const targetCount = Math.max(
+        1,
+        Math.min(
+          2000,
+          Number.isFinite(rawTarget) && rawTarget > 0 ? Math.floor(rawTarget) : seeds.length,
+        ),
+      );
+
+      const datasetId = `sqlite_${createDatasetId()}`;
+      const llmOut = await runLlmPersonaWorker(__dirname, {
+        seed_users: seeds as Record<string, unknown>[],
+        target_count: targetCount,
+        dataset_id: datasetId,
+        recsys_type: "twitter",
+        batch_size: Number(body.llm_batch_size ?? body.llmBatchSize ?? 4) || 4,
+        seed_sample: Number(body.llm_seed_sample ?? body.llmSeedSample ?? 12) || 12,
+        max_retries: Number(body.llm_max_retries ?? body.llmMaxRetries ?? 2) || 2,
+        kol_normal_ratio: String(body.llm_kol_normal_ratio ?? body.llmKolNormalRatio ?? "1:10"),
+      });
+
+      const persist = await persistLlmTopicsAndUsersSqlite(dbPath, {
+        topics: [],
+        users: llmOut.users as Record<string, unknown>[],
+      });
+
+      return res.json({
+        status: "ok",
+        dataset_id: datasetId,
+        seed_users_built: seeds.length,
+        seed_sample_counts: seedResult.counts,
+        users: llmOut.users,
+        meta: llmOut.meta,
+        sqlite_persist: persist,
+      });
+    } catch (error: any) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (error instanceof PersonaProcessError) {
+        return res.status(error.statusCode).json({
+          status: "error",
+          message: error.message,
+          type: error.errorType,
+          stderr: error.stderr,
+          stdoutPreview: error.stdoutPreview,
+        });
+      }
+      return res.status(500).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // POST /api/persona/twitter/sqlite-topics-personas-llm — 先 LLM 生成仿真话题，再结合种子用户生成画像
+  app.post("/api/persona/twitter/sqlite-topics-personas-llm", async (req, res) => {
+    let db: TwitterSqliteDb | null = null;
+    try {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const raw = body.topic_keys;
+      const topicKeys = Array.isArray(raw) ? [...new Set(raw.map((k) => String(k).trim()).filter(Boolean))] : [];
+      if (topicKeys.length === 0) {
+        return res.status(400).json({ status: "error", message: "缺少 body.topic_keys（非空数组）" });
+      }
+      const seedUserCount = Math.max(1, Math.min(2000, Number(body.seed_user_count ?? 100) || 100));
+      const rawSyn = body.synthetic_topic_count;
+      if (rawSyn == null || String(rawSyn).trim() === "") {
+        return res.status(400).json({ status: "error", message: "缺少 body.synthetic_topic_count（1~64 整数）" });
+      }
+      const syntheticN = Math.max(1, Math.min(64, Math.floor(Number(rawSyn))));
+      if (!Number.isFinite(syntheticN) || syntheticN < 1) {
+        return res.status(400).json({ status: "error", message: "无效的 body.synthetic_topic_count（须为 1~64 整数）" });
+      }
+      const rawLlmUsers =
+        body.user_target_count != null && String(body.user_target_count).trim() !== ""
+          ? Number(body.user_target_count)
+          : NaN;
+      const userTargetCount = Math.max(
+        1,
+        Math.min(2000, Number.isFinite(rawLlmUsers) && rawLlmUsers > 0 ? Math.floor(rawLlmUsers) : 10),
+      );
+
+      const dbPath = resolveTwitterDatasetSqlitePath(__dirname);
+      assertSqliteDbReadable(dbPath);
+      db = await openTwitterDatasetReadonly(dbPath);
+      const selectedTopics = getTopicLabelsForKeys(db, topicKeys);
+      const seedResult = computeMultiTopicSeedSample(db, topicKeys, seedUserCount);
+      const seeds = buildSeedUsersForLlmFromSqlite(db, seedResult.external_user_ids);
+      db.close();
+      db = null;
+
+      if (!seeds.length) {
+        return res.status(400).json({
+          status: "error",
+          message: "未从 SQLite 组装到任何种子用户（请确认话题下有帖子且作者存在于 users 表）",
+        });
+      }
+
+      const datasetId = `sqlite_${createDatasetId()}`;
+      const llmOut = await runTopicsThenUsersLlmWorker(__dirname, {
+        selected_topics: selectedTopics,
+        synthetic_topic_count: syntheticN,
+        seed_users: seeds as Record<string, unknown>[],
+        user_target_count: userTargetCount,
+        dataset_id: datasetId,
+        recsys_type: "twitter",
+        batch_size: Number(body.llm_batch_size ?? body.llmBatchSize ?? 4) || 4,
+        seed_sample: Number(body.llm_seed_sample ?? body.llmSeedSample ?? 12) || 12,
+        max_retries: Number(body.llm_max_retries ?? body.llmMaxRetries ?? 2) || 2,
+        kol_normal_ratio: String(body.llm_kol_normal_ratio ?? body.llmKolNormalRatio ?? "1:10"),
+      });
+
+      const topicsForSqlite = (Array.isArray(llmOut.topics) ? llmOut.topics : []).map((t) => {
+        const o = t as Record<string, unknown>;
+        return { title: String(o.title ?? ""), summary: String(o.summary ?? "") };
+      });
+      const persist = await persistLlmTopicsAndUsersSqlite(dbPath, {
+        topics: topicsForSqlite,
+        users: llmOut.users as Record<string, unknown>[],
+      });
+
+      return res.json({
+        status: "ok",
+        dataset_id: datasetId,
+        seed_users_built: seeds.length,
+        seed_sample_counts: seedResult.counts,
+        topics: llmOut.topics,
+        users: llmOut.users,
+        meta: llmOut.meta,
+        sqlite_persist: persist,
+      });
+    } catch (error: any) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (error instanceof PersonaProcessError) {
+        return res.status(error.statusCode).json({
+          status: "error",
+          message: error.message,
+          type: error.errorType,
+          stderr: error.stderr,
+          stdoutPreview: error.stdoutPreview,
+        });
+      }
+      return res.status(500).json({ status: "error", message: error?.message || String(error) });
     }
   });
 

@@ -706,6 +706,141 @@ function describeLlmWorkerExit(
  * 调用 Python `oasis_dashboard.persona_llm_worker`：根据种子用户批量 LLM 生成 raw.users 形态文档。
  * 日志应在 stderr；若第三方库污染 stdout，会尝试解析最后一行 JSON。
  */
+export interface TopicsThenPersonasLlmWorkerPayload {
+  selected_topics: { topic_key: string; topic_label: string }[];
+  synthetic_topic_count: number;
+  seed_users: Record<string, unknown>[];
+  user_target_count: number;
+  dataset_id: string;
+  recsys_type: string;
+  batch_size?: number;
+  seed_sample?: number;
+  max_retries?: number;
+  kol_normal_ratio?: string;
+}
+
+/**
+ * 先 LLM 生成仿真话题，再将其作为全局背景与种子用户一起生成画像（persona_topics_users_llm_worker）。
+ */
+export async function runTopicsThenUsersLlmWorker(
+  repoRoot: string,
+  payload: TopicsThenPersonasLlmWorkerPayload,
+): Promise<{
+  status: string;
+  topics: Record<string, any>[];
+  users: Record<string, any>[];
+  meta?: Record<string, unknown>;
+  error?: string;
+}> {
+  const pythonBin = path.join(repoRoot, ".venv", "bin", "python");
+  if (!existsSync(pythonBin)) {
+    throw new PersonaProcessError("未找到 .venv/bin/python，请先执行: uv sync", { statusCode: 500 });
+  }
+
+  const base = Number(process.env.OASIS_LLM_PERSONA_TIMEOUT_MS || 900_000);
+  const timeoutMs = Number(process.env.OASIS_LLM_TOPICS_USERS_TIMEOUT_MS || Math.min(3_600_000, base * 2));
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(pythonBin, ["-m", "oasis_dashboard.persona_topics_users_llm_worker"], {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+    });
+
+    let stdout = "";
+    let stderr = "";
+    const killTimer = setTimeout(() => {
+      child.kill("SIGTERM");
+    }, timeoutMs);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.on("error", (error) => {
+      clearTimeout(killTimer);
+      reject(new PersonaProcessError(error.message, { stderr }));
+    });
+    child.on("close", (code, signal) => {
+      clearTimeout(killTimer);
+      const stderrTail = stderr.slice(-8000);
+      let parsed: {
+        status?: string;
+        topics?: Record<string, any>[];
+        users?: Record<string, any>[];
+        meta?: Record<string, unknown>;
+        error?: string;
+        type?: string;
+      };
+      try {
+        parsed = parseLastJsonObjectFromStdout(stdout) as typeof parsed;
+      } catch {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        const hint = buildLlmWorkerIoHint(stderrTail, stdout);
+        reject(
+          new PersonaProcessError(
+            code === 0 && !signal
+              ? `无法解析 Python 输出的 JSON。\n${hint}`
+              : `${exitDesc}\n且无法解析最后一行 JSON。\n${hint}`,
+            {
+              statusCode: 502,
+              stderr: stderrTail,
+              stdoutPreview: stdout.trim().slice(0, 2000),
+            },
+          ),
+        );
+        return;
+      }
+
+      if (parsed?.status === "error" || parsed?.error) {
+        reject(
+          new PersonaProcessError(
+            `${String(parsed.error || "仿真话题与用户画像生成失败")}${stderrTail ? `\n${stderrTail.slice(-2000)}` : ""}`,
+            {
+              statusCode: 502,
+              stderr: stderrTail,
+              errorType: typeof parsed.type === "string" ? parsed.type : undefined,
+            },
+          ),
+        );
+        return;
+      }
+      if (code !== 0 || signal) {
+        const exitDesc = describeLlmWorkerExit(code, signal, timeoutMs);
+        reject(
+          new PersonaProcessError(
+            `${exitDesc}${stderrTail ? `\n${stderrTail.slice(-2500)}` : ""}`,
+            {
+              stderr: stderrTail,
+              stdoutPreview: stdout.trim().slice(0, 2000),
+            },
+          ),
+        );
+        return;
+      }
+      if (!Array.isArray(parsed.users) || parsed.users.length === 0) {
+        reject(
+          new PersonaProcessError("LLM 未返回任何用户", {
+            stderr: stderrTail,
+            stdoutPreview: stdout.trim().slice(0, 2000),
+          }),
+        );
+        return;
+      }
+      resolve({
+        status: parsed.status || "ok",
+        topics: Array.isArray(parsed.topics) ? parsed.topics : [],
+        users: parsed.users,
+        meta: parsed.meta,
+      });
+    });
+
+    child.stdin.write(JSON.stringify(payload), "utf8");
+    child.stdin.end();
+  });
+}
+
 export async function runLlmPersonaWorker(
   repoRoot: string,
   payload: LlmPersonaWorkerPayload,

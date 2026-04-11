@@ -472,12 +472,52 @@ def _compact_user(u: dict[str, Any]) -> dict[str, Any]:
         "age",
         "mbti",
         "twitter_user_id",
+        "user_type",
     )
     out: dict[str, Any] = {}
     for k in keys:
         if k in u and u[k] is not None:
             out[k] = u[k]
     return out
+
+
+def _normalize_synthetic_topic_titles(titles: list[str] | None) -> list[str] | None:
+    if not titles:
+        return None
+    out: list[str] = []
+    seen: set[str] = set()
+    for t in titles:
+        s = str(t).strip()
+        if not s or s in seen:
+            continue
+        seen.add(s)
+        out.append(s)
+    return out or None
+
+
+def _enforce_interests_only_synthetic_titles(row: dict[str, Any], allowed: list[str]) -> None:
+    """将 interests 限制为仅包含本轮已生成的仿真话题 title（入库后写入 profile.other_info.topics）。"""
+    if not allowed:
+        return
+    allowed_set = set(allowed)
+    raw = row.get("interests")
+    picked: list[str] = []
+    if isinstance(raw, list):
+        for x in raw:
+            s = str(x).strip()
+            if s in allowed_set:
+                picked.append(s)
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for s in picked:
+        if s not in seen:
+            seen.add(s)
+            deduped.append(s)
+    deduped = deduped[:3]
+    if len(deduped) < 1:
+        pick_n = random.randint(1, min(3, len(allowed)))
+        deduped = random.sample(allowed, pick_n)
+    row["interests"] = deduped
 
 
 def _build_prompt(
@@ -488,6 +528,8 @@ def _build_prompt(
     recsys_type: str,
     kol_target: int | None = None,
     normal_target: int | None = None,
+    global_context: str | None = None,
+    allowed_synthetic_topic_titles: list[str] | None = None,
 ) -> str:
     seeds_json = json.dumps(seed_profiles, ensure_ascii=False, indent=2)
     ratio_hint = ""
@@ -495,7 +537,29 @@ def _build_prompt(
         ratio_hint = (
             f"\n- user_type: 字符串，只能为 \"kol\" 或 \"normal\"；本次希望生成 kol={kol_target}、normal={normal_target}（允许±1 的浮动，但总体比例需接近）。"
         )
+    ctx_block = ""
+    if global_context and str(global_context).strip():
+        ctx_block = (
+            "\n\n【仿真话题与观测背景（须结合以下语义生成用户兴趣与表达风格，勿照抄原文）】\n"
+            + str(global_context).strip()[:12000]
+        )
+    titles_block = ""
+    interests_spec = "- interests: 字符串数组，3~8 个兴趣标签（可与种子风格相近，但勿照抄种子原文）"
+    if allowed_synthetic_topic_titles:
+        titles_json = json.dumps(allowed_synthetic_topic_titles, ensure_ascii=False, indent=2)
+        titles_block = (
+            "\n\n【合法话题标题】（仅允许将下列字符串作为 interests 数组的元素；"
+            "必须与其中某一项**逐字完全相同**，含空格与标点，不得翻译、缩写或自拟新话题名）\n"
+            f"{titles_json}\n"
+        )
+        interests_spec = (
+            "- interests: 字符串数组，长度必须为 **1～3**。"
+            " 每一项必须是上方【合法话题标题】JSON 数组中的某一个值的**逐字完全相同**的拷贝；"
+            "不得包含任何不在该列表中的字符串。"
+        )
     return f"""你是社交媒体用户画像建模专家。下面是一批真实采样用户（JSON），平台类型约为: {recsys_type}。
+{ctx_block}
+{titles_block}
 
 请根据这些用户在兴趣分布、表达风格、人口属性上的统计特征，**新造** {batch_size} 个**虚构**用户画像，用于社会仿真。要求：
 - 与种子用户在整体分布上相似，但 username / bio / 具体兴趣组合要有明显差异，避免抄袭原文；
@@ -507,10 +571,10 @@ def _build_prompt(
 每条对象建议使用如下字段（缺失可 null，数组可为空）：
 - username: 字符串，小写英文/数字下划线风格，唯一
 - name: 显示名
-- bio: 个人简介，1~3 句
-- persona: 一段话，描述性格、说话习惯、关注点（仿真用）
-- interests: 字符串数组，3~8 个标签
-- country, gender, age, mbti: 与种子分布合理一致
+- bio: **单行**个人简介，口语化、信息密度高；**总长度不超过约 80 个字符**（中文按字计），不要分段、不要列表
+- persona: **1～2 句**短句，概括性格与说话习惯；**总长度不超过约 120 个字符**，不要长篇背景故事
+{interests_spec}
+- country, gender, age, mbti: 与种子分布合理一致（尽量给出具体 age 整数）
 - user_type: "kol" 或 "normal"
 
 本批次编号: {batch_index}（用于你区分批次，不要在输出中包含此编号）。
@@ -613,15 +677,19 @@ def map_llm_row_to_raw_user(
     if len(tid) > 64:
         tid = tid[:64]
 
+    # 简介保持短小，便于列表与图谱悬停展示（超出部分在入库前截断）
+    bio_short = bio[:220] if bio else ""
+    persona_short = persona[:360] if persona else ""
+
     return {
         "dataset_id": dataset_id,
         "recsys_type": recsys_type,
         "user_name": uname[:120],
         "name": name[:200],
-        "description": bio[:4000],
+        "description": bio_short,
         "profile": {
             "other_info": {
-                "user_profile": persona[:8000],
+                "user_profile": persona_short,
                 "topics": interests,
                 "user_type": user_type,
                 "country": row.get("country"),
@@ -636,6 +704,45 @@ def map_llm_row_to_raw_user(
     }
 
 
+def generate_synthetic_topics(
+    model: Any,
+    *,
+    selected_topics: list[dict[str, Any]],
+    topic_count: int,
+    max_retries: int = 3,
+) -> list[dict[str, Any]]:
+    """根据已选观测话题，让模型再生成若干条「仿真讨论话题」。"""
+    n = max(1, min(64, int(topic_count)))
+    sel = [t for t in selected_topics if isinstance(t, dict)][:80]
+    sel_json = json.dumps(sel, ensure_ascii=False, indent=2)
+    prompt = f"""你是社交媒体趋势分析专家。下面是平台已观测到的一批真实话题（含标题），平台偏 Twitter/X 类短内容。
+
+请基于这些话题的**主题域与语气**，**虚构** {n} 个**新的**讨论话题，用于社会仿真；不要复制原话题标题，要有合理多样性（可含政治/科技/生活等子域，但勿输出违法或极端仇恨内容）。
+
+只输出一个 JSON 数组，不要 Markdown。每项对象字段：
+- title: 字符串，简短话题名（可含中文或英文）
+- summary: 字符串，1~2 句说明该话题在讨论什么
+
+【已观测话题】
+{sel_json}
+"""
+    batch = run_llm_batch(model, prompt, max_retries)
+    out: list[dict[str, Any]] = []
+    for item in batch:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("name") or "").strip()
+        summary = str(item.get("summary") or item.get("description") or "").strip()
+        if not title:
+            continue
+        out.append({"title": title[:300], "summary": summary[:800]})
+        if len(out) >= n:
+            break
+    if len(out) < min(n, 1):
+        raise RuntimeError("未能从模型输出中解析到任何仿真话题")
+    return out[:n]
+
+
 def generate_llm_persona_users(
     seed_users: list[dict[str, Any]],
     *,
@@ -646,9 +753,14 @@ def generate_llm_persona_users(
     seed_sample: int = 12,
     max_retries: int = 3,
     kol_normal_ratio: tuple[int, int] = (1, 8),
+    global_context: str | None = None,
+    synthetic_topic_titles: list[str] | None = None,
 ) -> Tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     根据种子用户调用 LLM，生成 target_count 条可写入 raw.users 形态的文档。
+
+    synthetic_topic_titles: 若提供（通常为先前 generate_synthetic_topics 的 title 列表），
+    则提示词与后处理均保证 interests / profile.other_info.topics 仅来自这些标题。
     """
     if target_count < 1:
         raise ValueError("target_count 须 >= 1")
@@ -659,6 +771,8 @@ def generate_llm_persona_users(
     pool = [_compact_user(u) for u in seed_users if isinstance(u, dict)]
     if not pool:
         raise ValueError("种子用户无法规范化")
+
+    titles_norm = _normalize_synthetic_topic_titles(synthetic_topic_titles)
 
     spec = model_spec_from_env()
     resolved = build_shared_model(spec)
@@ -692,6 +806,8 @@ def generate_llm_persona_users(
             recsys_type=recsys_type,
             kol_target=min(kol_need, this_batch) if kol_need > 0 else 0,
             normal_target=max(0, this_batch - min(kol_need, this_batch)),
+            global_context=global_context,
+            allowed_synthetic_topic_titles=titles_norm,
         )
         logger.info(
             "LLM persona 批次 %s: 本批 %s 条, 剩余 %s",
@@ -725,6 +841,8 @@ def generate_llm_persona_users(
         for i, row in enumerate(batch):
             if not isinstance(row, dict):
                 continue
+            if titles_norm:
+                _enforce_interests_only_synthetic_titles(row, titles_norm)
             mapped.append(
                 map_llm_row_to_raw_user(
                     row,
@@ -750,5 +868,8 @@ def generate_llm_persona_users(
         "seed_pool_size": len(pool),
         "model_platform": os.environ.get("OASIS_MODEL_PLATFORM"),
         "model_type": os.environ.get("OASIS_MODEL_TYPE"),
+        "used_global_context": bool(global_context and str(global_context).strip()),
+        "interests_locked_to_synthetic_topic_titles": bool(titles_norm),
+        "synthetic_topic_title_count": len(titles_norm) if titles_norm else 0,
     }
     return mapped, meta
