@@ -9,6 +9,8 @@ from app.api.person_dataset import router as person_dataset_router
 from app.api.persona import router as persona_router
 from app.api.simulation import router as simulation_router
 from app.api.topics import router as topics_router
+from app.api.metrics import router as metrics_router
+from app.api.proxy import router as proxy_router
 from app.core.config import get_settings
 from app.core.dependencies import setup_dependencies
 
@@ -46,8 +48,12 @@ app.include_router(simulation_router, prefix="/api")
 app.include_router(topics_router, prefix="/api")
 app.include_router(metrics_router, prefix="/api")
 app.include_router(controlled_agents_router, prefix="/api")
+<<<<<<< HEAD
 app.include_router(persona_router, prefix="/api")
 app.include_router(person_dataset_router, prefix="/api")
+=======
+app.include_router(proxy_router)
+>>>>>>> 36d3712 (增加了3个情感分析api以及依赖服务)
 
 
 @app.get("/")

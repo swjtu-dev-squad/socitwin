@@ -1,0 +1,18 @@
+{
+  "miao1": {
+    "file_name": "miao1.json",
+    "columns": {
+      "prompt": "instruction",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "miao2": {
+  "file_name": "miao2.json",
+  "columns": {
+      "prompt": "instruction",
+      "response": "output",
+      "system": "system"
+    }
+}
+}
