@@ -125,6 +125,39 @@ curl -X POST http://localhost:8000/api/sim/step \
 - 表: user, post, comment, trace, follow, like
 - 位置: `backend/data/simulations/`
 
+## 🛠️ 技能 (Skills)
+
+项目集成了 Claude Code Skills 来提升开发效率和代码质量：
+
+### 🎨 UI/UX 设计
+- **ui-ux-pro-max** - 智能设计系统生成器（50+ 风格、161 配色方案、57 字体搭配）
+- **ckm:design-system** - 设计系统最佳实践
+- **ckm:ui-styling** - UI 样式指南
+- **web-design-guidelines** - Web 界面规范审查（Vercel Labs）
+
+### 🔧 后端开发
+- **fastapi-templates** - FastAPI 工程化最佳实践（异步模式、依赖注入、Repository 模式）
+
+### 📐 前端开发
+- **vercel-react-best-practices** - React/Next.js 性能优化指南
+- **vercel-composition-patterns** - React 组件组合模式
+
+### 📖 使用方法
+
+**1. 对话中自动激活**
+```
+"帮我设计一个用户设置页面"
+"审查这个表单的可访问性"
+"优化这个 React 组件的性能"
+```
+
+**2. Slash Command（更稳定）**
+```
+/ui-ux-pro-max 为落地页生成设计系统
+/web-design-guidelines 检查 src/pages/Home.tsx
+/fastapi-templates 创建用户认证 API
+```
+
 ## 🧪 测试
 
 ```bash

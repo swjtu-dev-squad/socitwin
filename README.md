@@ -90,6 +90,9 @@
 - OpenAI (GPT-4, GPT-3.5)
 - Other OpenAI-compatible APIs
 
+**Development Tools:**
+- Claude Code Skills for UI/UX design, FastAPI best practices, and React optimization
+
 ---
 
 ## 🚀 Quick Start

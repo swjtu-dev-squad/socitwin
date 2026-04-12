@@ -132,3 +132,23 @@ backend/log/**/*
 *.temp
 *.bak
 *.cache
+
+# ==============================================================================
+# Claude Code Skills
+# ==============================================================================
+
+# Ignore skills directories (restore via skills-lock.json with `npx skills restore`)
+.agents/
+.claude/
+skills/
+
+# Ignore globally installed skills (user-local only)
+~/.agents/
+~/.claude/
+
+# Ignore skills temporary files
+*.skill.log
+.skills-cache/
+
+# Keep skills-lock.json for version tracking (use ! to negate ignore pattern)
+# !skills-lock.json
