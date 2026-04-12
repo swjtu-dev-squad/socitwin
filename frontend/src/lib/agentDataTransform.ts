@@ -70,16 +70,16 @@ export function transformToAgentOverview(
     status: normalizeStatus(backendAgent.status),
     influence: backendAgent.influence,
     activity: backendAgent.activity,
-    lastAction: null, // Backend doesn't provide this
+    lastAction: null,
     actionContent: undefined,
-    country: undefined, // Backend doesn't provide this
-    city: undefined, // Backend doesn't provide this
-    occupation: undefined, // Backend doesn't provide this
+    country: undefined,
+    city: undefined,
+    occupation: undefined,
     tags: backendAgent.interests || [],
-    following: [], // Backend doesn't provide this
-    followerCount: 0, // Backend doesn't provide this
-    followingCount: 0, // Backend doesn't provide this
-    interactionCount: 0, // Backend doesn't provide this
+    following: (backendAgent as any).following || [],
+    followerCount: (backendAgent as any).follower_count || 0,
+    followingCount: (backendAgent as any).following_count || 0,
+    interactionCount: (backendAgent as any).interaction_count || 0,
     memory: createEmptyMemorySnapshot(),
   };
 }
@@ -92,7 +92,12 @@ export function transformToMonitorResponse(
 ): AgentMonitorResponse {
   const agents = backendStatus.agents.map(transformToAgentOverview);
   const nodes = transformToGraphNodes(agents);
-  const edges: AgentGraphEdge[] = []; // No edge data from backend
+  const edges = generateEdgesFromAgents(agents); // 新增：从关注关系生成边
+
+  // 从 metrics_summary 中提取高级指标
+  const metricsSummary = backendStatus.metrics_summary;
+  const propagationData = metricsSummary?.propagation;
+  const herdEffectData = metricsSummary?.herd_effect;
 
   return {
     simulation: {
@@ -103,11 +108,15 @@ export function transformToMonitorResponse(
         ? Math.floor(backendStatus.current_step / 10)
         : undefined,
       platform: backendStatus.platform,
-      recsys: undefined, // Backend doesn't provide this
-      topic: undefined, // Backend doesn't provide this
+      recsys: undefined,
+      topic: undefined, // 后端暂无话题数据
       polarization: backendStatus.polarization,
-      propagationVelocity: undefined, // Backend doesn't provide this
-      herdIndex: undefined, // Backend doesn't provide this
+      // 信息传播指标：包含完整的传播数据
+      propagationScale: propagationData?.scale ?? 0,
+      propagationDepth: propagationData?.depth ?? 0,
+      propagationBreadth: propagationData?.max_breadth ?? 0,
+      // 从众效应指数：从 herd_effect 的 conformity_index 中提取
+      herdIndex: herdEffectData?.conformity_index ?? 0,
     },
     graph: {
       nodes,
@@ -119,47 +128,67 @@ export function transformToMonitorResponse(
 }
 
 /**
- * Create minimal AgentDetailResponse from backend data
+ * Transform agent detail API response to frontend format
  */
-export function transformToAgentDetail(
-  backendAgent: BackendAgent,
-  _backendStatus?: BackendSimulationStatus
-): AgentDetailResponse {
-  const role = deriveRoleFromDescription(backendAgent.description);
-  const roleLabel = deriveRoleLabel(role, backendAgent.description);
+export function transformToAgentDetail(backendData: any): AgentDetailResponse {
+  const { profile, status, recent_actions = [], recent_posts = [] } = backendData;
+
+  // Extract role information
+  const role = deriveRoleFromDescription(profile.description);
+  const roleLabel = deriveRoleLabel(role, profile.description);
+
+  // Transform recent actions to timeline
+  const recentTimeline = recent_actions.map((action: any) => ({
+    timestamp: action.timestamp,
+    type: action.action_type,
+    content: action.content,
+    reason: action.reason,
+  }));
+
+  // Get last action
+  const lastAction = recentTimeline.length > 0 ? recentTimeline[0] : null;
+
+  // Transform recent posts
+  const seenPosts = recent_posts.map((post: any) => ({
+    postId: String(post.post_id),
+    author: profile.name,
+    content: post.content,
+    timestamp: post.created_at,
+    numLikes: post.num_likes,
+  }));
 
   return {
     profile: {
-      id: String(backendAgent.id),
-      name: backendAgent.name,
-      bio: backendAgent.bio || backendAgent.description || '',
+      id: String(profile.id),
+      name: profile.name,
+      bio: profile.bio,
       personaKey: role,
-      personaDescription: backendAgent.description || '',
+      personaDescription: profile.description,
       roleLabel,
-      gender: undefined, // Backend doesn't provide this
-      age: undefined, // Backend doesn't provide this
-      mbti: undefined, // Backend doesn't provide this
-      country: undefined, // Backend doesn't provide this
-      city: undefined, // Backend doesn't provide this
-      occupation: undefined, // Backend doesn't provide this
-      tags: backendAgent.interests || [],
+      gender: undefined,
+      age: undefined,
+      mbti: undefined,
+      country: undefined,
+      city: undefined,
+      occupation: undefined,
+      tags: profile.interests || [],
     },
     status: {
-      state: normalizeStatus(backendAgent.status),
-      influence: backendAgent.influence,
-      activity: backendAgent.activity,
-      followerCount: 0, // Backend doesn't provide this
-      followingCount: 0, // Backend doesn't provide this
-      interactionCount: 0, // Backend doesn't provide this
-      polarization: backendAgent.polarization,
-      contextTokens: undefined, // Backend doesn't provide this
-      retrievedMemories: undefined, // Backend doesn't provide this
-      seenAgentsCount: undefined, // Backend doesn't provide this
+      state: 'active',
+      influence: status.influence,
+      activity: status.activity,
+      followerCount: status.follower_count || 0,
+      followingCount: status.following_count || 0,
+      interactionCount: status.interaction_count || 0,
+      polarization: status.polarization || 0,
+      contextTokens: undefined,
+      retrievedMemories: undefined,
+      seenAgentsCount: undefined,
     },
-    currentViewpoint: undefined, // Backend doesn't provide this
-    lastAction: null, // Backend doesn't provide this
-    recentTimeline: [], // Backend doesn't provide this
-    seenPosts: [], // Backend doesn't provide this
+    currentViewpoint: undefined,
+    lastAction,
+    recentTimeline,
+    seenPosts,
     memory: createEmptyMemorySnapshot(),
   };
 }
@@ -205,6 +234,28 @@ function deriveRoleFromDescription(description: string): string {
   }
 
   return 'Neutral';
+}
+
+/**
+ * Generate graph edges from agent follow relationships
+ */
+function generateEdgesFromAgents(agents: AgentOverview[]): AgentGraphEdge[] {
+  const edges: AgentGraphEdge[] = [];
+
+  for (const agent of agents) {
+    // 从关注关系生成边
+    if (agent.following && Array.isArray(agent.following)) {
+      for (const targetId of agent.following) {
+        edges.push({
+          source: agent.id,
+          target: targetId,
+          type: 'follow',
+        });
+      }
+    }
+  }
+
+  return edges;
 }
 
 /**

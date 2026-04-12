@@ -84,7 +84,11 @@ export interface AgentMonitorResponse {
     recsys?: string;
     topic?: string | null;
     polarization?: number;
-    propagationVelocity?: number;
+    // 信息传播指标
+    propagationScale?: number;      // 传播规模（参与用户数）
+    propagationDepth?: number;      // 传播深度（层级数）
+    propagationBreadth?: number;    // 传播广度（单层最大用户数）
+    // 从众效应
     herdIndex?: number;
   };
   graph: {
@@ -99,6 +103,7 @@ export interface AgentDetailResponse {
   profile: {
     id: string;
     name: string;
+    user_name?: string;  // 后端返回的用户名
     bio: string;
     personaKey: string;
     personaDescription: string;

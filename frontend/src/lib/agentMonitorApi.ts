@@ -31,8 +31,8 @@ export async function getAgentMonitor(): Promise<AgentMonitorResponse> {
 }
 
 export async function getAgentDetail(agentId: string): Promise<AgentDetailResponse> {
-  // Call real backend endpoint /api/sim/status and extract agent data
-  const response = await fetch('/api/sim/status', {
+  // Call new backend endpoint /api/sim/agents/{agent_id}
+  const response = await fetch(`/api/sim/agents/${agentId}`, {
     method: 'GET',
     cache: 'no-store',
     headers: {
@@ -40,15 +40,8 @@ export async function getAgentDetail(agentId: string): Promise<AgentDetailRespon
     },
   });
 
-  const backendData = await readJson<BackendSimulationStatus>(response);
-
-  // Find the agent by ID (convert to string for comparison)
-  const agent = backendData.agents.find((a) => String(a.id) === agentId);
-
-  if (!agent) {
-    throw new Error(`Agent not found: ${agentId}`);
-  }
+  const backendData = await readJson<any>(response);
 
   // Transform backend data to frontend format
-  return transformToAgentDetail(agent, backendData);
+  return transformToAgentDetail(backendData);
 }

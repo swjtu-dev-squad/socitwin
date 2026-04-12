@@ -24,7 +24,6 @@ export function AgentBehaviorTable({
         <TableHeader className="sticky top-0 bg-bg-secondary z-10">
           <TableRow className="border-border-default hover:bg-transparent">
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">Agent</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">角色</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">影响力</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">活跃度</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">最近动作</TableHead>
@@ -44,9 +43,6 @@ export function AgentBehaviorTable({
               onClick={() => onSelect?.(agent)}
             >
               <TableCell className="font-bold text-sm">{agent.name}</TableCell>
-              <TableCell>
-                <Badge variant="outline" className="text-[10px]">{agent.roleLabel || agent.role}</Badge>
-              </TableCell>
               <TableCell className="font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
               <TableCell className="font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
               <TableCell>

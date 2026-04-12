@@ -194,6 +194,7 @@ class Agent(BaseModel):
     influence: float = 0.0
     activity: float = 0.0
     interests: List[str] = Field(default_factory=list)
+    following: List[str] = Field(default_factory=list)  # 新增：关注列表
 
 
 class SimulationStatus(BaseModel):

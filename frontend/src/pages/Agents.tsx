@@ -152,10 +152,14 @@ export default function SocialNetworkMonitor() {
           </div>
         </div>
         
-        <div className="flex gap-8 px-6 border-l border-border-default">
+        <div className="flex gap-6 px-6 border-l border-border-default">
           <StatMini label="群体极化率" value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)} color="text-rose-500" />
-          <StatMini label="信息传播速度" value={`${displayMetricFormatted(monitor?.simulation.propagationVelocity)} msg/s`} color="text-emerald-500" />
-          <StatMini label="从众效应指数" value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)} color="text-blue-500" />
+          <div className="flex gap-3">
+            <StatMini label="传播规模" value={displayMetricFormatted(monitor?.simulation.propagationScale)} color="text-emerald-500" />
+            <StatMini label="传播深度" value={displayMetricFormatted(monitor?.simulation.propagationDepth)} color="text-cyan-500" />
+            <StatMini label="传播广度" value={displayMetricFormatted(monitor?.simulation.propagationBreadth)} color="text-purple-500" />
+          </div>
+          <StatMini label="从众效应" value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)} color="text-blue-500" />
         </div>
       </header>
 

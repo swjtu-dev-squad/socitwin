@@ -180,7 +180,7 @@ async def get_metrics_manager():
             )
             logger.info("Metrics Manager singleton created")
         else:
-            logger.warning("Cannot create Metrics Manager: no database path")
+            logger.debug("Cannot create Metrics Manager: no database path")
             return None
 
     return _metrics_manager

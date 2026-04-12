@@ -392,11 +392,46 @@ class SimulationService:
         """
         state_info = self.oasis_manager.get_state_info()
 
+        logger.info(f"📊 get_status called: db_path={self.oasis_manager._db_path}, current_step={state_info['current_step']}")
+
+        # 获取智能体统计数据（从数据库）
+        agent_stats = await self._get_agents_with_stats()
+
+        logger.info(f"📊 agent_stats result: {agent_stats}")
+
         # 获取智能体信息
         agents = []
         for agent in self.oasis_manager.get_all_agents():
             from app.models.simulation import Agent
             profile = getattr(agent.user_info, 'profile', None) or {}
+
+            # 获取该智能体的统计数据
+            stats = agent_stats.get(agent.social_agent_id, {})
+            post_count = stats.get('post_count', 0)
+            interaction_count = stats.get('interaction_count', 0)
+            action_count = stats.get('action_count', 0)
+
+            # 计算影响力和活跃度
+            influence = self._calculate_influence(post_count, interaction_count)
+            activity = self._calculate_activity(action_count, state_info["current_step"])
+
+            logger.info(f"Agent {agent.social_agent_id}: posts={post_count}, interactions={interaction_count}, actions={action_count}, influence={influence}, activity={activity}")
+
+            # 查询关注列表
+            following = []
+            followers = []
+            if self.oasis_manager._db_path and os.path.exists(self.oasis_manager._db_path):
+                try:
+                    conn = sqlite3.connect(self.oasis_manager._db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT followee_id FROM follow WHERE follower_id = ?", (agent.social_agent_id,))
+                    following = [str(row[0]) for row in cursor.fetchall()]
+                    cursor.execute("SELECT follower_id FROM follow WHERE followee_id = ?", (agent.social_agent_id,))
+                    followers = [str(row[0]) for row in cursor.fetchall()]
+                    conn.close()
+                except Exception as e:
+                    logger.warning(f"Failed to query follow relationships for agent {agent.social_agent_id}: {e}")
+
             agents.append(Agent(
                 id=agent.social_agent_id,
                 user_name=agent.user_info.user_name,
@@ -404,6 +439,12 @@ class SimulationService:
                 description=agent.user_info.description,
                 bio=getattr(agent.user_info, 'bio', None),
                 interests=profile.get('interests', []),
+                influence=influence,
+                activity=activity,
+                following=following,
+                follower_count=len(followers),
+                following_count=len(following),
+                interaction_count=interaction_count,
             ))
 
         # 尝试获取高级指标摘要
@@ -571,7 +612,122 @@ class SimulationService:
 
         logger.info(f"Created background task: {task_id}")
 
-        return task_id
+    def _calculate_influence(self, post_count: int, total_interactions: int) -> float:
+        """
+        计算影响力值
+
+        Args:
+            post_count: 帖子数
+            total_interactions: 总互动数（点赞、评论、分享）
+
+        Returns:
+            影响力值 (0-1)
+        """
+        if post_count == 0 and total_interactions == 0:
+            return 0.0
+
+        # 归一化计算
+        # 假设：10个帖子 + 50个互动 = 1.0 (最大影响力)
+        max_posts = 10.0
+        max_interactions = 50.0
+
+        post_score = min(post_count / max_posts, 1.0)
+        interaction_score = min(total_interactions / max_interactions, 1.0)
+
+        # 加权平均：帖子权重 0.4，互动权重 0.6
+        influence = (post_score * 0.4 + interaction_score * 0.6)
+
+        # 保留两位小数
+        return round(min(influence, 1.0), 2)
+
+    async def _get_agents_with_stats(self) -> Dict[int, Dict[str, Any]]:
+        """
+        从数据库查询每个智能体的统计数据
+
+        Returns:
+            字典: {agent_id: {post_count, interaction_count, action_count}}
+        """
+        if not self.oasis_manager._db_path or not os.path.exists(self.oasis_manager._db_path):
+            logger.debug(f"Database not found at: {self.oasis_manager._db_path}")
+            return {}
+
+        logger.info(f"📊 Querying agent stats from database: {self.oasis_manager._db_path}")
+
+        conn = sqlite3.connect(self.oasis_manager._db_path)
+        cursor = conn.cursor()
+
+        agent_stats = {}
+
+        try:
+            # 获取所有智能体ID
+            cursor.execute("SELECT DISTINCT user_id FROM user")
+            agent_ids = [row[0] for row in cursor.fetchall()]
+            logger.info(f"Found {len(agent_ids)} agents in database")
+
+            for agent_id in agent_ids:
+                # 帖子数量
+                cursor.execute("SELECT COUNT(*) FROM post WHERE user_id = ?", (agent_id,))
+                post_count = cursor.fetchone()[0]
+
+                # 互动总数（点赞、评论等）
+                cursor.execute("""
+                    SELECT COUNT(*) FROM trace
+                    WHERE user_id = ? AND action IN ('like_post', 'create_comment', 'repost', 'quote_post', 'share_post')
+                """, (agent_id,))
+                interaction_count = cursor.fetchone()[0]
+
+                # 有意义的社交行为总数（排除初始化和被动行为）
+                cursor.execute("""
+                    SELECT COUNT(*) FROM trace
+                    WHERE user_id = ? AND action IN (
+                        'create_post', 'create_comment',
+                        'like_post', 'unlike_post', 'dislike_post',
+                        'repost', 'quote_post',
+                        'follow', 'unfollow',
+                        'share_post'
+                    )
+                """, (agent_id,))
+                action_count = cursor.fetchone()[0]
+
+                agent_stats[agent_id] = {
+                    'post_count': post_count,
+                    'interaction_count': interaction_count,
+                    'action_count': action_count,
+                }
+
+            logger.info(f"Agent stats computed: {agent_stats}")
+
+        except Exception as e:
+            logger.warning(f"Failed to query agent stats: {e}")
+        finally:
+            conn.close()
+
+        return agent_stats
+
+    def _calculate_activity(self, action_count: int, current_step: int) -> float:
+        """
+        计算活跃度值（排除 DO_NOTHING 动作）
+
+        Args:
+            action_count: 有意义的行为总数（排除 DO_NOTHING）
+            current_step: 当前步数
+
+        Returns:
+            活跃度值 (0-100)
+        """
+        if current_step == 0:
+            return 0.0
+
+        # 计算每步平均行为数
+        actions_per_step = action_count / current_step
+
+        # 归一化：假设每步 1 个有意义行为 = 100% (最高活跃度)
+        max_actions_per_step = 1.0
+
+        activity = min(actions_per_step / max_actions_per_step, 1.0)
+
+        # 转换为百分比 (0-100)
+        return round(activity * 100, 1)
 
     def get_task_result(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
