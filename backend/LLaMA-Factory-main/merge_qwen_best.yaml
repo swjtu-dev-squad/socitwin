@@ -1,0 +1,11 @@
+### model
+model_name_or_path: D:/LLaMA-Factory-main/Qwen2.5-0.5B-Instruct
+adapter_name_or_path: D:/LLaMA-Factory-main/out_nlp/checkpoint-2500
+template: qwen
+finetuning_type: lora
+
+### export
+export_dir: D:/LLaMA-Factory-main/merged_qwen_ckpt2500
+export_size: 10
+export_device: cpu
+export_legacy_format: false
