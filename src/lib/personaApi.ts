@@ -318,3 +318,39 @@ export async function postTwitterSqlitePersonasLlm(params: {
   });
   return parseJson<SqlitePersonasLlmResponse>(response);
 }
+
+const SOCIAL_LOCAL_PIPELINE_FETCH_MS = Number(import.meta.env?.VITE_SOCIAL_PIPELINE_TIMEOUT_MS || 3_600_000);
+
+const NEO4J_NETWORKS_SYNC_FETCH_MS = Number(import.meta.env?.VITE_NEO4J_NETWORKS_SYNC_TIMEOUT_MS || 300_000);
+
+/** 调用服务端执行 networks_neo4j.py，将 datasets/data 下 JSON 写入 Neo4j */
+export async function runNetworksNeo4jSync() {
+  const signal =
+    typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(NEO4J_NETWORKS_SYNC_FETCH_MS)
+      : undefined;
+  const response = await fetch("/api/datasets/networks-neo4j-sync", { method: "POST", signal });
+  return parseJson<{ status: string }>(response);
+}
+
+/** 依次执行 topics_classify → users_format_convert → relations_generate（datasets/data） */
+export async function runSocialLocalPipeline() {
+  const signal =
+    typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(SOCIAL_LOCAL_PIPELINE_FETCH_MS)
+      : undefined;
+  const response = await fetch("/api/datasets/social-local-pipeline", { method: "POST", signal });
+  return parseJson<{ status: string; metrics: Record<string, unknown> }>(response);
+}
+
+export async function getSocialGraphBundle() {
+  const response = await fetch("/api/datasets/social-graph-bundle");
+  return parseJson<{
+    status: string;
+    users: unknown;
+    relationships: unknown[];
+    user_networks: unknown[];
+    topics: Record<string, unknown> | null;
+    metrics: Record<string, unknown>;
+  }>(response);
+}

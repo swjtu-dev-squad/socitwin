@@ -25,13 +25,17 @@ import {
   generateDatasetArtifacts,
   getGeneratedAgents,
   getPersonaDataset,
+  getSocialGraphBundle,
   getTwitterSqliteTopicsList,
   listPersonaDatasets,
   postTwitterSqliteTopicsPersonasLlm,
   postTwitterSqliteTopicSeed,
   PERSONA_GENERATE_FETCH_TIMEOUT_MS,
+  runNetworksNeo4jSync,
+  runSocialLocalPipeline,
   type TwitterSqliteTopicOption,
 } from '@/lib/personaApi';
+import { buildLocalSocialGraphLayout } from '@/lib/localSocialGraphLayout';
 import type { GeneratedAgentRecord, GeneratedGraphRecord, PersonaDatasetSummary } from '@/lib/types';
 
 /** 右侧「仿真话题列表」预览项（与两阶段 LLM 返回的 topics 一致） */
@@ -162,7 +166,9 @@ function formatDayOption(day: string, count: number) {
 }
 
 function formatDensityPercent(value: number | undefined) {
-  return `${((value || 0) * 100).toFixed(2)}%`;
+  const n = Number(value);
+  const v = Number.isFinite(n) ? n : 0;
+  return `${(v * 100).toFixed(2)}%`;
 }
 
 export default function Profiles() {
@@ -182,6 +188,17 @@ export default function Profiles() {
   const [datasetDetailLoading, setDatasetDetailLoading] = useState(false);
   const [generationLoading, setGenerationLoading] = useState(false);
   const [generationElapsedSec, setGenerationElapsedSec] = useState(0);
+  /** 本地 datasets/data 流水线生成的力导向图（话题圆盘 + 用户绕话题分布） */
+  const [localDiskGraph, setLocalDiskGraph] = useState<{
+    nodes: Record<string, unknown>[];
+    edges: Record<string, unknown>[];
+    fixedLayout: boolean;
+  } | null>(null);
+  const [localDiskMetrics, setLocalDiskMetrics] = useState<{
+    user_count: number;
+    relationship_edge_count: number;
+    network_density_ratio: number;
+  } | null>(null);
   const [subscriptionLoadingPlatform, setSubscriptionLoadingPlatform] = useState<string | null>(null);
   const [liveSubscriptions, setLiveSubscriptions] = useState<Record<string, boolean>>({
     twitter: false,
@@ -282,6 +299,13 @@ export default function Profiles() {
   const selectedDatasetOption = filteredPlatformDatasets.find((dataset) => dataset.dataset_id === selectedDatasetId) || null;
 
   const graphStats = useMemo(() => {
+    if (localDiskMetrics) {
+      return {
+        userCount: localDiskMetrics.user_count,
+        linkCount: localDiskMetrics.relationship_edge_count,
+        densityLabel: formatDensityPercent(localDiskMetrics.network_density_ratio),
+      };
+    }
     if (generatedGraph?.stats) {
       const s = generatedGraph.stats;
       return {
@@ -296,7 +320,7 @@ export default function Profiles() {
       linkCount: 0,
       densityLabel: formatDensityPercent(undefined),
     };
-  }, [generatedGraph, sqlitePreviewAgents.length]);
+  }, [generatedGraph, sqlitePreviewAgents.length, localDiskMetrics]);
 
   const mongoCounts = selectedDataset?.counts || EMPTY_COUNTS;
   const effectiveSeedCounts = useMemo(() => {
@@ -683,6 +707,20 @@ export default function Profiles() {
     return () => window.clearInterval(id);
   }, [generationLoading]);
 
+  const graphDisplayData = useMemo(() => {
+    if (localDiskGraph) {
+      return {
+        nodes: localDiskGraph.nodes,
+        edges: localDiskGraph.edges,
+        fixedLayout: localDiskGraph.fixedLayout,
+      };
+    }
+    if (generatedGraph) {
+      return { nodes: generatedGraph.nodes, edges: generatedGraph.edges };
+    }
+    return null;
+  }, [localDiskGraph, generatedGraph]);
+
   const handleGenerate = async () => {
     if (!selectedDatasetId) {
       toast.error('请先订阅并选择一个数据集');
@@ -691,6 +729,39 @@ export default function Profiles() {
 
     setGenerationLoading(true);
     try {
+      if (selectedPlatform === 'twitter' && sqlitePreviewAgents.length > 0) {
+        toast.info('正在生成社交关系（可能需数分钟）…');
+        await runSocialLocalPipeline();
+        const bundle = await getSocialGraphBundle();
+        const laid = buildLocalSocialGraphLayout(bundle);
+        setLocalDiskGraph({ nodes: laid.nodes, edges: laid.edges, fixedLayout: true });
+        const m = bundle.metrics || {};
+        setLocalDiskMetrics({
+          user_count: Number(m.user_count) || 0,
+          relationship_edge_count: Number(m.relationship_edge_count) || 0,
+          network_density_ratio: Number(m.network_density_ratio) || 0,
+        });
+        setGeneratedGraph(null);
+        setCurrentGenerationId(null);
+        setGeneratedAgentsList([]);
+        await loadDatasets(selectedDatasetId);
+        toast.success('社交关系已生成：已更新关系边、图密度与社交知识图谱');
+        try {
+          toast.info('正在将 users/topics/relationships/user_networks 同步到 Neo4j…');
+          await runNetworksNeo4jSync();
+          toast.success('Neo4j 知识图谱已同步');
+        } catch (neoErr) {
+          console.error('Neo4j sync:', neoErr);
+          toast.warning(
+            (neoErr as Error)?.message ||
+              'Neo4j 同步失败',
+          );
+        }
+        return;
+      }
+
+      setLocalDiskGraph(null);
+      setLocalDiskMetrics(null);
       {
         const minWait = Math.ceil(PERSONA_GENERATE_FETCH_TIMEOUT_MS / 60_000);
         toast.info(
@@ -1239,7 +1310,7 @@ export default function Profiles() {
               <GraphLegendItem
                 swatch={<span className="inline-flex h-[2px] w-8 border-t-2 border-dashed border-amber-400" />}
                 title="黄色虚线"
-                description="算法补边，用来补齐社区结构、闭合三角关系和连接孤立节点。"
+                description="孤立或弱连接用户与网络枢纽（优先 KOL）的示意连线，便于在图中看见与主干社交网的衔接。"
               />
               <GraphLegendItem
                 swatch={<span className="inline-flex h-[2px] w-8 rounded bg-rose-400" />}
@@ -1264,9 +1335,9 @@ export default function Profiles() {
             </div>
 
             <div className="flex-1 bg-bg-primary/30 relative">
-              <SocialKnowledgeGraph data={generatedGraph ? { nodes: generatedGraph.nodes, edges: generatedGraph.edges } : null} />
+              <SocialKnowledgeGraph data={graphDisplayData} />
 
-              {!generatedGraph && (
+              {!graphDisplayData && (
                 <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-bg-primary/40">
                   <p className="text-text-muted text-sm border border-border-default px-6 py-3 rounded-full bg-bg-secondary text-center">
                     选择种子数据后，点击“开始生成社交网络”才会生成并展示图谱

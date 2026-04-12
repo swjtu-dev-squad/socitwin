@@ -741,9 +741,16 @@ export async function runTopicsThenUsersLlmWorker(
   const timeoutMs = Number(process.env.OASIS_LLM_TOPICS_USERS_TIMEOUT_MS || Math.min(3_600_000, base * 2));
 
   return new Promise((resolve, reject) => {
+    const datasetsDataDir =
+      process.env.OASIS_DATASETS_DATA_DIR?.trim() ||
+      path.resolve(repoRoot, "oasis_dashboard", "datasets", "data");
     const child = spawn(pythonBin, ["-m", "oasis_dashboard.persona_topics_users_llm_worker"], {
       cwd: repoRoot,
-      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+        OASIS_DATASETS_DATA_DIR: datasetsDataDir,
+      },
     });
 
     let stdout = "";
@@ -853,9 +860,16 @@ export async function runLlmPersonaWorker(
   const timeoutMs = Number(process.env.OASIS_LLM_PERSONA_TIMEOUT_MS || 900_000);
 
   return new Promise((resolve, reject) => {
+    const datasetsDataDir =
+      process.env.OASIS_DATASETS_DATA_DIR?.trim() ||
+      path.resolve(repoRoot, "oasis_dashboard", "datasets", "data");
     const child = spawn(pythonBin, ["-m", "oasis_dashboard.persona_llm_worker"], {
       cwd: repoRoot,
-      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: "1",
+        OASIS_DATASETS_DATA_DIR: datasetsDataDir,
+      },
     });
 
     let stdout = "";

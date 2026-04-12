@@ -1,0 +1,32 @@
+{
+  "recsys_type": "twitter",
+  "type": "topics",
+  "stats": {
+    "count": 3
+  },
+  "data": [
+    {
+      "recsys_type": "twitter",
+      "category": "Politics",
+      "topics": [
+        "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety",
+        "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+      ]
+    },
+    {
+      "recsys_type": "twitter",
+      "category": "Economics",
+      "topics": [
+        "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns"
+      ]
+    },
+    {
+      "recsys_type": "twitter",
+      "category": "Society",
+      "topics": [
+        "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture",
+        "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+      ]
+    }
+  ]
+}

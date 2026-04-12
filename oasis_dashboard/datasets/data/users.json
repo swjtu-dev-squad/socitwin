@@ -1,0 +1,686 @@
+{
+  "recsys_type": "twitter",
+  "type": "users",
+  "stats": {
+    "count": 30
+  },
+  "data": [
+    {
+      "agent_id": 0,
+      "user_name": "tech_ethicist_ai",
+      "name": "AI Ethics Watch",
+      "description": "Policy researcher focused on AI governance & digital rights. Views are my own. No DMs.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "Female",
+          "age": 34,
+          "mbti": "INTJ",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "kol",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 1,
+      "user_name": "global_green_scout",
+      "name": "Eco Accountability",
+      "description": "Tracking corporate climate pledges vs. real action. Skeptic by nature. 🌍",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "Male",
+          "age": 28,
+          "mbti": "ENFP",
+          "country": "UK"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "kol",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 2,
+      "user_name": "nomad_econ_kenya",
+      "name": "Digital Frontier",
+      "description": "Kenyan economist dissecting tech policy, fintech, and the future of work. 🇰🇪",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns",
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "Male",
+          "age": 41,
+          "mbti": "ENTJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "kol",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 3,
+      "user_name": "cautious_citizen_br",
+      "name": "Paulo Silva",
+      "description": "Brazilian, concerned about our environment and governance. Father, engineer.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "Male",
+          "age": 52,
+          "mbti": "ISTJ",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 4,
+      "user_name": "tech_ethicist_br",
+      "name": "Ana Silva 🇧🇷",
+      "description": "Tech policy researcher, focused on AI ethics and environmental justice. Views my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "female",
+          "age": 32,
+          "mbti": "INTJ",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 5,
+      "user_name": "nairobi_digital",
+      "name": "Kipchoge M.",
+      "description": "Fintech enthusiast in Nairobi. Passionate about inclusive finance and digital equity.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns"
+          ],
+          "gender": "male",
+          "age": 28,
+          "mbti": "ESTJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 6,
+      "user_name": "remote_work_analyst",
+      "name": "Seo-yeon | 디지털노마드",
+      "description": "Exploring the future of work. Based in Seoul, thinking globally.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture",
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+          ],
+          "gender": "female",
+          "age": 26,
+          "mbti": "ENFP",
+          "country": "South Korea"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 7,
+      "user_name": "eco_sports_watch",
+      "name": "Leo Green ⚽️🌍",
+      "description": "Football fan holding leagues accountable on climate promises. Skeptic by nature.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "male",
+          "age": 35,
+          "mbti": "INTP",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 8,
+      "user_name": "techpolicy_watch",
+      "name": "TechPolicy Watch",
+      "description": "Tracking AI governance & digital rights. EU-focused. Views my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "Female",
+          "age": 34,
+          "mbti": "INTJ",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 9,
+      "user_name": "eco_guardian_br",
+      "name": "Eco Guardian BR",
+      "description": "Brazilian enviro activist. Monitoring Amazon promises vs. reality.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation",
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+          ],
+          "gender": "Male",
+          "age": 28,
+          "mbti": "ENFP",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 10,
+      "user_name": "global_digital_nomad",
+      "name": "Global Digital Nomad",
+      "description": "Remote work advocate. Exploring visas, coliving, and work-life balance.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "Non-binary",
+          "age": 31,
+          "mbti": "ESFP",
+          "country": "Canada"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 11,
+      "user_name": "africa_fintech_voice",
+      "name": "Africa Fintech Voice",
+      "description": "Championing inclusive finance in Africa. Against regressive digital taxes.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "Female",
+          "age": 40,
+          "mbti": "ESTJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 12,
+      "user_name": "tech_ethicist_br",
+      "name": "Ana Silva",
+      "description": "Tech policy researcher focusing on AI ethics and digital rights in Latin America.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "female",
+          "age": 32,
+          "mbti": "INTJ",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 13,
+      "user_name": "nomad_watch_kr",
+      "name": "Min-jun Park",
+      "description": "Following the future of work and its impact on Korean society. Remote work advocate.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "male",
+          "age": 28,
+          "mbti": "ENTP",
+          "country": "South Korea"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 14,
+      "user_name": "finance_for_all_ke",
+      "name": "Kwame Otieno",
+      "description": "Fintech enthusiast passionate about financial inclusion and equitable digital policies.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns"
+          ],
+          "gender": "male",
+          "age": 35,
+          "mbti": "ENFJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 15,
+      "user_name": "eco_skeptic_fan",
+      "name": "Leo Green",
+      "description": "Sports fan and climate activist calling out corporate greenwashing in major leagues.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "male",
+          "age": 26,
+          "mbti": "INTP",
+          "country": "United Kingdom"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 16,
+      "user_name": "tech_ethicist_berlin",
+      "name": "Lena K.",
+      "description": "PhD candidate in tech ethics. EU politics watcher. Views my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "female",
+          "age": 28,
+          "mbti": "INTJ",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 17,
+      "user_name": "savethecanopy",
+      "name": "Rafael Silva",
+      "description": "Forest engineer from São Paulo. Tracking Amazon policy and promises.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation",
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+          ],
+          "gender": "male",
+          "age": 35,
+          "mbti": "ENFP",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 18,
+      "user_name": "nomad_thoughts",
+      "name": "Chloe | Remote Work",
+      "description": "Digital nomad advocating for work-life balance and global mobility.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "female",
+          "age": 31,
+          "mbti": "ESTP",
+          "country": "Canada"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 19,
+      "user_name": "finance_for_all",
+      "name": "David Mwangi",
+      "description": "Nairobi-based. Passionate about fintech inclusion and fighting regressive taxes.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns",
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "male",
+          "age": 40,
+          "mbti": "ESFJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 20,
+      "user_name": "tech_ethicist_leo",
+      "name": "Leo Chen",
+      "description": "Tech policy researcher focused on AI ethics & global governance. Views my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "male",
+          "age": 34,
+          "mbti": "INTJ",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 21,
+      "user_name": "rainforest_watch",
+      "name": "Ana Silva",
+      "description": "Brazilian environmental journalist. Covering Amazon conservation and climate justice.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation",
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+          ],
+          "gender": "female",
+          "age": 29,
+          "mbti": "ENFP",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 22,
+      "user_name": "digital_nomad_diary",
+      "name": "Min-jun Park",
+      "description": "Remote work advocate exploring global visa policies. Based in Seoul.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "male",
+          "age": 31,
+          "mbti": "ISTP",
+          "country": "South Korea"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 23,
+      "user_name": "finance_for_all",
+      "name": "Kwame Ochieng",
+      "description": "Nairobi-based fintech analyst. Passionate about inclusive digital finance in Africa.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns",
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "male",
+          "age": 27,
+          "mbti": "ESFJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 24,
+      "user_name": "tech_ethicist_berlin",
+      "name": "Lena 🇪🇺",
+      "description": "AI policy researcher. Focus on EU digital regulation & ethical tech. Views my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety"
+          ],
+          "gender": "female",
+          "age": 32,
+          "mbti": "INTJ",
+          "country": "Germany"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 25,
+      "user_name": "rainforest_watch",
+      "name": "Carlos Silva 🌳",
+      "description": "Environmental journalist based in São Paulo. Tracking Amazon conservation & policy.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation",
+            "Major Sports League's Climate Neutrality Pledge Draws Accusations of 'Greenwashing'"
+          ],
+          "gender": "male",
+          "age": 28,
+          "mbti": "INFP",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 26,
+      "user_name": "digital_nomad_diary",
+      "name": "Minji ✈️💻",
+      "description": "Remote UX designer. Exploring work-life balance & global mobility policies.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture"
+          ],
+          "gender": "female",
+          "age": 26,
+          "mbti": "ENFP",
+          "country": "South Korea"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 27,
+      "user_name": "fintech_for_all",
+      "name": "Amina 🇰🇪",
+      "description": "Community organizer focusing on financial inclusion & digital rights in East Africa.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "female",
+          "age": 35,
+          "mbti": "ENFJ",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Economics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 28,
+      "user_name": "tech_ethicist_br",
+      "name": "Ana Silva",
+      "description": "Brazilian tech lawyer. Passionate about AI ethics and environmental justice. Views are my own.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "AI Regulation Debate Intensifies as EU Lawmakers Clash Over Innovation vs. Safety",
+            "Brazil's Amazon Reforestation Plan Faces Skepticism Over Implementation"
+          ],
+          "gender": "Female",
+          "age": 32,
+          "mbti": "INTJ",
+          "country": "Brazil"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Politics",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    },
+    {
+      "agent_id": 29,
+      "user_name": "nomad_watch_ke",
+      "name": "Leo Mwangi",
+      "description": "Nairobi-based freelance writer. Covering digital economy, remote work trends, and fintech in Africa.",
+      "profile": {
+        "other_info": {
+          "topics": [
+            "South Korea's 'Digital Nomad Visa' Sparks Domestic Debate on Remote Work Culture",
+            "Kenya's Mobile Banking Tax Protests Highlight Digital Divide Concerns"
+          ],
+          "gender": "Male",
+          "age": 28,
+          "mbti": "INTP",
+          "country": "Kenya"
+        }
+      },
+      "recsys_type": "twitter",
+      "user_type": "normal",
+      "topic_type": "Society",
+      "source": "llm_generated",
+      "ingest_status": "generated"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer } from "http";
 import multer from "multer";
-import { existsSync, mkdirSync, createWriteStream } from "fs";
+import { existsSync, mkdirSync, createWriteStream, readFileSync } from "fs";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import path from "path";
@@ -1477,6 +1477,172 @@ async function startServer() {
           stdoutPreview: error.stdoutPreview,
         });
       }
+      return res.status(500).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  const getDatasetsDataDir = () => path.join(__dirname, "oasis_dashboard", "datasets", "data");
+
+  function resolveDashboardPythonExecutable(): string {
+    const win = process.platform === "win32";
+    const candidates = win
+      ? [
+          path.join(__dirname, ".venv", "Scripts", "python.exe"),
+          path.join(__dirname, ".venv", "bin", "python"),
+        ]
+      : [
+          path.join(__dirname, ".venv", "bin", "python"),
+          path.join(__dirname, ".venv", "Scripts", "python.exe"),
+        ];
+    for (const c of candidates) {
+      if (existsSync(c)) return c;
+    }
+    return candidates[0];
+  }
+
+  // POST /api/datasets/social-local-pipeline — topics_classify → users_format_convert → relations_generate
+  app.post("/api/datasets/social-local-pipeline", async (_req, res) => {
+    try {
+      const pythonBin = resolveDashboardPythonExecutable();
+      if (!existsSync(pythonBin)) {
+        return res.status(500).json({ status: "error", message: "未找到 .venv 中的 Python，请先执行 uv sync" });
+      }
+      const timeoutMs = Number(process.env.OASIS_SOCIAL_PIPELINE_TIMEOUT_MS || 3_600_000);
+      const outcome = await new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+        stderr: string;
+      }>((resolve, reject) => {
+        const child = spawn(pythonBin, ["-m", "oasis_dashboard.datasets.social_local_pipeline"], {
+          cwd: __dirname,
+          env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        });
+        let stderr = "";
+        const killTimer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
+        child.stdout?.on("data", () => {});
+        child.stderr?.on("data", (c: Buffer) => {
+          stderr += c.toString();
+        });
+        child.on("error", (err) => {
+          clearTimeout(killTimer);
+          reject(err);
+        });
+        child.on("close", (code, signal) => {
+          clearTimeout(killTimer);
+          resolve({ code, signal, stderr });
+        });
+      });
+      if (outcome.code !== 0) {
+        return res.status(502).json({
+          status: "error",
+          message: `社交网络失败（退出码 ${outcome.code}${outcome.signal ? `，信号 ${outcome.signal}` : ""}）`,
+          stderr: outcome.stderr.slice(-12000),
+        });
+      }
+      const metricsPath = path.join(getDatasetsDataDir(), "graph_metrics.json");
+      let metrics: Record<string, unknown> = {};
+      if (existsSync(metricsPath)) {
+        try {
+          metrics = JSON.parse(readFileSync(metricsPath, "utf8")) as Record<string, unknown>;
+        } catch {
+          metrics = {};
+        }
+      }
+      return res.json({ status: "ok", metrics });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // POST /api/datasets/networks-neo4j-sync — 将 datasets/data 下 JSON 导入 Neo4j（networks_neo4j.py）
+  app.post("/api/datasets/networks-neo4j-sync", async (_req, res) => {
+    try {
+      const pythonBin = resolveDashboardPythonExecutable();
+      if (!existsSync(pythonBin)) {
+        return res.status(500).json({ status: "error", message: "未找到 .venv 中的 Python，请先执行 uv sync" });
+      }
+      const scriptPath = path.join(__dirname, "oasis_dashboard", "datasets", "networks_neo4j.py");
+      if (!existsSync(scriptPath)) {
+        return res.status(500).json({ status: "error", message: "未找到 networks_neo4j.py" });
+      }
+      const timeoutMs = Number(process.env.OASIS_NEO4J_NETWORKS_SYNC_TIMEOUT_MS || 300_000);
+      const outcome = await new Promise<{
+        code: number | null;
+        signal: NodeJS.Signals | null;
+        stderr: string;
+        stdout: string;
+      }>((resolve, reject) => {
+        const child = spawn(pythonBin, [scriptPath], {
+          cwd: __dirname,
+          env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        });
+        let stderr = "";
+        let stdout = "";
+        const killTimer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
+        child.stdout?.on("data", (c: Buffer) => {
+          stdout += c.toString();
+          if (stdout.length > 12_000) stdout = stdout.slice(-12_000);
+        });
+        child.stderr?.on("data", (c: Buffer) => {
+          stderr += c.toString();
+        });
+        child.on("error", (err) => {
+          clearTimeout(killTimer);
+          reject(err);
+        });
+        child.on("close", (code, signal) => {
+          clearTimeout(killTimer);
+          resolve({ code, signal, stderr, stdout });
+        });
+      });
+      if (outcome.code !== 0) {
+        const errTail = (outcome.stderr || outcome.stdout || "").trim().slice(-2000);
+        const hint =
+          errTail.length > 0
+            ? `${errTail}`
+            : "（无标准输出；请在本机终端用 .venv 中的 python 直接运行 networks_neo4j.py 查看完整报错）";
+        return res.status(502).json({
+          status: "error",
+          message: `Neo4j 同步失败（退出码 ${outcome.code}${outcome.signal ? `，信号 ${outcome.signal}` : ""}）。请确认 .env 中 NEO4J_* 已配置、Neo4j 已启动，且已在 oasis-dashboard 下执行 uv sync 安装 neo4j/python-dotenv。\n---\n${hint}`,
+          stderr: outcome.stderr.slice(-12_000),
+          stdout_preview: outcome.stdout.slice(-6000),
+        });
+      }
+      return res.json({ status: "ok" });
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error?.message || String(error) });
+    }
+  });
+
+  // GET /api/datasets/social-graph-bundle — 读取 users / relationships / topics / metrics（供前端构图）
+  app.get("/api/datasets/social-graph-bundle", (_req, res) => {
+    try {
+      const dir = getDatasetsDataDir();
+      const load = (name: string) => {
+        const p = path.join(dir, name);
+        if (!existsSync(p)) return null;
+        return JSON.parse(readFileSync(p, "utf8"));
+      };
+      const users = load("users.json");
+      const relationships = load("relationships.json");
+      const user_networks = load("user_networks.json");
+      const topics = load("topics.json");
+      const metrics = load("graph_metrics.json");
+      if (!users || !relationships) {
+        return res.status(404).json({
+          status: "error",
+          message: "社交关系生成失败",
+        });
+      }
+      return res.json({
+        status: "ok",
+        users,
+        relationships,
+        user_networks: user_networks || [],
+        topics: topics || null,
+        metrics: metrics || {},
+      });
+    } catch (error: any) {
       return res.status(500).json({ status: "error", message: error?.message || String(error) });
     }
   });

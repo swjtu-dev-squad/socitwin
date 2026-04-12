@@ -1,0 +1,2000 @@
+[
+  {
+    "userId": "user_0",
+    "followers": [
+      {
+        "id": "rel_000001",
+        "fromUserId": "user_3",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-02-06T00:00:00Z",
+        "updatedAt": "2024-09-05T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000004",
+        "fromUserId": "user_4",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-13T00:00:00Z",
+        "updatedAt": "2024-08-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000007",
+        "fromUserId": "user_5",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-06-11T00:00:00Z",
+        "updatedAt": "2024-11-06T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000009",
+        "fromUserId": "user_6",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-08-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000014",
+        "fromUserId": "user_11",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-04T00:00:00Z",
+        "updatedAt": "2024-10-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000017",
+        "fromUserId": "user_13",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-19T00:00:00Z",
+        "updatedAt": "2024-08-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000020",
+        "fromUserId": "user_14",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-02-24T00:00:00Z",
+        "updatedAt": "2024-08-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000022",
+        "fromUserId": "user_16",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-09T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000023",
+        "fromUserId": "user_17",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-31T00:00:00Z",
+        "updatedAt": "2024-11-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000026",
+        "fromUserId": "user_18",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-19T00:00:00Z",
+        "updatedAt": "2024-11-01T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000027",
+        "fromUserId": "user_19",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-10-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000031",
+        "fromUserId": "user_22",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-10-05T00:00:00Z",
+        "isActive": false
+      },
+      {
+        "id": "rel_000033",
+        "fromUserId": "user_24",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-07T00:00:00Z",
+        "updatedAt": "2024-07-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000035",
+        "fromUserId": "user_25",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-01T00:00:00Z",
+        "updatedAt": "2024-11-30T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000038",
+        "fromUserId": "user_27",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-01-12T00:00:00Z",
+        "updatedAt": "2024-11-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000040",
+        "fromUserId": "user_29",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-27T00:00:00Z",
+        "updatedAt": "2024-07-05T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000042",
+        "fromUserId": "user_1",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-05T00:00:00Z",
+        "updatedAt": "2024-07-17T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [],
+    "friends": [],
+    "statistics": {
+      "followersCount": 17,
+      "followsCount": 0,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_1",
+    "followers": [
+      {
+        "id": "rel_000002",
+        "fromUserId": "user_3",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-04-14T00:00:00Z",
+        "updatedAt": "2024-12-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000005",
+        "fromUserId": "user_4",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-18T00:00:00Z",
+        "updatedAt": "2024-12-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000011",
+        "fromUserId": "user_8",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-11-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000012",
+        "fromUserId": "user_10",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-02T00:00:00Z",
+        "updatedAt": "2024-12-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000015",
+        "fromUserId": "user_11",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-04-08T00:00:00Z",
+        "updatedAt": "2024-10-18T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000018",
+        "fromUserId": "user_13",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-02-28T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000021",
+        "fromUserId": "user_15",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-05-26T00:00:00Z",
+        "updatedAt": "2024-08-15T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000024",
+        "fromUserId": "user_17",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-10-31T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000028",
+        "fromUserId": "user_19",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-05-09T00:00:00Z",
+        "updatedAt": "2024-10-21T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000030",
+        "fromUserId": "user_21",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-01-20T00:00:00Z",
+        "updatedAt": "2024-12-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000037",
+        "fromUserId": "user_26",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-12T00:00:00Z",
+        "updatedAt": "2024-07-18T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000039",
+        "fromUserId": "user_28",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-08-09T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000041",
+        "fromUserId": "user_29",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-31T00:00:00Z",
+        "updatedAt": "2024-09-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000042",
+        "fromUserId": "user_1",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-05T00:00:00Z",
+        "updatedAt": "2024-07-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000043",
+        "fromUserId": "user_1",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-01-19T00:00:00Z",
+        "updatedAt": "2024-08-15T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 13,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_2",
+    "followers": [
+      {
+        "id": "rel_000003",
+        "fromUserId": "user_3",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-06-04T00:00:00Z",
+        "updatedAt": "2024-11-04T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000006",
+        "fromUserId": "user_4",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-06-05T00:00:00Z",
+        "updatedAt": "2024-08-02T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000008",
+        "fromUserId": "user_5",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-01T00:00:00Z",
+        "updatedAt": "2024-07-19T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000010",
+        "fromUserId": "user_7",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-02-16T00:00:00Z",
+        "updatedAt": "2024-08-05T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000013",
+        "fromUserId": "user_10",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-20T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000016",
+        "fromUserId": "user_12",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-28T00:00:00Z",
+        "updatedAt": "2024-09-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000019",
+        "fromUserId": "user_13",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-02-29T00:00:00Z",
+        "updatedAt": "2024-09-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000025",
+        "fromUserId": "user_17",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-21T00:00:00Z",
+        "updatedAt": "2024-11-01T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000029",
+        "fromUserId": "user_19",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-01-28T00:00:00Z",
+        "updatedAt": "2024-08-04T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000032",
+        "fromUserId": "user_23",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-03-24T00:00:00Z",
+        "updatedAt": "2024-08-21T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000034",
+        "fromUserId": "user_24",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-20T00:00:00Z",
+        "updatedAt": "2024-09-19T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000036",
+        "fromUserId": "user_25",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-09-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000044",
+        "fromUserId": "user_2",
+        "toUserId": "user_14",
+        "type": "follow",
+        "createdAt": "2024-02-20T00:00:00Z",
+        "updatedAt": "2024-12-28T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000045",
+        "fromUserId": "user_2",
+        "toUserId": "user_26",
+        "type": "follow",
+        "createdAt": "2024-06-13T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 12,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_3",
+    "followers": [
+      {
+        "id": "rel_000051",
+        "fromUserId": "user_8",
+        "toUserId": "user_3",
+        "type": "follow",
+        "createdAt": "2024-06-03T00:00:00Z",
+        "updatedAt": "2024-07-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000082",
+        "fromUserId": "user_23",
+        "toUserId": "user_3",
+        "type": "follow",
+        "createdAt": "2024-01-28T00:00:00Z",
+        "updatedAt": "2024-12-15T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000001",
+        "fromUserId": "user_3",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-02-06T00:00:00Z",
+        "updatedAt": "2024-09-05T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000002",
+        "fromUserId": "user_3",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-04-14T00:00:00Z",
+        "updatedAt": "2024-12-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000003",
+        "fromUserId": "user_3",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-06-04T00:00:00Z",
+        "updatedAt": "2024-11-04T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000046",
+        "fromUserId": "user_3",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-03-17T00:00:00Z",
+        "updatedAt": "2024-08-10T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 4,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_4",
+    "followers": [
+      {
+        "id": "rel_000054",
+        "fromUserId": "user_9",
+        "toUserId": "user_4",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-11-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000083",
+        "fromUserId": "user_23",
+        "toUserId": "user_4",
+        "type": "follow",
+        "createdAt": "2024-03-25T00:00:00Z",
+        "updatedAt": "2024-12-01T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000004",
+        "fromUserId": "user_4",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-13T00:00:00Z",
+        "updatedAt": "2024-08-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000005",
+        "fromUserId": "user_4",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-18T00:00:00Z",
+        "updatedAt": "2024-12-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000006",
+        "fromUserId": "user_4",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-06-05T00:00:00Z",
+        "updatedAt": "2024-08-02T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000047",
+        "fromUserId": "user_4",
+        "toUserId": "user_5",
+        "type": "follow",
+        "createdAt": "2024-02-11T00:00:00Z",
+        "updatedAt": "2024-11-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000048",
+        "fromUserId": "user_4",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-02-29T00:00:00Z",
+        "updatedAt": "2024-10-15T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 5,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_5",
+    "followers": [
+      {
+        "id": "rel_000047",
+        "fromUserId": "user_4",
+        "toUserId": "user_5",
+        "type": "follow",
+        "createdAt": "2024-02-11T00:00:00Z",
+        "updatedAt": "2024-11-17T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000056",
+        "fromUserId": "user_9",
+        "toUserId": "user_5",
+        "type": "follow",
+        "createdAt": "2024-05-31T00:00:00Z",
+        "updatedAt": "2024-12-11T00:00:00Z",
+        "isActive": false
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000007",
+        "fromUserId": "user_5",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-06-11T00:00:00Z",
+        "updatedAt": "2024-11-06T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000008",
+        "fromUserId": "user_5",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-01T00:00:00Z",
+        "updatedAt": "2024-07-19T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_6",
+    "followers": [
+      {
+        "id": "rel_000046",
+        "fromUserId": "user_3",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-03-17T00:00:00Z",
+        "updatedAt": "2024-08-10T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000048",
+        "fromUserId": "user_4",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-02-29T00:00:00Z",
+        "updatedAt": "2024-10-15T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000055",
+        "fromUserId": "user_9",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-03-17T00:00:00Z",
+        "updatedAt": "2024-10-30T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000009",
+        "fromUserId": "user_6",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-08-16T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 3,
+      "followsCount": 1,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_7",
+    "followers": [
+      {
+        "id": "rel_000069",
+        "fromUserId": "user_17",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-09-03T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000075",
+        "fromUserId": "user_19",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-04-18T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000087",
+        "fromUserId": "user_24",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-06-29T00:00:00Z",
+        "updatedAt": "2024-07-06T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000010",
+        "fromUserId": "user_7",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-02-16T00:00:00Z",
+        "updatedAt": "2024-08-05T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 3,
+      "followsCount": 1,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_8",
+    "followers": [],
+    "follows": [
+      {
+        "id": "rel_000011",
+        "fromUserId": "user_8",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-11-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000049",
+        "fromUserId": "user_8",
+        "toUserId": "user_9",
+        "type": "follow",
+        "createdAt": "2024-05-27T00:00:00Z",
+        "updatedAt": "2024-10-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000050",
+        "fromUserId": "user_8",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-05-01T00:00:00Z",
+        "updatedAt": "2024-11-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000051",
+        "fromUserId": "user_8",
+        "toUserId": "user_3",
+        "type": "follow",
+        "createdAt": "2024-06-03T00:00:00Z",
+        "updatedAt": "2024-07-23T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 0,
+      "followsCount": 4,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_9",
+    "followers": [
+      {
+        "id": "rel_000049",
+        "fromUserId": "user_8",
+        "toUserId": "user_9",
+        "type": "follow",
+        "createdAt": "2024-05-27T00:00:00Z",
+        "updatedAt": "2024-10-27T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000052",
+        "fromUserId": "user_9",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-03-23T00:00:00Z",
+        "updatedAt": "2024-12-29T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000053",
+        "fromUserId": "user_9",
+        "toUserId": "user_17",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-12-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000054",
+        "fromUserId": "user_9",
+        "toUserId": "user_4",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-11-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000055",
+        "fromUserId": "user_9",
+        "toUserId": "user_6",
+        "type": "follow",
+        "createdAt": "2024-03-17T00:00:00Z",
+        "updatedAt": "2024-10-30T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000056",
+        "fromUserId": "user_9",
+        "toUserId": "user_5",
+        "type": "follow",
+        "createdAt": "2024-05-31T00:00:00Z",
+        "updatedAt": "2024-12-11T00:00:00Z",
+        "isActive": false
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 5,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_10",
+    "followers": [],
+    "follows": [
+      {
+        "id": "rel_000012",
+        "fromUserId": "user_10",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-02T00:00:00Z",
+        "updatedAt": "2024-12-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000013",
+        "fromUserId": "user_10",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-20T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000057",
+        "fromUserId": "user_10",
+        "toUserId": "user_13",
+        "type": "follow",
+        "createdAt": "2024-04-22T00:00:00Z",
+        "updatedAt": "2024-12-04T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 0,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_11",
+    "followers": [],
+    "follows": [
+      {
+        "id": "rel_000014",
+        "fromUserId": "user_11",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-04T00:00:00Z",
+        "updatedAt": "2024-10-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000015",
+        "fromUserId": "user_11",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-04-08T00:00:00Z",
+        "updatedAt": "2024-10-18T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000058",
+        "fromUserId": "user_11",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-04-28T00:00:00Z",
+        "updatedAt": "2024-10-24T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 0,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_12",
+    "followers": [
+      {
+        "id": "rel_000050",
+        "fromUserId": "user_8",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-05-01T00:00:00Z",
+        "updatedAt": "2024-11-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000052",
+        "fromUserId": "user_9",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-03-23T00:00:00Z",
+        "updatedAt": "2024-12-29T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000058",
+        "fromUserId": "user_11",
+        "toUserId": "user_12",
+        "type": "follow",
+        "createdAt": "2024-04-28T00:00:00Z",
+        "updatedAt": "2024-10-24T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000016",
+        "fromUserId": "user_12",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-28T00:00:00Z",
+        "updatedAt": "2024-09-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000059",
+        "fromUserId": "user_12",
+        "toUserId": "user_16",
+        "type": "follow",
+        "createdAt": "2024-01-12T00:00:00Z",
+        "updatedAt": "2024-11-11T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000060",
+        "fromUserId": "user_12",
+        "toUserId": "user_17",
+        "type": "follow",
+        "createdAt": "2024-02-23T00:00:00Z",
+        "updatedAt": "2024-10-22T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 3,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_13",
+    "followers": [
+      {
+        "id": "rel_000057",
+        "fromUserId": "user_10",
+        "toUserId": "user_13",
+        "type": "follow",
+        "createdAt": "2024-04-22T00:00:00Z",
+        "updatedAt": "2024-12-04T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000017",
+        "fromUserId": "user_13",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-19T00:00:00Z",
+        "updatedAt": "2024-08-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000018",
+        "fromUserId": "user_13",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-02-28T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000019",
+        "fromUserId": "user_13",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-02-29T00:00:00Z",
+        "updatedAt": "2024-09-08T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_14",
+    "followers": [
+      {
+        "id": "rel_000044",
+        "fromUserId": "user_2",
+        "toUserId": "user_14",
+        "type": "follow",
+        "createdAt": "2024-02-20T00:00:00Z",
+        "updatedAt": "2024-12-28T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000020",
+        "fromUserId": "user_14",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-02-24T00:00:00Z",
+        "updatedAt": "2024-08-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000061",
+        "fromUserId": "user_14",
+        "toUserId": "user_16",
+        "type": "follow",
+        "createdAt": "2024-06-08T00:00:00Z",
+        "updatedAt": "2024-08-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000062",
+        "fromUserId": "user_14",
+        "toUserId": "user_18",
+        "type": "follow",
+        "createdAt": "2024-03-15T00:00:00Z",
+        "updatedAt": "2024-11-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_15",
+    "followers": [],
+    "follows": [
+      {
+        "id": "rel_000021",
+        "fromUserId": "user_15",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-05-26T00:00:00Z",
+        "updatedAt": "2024-08-15T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000063",
+        "fromUserId": "user_15",
+        "toUserId": "user_19",
+        "type": "follow",
+        "createdAt": "2024-03-07T00:00:00Z",
+        "updatedAt": "2024-12-04T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 0,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_16",
+    "followers": [
+      {
+        "id": "rel_000059",
+        "fromUserId": "user_12",
+        "toUserId": "user_16",
+        "type": "follow",
+        "createdAt": "2024-01-12T00:00:00Z",
+        "updatedAt": "2024-11-11T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000061",
+        "fromUserId": "user_14",
+        "toUserId": "user_16",
+        "type": "follow",
+        "createdAt": "2024-06-08T00:00:00Z",
+        "updatedAt": "2024-08-23T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000022",
+        "fromUserId": "user_16",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-04-09T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000064",
+        "fromUserId": "user_16",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-06-21T00:00:00Z",
+        "updatedAt": "2024-09-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000065",
+        "fromUserId": "user_16",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-05-23T00:00:00Z",
+        "updatedAt": "2024-11-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000066",
+        "fromUserId": "user_16",
+        "toUserId": "user_24",
+        "type": "follow",
+        "createdAt": "2024-01-20T00:00:00Z",
+        "updatedAt": "2024-08-04T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 4,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_17",
+    "followers": [
+      {
+        "id": "rel_000053",
+        "fromUserId": "user_9",
+        "toUserId": "user_17",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-12-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000060",
+        "fromUserId": "user_12",
+        "toUserId": "user_17",
+        "type": "follow",
+        "createdAt": "2024-02-23T00:00:00Z",
+        "updatedAt": "2024-10-22T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000023",
+        "fromUserId": "user_17",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-31T00:00:00Z",
+        "updatedAt": "2024-11-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000024",
+        "fromUserId": "user_17",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-20T00:00:00Z",
+        "updatedAt": "2024-10-31T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000025",
+        "fromUserId": "user_17",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-21T00:00:00Z",
+        "updatedAt": "2024-11-01T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000067",
+        "fromUserId": "user_17",
+        "toUserId": "user_20",
+        "type": "follow",
+        "createdAt": "2024-02-21T00:00:00Z",
+        "updatedAt": "2024-09-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000068",
+        "fromUserId": "user_17",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-12-10T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000069",
+        "fromUserId": "user_17",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-09-03T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 6,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_18",
+    "followers": [
+      {
+        "id": "rel_000062",
+        "fromUserId": "user_14",
+        "toUserId": "user_18",
+        "type": "follow",
+        "createdAt": "2024-03-15T00:00:00Z",
+        "updatedAt": "2024-11-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000026",
+        "fromUserId": "user_18",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-19T00:00:00Z",
+        "updatedAt": "2024-11-01T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000070",
+        "fromUserId": "user_18",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-05-03T00:00:00Z",
+        "updatedAt": "2024-07-27T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_19",
+    "followers": [
+      {
+        "id": "rel_000063",
+        "fromUserId": "user_15",
+        "toUserId": "user_19",
+        "type": "follow",
+        "createdAt": "2024-03-07T00:00:00Z",
+        "updatedAt": "2024-12-04T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000027",
+        "fromUserId": "user_19",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-10-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000028",
+        "fromUserId": "user_19",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-05-09T00:00:00Z",
+        "updatedAt": "2024-10-21T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000029",
+        "fromUserId": "user_19",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-01-28T00:00:00Z",
+        "updatedAt": "2024-08-04T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000071",
+        "fromUserId": "user_19",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-01-10T00:00:00Z",
+        "updatedAt": "2024-10-06T00:00:00Z",
+        "isActive": false
+      },
+      {
+        "id": "rel_000072",
+        "fromUserId": "user_19",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-01-13T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000073",
+        "fromUserId": "user_19",
+        "toUserId": "user_24",
+        "type": "follow",
+        "createdAt": "2024-01-29T00:00:00Z",
+        "updatedAt": "2024-11-08T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000074",
+        "fromUserId": "user_19",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-02-23T00:00:00Z",
+        "updatedAt": "2024-11-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000075",
+        "fromUserId": "user_19",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-04-18T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 8,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_20",
+    "followers": [
+      {
+        "id": "rel_000067",
+        "fromUserId": "user_17",
+        "toUserId": "user_20",
+        "type": "follow",
+        "createdAt": "2024-02-21T00:00:00Z",
+        "updatedAt": "2024-09-23T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000076",
+        "fromUserId": "user_20",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-05-18T00:00:00Z",
+        "updatedAt": "2024-07-14T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 1,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_21",
+    "followers": [],
+    "follows": [
+      {
+        "id": "rel_000030",
+        "fromUserId": "user_21",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-01-20T00:00:00Z",
+        "updatedAt": "2024-12-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000077",
+        "fromUserId": "user_21",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-03-03T00:00:00Z",
+        "updatedAt": "2024-08-06T00:00:00Z",
+        "isActive": false
+      },
+      {
+        "id": "rel_000078",
+        "fromUserId": "user_21",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-09-12T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 0,
+      "followsCount": 3,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_22",
+    "followers": [
+      {
+        "id": "rel_000064",
+        "fromUserId": "user_16",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-06-21T00:00:00Z",
+        "updatedAt": "2024-09-22T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000070",
+        "fromUserId": "user_18",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-05-03T00:00:00Z",
+        "updatedAt": "2024-07-27T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000071",
+        "fromUserId": "user_19",
+        "toUserId": "user_22",
+        "type": "follow",
+        "createdAt": "2024-01-10T00:00:00Z",
+        "updatedAt": "2024-10-06T00:00:00Z",
+        "isActive": false
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000031",
+        "fromUserId": "user_22",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-10-05T00:00:00Z",
+        "isActive": false
+      },
+      {
+        "id": "rel_000079",
+        "fromUserId": "user_22",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-06-01T00:00:00Z",
+        "updatedAt": "2024-12-19T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 3,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_23",
+    "followers": [
+      {
+        "id": "rel_000065",
+        "fromUserId": "user_16",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-05-23T00:00:00Z",
+        "updatedAt": "2024-11-23T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000068",
+        "fromUserId": "user_17",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-03-08T00:00:00Z",
+        "updatedAt": "2024-12-10T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000072",
+        "fromUserId": "user_19",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-01-13T00:00:00Z",
+        "updatedAt": "2024-10-16T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000076",
+        "fromUserId": "user_20",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-05-18T00:00:00Z",
+        "updatedAt": "2024-07-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000077",
+        "fromUserId": "user_21",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-03-03T00:00:00Z",
+        "updatedAt": "2024-08-06T00:00:00Z",
+        "isActive": false
+      },
+      {
+        "id": "rel_000079",
+        "fromUserId": "user_22",
+        "toUserId": "user_23",
+        "type": "follow",
+        "createdAt": "2024-06-01T00:00:00Z",
+        "updatedAt": "2024-12-19T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000032",
+        "fromUserId": "user_23",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-03-24T00:00:00Z",
+        "updatedAt": "2024-08-21T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000080",
+        "fromUserId": "user_23",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-05-14T00:00:00Z",
+        "updatedAt": "2024-12-09T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000081",
+        "fromUserId": "user_23",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-03-26T00:00:00Z",
+        "updatedAt": "2024-08-25T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000082",
+        "fromUserId": "user_23",
+        "toUserId": "user_3",
+        "type": "follow",
+        "createdAt": "2024-01-28T00:00:00Z",
+        "updatedAt": "2024-12-15T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000083",
+        "fromUserId": "user_23",
+        "toUserId": "user_4",
+        "type": "follow",
+        "createdAt": "2024-03-25T00:00:00Z",
+        "updatedAt": "2024-12-01T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 6,
+      "followsCount": 5,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_24",
+    "followers": [
+      {
+        "id": "rel_000066",
+        "fromUserId": "user_16",
+        "toUserId": "user_24",
+        "type": "follow",
+        "createdAt": "2024-01-20T00:00:00Z",
+        "updatedAt": "2024-08-04T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000073",
+        "fromUserId": "user_19",
+        "toUserId": "user_24",
+        "type": "follow",
+        "createdAt": "2024-01-29T00:00:00Z",
+        "updatedAt": "2024-11-08T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000033",
+        "fromUserId": "user_24",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-07T00:00:00Z",
+        "updatedAt": "2024-07-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000034",
+        "fromUserId": "user_24",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-04-20T00:00:00Z",
+        "updatedAt": "2024-09-19T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000084",
+        "fromUserId": "user_24",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-06-20T00:00:00Z",
+        "updatedAt": "2024-11-09T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000085",
+        "fromUserId": "user_24",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-04-19T00:00:00Z",
+        "updatedAt": "2024-09-06T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000086",
+        "fromUserId": "user_24",
+        "toUserId": "user_28",
+        "type": "follow",
+        "createdAt": "2024-02-09T00:00:00Z",
+        "updatedAt": "2024-12-18T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000087",
+        "fromUserId": "user_24",
+        "toUserId": "user_7",
+        "type": "follow",
+        "createdAt": "2024-06-29T00:00:00Z",
+        "updatedAt": "2024-07-06T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 2,
+      "followsCount": 6,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_25",
+    "followers": [
+      {
+        "id": "rel_000043",
+        "fromUserId": "user_1",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-01-19T00:00:00Z",
+        "updatedAt": "2024-08-15T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000074",
+        "fromUserId": "user_19",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-02-23T00:00:00Z",
+        "updatedAt": "2024-11-14T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000080",
+        "fromUserId": "user_23",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-05-14T00:00:00Z",
+        "updatedAt": "2024-12-09T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000084",
+        "fromUserId": "user_24",
+        "toUserId": "user_25",
+        "type": "follow",
+        "createdAt": "2024-06-20T00:00:00Z",
+        "updatedAt": "2024-11-09T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000035",
+        "fromUserId": "user_25",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-05-01T00:00:00Z",
+        "updatedAt": "2024-11-30T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000036",
+        "fromUserId": "user_25",
+        "toUserId": "user_2",
+        "type": "follow",
+        "createdAt": "2024-03-22T00:00:00Z",
+        "updatedAt": "2024-09-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 4,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_26",
+    "followers": [
+      {
+        "id": "rel_000045",
+        "fromUserId": "user_2",
+        "toUserId": "user_26",
+        "type": "follow",
+        "createdAt": "2024-06-13T00:00:00Z",
+        "updatedAt": "2024-08-07T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000037",
+        "fromUserId": "user_26",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-12T00:00:00Z",
+        "updatedAt": "2024-07-18T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000088",
+        "fromUserId": "user_26",
+        "toUserId": "user_29",
+        "type": "follow",
+        "createdAt": "2024-01-30T00:00:00Z",
+        "updatedAt": "2024-08-09T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_27",
+    "followers": [
+      {
+        "id": "rel_000078",
+        "fromUserId": "user_21",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-09-12T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000081",
+        "fromUserId": "user_23",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-03-26T00:00:00Z",
+        "updatedAt": "2024-08-25T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000085",
+        "fromUserId": "user_24",
+        "toUserId": "user_27",
+        "type": "follow",
+        "createdAt": "2024-04-19T00:00:00Z",
+        "updatedAt": "2024-09-06T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000038",
+        "fromUserId": "user_27",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-01-12T00:00:00Z",
+        "updatedAt": "2024-11-17T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 3,
+      "followsCount": 1,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_28",
+    "followers": [
+      {
+        "id": "rel_000086",
+        "fromUserId": "user_24",
+        "toUserId": "user_28",
+        "type": "follow",
+        "createdAt": "2024-02-09T00:00:00Z",
+        "updatedAt": "2024-12-18T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000039",
+        "fromUserId": "user_28",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-06-26T00:00:00Z",
+        "updatedAt": "2024-08-09T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 1,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  },
+  {
+    "userId": "user_29",
+    "followers": [
+      {
+        "id": "rel_000088",
+        "fromUserId": "user_26",
+        "toUserId": "user_29",
+        "type": "follow",
+        "createdAt": "2024-01-30T00:00:00Z",
+        "updatedAt": "2024-08-09T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "follows": [
+      {
+        "id": "rel_000040",
+        "fromUserId": "user_29",
+        "toUserId": "user_0",
+        "type": "follow",
+        "createdAt": "2024-03-27T00:00:00Z",
+        "updatedAt": "2024-07-05T00:00:00Z",
+        "isActive": true
+      },
+      {
+        "id": "rel_000041",
+        "fromUserId": "user_29",
+        "toUserId": "user_1",
+        "type": "follow",
+        "createdAt": "2024-03-31T00:00:00Z",
+        "updatedAt": "2024-09-25T00:00:00Z",
+        "isActive": true
+      }
+    ],
+    "friends": [],
+    "statistics": {
+      "followersCount": 1,
+      "followsCount": 2,
+      "friendsCount": 0,
+      "lastUpdated": "2026-04-12T18:34:07Z"
+    }
+  }
+]

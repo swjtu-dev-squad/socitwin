@@ -13,6 +13,7 @@ import os
 import random
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, List, Tuple, Union
 
 from camel.messages import BaseMessage
@@ -21,6 +22,34 @@ from camel.types import OpenAIBackendRole
 from oasis_dashboard.context import ModelRuntimeSpec, build_shared_model
 
 logger = logging.getLogger(__name__)
+
+
+def _datasets_data_dir() -> Path:
+    """
+    ``oasis_dashboard`` 包目录下的 ``datasets/data``（即
+    ``…/oasis-dashboard/oasis_dashboard/datasets/data``）。
+
+    优先使用环境变量 ``OASIS_DATASETS_DATA_DIR``（Node 子进程会设为上述绝对路径）。
+    否则用 ``__file__`` 所在包目录（``oasis_dashboard/``）拼接 ``datasets/data``。
+    """
+    override = os.environ.get("OASIS_DATASETS_DATA_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (Path(__file__).resolve().parent / "datasets" / "data").resolve()
+
+
+def _write_json_to_datasets_data(filename: str, payload: Any) -> None:
+    try:
+        out_dir = _datasets_data_dir()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / filename
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        logger.info("LLM 结果已写入 %s", path)
+    except OSError as exc:
+        logger.warning("无法写入 %s: %s", filename, exc)
 
 
 def model_spec_from_env() -> Union[ModelRuntimeSpec, List[ModelRuntimeSpec]]:
@@ -740,7 +769,9 @@ def generate_synthetic_topics(
             break
     if len(out) < min(n, 1):
         raise RuntimeError("未能从模型输出中解析到任何仿真话题")
-    return out[:n]
+    result = out[:n]
+    _write_json_to_datasets_data("topics_get.json", result)
+    return result
 
 
 def generate_llm_persona_users(
@@ -872,4 +903,5 @@ def generate_llm_persona_users(
         "interests_locked_to_synthetic_topic_titles": bool(titles_norm),
         "synthetic_topic_title_count": len(titles_norm) if titles_norm else 0,
     }
+    _write_json_to_datasets_data("users_get.json", mapped)
     return mapped, meta
