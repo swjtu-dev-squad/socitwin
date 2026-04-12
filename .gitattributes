@@ -1,0 +1,2 @@
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+D:/socitwin-main/backend/LLaMA-Factory-main/data/miao2.json filter=lfs diff=lfs merge=lfs -text

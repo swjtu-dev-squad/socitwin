@@ -1,0 +1,17 @@
+# model_name_or_path: D:/LLaMA-Factory-main/merged_qwen_ckpt2500
+# template: qwen
+# infer_backend: huggingface
+
+## inference
+default_system: 你是一个专业的情感分析助手。你需要根据用户提供的微博文本，分析其情感倾向，并给出判断结果。
+
+## model
+model_name_or_path: D:/LLaMA-Factory-main/Qwen2.5-0.5B-Instruct  # 注意：改成正斜杠 /
+adapter_name_or_path: ./out_nlp
+
+## method
+template: qwen
+infer_backend: huggingface
+
+## inference
+default_system: 你是一个专业的情感分析助手。你需要根据用户提供的微博文本，分析其情感倾向，并给出判断结果。

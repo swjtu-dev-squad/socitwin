@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str | None = None
 
+    # Proxy Settings
+    PROXY_OLLAMA_BASE_URL: str = "http://127.0.0.1:8002"
+
     # DeepSeek Settings (required for OASIS)
     DEEPSEEK_API_KEY: str = ""
 

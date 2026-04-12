@@ -1,0 +1,1 @@
+python -m llamafactory.cli api chat.yaml
