@@ -1,0 +1,156 @@
+# Memory Migration Decisions
+
+- Status: active
+- Audience: migration implementers, reviewers, AI tools
+- Role: record the migration baseline decisions that should not drift silently
+
+## 1. Confirmed Decisions
+
+### 1.1 Modes kept in socitwin
+
+新仓库迁移后只保留两条模式线：
+
+- `upstream`
+- `action_v1`
+
+不再把旧仓库中的 `baseline` 作为新仓库运行模式迁移。
+
+`baseline` 的处理原则：
+
+- 不迁运行代码；
+- 在文档中保留它作为旧仓库阶段性过渡路线的历史说明；
+- 如后续确有实验或汇报需要，再评估是否做轻量文档级恢复，而不是默认保留一整条运行主线。
+
+### 1.2 Memory module location
+
+新仓库的记忆系统单独落在：
+
+- `backend/app/memory/`
+
+而不是继续堆进：
+
+- `backend/app/core/`
+
+原因：
+
+- 记忆系统迁入后不是几个辅助函数，而是一整套子系统；
+- 旧仓库需要迁入的 observation / working memory / recall / long-term / evaluation 模块很多；
+- 如果继续塞进 `core/`，会让 `core/` 混入过多领域逻辑，失去“基础设施层”的边界。
+
+## 2. Directory Responsibility Notes
+
+结合当前 `socitwin` 目录结构，后端子目录职责应理解为：
+
+- `backend/app/api/`
+  - 对外 HTTP 接口层；
+  - 负责请求解析、响应封装；
+  - 不承载记忆主链。
+- `backend/app/services/`
+  - 业务协调层；
+  - 负责 orchestrate 调用、状态聚合、接口输出；
+  - 不承载底层记忆算法与 prompt 主链。
+- `backend/app/core/`
+  - 系统骨架与基础设施层；
+  - 负责配置、依赖注入、OASIS manager 等通用运行基础；
+  - 是 memory runtime 的接入点，但不是记忆子系统的主要存放目录。
+- `backend/app/models/`
+  - 数据模型层；
+  - 负责请求、响应、状态、配置对象建模。
+- `backend/app/utils/`
+  - 通用工具层；
+  - 不适合承载核心记忆路径。
+- `backend/app/memory/`
+  - 记忆子系统层；
+  - 负责承载迁入的 observation shaping、working memory、prompt assembly、long-term、recall 等主链。
+
+## 3. Memory Placement Rationale
+
+把记忆系统放到 `backend/app/memory/` 的合理性在于：
+
+- 它符合这套功能的真实规模和复杂度；
+- 它能让 `action_v1` 的运行边界更清楚；
+- 它能把 memory 相关单测、集成测、系统测的映射关系整理得更清晰；
+- 它避免 `core/` 变成“所有复杂逻辑最后都塞进去”的杂糅目录。
+
+当前推荐的责任关系：
+
+- `core/oasis_manager.py`
+  - 作为接入中心；
+  - 调用 mode-aware memory runtime。
+- `memory/*`
+  - 作为实际记忆运行模块层。
+- `services/simulation_service.py`
+  - 负责把 memory runtime 的状态与结果组织给 API 层。
+- `api/*`
+  - 负责对外暴露配置、状态、调试与测试接口。
+
+## 4. Deferred Decisions
+
+下面这些问题尚未最终冻结：
+
+- 新仓库的 memory 配置命名是否继续沿用旧仓库 `OASIS_MODEL_*` / `OASIS_V1_*` 体系；
+- system evaluation harness 是独立落在新仓库，还是部分复用现有 `backend/test` 结构；
+- 前端 memory API 本轮是否只定义契约，不实现真实展示。
+
+这些问题不影响当前先确定“两模式 + 独立 memory 目录”这两个基础边界。
+
+当前推荐但尚未最终确认的方向：
+
+- memory 配置命名先采用“兼容层”策略；
+  - 先支持旧仓库 `OASIS_MODEL_*` / `OASIS_V1_*`；
+  - 内部再映射到新仓库 settings；
+  - 等主链稳定后再考虑是否统一改名。
+- 前端本轮不作为迁移阻塞项；
+  - 先保证后端 memory 主链、配置、测试、文档完整可靠；
+  - 前端只保留最小契约盘点，不抢占主链迁移优先级。
+
+### 4.1 Memory status exposure route
+
+memory 运行状态不继续主要堆进：
+
+- `/api/sim/status`
+
+当前已确认方向是：
+
+- 保持 `/api/sim/status` 继续偏模拟总状态；
+- 将 memory trace / recall / prompt budget / debug snapshot 迁到单独的 monitor/debug 接口。
+
+原因：
+
+- 避免 `SimulationStatus` 持续膨胀成混杂模型；
+- 避免把 `upstream` 和 `action_v1` 的内部状态边界搅混；
+- 更利于后续测试、调试和前端渐进接入。
+
+### 4.2 Mode config entry
+
+当前推荐方案：
+
+- 在 `backend/app/models/simulation.py` 中新增显式 `memory_mode` 字段；
+- 使用枚举，而不是自由字符串；
+- Phase 1 默认值先设为：
+  - `upstream`
+
+原因：
+
+- 新仓库当前实际运行行为本来就更接近原生 OASIS；
+- 先用 `upstream` 作为默认值，更利于平滑引入 memory runtime facade；
+- 可以把 `action_v1` 的迁入过程和默认运行行为解耦，降低回归风险。
+
+待迁移主链稳定后，再评估默认值是否需要改成 `action_v1`。
+
+## 5. Migration-As-Refactor Position
+
+本轮迁移对记忆子系统的定位已经明确为：
+
+- 不是机械复制旧实现；
+- 也不是重新开启一轮路线级重构；
+- 而是在保留当前记忆主 contract 的前提下，允许进行结构清污和小幅工程化重构。
+
+这意味着：
+
+- 允许清理旧仓库中不值得继续带入新仓库的结构债；
+- 不允许借迁移重新打开已经多轮审查过的核心语义问题。
+
+详细边界见：
+
+- [`migration-refactor-principles.md`](./migration-refactor-principles.md)
