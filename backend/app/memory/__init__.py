@@ -25,6 +25,8 @@ from .episodic_memory import (
 from .environment import ActionV1SocialEnvironment
 from .memory_rendering import CompressedNoteView, RecentTurnView
 from .observation_shaper import ObservationArtifact, ObservationShaper
+from .prompt_assembler import PromptAssembler, PromptAssemblyResult
+from .retrieval_policy import RetrievalPolicy, RetrievalRequest
 from .working_memory import (
     ActionItem,
     ActionSummaryBlock,
@@ -59,8 +61,12 @@ __all__ = [
     "ObservationPresetConfig",
     "ObservationShaper",
     "PlatformMemoryAdapter",
+    "PromptAssembler",
+    "PromptAssemblyResult",
     "RecentTurnView",
     "RecentWorkingMemory",
+    "RetrievalPolicy",
+    "RetrievalRequest",
     "StepRecord",
     "StepRecordKind",
     "StepSegment",
