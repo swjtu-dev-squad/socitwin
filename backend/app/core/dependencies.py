@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _simulation_service = None
 _topic_service = None
 _metrics_manager = None
+_controlled_agents_service = None
 
 
 async def get_simulation_service():
@@ -345,6 +346,52 @@ async def get_current_user(token: str = None):
     """
     # TODO: 实现实际的用户认证
     return {"user_id": "anonymous", "permissions": []}
+
+
+# ============================================================================
+# Controlled Agents Service
+# ============================================================================
+
+async def get_controlled_agents_service():
+    """
+    获取受控agent服务单例
+
+    Returns:
+        ControlledAgentsService: 受控agent服务实例
+    """
+    from app.services.controlled_agents_service import ControlledAgentsService
+
+    global _controlled_agents_service
+
+    if _controlled_agents_service is None:
+        oasis_manager = await get_oasis_manager()
+        _controlled_agents_service = ControlledAgentsService(oasis_manager)
+        logger.info("Controlled Agents Service singleton created")
+
+    return _controlled_agents_service
+
+
+async def get_controlled_agents_service_dependency():
+    """
+    受控agent服务依赖注入
+
+    Yields:
+        ControlledAgentsService: 受控agent服务实例
+
+    Example:
+        @router.post("/agents/controlled")
+        async def add_controlled_agents(
+            request: AddControlledAgentsRequest,
+            service: ControlledAgentsService = Depends(get_controlled_agents_service_dependency)
+        ):
+            return await service.add_controlled_agents(request)
+    """
+    service = await get_controlled_agents_service()
+    try:
+        yield service
+    except Exception as e:
+        logger.error(f"Error in controlled agents service dependency: {e}")
+        raise
 
 
 # ============================================================================
