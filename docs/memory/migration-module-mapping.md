@@ -47,6 +47,28 @@
 - `backend/app/memory/agent.py`
   - 负责 `upstream` / `action_v1` agent wiring
 
+### 2.3 Current source-type asymmetry
+
+当前新仓库里三种 agent source 的技术形态并不对称：
+
+- `template`
+  - 由 `socitwin` 自己生成 profile，并逐个创建 agent
+- `manual`
+  - 由 `socitwin` 自己读取配置，并逐个创建 agent
+- `file`
+  - 当前仍借用 OASIS 上游 `generate_twitter_agent_graph(...)` / `generate_reddit_agent_graph(...)`
+
+这意味着：
+
+- `template/manual` 可以自然切入 `memory/agent.py`
+- `file` 不能自然切入，因为它绕开了新仓库自己的 agent builder
+
+因此迁移阶段必须明确：
+
+- `action_v1` 当前只覆盖 `template/manual`
+- `file` 在 `action_v1` 下应显式报未迁移
+- 不应为了暂时“看起来全支持”而偷偷回退到原生 `SocialAgent`
+
 ## 3. Old -> New Module Mapping
 
 ### 3.1 First-wave modules
@@ -142,6 +164,19 @@
 
 这部分不适合照搬旧文件，而应结合新仓库现有 `status` / `monitor` 形状来设计。
 
+### 4.3 File-based agent graph builder
+
+`action_v1 + file` 的最终补法，本质上需要一个新的 file-based agent graph builder。
+
+它的职责应当是：
+
+- 读取旧 file profile
+- 在 `socitwin` 内部重建 `UserInfo`
+- 调用新仓库自己的 mode-aware agent builder
+- 最终生成 `AgentGraph`
+
+这部分不建议复用上游 `generate_*_agent_graph()` 作为最终方案，因为那会持续绕开 `memory/runtime.py` 和 `memory/agent.py`。
+
 ## 5. Minimal Frontend Contract Notes
 
 前端当前不是迁移第一优先级，但需要知道边界。
@@ -168,3 +203,10 @@
 4. `OASISManager` 改造成 mode-aware 接入点；
 5. `upstream` 显式化且不受 `action_v1` 污染；
 6. 在此基础上再接 observation -> working memory -> recall 主链。
+
+当前还应额外记住一个迁移现实：
+
+- `file` 不属于第一波必须跑通项；
+- 第一波真正的“可运行主线”应定义为：
+  - `upstream`：`template/manual/file`
+  - `action_v1`：`template/manual`

@@ -37,6 +37,43 @@
 - 旧仓库需要迁入的 observation / working memory / recall / long-term / evaluation 模块很多；
 - 如果继续塞进 `core/`，会让 `core/` 混入过多领域逻辑，失去“基础设施层”的边界。
 
+### 1.3 Agent source migration boundary
+
+`action_v1` 在新仓库第一阶段只承诺支持：
+
+- `template`
+- `manual`
+
+`agent_source=file` 当前不作为第一阶段交付项，必须保持：
+
+- 显式未迁移
+- 明确报错
+- 不允许静默回退到 `upstream`
+
+这不是功能遗忘，而是当前架构边界下的有意决策。
+
+原因是：
+
+- `template/manual` 路径本来就是新仓库自己逐个构造 `UserInfo -> SocialAgent -> AgentGraph`；
+- 这两条路径只需要把 agent builder 从原生 `SocialAgent` 切到 `ContextSocialAgent`，即可接入 `action_v1`；
+- `file` 路径不同，它当前直接调用 OASIS 上游：
+  - `generate_twitter_agent_graph(...)`
+  - `generate_reddit_agent_graph(...)`
+- 上游这两个函数会在内部直接创建原生 `SocialAgent`，不会经过新仓库的 `memory/runtime.py` 和 `memory/agent.py` 装配层。
+
+因此，`file` 要支持 `action_v1`，本质上不是补一个分支，而是要：
+
+- 重建 file-based agent graph 生成路径，让它也走新仓库自己的 agent builder；
+- 或者侵入式接管 OASIS 上游 graph generator 的内部行为。
+
+第一种是后续合理补法，第二种当前不建议采用。
+
+所以当前应把 `file` 理解为：
+
+- 不是新架构凭空制造出来的问题；
+- 而是旧仓库阶段原本就借用了 OASIS 原生 graph 生成捷径；
+- 到了新仓库做 mode-aware clean split 时，这个历史耦合被显式暴露出来了。
+
 ## 2. Directory Responsibility Notes
 
 结合当前 `socitwin` 目录结构，后端子目录职责应理解为：
@@ -103,6 +140,19 @@
 - 前端本轮不作为迁移阻塞项；
   - 先保证后端 memory 主链、配置、测试、文档完整可靠；
   - 前端只保留最小契约盘点，不抢占主链迁移优先级。
+
+### 4.1 Deferred `file` source support in `action_v1`
+
+后续若要补 `action_v1 + agent_source=file`，建议路线已经基本固定为：
+
+- 不继续依赖 OASIS 上游 `generate_*_agent_graph()` 作为最终装配入口；
+- 改为读取 file profile 后，在 `socitwin` 内部重建：
+  - `UserInfo`
+  - `ActionV1RuntimeSettings`
+  - `ContextSocialAgent`
+  - `AgentGraph`
+
+也就是说，未来补法应当是“把 file 路径纳入新仓库自己的 agent builder 体系”，而不是继续把它留在原生 OASIS 快捷入口之外。
 
 ### 4.1 Memory status exposure route
 
