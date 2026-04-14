@@ -143,6 +143,14 @@ export interface Topic {
   id: string;
   name: string;
   description: string;
+  platform?: string;
+  topic_key?: string | null;
+  topic_type?: string;
+  trend_rank?: number | null;
+  post_count?: number;
+  reply_count?: number;
+  user_count?: number;
+  news_external_id?: string | null;
   initial_post: TopicInitialPost;
   settings: TopicSettings;
 }
@@ -151,6 +159,14 @@ export interface TopicListItem {
   id: string;
   name: string;
   description: string;
+  platform?: string;
+  topic_key?: string | null;
+  topic_type?: string;
+  trend_rank?: number | null;
+  post_count?: number;
+  reply_count?: number;
+  user_count?: number;
+  news_external_id?: string | null;
   has_initial_post?: boolean;
   settings_trigger_refresh?: boolean;
 }
@@ -161,7 +177,11 @@ export interface TopicListResponse {
   topics: TopicListItem[];
 }
 
-export interface TopicDetail extends Topic {}
+export interface TopicDetail extends Topic {
+  first_seen_at?: string | null;
+  last_seen_at?: string | null;
+  available: boolean;
+}
 
 export interface TopicActivationResult {
   success: boolean;
@@ -171,6 +191,70 @@ export interface TopicActivationResult {
   agents_refreshed?: number;
   execution_time?: number;
   error?: string;
+}
+
+export interface TopicProfileSeed {
+  external_user_id: string;
+  username?: string | null;
+  display_name?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  verified: boolean;
+  follower_count: number;
+  following_count: number;
+  tweet_count: number;
+  role: string;
+  content_count: number;
+  influence_score: number;
+  activity_score: number;
+  interests: string[];
+  agent_config: {
+    agent_id: number;
+    user_name: string;
+    name: string;
+    description: string;
+    bio?: string | null;
+    profile?: Record<string, any> | null;
+    interests: string[];
+    age?: number | null;
+    gender?: string | null;
+    mbti?: string | null;
+    country?: string | null;
+  };
+}
+
+export interface TopicProfilesResponse {
+  success: boolean;
+  topic: TopicDetail;
+  count: number;
+  profiles: TopicProfileSeed[];
+}
+
+export interface TopicContentSeed {
+  external_content_id: string;
+  content_type: string;
+  author_external_user_id?: string | null;
+  author_username?: string | null;
+  author_display_name?: string | null;
+  parent_external_content_id?: string | null;
+  root_external_content_id?: string | null;
+  text?: string | null;
+  language?: string | null;
+  created_at?: string | null;
+  like_count: number;
+  reply_count: number;
+  share_count: number;
+  view_count: number;
+  relevance_score: number;
+}
+
+export interface TopicSimulationResponse {
+  success: boolean;
+  topic: TopicDetail;
+  participant_count: number;
+  content_count: number;
+  profiles: TopicProfileSeed[];
+  contents: TopicContentSeed[];
 }
 
 // ========== Metrics Types (matching backend/app/models/metrics.py) ==========

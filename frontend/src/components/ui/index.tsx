@@ -57,17 +57,39 @@ export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAt
 }
 
 // Slider (Minimal implementation)
-export const Slider = ({ value, onValueChange, min, max, step, className }: { value: number[], onValueChange: (v: number[]) => void, min: number, max: number, step: number, className?: string }) => (
-  <input
-    type="range"
-    min={min}
-    max={max}
-    step={step}
-    value={value[0]}
-    onChange={(e) => onValueChange([parseInt(e.target.value)])}
-    className={cn("w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent", className)}
-  />
-)
+const normalizeSliderValue = (rawValue: number, min: number, max: number, step: number) => {
+  const safeMin = Number.isFinite(min) ? min : 0
+  const safeMax = Number.isFinite(max) ? max : safeMin
+  const safeStep = step > 0 ? step : 1
+  const clamped = Math.min(Math.max(rawValue, safeMin), safeMax)
+
+  if (safeMax <= safeMin) {
+    return safeMin
+  }
+
+  if (clamped >= safeMax - safeStep / 2) {
+    return safeMax
+  }
+
+  const snapped = safeMin + Math.round((clamped - safeMin) / safeStep) * safeStep
+  return Math.min(Math.max(snapped, safeMin), safeMax)
+}
+
+export const Slider = ({ value, onValueChange, min, max, step, className }: { value: number[], onValueChange: (v: number[]) => void, min: number, max: number, step: number, className?: string }) => {
+  const normalizedValue = normalizeSliderValue(value[0] ?? min, min, max, step)
+
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={normalizedValue}
+      onChange={(e) => onValueChange([normalizeSliderValue(Number(e.target.value), min, max, step)])}
+      className={cn("w-full h-1.5 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent", className)}
+    />
+  )
+}
 
 // Progress
 export const Progress = ({ value, className }: { value: number, className?: string }) => (

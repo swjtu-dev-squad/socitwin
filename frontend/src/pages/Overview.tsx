@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSimulationStore } from '@/lib/store';
 import { Card, Button, Badge, Slider, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
 import {
   useSimulationStatusLightweight,
@@ -48,14 +48,55 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SituationalAwarenessChart } from '@/components/SituationalAwarenessChart';
+import type { DatasetPlatform } from '@/components/SubscriptionPanel';
+
+function normalizeSimulationStatus(backendData: any): any {
+  return {
+    ...backendData,
+    running: backendData.state === 'running',
+    paused: backendData.state === 'paused',
+    originalState: backendData.state,
+    currentStep: backendData.current_step,
+    currentRound: backendData.current_round,
+    activeAgents: backendData.active_agents,
+    totalPosts: backendData.total_posts,
+    totalInteractions: backendData.total_interactions,
+    agentCount: backendData.agent_count,
+    totalSteps: backendData.total_steps,
+    platform: backendData.platform,
+    recsys: backendData.recsys,
+    topics: backendData.topics,
+    regions: backendData.regions,
+  };
+}
+
+function getRequestErrorMessage(error: unknown): string {
+  if (!error || typeof error !== 'object') {
+    return '请求失败';
+  }
+
+  const maybeError = error as any;
+  return (
+    maybeError?.response?.data?.detail ||
+    maybeError?.response?.data?.message ||
+    maybeError?.message ||
+    '请求失败'
+  );
+}
 
 export default function Overview() {
   const { status, setStatus, isStepping, setIsStepping } = useSimulationStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialFilters =
+    (location.state as { selectedPlatform?: DatasetPlatform; selectedTopic?: string } | null) ?? null;
 
   // Use custom hooks for data fetching
-  const { data: statusData, currentStep } = useSimulationStatusLightweight(2000);
-  const { data: topics, isLoading: topicsLoading } = useTopics();
+  const { data: statusData, currentStep, refetch: refetchStatus } = useSimulationStatusLightweight(2000);
+  const [selectedPlatform, setSelectedPlatform] = useState<DatasetPlatform>(
+    initialFilters?.selectedPlatform ?? 'twitter',
+  );
+  const { data: topics, isLoading: topicsLoading } = useTopics(selectedPlatform);
   const { data: chartHistory, isLoading: historyLoading } = useMetricsHistory(currentStep);
   const { latestMetrics } = useStepDrivenMetrics(currentStep || 0);
 
@@ -107,8 +148,28 @@ export default function Overview() {
 
   // Local state for UI controls
   const [agentCount, setAgentCount] = useState([10]); // 默认10个agents
-  const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [selectedTopic, setSelectedTopic] = useState<string>(initialFilters?.selectedTopic ?? '');
   const [showAlgorithm, setShowAlgorithm] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+
+  const selectedTopicMeta = useMemo(
+    () => topics.find((topic) => topic.id === selectedTopic) || null,
+    [topics, selectedTopic],
+  );
+  const selectedTopicLabel = selectedTopicMeta?.name || '';
+  const availableOriginalUserCount = selectedTopicMeta?.user_count ?? 0;
+  const originalUserSourceLabel = `原始用户 (${availableOriginalUserCount})`;
+  const platformLabelMap: Record<DatasetPlatform, string> = {
+    twitter: 'X / Twitter',
+    reddit: 'Reddit',
+    tiktok: 'TikTok',
+    instagram: 'Instagram',
+    facebook: 'Facebook',
+  };
+  const [selectedUserSource, setSelectedUserSource] = useState<'topic-original'>('topic-original');
+  const maxUserCount = availableOriginalUserCount;
+  const isSupportedSimulationPlatform =
+    selectedPlatform === 'twitter' || selectedPlatform === 'reddit';
 
   // Update store status when hook data changes
   useEffect(() => {
@@ -117,12 +178,29 @@ export default function Overview() {
     }
   }, [statusData, setStatus]);
 
-  // Set default topic if none selected and topics are loaded
+  // Keep topic selection aligned with the currently selected platform
   useEffect(() => {
-    if (!selectedTopic && topics && topics.length > 0) {
+    if (topics.length === 0) {
+      setSelectedTopic('');
+      return;
+    }
+
+    const matchedTopic = topics.some((topic) => topic.id === selectedTopic);
+    if (!matchedTopic) {
       setSelectedTopic(topics[0].id);
     }
   }, [topics, selectedTopic]);
+
+  useEffect(() => {
+    setAgentCount((prev) => {
+      if (availableOriginalUserCount <= 0) {
+        return prev[0] === 0 ? prev : [0];
+      }
+
+      const nextValue = Math.min(Math.max(prev[0], 1), availableOriginalUserCount);
+      return nextValue === prev[0] ? prev : [nextValue];
+    });
+  }, [availableOriginalUserCount]);
 
   // Extract real data from history for trend charts
   // NEW: Use database history (step-based) instead of store history (time-based)
@@ -434,6 +512,28 @@ export default function Overview() {
             <div className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
+                  <Cpu className="w-3 h-3" />
+                  平台选择
+                </div>
+                <Select
+                  value={selectedPlatform}
+                  onValueChange={(value) => setSelectedPlatform(value as DatasetPlatform)}
+                >
+                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
+                    <SelectValue placeholder="选择平台" value={platformLabelMap[selectedPlatform]} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="twitter">X / Twitter</SelectItem>
+                    <SelectItem value="reddit">Reddit</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
                   <BookOpen className="w-3 h-3" />
                   话题选择
                 </div>
@@ -449,7 +549,7 @@ export default function Overview() {
                     "bg-bg-primary border-accent/20 text-text-primary",
                     topicsLoading && "opacity-50 cursor-not-allowed"
                   )}>
-                    <SelectValue placeholder={topicsLoading ? "加载话题中..." : "选择话题"} value={selectedTopic} />
+                    <SelectValue placeholder={topicsLoading ? "加载话题中..." : "选择话题"} value={selectedTopicLabel} />
                   </SelectTrigger>
                   <SelectContent>
                     {topics?.map((topic) => (
@@ -460,12 +560,30 @@ export default function Overview() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
+                  <Users className="w-3 h-3" />
+                  用户选择
+                </div>
+                <Select
+                  value={selectedUserSource}
+                  onValueChange={(value) => setSelectedUserSource(value as 'topic-original')}
+                >
+                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
+                    <SelectValue placeholder="选择用户来源" value={originalUserSourceLabel} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="topic-original">{originalUserSourceLabel}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-6">
               <div className="space-y-4">
                 <div className="flex justify-between items-end">
-                  <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">Agent 规模</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">Agent 数量</label>
                   <span className="text-xl font-mono font-bold text-accent">{agentCount[0].toLocaleString()}</span>
                 </div>
                 <Slider
@@ -474,9 +592,9 @@ export default function Overview() {
                     setAgentCount(val);
                     // 只更新本地状态，不调用 API
                   }}
-                  min={10}
-                  max={1000}
-                  step={10}
+                  min={availableOriginalUserCount > 0 ? 1 : 0}
+                  max={maxUserCount}
+                  step={1}
                   className="py-2"
                 />
               </div>
@@ -489,59 +607,125 @@ export default function Overview() {
                       "bg-bg-tertiary hover:bg-border-strong text-text-primary" :
                       "bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20"
                   )}
+                  disabled={isStarting}
                   onClick={async () => {
                     try {
                       // Use state field if available
                       const isRunning = currentStatus.state ? currentStatus.state === 'running' : (currentStatus.running && !currentStatus.paused);
 
                       if (isRunning) {
-                        // 暂停
                         await simulationApi.pause();
-                        // 重新获取状态
                         const statusRes = await simulationApi.getStatus();
-                        setStatus(statusRes.data);
+                        setStatus(normalizeSimulationStatus(statusRes.data));
+                        await refetchStatus();
                         toast.info('仿真已暂停');
+                        return;
+                      }
+
+                      if (!selectedTopic) {
+                        toast.error('请先选择话题');
+                        return;
+                      }
+
+                      if (!isSupportedSimulationPlatform) {
+                        toast.error('当前平台暂无可用仿真数据');
+                        return;
+                      }
+
+                      if (availableOriginalUserCount <= 0) {
+                        toast.error('当前话题没有可用的原始用户');
+                        return;
+                      }
+
+                      setIsStarting(true);
+                      toast.info('正在启动仿真...');
+
+                      const profilesResponse = await simulationApi.getTopicProfiles(selectedTopic, {
+                        platform: selectedPlatform,
+                        limit: agentCount[0],
+                      });
+                      const manualProfiles = profilesResponse.data.profiles ?? [];
+
+                      if (manualProfiles.length === 0) {
+                        throw new Error('当前话题没有可用的原始用户');
+                      }
+
+                      const configResponse = await simulationApi.updateConfig({
+                        platform: selectedPlatform,
+                        agentCount: manualProfiles.length,
+                        maxSteps: 100,
+                        recsysType: selectedPlatform,
+                        agentSource: {
+                          sourceType: 'manual',
+                          manualConfig: manualProfiles.map((profile) => profile.agent_config),
+                        },
+                      });
+
+                      if (configResponse.data?.success === false) {
+                        throw new Error(configResponse.data.message || '仿真配置失败');
+                      }
+
+                      const activationResponse = await simulationApi.activateTopic(selectedTopic, {
+                        platform: selectedPlatform,
+                      });
+
+                      if (activationResponse.data?.success === false) {
+                        throw new Error(activationResponse.data.message || '话题激活失败');
+                      }
+
+                      const stepResponse = await simulationApi.step('auto');
+                      const stepResult = stepResponse.data as any;
+                      if (stepResult?.success === false) {
+                        throw new Error(stepResult.message || '仿真启动失败');
+                      }
+
+                      const statusRes = await simulationApi.getStatus();
+                      const normalizedStatus = normalizeSimulationStatus(statusRes.data);
+                      setStatus(normalizedStatus);
+                      await refetchStatus();
+
+                      if (stepResult?.task_id) {
+                        toast.success(
+                          `仿真已启动: ${selectedTopicMeta?.name || selectedTopic} / 原始用户 ${manualProfiles.length} 人，正在后台执行`,
+                        );
                       } else {
-                        // 启动：只配置模拟
-                        await simulationApi.updateConfig({
-                          platform: 'twitter',
-                          agentCount: agentCount[0],
-                          maxSteps: 100
-                        });
-
-                        // 激活话题（如果有选择话题）
-                        if (selectedTopic) {
-                          await simulationApi.activateTopic(selectedTopic);
-                        }
-
-                        // 重新获取状态
-                        const statusRes = await simulationApi.getStatus();
-                        setStatus(statusRes.data);
-
-                        toast.success(`仿真已配置: ${selectedTopic} (${agentCount[0]} agents)`);
+                        toast.success(
+                          `仿真已启动: ${selectedTopicMeta?.name || selectedTopic} / 原始用户 ${manualProfiles.length} 人 / 当前步数 ${normalizedStatus.currentStep ?? 0}`,
+                        );
                       }
                     } catch (e) {
                       console.error('启动/暂停失败:', e);
-                      toast.error('操作失败');
+                      toast.error(`启动失败: ${getRequestErrorMessage(e)}`);
+                    } finally {
+                      setIsStarting(false);
                     }
                   }}
                 >
-                  {
-                    // Use state field if available, otherwise fall back to running/paused
-                    (currentStatus.state ?
-                      (currentStatus.state === 'running' ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
-                      :
-                      (currentStatus.running && !currentStatus.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
-                    )
-                  }
-                  {
-                    // Use state field if available, otherwise fall back to running/paused
-                    (currentStatus.state ?
-                      (currentStatus.state === 'running' ? '暂停' : '启动')
-                      :
-                      (currentStatus.running && !currentStatus.paused ? '暂停' : '启动')
-                    )
-                  }
+                  {isStarting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-bg-primary border-t-transparent rounded-full animate-spin" />
+                      启动中...
+                    </>
+                  ) : (
+                    <>
+                      {
+                        // Use state field if available, otherwise fall back to running/paused
+                        (currentStatus.state ?
+                          (currentStatus.state === 'running' ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                          :
+                          (currentStatus.running && !currentStatus.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                        )
+                      }
+                      {
+                        // Use state field if available, otherwise fall back to running/paused
+                        (currentStatus.state ?
+                          (currentStatus.state === 'running' ? '暂停' : '启动')
+                          :
+                          (currentStatus.running && !currentStatus.paused ? '暂停' : '启动')
+                        )
+                      }
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="secondary"
@@ -552,7 +736,8 @@ export default function Overview() {
                     try {
                       await simulationApi.step('auto');
                       const res = await simulationApi.getStatus();
-                      setStatus(res.data);
+                      setStatus(normalizeSimulationStatus(res.data));
+                      await refetchStatus();
                       toast.success('步进完成');
                     } catch (e) {
                       console.error('步进失败:', e);
@@ -573,7 +758,8 @@ export default function Overview() {
                       await simulationApi.reset();
                       // 重新获取状态
                       const statusRes = await simulationApi.getStatus();
-                      setStatus(statusRes.data);
+                      setStatus(normalizeSimulationStatus(statusRes.data));
+                      await refetchStatus();
                       toast.success('仿真已重置');
                     } catch (e) {
                       console.error('重置失败:', e);

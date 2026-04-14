@@ -611,6 +611,7 @@ class SimulationService:
         task.add_done_callback(self.background_tasks.discard)
 
         logger.info(f"Created background task: {task_id}")
+        return task_id
 
     def _calculate_influence(self, post_count: int, total_interactions: int) -> float:
         """
