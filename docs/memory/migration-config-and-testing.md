@@ -231,7 +231,7 @@
 
 - 1~5 已有基础覆盖
 - 6 正在从 manager-level smoke 往更真实的 integration 推进
-- 7 尚未开始迁回
+- 7 已开始迁回最小 harness 脚手架，但只覆盖 `preflight + deterministic`
 
 这个顺序不能反过来。尤其不能在：
 
@@ -239,6 +239,31 @@
 - `upstream` 还没显式隔离；
 
 的前提下就急着接 recall 和大规模评测。
+
+### 6.1 Current evaluation harness baseline
+
+截至当前迁移进度，新仓库已经有第一版评测入口：
+
+- 模块：
+  - `backend/app/memory/evaluation_harness.py`
+- 测试：
+  - `backend/tests/memory/evaluation/test_memory_evaluation_harness.py`
+
+它当前只承诺恢复：
+
+- `preflight`
+- `deterministic`
+
+并且已经具备这些最小能力：
+
+- 写出 `config.json`
+- 写出 `events.jsonl`
+- 写出 `summary.json`
+- 写出 `README.md`
+- 跑通一个最小 deterministic observation fidelity probe
+- 跑通一个最小 deterministic recall trigger probe
+
+当前不能把它误读成“旧仓库 harness 已完整迁回”。真实场景相关 phase 仍需后续逐个迁入。
 
 ## 7. Frontend And Status Notes
 

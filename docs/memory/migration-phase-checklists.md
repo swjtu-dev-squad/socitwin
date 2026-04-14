@@ -298,6 +298,28 @@
 - `upstream` 与 `action_v1` 都有独立验证路径
 - action_v1 的记忆主链关键行为有结构化测试覆盖
 
+### Current Status
+
+这一阶段已经开始恢复，但当前只落了第一版评测入口：
+
+- 新增：
+  - `backend/app/memory/evaluation_harness.py`
+  - `backend/tests/memory/evaluation/test_memory_evaluation_harness.py`
+- 当前只支持：
+  - `preflight`
+  - `deterministic`
+- 当前明确还不支持：
+  - `real-smoke`
+  - `real-scenarios`
+  - `real-longwindow`
+  - `comparison`
+
+所以现在应把它理解为：
+
+- 新仓库评测 harness 的第一版脚手架已恢复；
+- 结果目录、事件、摘要结构已重新建立；
+- 但真实 provider / 长窗口 / 对比评测还没有迁回。
+
 ### Do Not
 
 - 不只保留单个 API E2E 脚本就视为测试已恢复
