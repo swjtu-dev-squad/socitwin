@@ -29,9 +29,18 @@ class Settings(BaseSettings):
     OASIS_MEMORY_MODE: str = "upstream"
     OASIS_MAX_AGENTS: int = 1000
     OASIS_DB_PATH: str = "./data/simulations"
+    OASIS_CONTEXT_TOKEN_LIMIT: int = 16384
     OASIS_TIMEOUT: int = 300  # 5 minutes
     OASIS_RETRY_COUNT: int = 3
     OASIS_DEFAULT_STEPS: int = 100
+    OASIS_LONGTERM_ENABLED: bool = True
+    OASIS_LONGTERM_CHROMA_PATH: str = "./data/memory/chroma"
+    OASIS_LONGTERM_COLLECTION_PREFIX: str = "action_v1"
+    OASIS_LONGTERM_EMBEDDING_BACKEND: str = "heuristic"
+    OASIS_LONGTERM_EMBEDDING_MODEL: str | None = None
+    OASIS_LONGTERM_EMBEDDING_API_KEY: str | None = None
+    OASIS_LONGTERM_EMBEDDING_BASE_URL: str | None = None
+    OASIS_LONGTERM_DELETE_COLLECTION_ON_CLOSE: bool = False
 
     # OpenAI Settings (optional - for alternative LLM support)
     OPENAI_API_KEY: str | None = None

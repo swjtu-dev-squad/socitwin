@@ -3,7 +3,6 @@ import asyncio
 from app.memory.config import MemoryMode, normalize_memory_mode, resolve_memory_runtime_config
 from app.memory.runtime import (
     MemoryRuntimeFacade,
-    MemoryRuntimeNotImplementedError,
     RuntimeBuildPlan,
 )
 
@@ -29,28 +28,35 @@ def test_resolve_memory_runtime_config_falls_back_to_settings() -> None:
     assert config.mode is MemoryMode.UPSTREAM
 
 
-def test_runtime_facade_rejects_unmigrated_action_v1() -> None:
+def test_runtime_facade_builds_action_v1_runtime() -> None:
     facade = MemoryRuntimeFacade(
         resolve_memory_runtime_config(explicit_mode=MemoryMode.ACTION_V1)
     )
 
+    model = object()
+    graph = object()
+    env = object()
+
     async def _noop_model():
-        return object()
+        return model
 
-    async def _noop_graph():
-        return object()
+    async def _noop_graph(received_model):
+        assert received_model is model
+        return graph
 
-    plan = RuntimeBuildPlan(
-        create_model=_noop_model,
-        build_agent_graph=_noop_graph,
-        create_environment=lambda _graph: object(),
+    artifacts = asyncio.run(
+        facade.build_runtime(
+            RuntimeBuildPlan(
+                create_model=_noop_model,
+                build_agent_graph=_noop_graph,
+                create_environment=lambda built_graph: env if built_graph is graph else None,
+            )
+        )
     )
 
-    try:
-        asyncio.run(facade.build_runtime(plan))
-    except MemoryRuntimeNotImplementedError:
-        return
-    raise AssertionError("expected MemoryRuntimeNotImplementedError")
+    assert artifacts.model is model
+    assert artifacts.agent_graph is graph
+    assert artifacts.env is env
 
 
 def test_runtime_facade_builds_upstream_runtime() -> None:
@@ -65,7 +71,8 @@ def test_runtime_facade_builds_upstream_runtime() -> None:
     async def _model():
         return model
 
-    async def _graph():
+    async def _graph(received_model):
+        assert received_model is model
         return graph
 
     artifacts = asyncio.run(

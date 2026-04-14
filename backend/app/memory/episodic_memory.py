@@ -6,6 +6,7 @@ from typing import Any
 
 from .action_capabilities import ActionCapabilityRegistry
 from .action_significance import infer_action_significance
+from .longterm import episode_to_payload
 
 
 class StepRecordKind(str, Enum):
@@ -124,6 +125,39 @@ class ActionEpisode:
     evidence_quality: str = ""
     degraded_evidence: bool = False
     action_significance: str = ""
+
+    def to_payload(self) -> dict[str, Any]:
+        return episode_to_payload(
+            {
+                "memory_kind": "action_episode",
+                "agent_id": self.agent_id,
+                "step_id": self.step_id,
+                "action_index": self.action_index,
+                "timestamp": self.timestamp,
+                "platform": self.platform,
+                "action_name": self.action_name,
+                "action_category": self.action_category,
+                "action_fact": self.action_fact,
+                "target_type": self.target_type,
+                "target_id": self.target_id,
+                "target_snapshot": self.target_snapshot,
+                "target_visible_in_prompt": self.target_visible_in_prompt,
+                "target_resolution_status": self.target_resolution_status,
+                "execution_status": self.execution_status,
+                "local_context": self.local_context,
+                "authored_content": self.authored_content,
+                "state_changes": self.state_changes,
+                "outcome": self.outcome,
+                "idle_step_gap": self.idle_step_gap,
+                "topic": self.topic,
+                "query_source": self.query_source,
+                "action_significance": self.action_significance,
+                "evidence_quality": self.evidence_quality,
+                "degraded_evidence": self.degraded_evidence,
+                "summary_text": "",
+                "metadata": {},
+            }
+        )
 
 
 @dataclass(slots=True)

@@ -61,6 +61,19 @@
 
 - [`migration-refactor-principles.md`](./migration-refactor-principles.md)
 
+## 1.7 Current Execution State
+
+当前实际执行状态应理解为：
+
+- 新仓库的 memory runtime 骨架已建立
+- `upstream` 已显式化，不再只是隐式默认路径
+- `action_v1` 的核心模块已迁入 `backend/app/memory/`
+- 新一轮实施重点不再是“继续搬模块”，而是：
+  - 把已迁模块真正接入新仓库 runtime 主链
+  - 验证 `template/manual` 可跑
+  - 保持 `file` 在 `action_v1` 下显式未迁移
+  - 逐步恢复 monitor/debug/test harness
+
 ## 2. First-Wave File Candidates
 
 第一波最值得优先迁移或重写的闭环是：

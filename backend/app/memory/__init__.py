@@ -4,6 +4,7 @@ from .action_capabilities import ActionCapability, ActionCapabilityRegistry
 from .action_evidence import ActionEvidence, ActionEvidenceBuilder
 from .config import (
     ActionV1RuntimeSettings,
+    LongtermSidecarConfig,
     MemoryMode,
     MemoryRuntimeConfig,
     ObservationPresetConfig,
@@ -11,6 +12,8 @@ from .config import (
     RecallPresetConfig,
     SummaryPresetConfig,
     WorkingMemoryBudgetConfig,
+    apply_observation_env_overrides,
+    apply_working_memory_env_overrides,
     resolve_memory_runtime_config,
 )
 from .consolidator import ConsolidationOutcome, Consolidator
@@ -74,6 +77,7 @@ __all__ = [
     "HeartbeatRange",
     "HeuristicTextEmbedding",
     "LongtermStore",
+    "LongtermSidecarConfig",
     "MemoryMode",
     "MemoryRuntimeConfig",
     "MemoryRuntimeFacade",
@@ -103,6 +107,8 @@ __all__ = [
     "StepSegment",
     "SummaryPresetConfig",
     "WorkingMemoryBudgetConfig",
+    "apply_observation_env_overrides",
+    "apply_working_memory_env_overrides",
     "build_platform_memory_adapter",
     "build_chroma_longterm_store",
     "build_longterm_embedding",

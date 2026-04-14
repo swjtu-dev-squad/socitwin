@@ -271,3 +271,49 @@ def build_prompt_visible_snapshot(
             groups_payload, current_agent_id=current_agent_id
         ),
     }
+
+
+def extract_semantic_anchors_from_snapshot(snapshot: dict[str, Any]) -> list[str]:
+    anchors: list[str] = []
+    posts_payload = snapshot.get("posts", {}) or {}
+    for post in posts_payload.get("posts", []) or []:
+        summary = str(post.get("summary", "") or "").strip()
+        if summary:
+            anchors.append(f"post#{post.get('post_id')}: {summary}")
+        for comment in post.get("comments", []) or []:
+            comment_summary = str(comment.get("summary", "") or "").strip()
+            if comment_summary:
+                anchors.append(f"comment#{comment.get('comment_id')}: {comment_summary}")
+
+    groups_payload = snapshot.get("groups", {}) or {}
+    for group in groups_payload.get("all_groups", []) or []:
+        if not isinstance(group, dict):
+            continue
+        group_summary = str(group.get("summary", "") or "").strip()
+        if group_summary:
+            anchors.append(f"group#{group.get('group_id')}: {group_summary}")
+    for message in groups_payload.get("messages", []) or []:
+        if not isinstance(message, dict):
+            continue
+        message_summary = str(message.get("summary", "") or "").strip()
+        if message_summary:
+            anchors.append(f"group_message#{message.get('message_id')}: {message_summary}")
+
+    return list(dict.fromkeys(anchor for anchor in anchors if anchor))
+
+
+def extract_topics_from_snapshot(snapshot: dict[str, Any]) -> list[str]:
+    topics: list[str] = []
+    posts_payload = snapshot.get("posts", {}) or {}
+    for post in posts_payload.get("posts", []) or []:
+        summary = str(post.get("summary", "") or "").strip()
+        if summary:
+            topics.append(summary)
+    groups_payload = snapshot.get("groups", {}) or {}
+    for group in groups_payload.get("all_groups", []) or []:
+        if not isinstance(group, dict):
+            continue
+        summary = str(group.get("summary", "") or "").strip()
+        if summary:
+            topics.append(summary)
+    return list(dict.fromkeys(topic for topic in topics if topic))

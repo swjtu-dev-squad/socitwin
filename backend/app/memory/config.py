@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from dataclasses import dataclass, field
 from enum import Enum
 import os
@@ -170,6 +171,17 @@ class RecallPresetConfig:
 
 
 @dataclass(slots=True)
+class LongtermSidecarConfig:
+    enabled: bool = False
+    store: Any | None = None
+    retrieval_limit: int = 3
+
+    def validate(self) -> None:
+        if self.retrieval_limit <= 0:
+            raise ValueError("longterm_sidecar.retrieval_limit must be positive.")
+
+
+@dataclass(slots=True)
 class ProviderRuntimePresetConfig:
     provider_error_matchers: dict[str, dict[str, Any]] = field(
         default_factory=lambda: {
@@ -273,10 +285,13 @@ class ProviderRuntimePresetConfig:
             },
         }
     )
+    max_budget_retries: int = 4
 
     def validate(self) -> None:
         if "*" not in self.provider_error_matchers:
             raise ValueError("provider_error_matchers must include '*' fallback.")
+        if self.max_budget_retries <= 0:
+            raise ValueError("max_budget_retries must be positive.")
 
 
 @dataclass(slots=True)
@@ -292,9 +307,15 @@ class ActionV1RuntimeSettings:
         default_factory=WorkingMemoryBudgetConfig
     )
     recall_preset: RecallPresetConfig = field(default_factory=RecallPresetConfig)
+    longterm_sidecar: LongtermSidecarConfig = field(default_factory=LongtermSidecarConfig)
     provider_runtime_preset: ProviderRuntimePresetConfig = field(
         default_factory=ProviderRuntimePresetConfig
     )
+    memory_window_size: int | None = None
+    prompt_assembly_enabled: bool = True
+    token_counter_mode: str = "heuristic_fallback"
+    context_window_source: str = "settings_context_limit"
+    model_backend_family: str = "unknown"
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
 
     @property
@@ -328,6 +349,7 @@ class ActionV1RuntimeSettings:
         self.summary_preset.validate()
         self.working_memory_budget.validate()
         self.recall_preset.validate()
+        self.longterm_sidecar.validate()
         self.provider_runtime_preset.validate()
 
 

@@ -17,6 +17,31 @@
 
 后续真正开始迁代码时，应按 phase 顺序推进，而不是跨阶段混做。
 
+## 1.1 Current Progress Snapshot
+
+截至当前分支，迁移进度应按下面理解：
+
+- Phase 0 已完成
+  - 两模式目标已冻结为 `upstream` + `action_v1`
+  - `baseline` 不再迁运行代码
+- Phase 1 已基本完成
+  - `backend/app/memory/` 骨架、mode wiring、runtime facade 已建立
+  - `SimulationConfig.memory_mode` 与 `OASISManager` 的 mode-aware 构造链已落地
+- Phase 2 已基本完成
+  - `upstream` 已作为显式模式保留
+  - `upstream` 与 `action_v1` 的 agent 构造开始分离
+- Phase 3 正在进行
+  - observation / episodic / short-term / prompt / recall / long-term / runtime-failure 主模块已迁入
+  - `action_v1` 已开始接入新仓库 runtime
+  - 当前第一阶段只承诺 `template/manual`
+  - `agent_source=file` 在 `action_v1` 下应保持显式未迁移
+
+未完成部分仍包括：
+
+- `action_v1` 的 manager/runtime 级完整实跑验证
+- memory monitor/debug 接口
+- evaluation harness 与系统级测试迁移
+
 ## 2. Phase 0: Freeze Scope
 
 ### Goal
