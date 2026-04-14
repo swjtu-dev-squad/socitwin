@@ -242,6 +242,7 @@
   - `/api/sim/memory`
 - 已通过：
   - `OASISManager -> SimulationService -> API model` 的 memory debug 摘要链路
+  - `/api/sim/memory` 的 FastAPI integration 回归测试
 - 当前接口已覆盖：
   - simulation scope
   - context / generation budget 摘要

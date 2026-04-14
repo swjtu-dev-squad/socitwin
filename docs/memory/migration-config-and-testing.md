@@ -311,6 +311,10 @@
 
 的形式落地到了新仓库后端，并保持与 `/api/sim/status` 分离。
 
+同时已经补了第一条 API integration 覆盖：
+
+- `backend/tests/memory/integration/test_memory_debug_api.py`
+
 当前实际响应已经覆盖：
 
 - simulation scope
