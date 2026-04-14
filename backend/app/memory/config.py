@@ -69,6 +69,48 @@ class ObservationPresetConfig:
 
 
 @dataclass(slots=True)
+class SummaryPresetConfig:
+    max_action_items_per_block: int = 4
+    compressed_action_block_drop_protected_count: int = 2
+    max_action_items_per_recent_turn: int = 6
+    max_authored_excerpt_chars: int = 120
+    max_target_summary_chars: int = 120
+    max_local_context_chars: int = 120
+    max_summary_merge_span: int = 3
+    max_heartbeat_entity_samples: int = 3
+    max_anchor_items_per_block: int = 2
+    max_entities_per_heartbeat: int = 3
+    max_state_changes_per_turn: int = 4
+    max_outcome_digest_chars: int = 160
+    compressed_note_title: str = "Compressed short-term memory:"
+    recall_note_title: str = "Relevant long-term memory:"
+    omit_empty_template_fields: bool = True
+
+    def validate(self) -> None:
+        positive_fields = {
+            "max_action_items_per_block": self.max_action_items_per_block,
+            "compressed_action_block_drop_protected_count": self.compressed_action_block_drop_protected_count,
+            "max_action_items_per_recent_turn": self.max_action_items_per_recent_turn,
+            "max_authored_excerpt_chars": self.max_authored_excerpt_chars,
+            "max_target_summary_chars": self.max_target_summary_chars,
+            "max_local_context_chars": self.max_local_context_chars,
+            "max_summary_merge_span": self.max_summary_merge_span,
+            "max_heartbeat_entity_samples": self.max_heartbeat_entity_samples,
+            "max_anchor_items_per_block": self.max_anchor_items_per_block,
+            "max_entities_per_heartbeat": self.max_entities_per_heartbeat,
+            "max_state_changes_per_turn": self.max_state_changes_per_turn,
+            "max_outcome_digest_chars": self.max_outcome_digest_chars,
+        }
+        for name, value in positive_fields.items():
+            if value <= 0:
+                raise ValueError(f"{name} must be positive.")
+        if not self.compressed_note_title.strip():
+            raise ValueError("compressed_note_title must be non-empty.")
+        if not self.recall_note_title.strip():
+            raise ValueError("recall_note_title must be non-empty.")
+
+
+@dataclass(slots=True)
 class ActionV1RuntimeSettings:
     token_counter: TokenCounterLike
     system_message: BaseMessage
@@ -76,6 +118,7 @@ class ActionV1RuntimeSettings:
     observation_preset: ObservationPresetConfig = field(
         default_factory=ObservationPresetConfig
     )
+    summary_preset: SummaryPresetConfig = field(default_factory=SummaryPresetConfig)
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
 
     @property
@@ -98,6 +141,7 @@ class ActionV1RuntimeSettings:
         if "{env_prompt}" not in self.observation_wrapper:
             raise ValueError("observation_wrapper must contain '{env_prompt}'.")
         self.observation_preset.validate()
+        self.summary_preset.validate()
 
 
 def normalize_memory_mode(value: MemoryMode | str | None) -> MemoryMode:
