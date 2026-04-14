@@ -7,6 +7,8 @@ import type {
   TopicListResponse,
   TopicDetail,
   TopicActivationResult,
+  TopicProfilesResponse,
+  TopicSimulationResponse,
   MetricsSummary,
   PropagationMetrics,
   PolarizationMetrics,
@@ -18,17 +20,35 @@ const api = axios.create({
   timeout: 600000,  // 10分钟超时 - 支持大规模agent的LLM调用
 });
 
+const encodeTopicId = (topicId: string) => encodeURIComponent(topicId);
+
 export const simulationApi = {
   updateConfig: (config: {
     platform: string;
     agentCount: number;
     maxSteps?: number;
     recsysType?: string;
+    agentSource?: {
+      sourceType: 'template' | 'file' | 'manual';
+      templateName?: string;
+      filePath?: string;
+      manualConfig?: Record<string, any>[];
+    };
   }) => api.post('/sim/config', {
     platform: config.platform,
     agent_count: config.agentCount,
-    recsys_type: config.recsysType || 'twitter',
-    max_steps: config.maxSteps || 50
+    recsys_type: config.recsysType || config.platform,
+    max_steps: config.maxSteps || 50,
+    ...(config.agentSource
+      ? {
+          agent_source: {
+            source_type: config.agentSource.sourceType,
+            template_name: config.agentSource.templateName,
+            file_path: config.agentSource.filePath,
+            manual_config: config.agentSource.manualConfig,
+          },
+        }
+      : {}),
   }),
 
   getStatus: () => api.get<SimulationStatus>('/sim/status'),
@@ -49,13 +69,23 @@ export const simulationApi = {
 
   getLogs: () => api.get<{ logs: LogEntry[] }>('/sim/logs'),
 
-  getTopics: () => api.get<TopicListResponse>('/topics'),
+  getTopics: (params?: { platform?: string; limit?: number }) => api.get<TopicListResponse>('/topics', { params }),
 
-  getTopicById: (topicId: string) => api.get<TopicDetail>(`/topics/${topicId}`),
+  getTopicById: (topicId: string) => api.get<TopicDetail>(`/topics/${encodeTopicId(topicId)}`),
 
-  activateTopic: (topicId: string) => api.post<TopicActivationResult>(`/topics/${topicId}/activate`),
+  getTopicProfiles: (topicId: string, params?: { platform?: string; limit?: number }) =>
+    api.get<TopicProfilesResponse>(`/topics/${encodeTopicId(topicId)}/profiles`, { params }),
 
-  reloadTopics: () => api.post<{ success: boolean; message: string; topics_count: number }>('/topics/reload'),
+  getTopicSimulation: (
+    topicId: string,
+    params?: { platform?: string; participant_limit?: number; content_limit?: number }
+  ) => api.get<TopicSimulationResponse>(`/topics/${encodeTopicId(topicId)}/simulation`, { params }),
+
+  activateTopic: (topicId: string, params?: { platform?: string }) =>
+    api.post<TopicActivationResult>(`/topics/${encodeTopicId(topicId)}/activate`, undefined, { params }),
+
+  reloadTopics: (params?: { platform?: string }) =>
+    api.post<{ success: boolean; message: string; topics_loaded: number }>('/topics/reload', undefined, { params }),
 
   // Metrics APIs
   getMetricsSummary: () => api.get<MetricsSummary>('/metrics/summary'),

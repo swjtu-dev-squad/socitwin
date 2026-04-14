@@ -8,11 +8,8 @@ import logging
 from functools import lru_cache
 from typing import AsyncGenerator
 
-from fastapi import Depends
-
 from app.core.config import get_settings
-from app.core.oasis_manager import get_oasis_manager, OASISManager
-
+from app.core.oasis_manager import OASISManager, get_oasis_manager
 
 logger = logging.getLogger(__name__)
 
@@ -109,19 +106,14 @@ async def get_topic_service():
 
     Returns:
         TopicService: 主题服务实例
-
-    Note:
-        这个函数将创建并返回 TopicService 单例
     """
     from app.services.topic_service import TopicService
-    from app.core.topic_loader import get_topic_loader
 
     global _topic_service
 
     if _topic_service is None:
         oasis_manager = await get_oasis_manager()
-        topic_loader = get_topic_loader()
-        _topic_service = TopicService(oasis_manager, topic_loader)
+        _topic_service = TopicService(oasis_manager)
         logger.info("Topic Service singleton created")
 
     return _topic_service
@@ -163,8 +155,8 @@ async def get_metrics_manager():
     Note:
         提供集中化的指标计算和缓存功能
     """
-    from app.services.metrics.metrics_manager import MetricsManager
     from app.core.config import get_settings
+    from app.services.metrics.metrics_manager import MetricsManager
 
     global _metrics_manager
 
