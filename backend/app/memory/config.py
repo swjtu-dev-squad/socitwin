@@ -145,6 +145,31 @@ class WorkingMemoryBudgetConfig:
 
 
 @dataclass(slots=True)
+class RecallPresetConfig:
+    retrieval_limit: int = 3
+    cooldown_steps: int = 2
+    min_trigger_entity_count: int = 0
+    allow_topic_trigger: bool = True
+    allow_anchor_trigger: bool = True
+    allow_recent_action_trigger: bool = True
+    allow_self_authored_trigger: bool = True
+    deny_repeated_query_within_steps: int = 2
+    max_reason_trace_chars: int = 120
+
+    def validate(self) -> None:
+        if self.retrieval_limit <= 0:
+            raise ValueError("retrieval_limit must be positive.")
+        if self.cooldown_steps < 0:
+            raise ValueError("cooldown_steps must be >= 0.")
+        if self.min_trigger_entity_count < 0:
+            raise ValueError("min_trigger_entity_count must be >= 0.")
+        if self.deny_repeated_query_within_steps < 0:
+            raise ValueError("deny_repeated_query_within_steps must be >= 0.")
+        if self.max_reason_trace_chars <= 0:
+            raise ValueError("max_reason_trace_chars must be positive.")
+
+
+@dataclass(slots=True)
 class ActionV1RuntimeSettings:
     token_counter: TokenCounterLike
     system_message: BaseMessage
@@ -156,6 +181,7 @@ class ActionV1RuntimeSettings:
     working_memory_budget: WorkingMemoryBudgetConfig = field(
         default_factory=WorkingMemoryBudgetConfig
     )
+    recall_preset: RecallPresetConfig = field(default_factory=RecallPresetConfig)
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
 
     @property
@@ -188,6 +214,7 @@ class ActionV1RuntimeSettings:
         self.observation_preset.validate()
         self.summary_preset.validate()
         self.working_memory_budget.validate()
+        self.recall_preset.validate()
 
 
 def normalize_memory_mode(value: MemoryMode | str | None) -> MemoryMode:

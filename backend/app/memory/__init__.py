@@ -7,6 +7,7 @@ from .config import (
     MemoryMode,
     MemoryRuntimeConfig,
     ObservationPresetConfig,
+    RecallPresetConfig,
     SummaryPresetConfig,
     WorkingMemoryBudgetConfig,
     resolve_memory_runtime_config,
@@ -26,6 +27,7 @@ from .environment import ActionV1SocialEnvironment
 from .memory_rendering import CompressedNoteView, RecentTurnView
 from .observation_shaper import ObservationArtifact, ObservationShaper
 from .prompt_assembler import PromptAssembler, PromptAssemblyResult
+from .recall_planner import RecallPlanner, RecallPreparation, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy, RetrievalRequest
 from .working_memory import (
     ActionItem,
@@ -63,6 +65,10 @@ __all__ = [
     "PlatformMemoryAdapter",
     "PromptAssembler",
     "PromptAssemblyResult",
+    "RecallPlanner",
+    "RecallPreparation",
+    "RecallPresetConfig",
+    "RecallRuntimeState",
     "RecentTurnView",
     "RecentWorkingMemory",
     "RetrievalPolicy",
