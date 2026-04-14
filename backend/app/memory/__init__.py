@@ -1,5 +1,7 @@
 """Memory runtime entrypoints for Socitwin."""
 
+from .action_capabilities import ActionCapability, ActionCapabilityRegistry
+from .action_evidence import ActionEvidence, ActionEvidenceBuilder
 from .config import (
     ActionV1RuntimeSettings,
     MemoryMode,
@@ -29,6 +31,10 @@ from .working_memory import (
 from .runtime import MemoryRuntimeFacade, MemoryRuntimeNotImplementedError
 
 __all__ = [
+    "ActionCapability",
+    "ActionCapabilityRegistry",
+    "ActionEvidence",
+    "ActionEvidenceBuilder",
     "ActionEpisode",
     "ActionItem",
     "ActionV1RuntimeSettings",
