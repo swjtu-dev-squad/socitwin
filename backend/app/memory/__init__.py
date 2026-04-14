@@ -7,6 +7,7 @@ from .config import (
     MemoryMode,
     MemoryRuntimeConfig,
     ObservationPresetConfig,
+    ProviderRuntimePresetConfig,
     RecallPresetConfig,
     SummaryPresetConfig,
     WorkingMemoryBudgetConfig,
@@ -29,6 +30,12 @@ from .observation_shaper import ObservationArtifact, ObservationShaper
 from .prompt_assembler import PromptAssembler, PromptAssemblyResult
 from .recall_planner import RecallPlanner, RecallPreparation, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy, RetrievalRequest
+from .runtime_failures import (
+    ActionV1RuntimeFailure,
+    ContextBudgetExhaustedError,
+    NormalizedModelError,
+    normalize_model_error,
+)
 from .working_memory import (
     ActionItem,
     ActionSummaryBlock,
@@ -65,12 +72,16 @@ __all__ = [
     "PlatformMemoryAdapter",
     "PromptAssembler",
     "PromptAssemblyResult",
+    "ProviderRuntimePresetConfig",
     "RecallPlanner",
     "RecallPreparation",
     "RecallPresetConfig",
     "RecallRuntimeState",
     "RecentTurnView",
     "RecentWorkingMemory",
+    "ActionV1RuntimeFailure",
+    "ContextBudgetExhaustedError",
+    "NormalizedModelError",
     "RetrievalPolicy",
     "RetrievalRequest",
     "StepRecord",
@@ -79,5 +90,6 @@ __all__ = [
     "SummaryPresetConfig",
     "WorkingMemoryBudgetConfig",
     "build_platform_memory_adapter",
+    "normalize_model_error",
     "resolve_memory_runtime_config",
 ]

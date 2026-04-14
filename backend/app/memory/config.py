@@ -170,6 +170,116 @@ class RecallPresetConfig:
 
 
 @dataclass(slots=True)
+class ProviderRuntimePresetConfig:
+    provider_error_matchers: dict[str, dict[str, Any]] = field(
+        default_factory=lambda: {
+            "openai": {
+                "structured": {
+                    "status_codes": {"context_overflow": (400, 413)},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "maximum context length",
+                        "context length exceeded",
+                        "prompt is too long",
+                        "request too large",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+            "openrouter": {
+                "structured": {
+                    "status_codes": {"context_overflow": (400, 413)},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "maximum context length",
+                        "context length exceeded",
+                        "prompt is too long",
+                        "request too large",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+            "deepseek": {
+                "structured": {
+                    "status_codes": {"context_overflow": (400, 413)},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "maximum context length",
+                        "context length exceeded",
+                        "prompt is too long",
+                        "request too large",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+            "vllm": {
+                "structured": {
+                    "status_codes": {"context_overflow": (400, 413)},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "maximum context length",
+                        "context length exceeded",
+                        "token limit exceeded",
+                        "request too large",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+            "ollama": {
+                "structured": {
+                    "status_codes": {"context_overflow": (400, 413)},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "input length exceeds",
+                        "context length exceeded",
+                        "token limit exceeded",
+                        "prompt too long",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+            "*": {
+                "structured": {
+                    "status_codes": {},
+                    "error_codes": {},
+                    "exception_types": {},
+                },
+                "normalized_patterns": {
+                    "context_overflow": (
+                        "maximum context",
+                        "context length",
+                        "prompt too long",
+                        "request too large",
+                        "token limit exceeded",
+                        "max context",
+                    ),
+                },
+                "raw_patterns": {},
+            },
+        }
+    )
+
+    def validate(self) -> None:
+        if "*" not in self.provider_error_matchers:
+            raise ValueError("provider_error_matchers must include '*' fallback.")
+
+
+@dataclass(slots=True)
 class ActionV1RuntimeSettings:
     token_counter: TokenCounterLike
     system_message: BaseMessage
@@ -182,6 +292,9 @@ class ActionV1RuntimeSettings:
         default_factory=WorkingMemoryBudgetConfig
     )
     recall_preset: RecallPresetConfig = field(default_factory=RecallPresetConfig)
+    provider_runtime_preset: ProviderRuntimePresetConfig = field(
+        default_factory=ProviderRuntimePresetConfig
+    )
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
 
     @property
@@ -215,6 +328,7 @@ class ActionV1RuntimeSettings:
         self.summary_preset.validate()
         self.working_memory_budget.validate()
         self.recall_preset.validate()
+        self.provider_runtime_preset.validate()
 
 
 def normalize_memory_mode(value: MemoryMode | str | None) -> MemoryMode:
