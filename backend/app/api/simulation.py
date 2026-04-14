@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.models.simulation import (
     SimulationStatus,
+    MemoryDebugStatus,
     SimulationConfig,
     SimulationState,
     StepRequest,
@@ -69,6 +70,26 @@ async def get_status(
     except Exception as e:
         logger.error(f"Failed to get status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+
+@router.get("/memory", response_model=MemoryDebugStatus)
+async def get_memory_debug_status(
+    service: SimulationService = Depends(get_simulation_service_dependency)
+):
+    """
+    获取独立的 memory monitor/debug 摘要。
+
+    Returns:
+        MemoryDebugStatus: 当前 memory 运行摘要
+    """
+    try:
+        return await service.get_memory_debug_status()
+    except Exception as e:
+        logger.error(f"Failed to get memory debug status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get memory debug status: {str(e)}",
+        )
 
 
 @router.get("/health")

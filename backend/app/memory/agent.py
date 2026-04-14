@@ -322,6 +322,15 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                     next_step_id=step_id,
                     runtime_state=self._recall_runtime_state,
                 )
+                self._last_internal_trace = {
+                    "last_recall_gate": bool(recall_preparation.gate_decision),
+                    "last_recall_gate_reason_flags": dict(
+                        recall_preparation.gate_reason_flags
+                    ),
+                    "last_recall_query_source": str(recall_preparation.query_source or ""),
+                    "last_recall_query_text": str(recall_preparation.query_text or ""),
+                    "last_recall_candidate_count": int(recall_preparation.recalled_count),
+                }
                 assembly = self._prompt_assembler.assemble(
                     system_message=self.system_message,
                     current_observation_prompt=artifact.observation_prompt,
@@ -336,6 +345,21 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                 )
                 self._last_action_v1_prompt_tokens = assembly.total_tokens
                 self._last_prompt_assembly_result = assembly
+                self._last_internal_trace.update(
+                    {
+                        "last_prompt_budget_status": assembly.budget_status,
+                        "last_prompt_failure_reason": assembly.assembly_failure_reason,
+                        "last_selected_recent_step_ids": list(
+                            assembly.selected_recent_step_ids
+                        ),
+                        "last_selected_compressed_keys": list(
+                            assembly.selected_compressed_keys
+                        ),
+                        "last_selected_recall_step_ids": list(
+                            assembly.selected_recall_step_ids
+                        ),
+                    }
+                )
                 if assembly.budget_status != "ok":
                     next_state = self._budget_recovery_controller.next_for_local_over_budget(
                         state=recovery_state
@@ -347,6 +371,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                             step_id=step_id,
                             details=self._build_runtime_failure_trace(
                                 failure_stage="pre_decision_prompt_assembly_failure",
+                                failure_category="context_budget_exhausted",
                                 recovery_state=recovery_state,
                                 assembly=assembly,
                             ),
@@ -372,6 +397,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                                 step_id=step_id,
                                 details=self._build_runtime_failure_trace(
                                     failure_stage="pre_decision_model_failure",
+                                    failure_category="context_budget_exhausted",
                                     recovery_state=recovery_state,
                                     assembly=assembly,
                                 ),
@@ -384,6 +410,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                         step_id=step_id,
                         details=self._build_runtime_failure_trace(
                             failure_stage="pre_decision_model_failure",
+                            failure_category=normalized.category,
                             recovery_state=recovery_state,
                             assembly=assembly,
                         ),
@@ -411,10 +438,12 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
         self,
         *,
         failure_stage: str,
+        failure_category: str = "",
         recovery_state,
         assembly: PromptAssemblyResult | None,
     ) -> dict[str, Any]:
         details = {
+            "category": failure_category,
             "failure_stage": failure_stage,
             "backend_family": self.context_settings.model_backend_family,
             "pressure_level": recovery_state.pressure_level,
@@ -820,6 +849,72 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
     @property
     def heartbeat_ranges(self) -> list[HeartbeatRange]:
         return list(self._memory_state.compressed.heartbeat_ranges)
+
+    def memory_debug_snapshot(self) -> dict[str, Any]:
+        recent_step_ids = [segment.step_id for segment in self._memory_state.recent.segments]
+        compressed_step_ids: set[int] = set()
+        for block in self._memory_state.compressed.action_blocks:
+            compressed_step_ids.update(block.covered_step_ids)
+        for heartbeat in self._memory_state.compressed.heartbeat_ranges:
+            compressed_step_ids.update(range(heartbeat.start_step, heartbeat.end_step + 1))
+
+        render_stats = dict(getattr(self.env, "last_render_stats", {}) or {})
+        failure_trace = dict(self._last_runtime_failure_trace or {})
+        assembly = self._last_prompt_assembly_result
+        internal_trace = dict(self._last_internal_trace or {})
+
+        return {
+            "memory_runtime": "action_v1",
+            "memory_supported": True,
+            "recent_retained_step_count": len(recent_step_ids),
+            "recent_retained_step_ids": recent_step_ids,
+            "compressed_action_block_count": len(self._memory_state.compressed.action_blocks),
+            "compressed_heartbeat_count": len(self._memory_state.compressed.heartbeat_ranges),
+            "compressed_retained_step_count": len(compressed_step_ids),
+            "total_retained_step_count": len(set(recent_step_ids) | compressed_step_ids),
+            "last_observation_stage": str(render_stats.get("final_shaping_stage", "") or ""),
+            "last_observation_prompt_tokens": int(
+                render_stats.get("observation_prompt_tokens", 0) or 0
+            ),
+            "last_prompt_tokens": int(self._last_action_v1_prompt_tokens or 0),
+            "last_recall_gate": (
+                bool(internal_trace.get("last_recall_gate"))
+                if "last_recall_gate" in internal_trace
+                else None
+            ),
+            "last_recall_gate_reason_flags": dict(
+                internal_trace.get("last_recall_gate_reason_flags", {}) or {}
+            ),
+            "last_recall_query_source": str(
+                internal_trace.get("last_recall_query_source", "") or ""
+            ),
+            "last_recall_query_text": str(
+                internal_trace.get("last_recall_query_text", "") or ""
+            ),
+            "last_recalled_count": int(self._last_longterm_recalled_count or 0),
+            "last_injected_count": int(self._last_longterm_injected_count or 0),
+            "last_recalled_step_ids": list(self._last_longterm_recalled_step_ids),
+            "last_injected_step_ids": list(self._last_longterm_injected_step_ids),
+            "last_recall_reason_trace": str(self._last_longterm_reason_trace or ""),
+            "last_runtime_failure_category": str(
+                failure_trace.get("category", "") or ""
+            ),
+            "last_runtime_failure_stage": str(
+                failure_trace.get("failure_stage", "") or ""
+            ),
+            "last_prompt_budget_status": (
+                str(assembly.budget_status or "") if assembly is not None else ""
+            ),
+            "last_selected_recent_step_ids": list(
+                internal_trace.get("last_selected_recent_step_ids", []) or []
+            ),
+            "last_selected_compressed_keys": list(
+                internal_trace.get("last_selected_compressed_keys", []) or []
+            ),
+            "last_selected_recall_step_ids": list(
+                internal_trace.get("last_selected_recall_step_ids", []) or []
+            ),
+        }
 
 
 def build_upstream_social_agent(

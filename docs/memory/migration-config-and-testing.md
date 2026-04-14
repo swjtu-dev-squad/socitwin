@@ -280,6 +280,41 @@
   - `last_injected_count`
   - `last_runtime_failure_category`
 
+截至当前迁移进度，这个最小 monitor/debug 接口已经以：
+
+- `/api/sim/memory`
+
+的形式落地到了新仓库后端，并保持与 `/api/sim/status` 分离。
+
+当前实际响应已经覆盖：
+
+- simulation scope
+  - `state`
+  - `memory_mode`
+  - `current_step`
+  - `total_steps`
+  - `platform`
+- runtime summary
+  - `context_token_limit`
+  - `generation_max_tokens`
+  - `longterm_enabled`
+- per-agent memory summary
+  - `recent_retained_step_count`
+  - `recent_retained_step_ids`
+  - `compressed_action_block_count`
+  - `compressed_heartbeat_count`
+  - `compressed_retained_step_count`
+  - `total_retained_step_count`
+  - `last_observation_stage`
+  - `last_observation_prompt_tokens`
+  - `last_prompt_tokens`
+  - `last_recall_gate`
+  - `last_recalled_count`
+  - `last_injected_count`
+  - `last_runtime_failure_category`
+  - `last_runtime_failure_stage`
+  - `last_prompt_budget_status`
+
 第一阶段不要求暴露：
 
 - 完整 prompt 文本
@@ -292,10 +327,9 @@
 
 下一轮还需要继续核对并补进计划的内容：
 
-1. memory monitor/debug 接口的最小响应结构如何定义；
-2. `SimulationService` 与 memory runtime 之间如何提供快照读取面；
-3. system evaluation harness 是放在 `backend/test/`，还是单独建 `backend/tests/memory/`；
-4. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook。
+1. system evaluation harness 是放在 `backend/test/`，还是单独建 `backend/tests/memory/`；
+2. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook；
+3. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出。
 
 当前推荐先按下面方向实施：
 

@@ -53,6 +53,33 @@ class _FakeProfile:
         return {"profile": {"interests": ["memory"]}}
 
 
+class _FakeActionV1Agent:
+    def __init__(self, agent_id: int, *, user_name: str = "agent", name: str = "Agent") -> None:
+        self.social_agent_id = agent_id
+        self.user_info = SimpleNamespace(user_name=user_name, name=name)
+
+    def memory_debug_snapshot(self):
+        return {
+            "memory_runtime": "action_v1",
+            "memory_supported": True,
+            "recent_retained_step_count": 3,
+            "recent_retained_step_ids": [2, 3, 4],
+            "compressed_action_block_count": 2,
+            "compressed_heartbeat_count": 1,
+            "compressed_retained_step_count": 5,
+            "total_retained_step_count": 6,
+            "last_observation_stage": "interaction_reduced",
+            "last_observation_prompt_tokens": 777,
+            "last_prompt_tokens": 1234,
+            "last_recall_gate": True,
+            "last_recall_gate_reason_flags": {"topic_trigger": True},
+            "last_recall_query_source": "distilled_topic",
+            "last_recalled_count": 2,
+            "last_injected_count": 1,
+            "last_prompt_budget_status": "ok",
+        }
+
+
 def test_action_v1_file_source_is_explicitly_rejected(tmp_path: Path) -> None:
     manager = OASISManager()
     manager._memory_mode = MemoryMode.ACTION_V1
@@ -308,3 +335,51 @@ def test_initialize_action_v1_template_mode(monkeypatch, tmp_path: Path) -> None
     assert env.reset_count == 1
 
     asyncio.run(manager.close())
+
+
+def test_get_memory_debug_info_for_action_v1_agent() -> None:
+    manager = OASISManager()
+    manager._state = oasis_manager_module.SimulationState.READY
+    manager._current_step = 4
+    manager._max_steps = 50
+    manager._platform_type = PlatformType.TWITTER
+    manager._memory_mode = MemoryMode.ACTION_V1
+    manager._config = SimulationConfig(
+        platform=PlatformType.TWITTER,
+        memory_mode=MemoryMode.ACTION_V1,
+        llm_config=ModelConfig(max_tokens=1024),
+    )
+    manager._agent_graph = _FakeGraph(
+        [_FakeActionV1Agent(1, user_name="agent_1", name="Agent One")]
+    )
+    manager._action_v1_longterm_store = object()
+
+    payload = manager.get_memory_debug_info()
+
+    assert payload["memory_mode"] == "action_v1"
+    assert payload["agent_count"] == 1
+    assert payload["longterm_enabled"] is True
+    assert payload["agents"][0]["memory_supported"] is True
+    assert payload["agents"][0]["last_observation_stage"] == "interaction_reduced"
+    assert payload["agents"][0]["last_recall_gate"] is True
+
+
+def test_get_memory_debug_info_for_upstream_agent() -> None:
+    manager = OASISManager()
+    manager._state = oasis_manager_module.SimulationState.READY
+    manager._current_step = 1
+    manager._max_steps = 10
+    manager._platform_type = PlatformType.TWITTER
+    manager._memory_mode = MemoryMode.UPSTREAM
+    upstream_agent = SimpleNamespace(
+        social_agent_id=5,
+        user_info=SimpleNamespace(user_name="up_5", name="Upstream Five"),
+    )
+    manager._agent_graph = _FakeGraph([upstream_agent])
+
+    payload = manager.get_memory_debug_info()
+
+    assert payload["memory_mode"] == "upstream"
+    assert payload["agent_count"] == 1
+    assert payload["agents"][0]["memory_supported"] is False
+    assert payload["agents"][0]["recent_retained_step_count"] == 0

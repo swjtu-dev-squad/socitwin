@@ -175,6 +175,74 @@ class OASISManager:
             "db_path": self._db_path,
         }
 
+    def get_memory_debug_info(self) -> Dict[str, Any]:
+        """获取独立于 /status 的 memory 调试摘要。"""
+        state_info = self.get_state_info()
+        context_token_limit = None
+        generation_max_tokens = None
+        if self._config is not None:
+            generation_max_tokens = int(getattr(self._config.llm_config, "max_tokens", 0) or 0)
+        try:
+            context_token_limit = int(get_settings().OASIS_CONTEXT_TOKEN_LIMIT)
+        except Exception:
+            context_token_limit = None
+
+        agents: list[dict[str, Any]] = []
+        for agent in self.get_all_agents():
+            agents.append(self._build_agent_memory_debug_info(agent))
+
+        return {
+            "state": self._state.value,
+            "memory_mode": self._memory_mode.value,
+            "current_step": state_info["current_step"],
+            "total_steps": state_info["max_steps"],
+            "agent_count": state_info["agent_count"],
+            "platform": state_info["platform"],
+            "context_token_limit": context_token_limit,
+            "generation_max_tokens": generation_max_tokens,
+            "longterm_enabled": bool(self._memory_mode == MemoryMode.ACTION_V1 and self._action_v1_longterm_store is not None),
+            "agents": agents,
+        }
+
+    def _build_agent_memory_debug_info(self, agent: SocialAgent) -> Dict[str, Any]:
+        base = {
+            "agent_id": int(getattr(agent, "social_agent_id", 0) or 0),
+            "user_name": str(getattr(getattr(agent, "user_info", None), "user_name", "") or ""),
+            "name": str(getattr(getattr(agent, "user_info", None), "name", "") or ""),
+            "memory_runtime": self._memory_mode.value,
+            "memory_supported": False,
+            "recent_retained_step_count": 0,
+            "recent_retained_step_ids": [],
+            "compressed_action_block_count": 0,
+            "compressed_heartbeat_count": 0,
+            "compressed_retained_step_count": 0,
+            "total_retained_step_count": 0,
+            "last_observation_stage": "",
+            "last_observation_prompt_tokens": 0,
+            "last_prompt_tokens": 0,
+            "last_recall_gate": None,
+            "last_recall_gate_reason_flags": {},
+            "last_recall_query_source": "",
+            "last_recall_query_text": "",
+            "last_recalled_count": 0,
+            "last_injected_count": 0,
+            "last_recalled_step_ids": [],
+            "last_injected_step_ids": [],
+            "last_recall_reason_trace": "",
+            "last_runtime_failure_category": "",
+            "last_runtime_failure_stage": "",
+            "last_prompt_budget_status": "",
+            "last_selected_recent_step_ids": [],
+            "last_selected_compressed_keys": [],
+            "last_selected_recall_step_ids": [],
+        }
+        snapshot_fn = getattr(agent, "memory_debug_snapshot", None)
+        if callable(snapshot_fn):
+            snapshot = snapshot_fn() or {}
+            if isinstance(snapshot, dict):
+                base.update(snapshot)
+        return base
+
     # ========================================================================
     # 初始化和配置
     # ========================================================================

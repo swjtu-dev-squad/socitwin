@@ -234,6 +234,29 @@
 - 后续 harness 不需要通过脆弱日志文本反推关键状态
 - `/api/sim/status` 仍保持模拟总状态角色，不被 action_v1 内部 trace 污染
 
+### Current Status
+
+当前这一步已经有最小正式落地：
+
+- 新增独立接口：
+  - `/api/sim/memory`
+- 已通过：
+  - `OASISManager -> SimulationService -> API model` 的 memory debug 摘要链路
+- 当前接口已覆盖：
+  - simulation scope
+  - context / generation budget 摘要
+  - per-agent recent/compressed retained summary
+  - recall gate / recalled / injected 摘要
+  - observation shaping stage
+  - prompt token 摘要
+  - runtime failure 摘要
+
+这一版仍然有意保持克制：
+
+- 不暴露完整 prompt
+- 不暴露完整 recent/compressed 文本
+- 不暴露完整 recall 文本
+
 ### Do Not
 
 - 不把完整内部对象直接原样暴露给 API

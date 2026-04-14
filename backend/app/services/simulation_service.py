@@ -28,6 +28,7 @@ from app.core.oasis_manager import (
 )
 from app.models.simulation import (
     SimulationConfig,
+    MemoryDebugStatus,
     SimulationStatus,
     SimulationState,
     StepRequest,
@@ -476,6 +477,11 @@ class SimulationService:
             agents=agents,
             metrics_summary=metrics_summary,
         )
+
+    async def get_memory_debug_status(self) -> MemoryDebugStatus:
+        """获取 memory monitor/debug 摘要。"""
+        payload = self.oasis_manager.get_memory_debug_info()
+        return MemoryDebugStatus.model_validate(payload)
 
     # ========================================================================
     # 日志查询

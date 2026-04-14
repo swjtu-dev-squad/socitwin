@@ -149,7 +149,7 @@
 - 数据库派生统计
 - metrics summary
 
-但它还没有：
+但在迁移早期它还没有：
 
 - memory runtime snapshot
 - recall / retrieval trace
@@ -166,17 +166,22 @@
 
 ### 3.4 Current missing layers
 
-当前新仓库缺少旧记忆系统中的这些层：
+当前新仓库仍未完全恢复旧记忆系统中的这些层：
+
+- 真实 provider 级 action_v1 集成验证
+- memory evaluation harness
+- 更细的 monitor/debug 深化接口
+
+而下面这些层已经开始恢复，不再应被视为“完全缺失”：
 
 - memory mode
-- shared model runtime with explicit token/context semantics
+- mode-aware runtime facade
 - observation shaping
 - prompt-visible snapshot
-- explicit short-term working memory
+- short-term working memory
 - prompt assembler
 - long-term persistence / recall
 - budget recovery
-- memory evaluation harness
 
 此外还有一个容易混淆的缺口：
 

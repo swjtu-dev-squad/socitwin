@@ -234,6 +234,55 @@ class SimulationStatus(BaseModel):
     error_message: Optional[str] = None
 
 
+class MemoryDebugAgentStatus(BaseModel):
+    """单个智能体的 memory 调试摘要。"""
+
+    agent_id: int
+    user_name: str
+    name: str
+    memory_runtime: str
+    memory_supported: bool = False
+    recent_retained_step_count: int = 0
+    recent_retained_step_ids: List[int] = Field(default_factory=list)
+    compressed_action_block_count: int = 0
+    compressed_heartbeat_count: int = 0
+    compressed_retained_step_count: int = 0
+    total_retained_step_count: int = 0
+    last_observation_stage: str = ""
+    last_observation_prompt_tokens: int = 0
+    last_prompt_tokens: int = 0
+    last_recall_gate: Optional[bool] = None
+    last_recall_gate_reason_flags: Dict[str, bool] = Field(default_factory=dict)
+    last_recall_query_source: str = ""
+    last_recall_query_text: str = ""
+    last_recalled_count: int = 0
+    last_injected_count: int = 0
+    last_recalled_step_ids: List[int] = Field(default_factory=list)
+    last_injected_step_ids: List[int] = Field(default_factory=list)
+    last_recall_reason_trace: str = ""
+    last_runtime_failure_category: str = ""
+    last_runtime_failure_stage: str = ""
+    last_prompt_budget_status: str = ""
+    last_selected_recent_step_ids: List[int] = Field(default_factory=list)
+    last_selected_compressed_keys: List[str] = Field(default_factory=list)
+    last_selected_recall_step_ids: List[int] = Field(default_factory=list)
+
+
+class MemoryDebugStatus(BaseModel):
+    """memory monitor/debug 接口响应。"""
+
+    state: SimulationState
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
+    current_step: int = 0
+    total_steps: int = 0
+    agent_count: int = 0
+    platform: PlatformType
+    context_token_limit: Optional[int] = None
+    generation_max_tokens: Optional[int] = None
+    longterm_enabled: bool = False
+    agents: List[MemoryDebugAgentStatus] = Field(default_factory=list)
+
+
 class ConfigResult(BaseModel):
     """配置更新结果"""
     success: bool
