@@ -10,6 +10,49 @@ from app.memory.config import MemoryMode
 from app.models.simulation import ModelConfig, PlatformType, SimulationConfig
 
 
+class _FakeAgent:
+    def __init__(self, agent_id: int) -> None:
+        self.social_agent_id = agent_id
+
+
+class _FakeEnv:
+    def __init__(self) -> None:
+        self.reset_count = 0
+        self.step_calls = []
+        self.closed = False
+
+    async def reset(self) -> None:
+        self.reset_count += 1
+
+    async def step(self, actions) -> None:
+        self.step_calls.append(actions)
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+class _FakeGraph:
+    def __init__(self, agents) -> None:
+        self._agents = list(agents)
+
+    def get_num_nodes(self) -> int:
+        return len(self._agents)
+
+    def get_agents(self):
+        return [(index, agent) for index, agent in enumerate(self._agents)]
+
+
+class _FakeProfile:
+    def __init__(self, agent_id: int) -> None:
+        self.agent_id = agent_id
+        self.user_name = f"agent_{agent_id}"
+        self.name = f"Agent {agent_id}"
+        self.bio = f"Bio {agent_id}"
+
+    def to_dict(self):
+        return {"profile": {"interests": ["memory"]}}
+
+
 def test_action_v1_file_source_is_explicitly_rejected(tmp_path: Path) -> None:
     manager = OASISManager()
     manager._memory_mode = MemoryMode.ACTION_V1
@@ -149,3 +192,119 @@ def test_build_social_agent_uses_action_v1_builder(monkeypatch) -> None:
     assert captured["user_info"] is user_info
     assert captured["model"] is model
     assert captured["context_settings"] is sentinel_settings
+
+
+def test_initialize_and_step_action_v1_manual_mode(monkeypatch, tmp_path: Path) -> None:
+    manager = OASISManager()
+    env = _FakeEnv()
+    model = object()
+
+    async def _fake_create_model(_config):
+        return model
+
+    monkeypatch.setattr(manager, "_create_model", _fake_create_model)
+    monkeypatch.setattr(
+        manager,
+        "_create_environment",
+        lambda *, agent_graph, config: env,
+    )
+    monkeypatch.setattr(
+        manager,
+        "_build_action_v1_runtime_settings",
+        lambda *, user_info, model: object(),
+    )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "build_action_v1_social_agent",
+        lambda **kwargs: _FakeAgent(kwargs["agent_id"]),
+    )
+
+    config = SimulationConfig(
+        platform=PlatformType.TWITTER,
+        memory_mode=MemoryMode.ACTION_V1,
+        db_path=str(tmp_path / "simulation.db"),
+        llm_config=ModelConfig(model_platform="DEEPSEEK", max_tokens=1024),
+        agent_source={
+            "source_type": "manual",
+            "manual_config": [
+                {
+                    "agent_id": 1,
+                    "user_name": "agent_1",
+                    "name": "Agent One",
+                    "description": "Test agent",
+                    "profile": {"interests": ["memory"]},
+                }
+            ],
+        },
+    )
+
+    init_result = asyncio.run(manager.initialize(config))
+
+    assert init_result["success"] is True
+    assert init_result["memory_mode"] == "action_v1"
+    assert init_result["agent_count"] == 1
+    assert env.reset_count == 1
+
+    manager._agent_graph = _FakeGraph([_FakeAgent(1)])
+    step_result = asyncio.run(manager.step())
+
+    assert step_result["success"] is True
+    assert step_result["step_executed"] == 1
+    assert len(env.step_calls) == 1
+    assert len(env.step_calls[0]) == 1
+
+    asyncio.run(manager.close())
+
+
+def test_initialize_action_v1_template_mode(monkeypatch, tmp_path: Path) -> None:
+    manager = OASISManager()
+    env = _FakeEnv()
+    model = object()
+
+    async def _fake_create_model(_config):
+        return model
+
+    monkeypatch.setattr(manager, "_create_model", _fake_create_model)
+    monkeypatch.setattr(
+        manager,
+        "_create_environment",
+        lambda *, agent_graph, config: env,
+    )
+    monkeypatch.setattr(
+        manager,
+        "_build_action_v1_runtime_settings",
+        lambda *, user_info, model: object(),
+    )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "build_action_v1_social_agent",
+        lambda **kwargs: _FakeAgent(kwargs["agent_id"]),
+    )
+
+    fake_generator = SimpleNamespace(
+        generate_batch=lambda agent_count, platform: [
+            _FakeProfile(index + 1) for index in range(agent_count)
+        ]
+    )
+    monkeypatch.setattr(
+        "app.core.agent_generator.get_agent_generator",
+        lambda: fake_generator,
+    )
+
+    config = SimulationConfig(
+        platform=PlatformType.TWITTER,
+        agent_count=2,
+        memory_mode=MemoryMode.ACTION_V1,
+        db_path=str(tmp_path / "template.db"),
+        llm_config=ModelConfig(model_platform="DEEPSEEK", max_tokens=1024),
+        agent_source={"source_type": "template"},
+    )
+
+    init_result = asyncio.run(manager.initialize(config))
+
+    assert init_result["success"] is True
+    assert init_result["memory_mode"] == "action_v1"
+    assert init_result["agent_count"] == 2
+    assert env.reset_count == 1
+
+    asyncio.run(manager.close())

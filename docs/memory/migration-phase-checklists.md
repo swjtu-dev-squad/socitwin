@@ -38,9 +38,16 @@
 
 未完成部分仍包括：
 
-- `action_v1` 的 manager/runtime 级完整实跑验证
+- `action_v1` 的完整真实 provider / OASIS runtime 实跑验证
 - memory monitor/debug 接口
 - evaluation harness 与系统级测试迁移
+
+当前已经完成但需要和“完整实跑”区分开的部分是：
+
+- `action_v1` 的 manager-level smoke
+  - `manual` source 下的 initialize/step 假环境验证
+  - `template` source 下的 initialize 假环境验证
+  - `file` source 下的显式未迁移验证
 
 ## 2. Phase 0: Freeze Scope
 

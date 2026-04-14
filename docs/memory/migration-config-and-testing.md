@@ -196,6 +196,19 @@
 
 先存在，才能迁。
 
+截至当前迁移进度，manager 级 smoke 已经开始恢复，当前已覆盖：
+
+- `action_v1` 在 `manual` source 下的 `initialize()`
+- `action_v1` 在 `manual` source 下的 `step()` 假环境 smoke
+- `action_v1` 在 `template` source 下的 `initialize()` smoke
+- `action_v1` 在 `file` source 下的显式拒绝
+
+这意味着现在已经不只是模块单测通过，而是：
+
+- `SimulationConfig -> OASISManager -> MemoryRuntimeFacade -> agent/env` 这条新仓库主链已开始有回归保护
+
+但要注意，当前仍然只是非联网 smoke，不是完整真实 provider / OASIS runtime 集成验证。
+
 #### C. Keep validation target, postpone code port
 
 - 旧引擎壳专用 demo / legacy tests
@@ -213,6 +226,12 @@
 5. long-term write / retrieve / recall gate 单测恢复；
 6. action_v1 integration 跑通；
 7. system evaluation harness 重新接回。
+
+当前实际进度已推进到：
+
+- 1~5 已有基础覆盖
+- 6 正在从 manager-level smoke 往更真实的 integration 推进
+- 7 尚未开始迁回
 
 这个顺序不能反过来。尤其不能在：
 
