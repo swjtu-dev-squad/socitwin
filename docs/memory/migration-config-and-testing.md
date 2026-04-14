@@ -51,6 +51,21 @@
 - 没有 recall / summary / observation preset
 - 没有 provider failure matcher / recovery config
 
+截至当前迁移进度，这个缺口已经部分收口：
+
+- 已接入：
+  - `OASIS_MEMORY_MODE`
+  - `OASIS_CONTEXT_TOKEN_LIMIT`
+  - `OASIS_LONGTERM_*` 的最小正式落点
+  - `OASIS_V1_OBS_*`
+  - `OASIS_V1_RECENT_* / COMPRESSED_* / RECALL_BUDGET_RATIO / GENERATION_RESERVE_TOKENS`
+- 仍未完整接入：
+  - `OASIS_V1_RECALL_*` 其余细项
+  - `OASIS_V1_SUMMARY_*`
+  - `OASIS_V1_PROVIDER_*` 的旧仓库完整兼容面
+
+这意味着当前新仓库已经具备让 `action_v1` 跑起来的最小配置面，但还没有把旧仓库全部调参表面一次性恢复。
+
 另一个必须明确的事实是：
 
 - 新仓库当前 `ModelConfig.max_tokens`
@@ -99,6 +114,11 @@
 5. `OASIS_V1_RECALL_*`
 6. `OASIS_V1_SUMMARY_*`
 7. `OASIS_V1_PROVIDER_*`
+
+当前实际状态是：
+
+- 前 4 类已开始落地
+- 第 5~7 类仍应继续按“先需要、再补齐”的顺序推进
 
 原因：
 

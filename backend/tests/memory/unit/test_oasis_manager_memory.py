@@ -79,3 +79,73 @@ def test_build_action_v1_runtime_settings_uses_manager_config(monkeypatch) -> No
     assert runtime_settings.longterm_sidecar.enabled is True
     assert runtime_settings.longterm_sidecar.store is fake_store
     assert runtime_settings.model_backend_family == "deepseek"
+
+
+def test_build_social_agent_uses_upstream_builder(monkeypatch) -> None:
+    manager = OASISManager()
+    manager._memory_mode = MemoryMode.UPSTREAM
+
+    sentinel_agent = object()
+    captured = {}
+
+    def _fake_builder(**kwargs):
+        captured.update(kwargs)
+        return sentinel_agent
+
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "build_upstream_social_agent",
+        _fake_builder,
+    )
+
+    result = manager._build_social_agent(
+        agent_id=7,
+        user_info=object(),
+        agent_graph=object(),
+        model=object(),
+        available_actions=[],
+    )
+
+    assert result is sentinel_agent
+    assert captured["agent_id"] == 7
+
+
+def test_build_social_agent_uses_action_v1_builder(monkeypatch) -> None:
+    manager = OASISManager()
+    manager._memory_mode = MemoryMode.ACTION_V1
+
+    sentinel_agent = object()
+    sentinel_settings = object()
+    captured = {}
+
+    monkeypatch.setattr(
+        manager,
+        "_build_action_v1_runtime_settings",
+        lambda *, user_info, model: sentinel_settings,
+    )
+
+    def _fake_builder(**kwargs):
+        captured.update(kwargs)
+        return sentinel_agent
+
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "build_action_v1_social_agent",
+        _fake_builder,
+    )
+
+    user_info = object()
+    model = object()
+    result = manager._build_social_agent(
+        agent_id=9,
+        user_info=user_info,
+        agent_graph=object(),
+        model=model,
+        available_actions=[],
+    )
+
+    assert result is sentinel_agent
+    assert captured["agent_id"] == 9
+    assert captured["user_info"] is user_info
+    assert captured["model"] is model
+    assert captured["context_settings"] is sentinel_settings
