@@ -9,6 +9,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "uvicorn[standard]>=0.44.0",
     "camel-oasis==0.2.5",
+    "chromadb>=1.0.0",
     "openai>=1.0.0",
     "aiofiles>=24.0.0",
     "matplotlib>=3.7.0",

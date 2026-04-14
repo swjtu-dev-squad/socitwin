@@ -25,6 +25,16 @@ from .episodic_memory import (
     build_platform_memory_adapter,
 )
 from .environment import ActionV1SocialEnvironment
+from .longterm import (
+    ChromaLongtermStore,
+    HeuristicTextEmbedding,
+    LongtermStore,
+    OpenAICompatibleTextEmbedding,
+    build_chroma_longterm_store,
+    build_longterm_embedding,
+    episode_to_payload,
+    payload_to_episode,
+)
 from .memory_rendering import CompressedNoteView, RecentTurnView
 from .observation_shaper import ObservationArtifact, ObservationShaper
 from .prompt_assembler import PromptAssembler, PromptAssemblyResult
@@ -59,13 +69,17 @@ __all__ = [
     "CompressedWorkingMemory",
     "ConsolidationOutcome",
     "Consolidator",
+    "ChromaLongtermStore",
     "EpisodeRecord",
     "HeartbeatRange",
+    "HeuristicTextEmbedding",
+    "LongtermStore",
     "MemoryMode",
     "MemoryRuntimeConfig",
     "MemoryRuntimeFacade",
     "MemoryRuntimeNotImplementedError",
     "MemoryState",
+    "OpenAICompatibleTextEmbedding",
     "ObservationArtifact",
     "ObservationPresetConfig",
     "ObservationShaper",
@@ -90,6 +104,10 @@ __all__ = [
     "SummaryPresetConfig",
     "WorkingMemoryBudgetConfig",
     "build_platform_memory_adapter",
+    "build_chroma_longterm_store",
+    "build_longterm_embedding",
+    "episode_to_payload",
     "normalize_model_error",
+    "payload_to_episode",
     "resolve_memory_runtime_config",
 ]
