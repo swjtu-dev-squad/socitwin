@@ -111,6 +111,40 @@ class SummaryPresetConfig:
 
 
 @dataclass(slots=True)
+class WorkingMemoryBudgetConfig:
+    recent_budget_ratio: float = 0.35
+    compressed_budget_ratio: float = 0.10
+    recall_budget_ratio: float = 0.10
+    recent_step_cap: int = 3
+    compressed_block_cap: int = 12
+    compressed_merge_trigger_ratio: float = 0.90
+    generation_reserve_tokens: int = 512
+
+    def validate(self) -> None:
+        if not (0 < self.recent_budget_ratio <= 1):
+            raise ValueError("recent_budget_ratio must be in (0, 1].")
+        if not (0 <= self.compressed_budget_ratio <= 1):
+            raise ValueError("compressed_budget_ratio must be in [0, 1].")
+        if not (0 <= self.recall_budget_ratio <= 1):
+            raise ValueError("recall_budget_ratio must be in [0, 1].")
+        if (
+            self.recent_budget_ratio
+            + self.compressed_budget_ratio
+            + self.recall_budget_ratio
+            > 1
+        ):
+            raise ValueError("working memory budget ratios must sum to <= 1.")
+        if self.recent_step_cap <= 0:
+            raise ValueError("recent_step_cap must be positive.")
+        if self.compressed_block_cap <= 0:
+            raise ValueError("compressed_block_cap must be positive.")
+        if not (0 < self.compressed_merge_trigger_ratio <= 1):
+            raise ValueError("compressed_merge_trigger_ratio must be in (0, 1].")
+        if self.generation_reserve_tokens < 0:
+            raise ValueError("generation_reserve_tokens must be >= 0.")
+
+
+@dataclass(slots=True)
 class ActionV1RuntimeSettings:
     token_counter: TokenCounterLike
     system_message: BaseMessage
@@ -119,6 +153,9 @@ class ActionV1RuntimeSettings:
         default_factory=ObservationPresetConfig
     )
     summary_preset: SummaryPresetConfig = field(default_factory=SummaryPresetConfig)
+    working_memory_budget: WorkingMemoryBudgetConfig = field(
+        default_factory=WorkingMemoryBudgetConfig
+    )
     observation_wrapper: str = UPSTREAM_OBSERVATION_WRAPPER
 
     @property
@@ -135,6 +172,14 @@ class ActionV1RuntimeSettings:
             int(self.context_token_limit * self.observation_preset.observation_hard_ratio),
         )
 
+    @property
+    def effective_prompt_budget(self) -> int:
+        return max(
+            1,
+            self.context_token_limit
+            - self.working_memory_budget.generation_reserve_tokens,
+        )
+
     def validate(self) -> None:
         if self.context_token_limit <= 0:
             raise ValueError("context_token_limit must be positive.")
@@ -142,6 +187,7 @@ class ActionV1RuntimeSettings:
             raise ValueError("observation_wrapper must contain '{env_prompt}'.")
         self.observation_preset.validate()
         self.summary_preset.validate()
+        self.working_memory_budget.validate()
 
 
 def normalize_memory_mode(value: MemoryMode | str | None) -> MemoryMode:
@@ -244,6 +290,51 @@ def apply_observation_env_overrides(
             env,
             "OASIS_V1_OBS_PHYSICAL_FALLBACK_MESSAGE_SAMPLE_COUNT",
             preset.physical_fallback_message_sample_count,
+        ),
+    )
+
+
+def apply_working_memory_env_overrides(
+    preset: WorkingMemoryBudgetConfig,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> WorkingMemoryBudgetConfig:
+    env = environ or os.environ
+    return WorkingMemoryBudgetConfig(
+        recent_budget_ratio=_env_float(
+            env,
+            "OASIS_V1_RECENT_BUDGET_RATIO",
+            preset.recent_budget_ratio,
+        ),
+        compressed_budget_ratio=_env_float(
+            env,
+            "OASIS_V1_COMPRESSED_BUDGET_RATIO",
+            preset.compressed_budget_ratio,
+        ),
+        recall_budget_ratio=_env_float(
+            env,
+            "OASIS_V1_RECALL_BUDGET_RATIO",
+            preset.recall_budget_ratio,
+        ),
+        recent_step_cap=_env_int(
+            env,
+            "OASIS_V1_RECENT_STEP_CAP",
+            preset.recent_step_cap,
+        ),
+        compressed_block_cap=_env_int(
+            env,
+            "OASIS_V1_COMPRESSED_BLOCK_CAP",
+            preset.compressed_block_cap,
+        ),
+        compressed_merge_trigger_ratio=_env_float(
+            env,
+            "OASIS_V1_COMPRESSED_MERGE_TRIGGER_RATIO",
+            preset.compressed_merge_trigger_ratio,
+        ),
+        generation_reserve_tokens=_env_int(
+            env,
+            "OASIS_V1_GENERATION_RESERVE_TOKENS",
+            preset.generation_reserve_tokens,
         ),
     )
 

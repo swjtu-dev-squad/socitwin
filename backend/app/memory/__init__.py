@@ -8,15 +8,19 @@ from .config import (
     MemoryRuntimeConfig,
     ObservationPresetConfig,
     SummaryPresetConfig,
+    WorkingMemoryBudgetConfig,
     resolve_memory_runtime_config,
 )
+from .consolidator import ConsolidationOutcome, Consolidator
 from .episodic_memory import (
     ActionEpisode,
     EpisodeRecord,
     HeartbeatRange,
+    PlatformMemoryAdapter,
     StepRecord,
     StepRecordKind,
     StepSegment,
+    build_platform_memory_adapter,
 )
 from .environment import ActionV1SocialEnvironment
 from .memory_rendering import CompressedNoteView, RecentTurnView
@@ -42,6 +46,8 @@ __all__ = [
     "ActionSummaryBlock",
     "CompressedNoteView",
     "CompressedWorkingMemory",
+    "ConsolidationOutcome",
+    "Consolidator",
     "EpisodeRecord",
     "HeartbeatRange",
     "MemoryMode",
@@ -52,11 +58,14 @@ __all__ = [
     "ObservationArtifact",
     "ObservationPresetConfig",
     "ObservationShaper",
+    "PlatformMemoryAdapter",
     "RecentTurnView",
     "RecentWorkingMemory",
     "StepRecord",
     "StepRecordKind",
     "StepSegment",
     "SummaryPresetConfig",
+    "WorkingMemoryBudgetConfig",
+    "build_platform_memory_adapter",
     "resolve_memory_runtime_config",
 ]
