@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # OASIS Settings
     OASIS_DEFAULT_PLATFORM: str = "twitter"
     OASIS_DEFAULT_MODEL: str = "gpt-4o-mini"
+    OASIS_MEMORY_MODE: str = "upstream"
     OASIS_MAX_AGENTS: int = 1000
     OASIS_DB_PATH: str = "./data/simulations"
     OASIS_TIMEOUT: int = 300  # 5 minutes

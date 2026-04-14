@@ -4,6 +4,7 @@ from enum import Enum
 from datetime import datetime
 import uuid
 
+from app.memory.config import MemoryMode
 
 # ============================================================================
 # 平台和状态枚举
@@ -138,6 +139,7 @@ class SimulationConfig(BaseModel):
     """模拟配置"""
     platform: PlatformType = PlatformType.TWITTER
     agent_count: int = 5
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
     llm_config: ModelConfig = Field(default_factory=ModelConfig)
     recsys_type: str = "twitter"
     agent_source: AgentSource = Field(default_factory=AgentSource)
@@ -157,6 +159,13 @@ class SimulationConfig(BaseModel):
     def normalize_platform(cls, v):
         if isinstance(v, str):
             return PlatformType(v.lower())
+        return v
+
+    @field_validator("memory_mode", mode="before")
+    @classmethod
+    def normalize_memory_mode(cls, v):
+        if isinstance(v, str):
+            return MemoryMode(v.lower())
         return v
 
 
@@ -204,6 +213,7 @@ class SimulationStatus(BaseModel):
     total_steps: int
     agent_count: int
     platform: PlatformType
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     background_task_id: Optional[str] = None
@@ -324,4 +334,3 @@ try:
 except ImportError:
     # Metrics module not imported yet, will be resolved when metrics is imported
     pass
-

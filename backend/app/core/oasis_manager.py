@@ -33,6 +33,14 @@ from camel.types import ModelPlatformType, ModelType
 from camel.configs import ChatGPTConfig
 
 # 本地导入
+from app.core.config import get_settings
+from app.memory import (
+    MemoryMode,
+    MemoryRuntimeFacade,
+    MemoryRuntimeNotImplementedError,
+    resolve_memory_runtime_config,
+)
+from app.memory.agent import build_upstream_social_agent
 from app.models.simulation import (
     SimulationConfig,
     PlatformType,
@@ -106,6 +114,7 @@ class OASISManager:
         # 配置
         self._config: Optional[SimulationConfig] = None
         self._platform_type: PlatformType = PlatformType.TWITTER
+        self._memory_mode: MemoryMode = MemoryMode.UPSTREAM
 
         # 并发控制
         self._operation_lock = asyncio.Lock()
@@ -148,6 +157,7 @@ class OASISManager:
             "max_steps": self._max_steps,
             "agent_count": agent_count,
             "platform": self._platform_type.value,
+            "memory_mode": self._memory_mode.value,
             "created_at": self._created_at.isoformat() if self._created_at else None,
             "updated_at": self._updated_at.isoformat() if self._updated_at else None,
             "db_path": self._db_path,
@@ -187,26 +197,12 @@ class OASISManager:
                 self._platform_type = config.platform
                 self._max_steps = config.max_steps
                 self._current_step = 0
-
-                # 创建模型
-                self._model = await self._create_model(config.llm_config)
-
-                # 创建智能体图
-                if config.agent_source.source_type == "file":
-                    self._agent_graph = await self._load_agents_from_file(
-                        config.agent_source.file_path,
-                        config.platform
-                    )
-                elif config.agent_source.source_type == "manual":
-                    self._agent_graph = await self._generate_agents_from_manual(
-                        config.agent_count,
-                        config
-                    )
-                else:
-                    self._agent_graph = await self._generate_agents_from_template(
-                        config.agent_count,
-                        config
-                    )
+                settings = get_settings()
+                runtime_config = resolve_memory_runtime_config(
+                    explicit_mode=config.memory_mode,
+                    settings_mode=settings.OASIS_MEMORY_MODE,
+                )
+                self._memory_mode = runtime_config.mode
 
                 # 设置数据库路径
                 if not config.db_path:
@@ -222,13 +218,13 @@ class OASISManager:
                 if os.path.exists(self._db_path):
                     os.remove(self._db_path)
 
-                # 创建 OASIS 环境
-                self._env = oasis.make(
-                    agent_graph=self._agent_graph,
-                    platform=self._get_platform_type(config.platform),
-                    database_path=self._db_path,
-                    semaphore=32,  # 并发限制
+                runtime = MemoryRuntimeFacade(runtime_config)
+                artifacts = await runtime.build_runtime(
+                    plan=self._build_runtime_plan(config)
                 )
+                self._model = artifacts.model
+                self._agent_graph = artifacts.agent_graph
+                self._env = artifacts.env
 
                 # 重置环境
                 await self._env.reset()
@@ -246,19 +242,35 @@ class OASISManager:
                     "success": True,
                     "agent_count": agent_count,
                     "platform": config.platform.value,
+                    "memory_mode": self._memory_mode.value,
                     "db_path": self._db_path,
                     "simulation_id": sim_id if 'sim_id' in locals() else None,
                 }
 
+            except MemoryRuntimeNotImplementedError as e:
+                logger.error(f"Requested memory runtime is not implemented yet: {e}")
+                await self.close()
+                raise OASISInitError(str(e))
             except Exception as e:
                 logger.error(f"Failed to initialize OASIS: {e}")
                 await self.close()
                 raise OASISInitError(f"Initialization failed: {str(e)}")
 
+    def _build_runtime_plan(self, config: SimulationConfig):
+        from app.memory.runtime import RuntimeBuildPlan
+
+        return RuntimeBuildPlan(
+            create_model=lambda: self._create_model(config.llm_config),
+            build_agent_graph=lambda: self._build_default_agent_graph(config),
+            create_environment=lambda agent_graph: self._create_environment(
+                agent_graph=agent_graph,
+                config=config,
+            ),
+        )
+
     async def _create_model(self, config: ModelConfig):
         """创建 LLM 模型"""
         try:
-            from app.core.config import get_settings
             settings = get_settings()
 
             # 设置环境变量（CAMEL 框架从环境变量读取 API key）
@@ -289,6 +301,38 @@ class OASISManager:
         except Exception as e:
             logger.error(f"Failed to create model: {e}")
             raise OASISInitError(f"Model creation failed: {str(e)}")
+
+    async def _build_default_agent_graph(
+        self,
+        config: SimulationConfig,
+    ) -> AgentGraph:
+        if config.agent_source.source_type == "file":
+            return await self._load_agents_from_file(
+                config.agent_source.file_path,
+                config.platform,
+            )
+        if config.agent_source.source_type == "manual":
+            return await self._generate_agents_from_manual(
+                config.agent_count,
+                config,
+            )
+        return await self._generate_agents_from_template(
+            config.agent_count,
+            config,
+        )
+
+    def _create_environment(
+        self,
+        *,
+        agent_graph: AgentGraph,
+        config: SimulationConfig,
+    ):
+        return oasis.make(
+            agent_graph=agent_graph,
+            platform=self._get_platform_type(config.platform),
+            database_path=self._db_path,
+            semaphore=32,  # 并发限制
+        )
 
     def _get_platform_type(self, platform: PlatformType):
         """转换平台类型"""
@@ -351,7 +395,7 @@ class OASISManager:
                     recsys_type=config.platform.value,
                 )
 
-                agent = SocialAgent(
+                agent = build_upstream_social_agent(
                     agent_id=profile.agent_id,
                     user_info=user_info,
                     agent_graph=agent_graph,
@@ -399,7 +443,7 @@ class OASISManager:
                         recsys_type=config.platform.value,
                     )
 
-                    agent = SocialAgent(
+                    agent = build_upstream_social_agent(
                         agent_id=agent_config.agent_id,
                         user_info=user_info,
                         agent_graph=agent_graph,
@@ -560,6 +604,7 @@ class OASISManager:
                 self._current_step = 0
                 self._env = None
                 self._agent_graph = None
+                self._memory_mode = MemoryMode.UPSTREAM
 
                 self._updated_at = datetime.now()
 
@@ -621,6 +666,7 @@ class OASISManager:
                 self._env = None
                 self._agent_graph = None
                 self._state = SimulationState.UNINITIALIZED
+                self._memory_mode = MemoryMode.UPSTREAM
 
             except Exception as e:
                 logger.error(f"Error during close: {e}")

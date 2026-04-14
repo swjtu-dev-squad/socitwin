@@ -466,6 +466,7 @@ class SimulationService:
             total_steps=state_info["max_steps"],
             agent_count=state_info["agent_count"],
             platform=PlatformType(state_info["platform"]),
+            memory_mode=state_info["memory_mode"],
             created_at=datetime.fromisoformat(state_info["created_at"]) if state_info["created_at"] else None,
             updated_at=datetime.fromisoformat(state_info["updated_at"]) if state_info["updated_at"] else None,
             total_posts=self.total_posts,
