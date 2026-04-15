@@ -59,11 +59,10 @@
 
 ## 5. Current Next Step
 
-下一轮对照重点：
+当前迁移已经进入收尾验收与剩余缺口盘点阶段。下一轮重点不再是继续搬模块，而是：
 
-1. 继续核对旧仓库剩余未迁移面：
-   - `context/llm.py` 对应的模型 runtime 包装差异
-2. 继续收口 `comparison` 的运行门控与指标口径；
-3. 在迁移完成态基础上，进入收尾验收与剩余缺口盘点。
+1. 确认 `context/llm.py` 对应的模型 runtime 包装差异是否需要后续小 helper；
+2. 按需运行真实 provider 级 `comparison` 长跑，而不是把它作为高频迁移验证；
+3. 盘点迁移完成后的结构清理项，例如过大的 facade / agent / config / evaluation harness。
 
 当前这三项已经拆到独立页面持续维护，后续总览页只保留高层边界与进度。

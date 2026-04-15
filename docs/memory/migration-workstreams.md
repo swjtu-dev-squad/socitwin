@@ -292,7 +292,7 @@
 ### Layer B: integration tests
 
 - mode wiring
-- topic activation + observation ingestion
+- topic activation seed visibility in later observation
 - action_v1 step loop
 - persistence + recall injection
 - API config + status behavior
@@ -366,6 +366,24 @@
 - `topic activation` 已确认会通过 `ManualAction` 绕开普通 action_v1 episode 写入链；
   当前建议先保持为环境种子，只记录为后续可选 trace hook；
 - memory monitor/debug 是否需要更细的 per-agent drill-down 输出仍待后续设计。
+
+## 6.1 Acceptance-Time Structural Notes
+
+当前验收时已经确认：
+
+- 新仓库运行代码中没有继续保留 `baseline` 模式；
+  - `baseline` 只作为旧仓库历史路线留在文档说明中。
+- `backend/app/memory/__init__.py` 仍是一个较宽的 facade；
+  - 当前主要服务 `OASISManager` 的稳定导入；
+  - 不建议在迁移收尾阶段强拆，避免引入纯结构性回归。
+- `backend/app/memory/agent.py`、`backend/app/memory/config.py`、`backend/app/memory/evaluation_harness.py` 体量仍偏大；
+  - 这是后续工程化清理项；
+  - 不应和“记忆主链是否迁移完成”混为一谈。
+- InMemory 不再作为正式工程主线被维护；
+  - 当前工程落地重心仍是 Chroma；
+  - heuristic / offline embedding 主要作为本地测试和无外部服务时的 fallback。
+
+这些结构问题可以在迁移完成后单独拆分处理，本轮验收不把它们列为阻塞项。
 
 当前新增的细化页面：
 

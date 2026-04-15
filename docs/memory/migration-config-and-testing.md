@@ -34,7 +34,7 @@
 
 ### 2.2 New repo config families
 
-新仓库当前 `Settings` 只覆盖了较轻的一层：
+迁移早期的新仓库 `Settings` 只覆盖了较轻的一层：
 
 - `DEEPSEEK_API_KEY`
 - `OPENAI_API_KEY`
@@ -43,7 +43,7 @@
 - `OASIS_DEFAULT_PLATFORM`
 - metrics / simulation 基础配置
 
-缺口在于：
+当时缺口在于：
 
 - 没有 memory mode
 - 没有 context window / budget / reserve
@@ -51,7 +51,7 @@
 - 没有 recall / summary / observation preset
 - 没有 provider failure matcher / recovery config
 
-截至当前迁移进度，这个缺口已经部分收口：
+截至当前迁移进度，这个缺口已经基本收口到 runtime settings 层：
 
 - 已接入：
   - `OASIS_MEMORY_MODE`
@@ -74,7 +74,8 @@
   - 本轮恢复的是配置承载与接线；
   - 没有借迁移重新打开 budget tree / reserve policy / recall algorithm 设计。
 
-这意味着当前新仓库已经具备让 `action_v1` 跑起来的最小配置面，但还没有把旧仓库全部调参表面一次性恢复。
+这意味着当前新仓库已经具备让 `action_v1` 跑起来的主要配置面。
+剩余重点不是“env 名称有没有落点”，而是后续是否需要恢复旧仓库 `context/llm.py` 那种更统一的模型 runtime 包装，以及是否要做更多真实 env 组合回归。
 
 另一个必须明确的事实是：
 
@@ -488,8 +489,8 @@
 
 下一轮还需要继续核对并补进计划的内容：
 
-1. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook；
-2. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出。
+1. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出；
+2. topic activation 若后续需要解释性，可补 `environment_seed` / `experiment_injection` trace。
 
 ### 8.1 Topic activation memory boundary
 

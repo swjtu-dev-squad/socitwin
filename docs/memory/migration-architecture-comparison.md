@@ -106,16 +106,15 @@
 - `ChatGPTConfig(max_tokens=...)`
 - `ModelFactory.create(...)`
 
-当前问题是：
+当前迁移后的状态是：
 
-- 这里只有“单次生成输出上限”语义；
-- 还没有旧仓库那种显式的：
-  - context token limit
-  - token counter mode
-  - generation reserve
-  - provider overflow matcher
+- `ModelConfig.max_tokens` 仍主要对应“单次生成输出上限”；
+- `OASIS_CONTEXT_TOKEN_LIMIT` 已作为 action_v1 的上下文预算入口接入；
+- generation reserve 已通过 working-memory budget 进入 action_v1 prompt 预算；
+- provider matcher / overflow 相关配置已经进入 `ProviderRuntimePresetConfig`；
+- 但旧仓库 `context/llm.py` 那种独立模型 runtime 包装仍没有等价恢复。
 
-也就是说，新仓库当前还没有建立“上下文预算”和“生成长度”这两件事的分层语义。
+也就是说，新仓库已经恢复了 action_v1 所需的上下文预算承载层，但还没有把模型 runtime 包装抽成旧仓库同等形态的统一 helper。
 
 ### 3.2 Current topic activation chain
 
@@ -132,9 +131,16 @@
 
 - 初始 observation
 - agent 第一步可见环境
-- 后续 action_v1 的 episode 写入
+- 后续 agent 自主行动时可见的环境事实
 
-因此迁移时不能只盯 `step(auto)` 主链，也必须把 topic activation 视为 memory ingestion 的前置入口。
+当前已确认的边界是：
+
+- topic activation 通过 `ManualAction(CREATE_POST/REFRESH)` 进入 OASIS；
+- 它会更新平台数据库与后续 observation；
+- 它不会经过 `ContextSocialAgent.perform_action_by_llm()`；
+- 因此不会作为普通 agent 自主决策写入 `ActionEpisode` / long-term recall 主链。
+
+这更像实验注入 / 环境初始化，而不是 agent 自主行为。迁移阶段不建议把它强行写入普通 action episode；如果后续需要解释性，应优先补 `environment_seed` / `experiment_injection` 类 trace。
 
 ### 3.3 Current status / monitor chain
 
@@ -362,4 +368,4 @@
 当前真正剩下的测试缺口主要是：
 
 - `comparison` 的真实 provider 级稳定长跑验证；
-- 更完整的配置兼容面回归测试。
+- 更完整的真实 env 组合配置回归测试。

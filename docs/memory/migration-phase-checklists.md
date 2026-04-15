@@ -206,7 +206,8 @@
 
 - `action_v1` 可初始化、可 step
 - observation / recent / compressed / recall 主链能闭环
-- topic activation 下的初始 post + refresh 也能进入新链路
+- topic activation 下的初始 post + refresh 能进入平台环境与后续 observation
+- topic activation 不应被误判为普通 `action_v1` 自主决策 episode 写入
 
 ### Do Not
 
@@ -291,7 +292,7 @@
 #### 5.2 Integration tests
 
 - mode wiring
-- topic activation + observation ingestion
+- topic activation seed visibility in later observation
 - action_v1 step loop
 - persist / recall injection
 
