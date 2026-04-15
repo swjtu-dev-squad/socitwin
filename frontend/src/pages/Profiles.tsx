@@ -1,15 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Badge,
-  Button,
-  Card,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Slider,
-} from '@/components/ui';
+import { useEffect, useMemo, useState } from 'react'
+import { Badge, Button, Card, Slider } from '@/components/ui'
 import {
   Activity,
   BrainCircuit,
@@ -20,22 +10,22 @@ import {
   Share2,
   Sparkles,
   Users,
-} from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+} from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 
-import { SubscriptionPanel, type DatasetPlatform } from '@/components/SubscriptionPanel';
-import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph';
-import { useTopics } from '@/hooks/useSimulationData';
-import { simulationApi } from '@/lib/api';
-import type { TopicContentSeed, TopicDetail, TopicProfileSeed } from '@/lib/types';
+import { SubscriptionPanel, type DatasetPlatform } from '@/components/SubscriptionPanel'
+import { SocialKnowledgeGraph } from '@/components/SocialKnowledgeGraph'
+import { useTopics } from '@/hooks/useSimulationData'
+import { simulationApi } from '@/lib/api'
+import type { TopicContentSeed, TopicDetail, TopicProfileSeed } from '@/lib/types'
 
 function buildGraphData(
   topic: TopicDetail,
   profiles: TopicProfileSeed[],
-  contents: TopicContentSeed[],
+  contents: TopicContentSeed[]
 ) {
-  const topicNodeId = `topic:${topic.id}`;
+  const topicNodeId = `topic:${topic.id}`
   const nodes = [
     {
       id: topicNodeId,
@@ -44,130 +34,126 @@ function buildGraphData(
       heat: topic.trend_rank ? `#${topic.trend_rank}` : 'LIVE',
       source: topic.platform || 'twitter',
     },
-    ...profiles.map((profile) => ({
+    ...profiles.map(profile => ({
       id: profile.external_user_id,
       name: profile.display_name || profile.username || profile.external_user_id,
       bio: profile.bio || profile.agent_config.description,
       interests: profile.interests,
       type: 'user',
     })),
-  ];
+  ]
 
-  const edges: Array<{ source: string; target: string; type: string }> = profiles.map(
-    (profile) => ({
-      source: profile.external_user_id,
-      target: topicNodeId,
-      type: 'topic_link',
-    }),
-  );
+  const edges: Array<{ source: string; target: string; type: string }> = profiles.map(profile => ({
+    source: profile.external_user_id,
+    target: topicNodeId,
+    type: 'topic_link',
+  }))
 
-  const contentAuthorMap = new Map<string, string>();
-  contents.forEach((content) => {
+  const contentAuthorMap = new Map<string, string>()
+  contents.forEach(content => {
     if (content.external_content_id && content.author_external_user_id) {
-      contentAuthorMap.set(content.external_content_id, content.author_external_user_id);
+      contentAuthorMap.set(content.external_content_id, content.author_external_user_id)
     }
-  });
+  })
 
-  const existingEdges = new Set(
-    edges.map((edge) => `${edge.source}->${edge.target}:${edge.type}`),
-  );
-  contents.forEach((content) => {
+  const existingEdges = new Set(edges.map(edge => `${edge.source}->${edge.target}:${edge.type}`))
+  contents.forEach(content => {
     if (!content.author_external_user_id || !content.parent_external_content_id) {
-      return;
+      return
     }
 
-    const parentAuthor = contentAuthorMap.get(content.parent_external_content_id);
+    const parentAuthor = contentAuthorMap.get(content.parent_external_content_id)
     if (!parentAuthor || parentAuthor === content.author_external_user_id) {
-      return;
+      return
     }
 
-    const edgeKey = `${content.author_external_user_id}->${parentAuthor}:follow`;
+    const edgeKey = `${content.author_external_user_id}->${parentAuthor}:follow`
     if (existingEdges.has(edgeKey)) {
-      return;
+      return
     }
 
-    existingEdges.add(edgeKey);
+    existingEdges.add(edgeKey)
     edges.push({
       source: content.author_external_user_id,
       target: parentAuthor,
       type: 'follow',
-    });
-  });
+    })
+  })
 
-  return { nodes, edges };
+  return { nodes, edges }
 }
 
 export default function Profiles() {
-  const navigate = useNavigate();
-  const [selectedPlatform, setSelectedPlatform] = useState<DatasetPlatform>('twitter');
-  const { data: topics, isLoading: topicsLoading } = useTopics(selectedPlatform);
-  const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'completed'>('idle');
-  const [algorithm, setAlgorithm] = useState('persona-llm');
-  const [count, setCount] = useState([1500]);
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [stats, setStats] = useState({ userCount: 0, linkCount: 0, density: 0 });
-  const [generatedData, setGeneratedData] = useState<any>(null);
+  const navigate = useNavigate()
+  const [selectedPlatform, setSelectedPlatform] = useState<DatasetPlatform>('twitter')
+  const { data: topics, isLoading: topicsLoading } = useTopics(selectedPlatform)
+  const [genStatus, setGenStatus] = useState<'idle' | 'generating' | 'completed'>('idle')
+  const [algorithm, setAlgorithm] = useState('persona-llm')
+  const [count, setCount] = useState([1500])
+  const [selectedTopic, setSelectedTopic] = useState('')
+  const [stats, setStats] = useState({ userCount: 0, linkCount: 0, density: 0 })
+  const [generatedData, setGeneratedData] = useState<any>(null)
 
   useEffect(() => {
     if (topics.length === 0) {
-      setSelectedTopic('');
-      return;
+      setSelectedTopic('')
+      return
     }
 
-    const matchedTopic = topics.some((topic) => topic.id === selectedTopic);
+    const matchedTopic = topics.some(topic => topic.id === selectedTopic)
     if (!matchedTopic) {
-      setSelectedTopic(topics[0].id);
+      setSelectedTopic(topics[0].id)
     }
-  }, [topics, selectedTopic]);
+  }, [topics, selectedTopic])
 
   useEffect(() => {
-    setGenStatus('idle');
-    setGeneratedData(null);
-    setStats({ userCount: 0, linkCount: 0, density: 0 });
-  }, [selectedPlatform, selectedTopic]);
+    setGenStatus('idle')
+    setGeneratedData(null)
+    setStats({ userCount: 0, linkCount: 0, density: 0 })
+  }, [selectedPlatform, selectedTopic])
 
   const selectedTopicMeta = useMemo(
-    () => topics.find((topic) => topic.id === selectedTopic) || null,
-    [topics, selectedTopic],
-  );
-  const selectedTopicLabel = selectedTopicMeta?.name || '';
+    () => topics.find(topic => topic.id === selectedTopic) || null,
+    [topics, selectedTopic]
+  )
+  // const selectedTopicLabel = selectedTopicMeta?.name || '';
 
   const handleGenerate = async () => {
     if (!selectedTopic) {
-      toast.error('请先选择一个话题');
-      return;
+      toast.error('请先选择一个话题')
+      return
     }
 
-    setGenStatus('generating');
+    setGenStatus('generating')
 
     try {
       const response = await simulationApi.getTopicSimulation(selectedTopic, {
         platform: selectedPlatform,
         participant_limit: Math.min(count[0], 500),
         content_limit: Math.min(Math.max(count[0] * 2, 40), 500),
-      });
+      })
 
-      const result = response.data;
-      const graphData = buildGraphData(result.topic, result.profiles, result.contents);
-      const nodeCount = graphData.nodes.length;
-      const edgeCount = graphData.edges.length;
-      const maxEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 1;
-      const density = Number(((edgeCount / maxEdges) * 100).toFixed(1));
+      const result = response.data
+      const graphData = buildGraphData(result.topic, result.profiles, result.contents)
+      const nodeCount = graphData.nodes.length
+      const edgeCount = graphData.edges.length
+      const maxEdges = nodeCount > 1 ? (nodeCount * (nodeCount - 1)) / 2 : 1
+      const density = Number(((edgeCount / maxEdges) * 100).toFixed(1))
 
-      setGeneratedData(graphData);
+      setGeneratedData(graphData)
       setStats({
         userCount: result.participant_count,
         linkCount: edgeCount,
         density,
-      });
-      setGenStatus('completed');
-      toast.success(`已完成话题画像预处理: ${result.topic.name}`);
+      })
+      setGenStatus('completed')
+      toast.success(`已完成话题画像预处理: ${result.topic.name}`)
     } catch (error) {
-      console.error('Generation error:', error);
-      toast.error('画像预处理失败，请检查后端服务');
-      setGenStatus('idle');
+      console.error('Generation error:', error)
+      toast.error('画像预处理失败，请检查后端服务')
+      setGenStatus('idle')
     }
-  };
+  }
 
   return (
     <div className="px-6 lg:px-12 py-12 space-y-8">
@@ -177,7 +163,9 @@ export default function Profiles() {
             <BrainCircuit className="w-10 h-10 text-accent" />
             仿真画像实验室
           </h1>
-          <p className="text-text-tertiary mt-1">基于真实种子数据与话题预处理结果生成仿真社会网络</p>
+          <p className="text-text-tertiary mt-1">
+            基于真实种子数据与话题预处理结果生成仿真社会网络
+          </p>
         </div>
         {genStatus === 'completed' && (
           <Button
@@ -215,21 +203,19 @@ export default function Profiles() {
               <div className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
                 话题来源
               </div>
-              <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-                <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                  <SelectValue
-                    placeholder={topicsLoading ? '加载话题中...' : '选择话题'}
-                    value={selectedTopicLabel}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {topics.map((topic) => (
-                    <SelectItem key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={selectedTopic}
+                onChange={e => setSelectedTopic(e.target.value)}
+                className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-border-default"
+                disabled={topicsLoading}
+              >
+                <option value="">{topicsLoading ? '加载话题中...' : '选择话题'}</option>
+                {topics.map(topic => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-3">
@@ -248,7 +234,9 @@ export default function Profiles() {
                   <span className="text-xs font-medium flex items-center gap-2">
                     <Activity className="w-4 h-4 text-rose-400" /> 话题/语义字典
                   </span>
-                  <Badge variant="outline" className="text-[10px]">已加载: {topics.length}个</Badge>
+                  <Badge variant="outline" className="text-[10px]">
+                    已加载: {topics.length}个
+                  </Badge>
                 </div>
               </div>
               <div className="p-3 bg-bg-primary border border-border-default rounded-xl hover:border-accent/50 transition-all">
@@ -268,36 +256,22 @@ export default function Profiles() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> 2. 生成策略算法
             </h3>
-            <Select value={algorithm} onValueChange={setAlgorithm}>
-              <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                <SelectValue placeholder="选择生成算法" value={algorithm} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="persona-llm">
-                  <div className="font-bold">Persona-LLM (深层特征)</div>
-                  <div className="text-[10px] text-text-muted">
-                    基于话题参与者的真实行为痕迹生成仿真画像
-                  </div>
-                </SelectItem>
-                <SelectItem value="ba-structural">
-                  <div className="font-bold">Structural Preferential Attachment</div>
-                  <div className="text-[10px] text-text-muted">
-                    侧重于生成具有幂律分布特征的复杂社交网络
-                  </div>
-                </SelectItem>
-                <SelectItem value="semantic-homophily">
-                  <div className="font-bold">Semantic Homophily</div>
-                  <div className="text-[10px] text-text-muted">
-                    基于兴趣语义相似度建立社交连接
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+              value={algorithm}
+              onChange={e => setAlgorithm(e.target.value)}
+              className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-border-default"
+            >
+              <option value="persona-llm">Persona-LLM (深层特征)</option>
+              <option value="ba-structural">Structural Preferential Attachment</option>
+              <option value="semantic-homophily">Semantic Homophily</option>
+            </select>
           </section>
 
           <section className="space-y-4">
             <div className="flex justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary">预处理规模</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-text-tertiary">
+                预处理规模
+              </h3>
               <span className="font-mono text-accent">{count[0].toLocaleString()} Agents</span>
             </div>
             <Slider value={count} onValueChange={setCount} min={10} max={10000} step={100} />
@@ -332,8 +306,13 @@ export default function Profiles() {
                 社交知识图谱预览 (Social Knowledge Graph)
               </h2>
               <div className="flex gap-2">
-                <Badge variant="secondary" className="text-[9px]">Node: Agent</Badge>
-                <Badge variant="outline" className="text-[9px] border-emerald-500/30 text-emerald-400">
+                <Badge variant="secondary" className="text-[9px]">
+                  Node: Agent
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="text-[9px] border-emerald-500/30 text-emerald-400"
+                >
                   Edge: Interest
                 </Badge>
                 <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-400">
@@ -356,7 +335,7 @@ export default function Profiles() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function StatsCard({ label, value, icon: Icon }: any) {
@@ -366,9 +345,11 @@ function StatsCard({ label, value, icon: Icon }: any) {
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">{label}</p>
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">
+          {label}
+        </p>
         <p className="text-2xl font-mono font-bold">{value}</p>
       </div>
     </Card>
-  );
+  )
 }

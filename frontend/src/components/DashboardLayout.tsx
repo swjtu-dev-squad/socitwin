@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom'
 import {
   UserRound,
   Users,
@@ -6,11 +6,11 @@ import {
   Settings as SettingsIcon,
   MessageCircle,
   Eye,
-  FlaskConical
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { motion } from 'motion/react';
-import { Logo } from './Logo';
+  FlaskConical,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { motion } from 'motion/react'
+import { Logo } from './Logo'
 
 const navItems = [
   { name: '态势推演', icon: Eye, href: '/overview' },
@@ -20,10 +20,10 @@ const navItems = [
   { name: '社交平台实验室', icon: FlaskConical, href: '/experiments' },
   { name: '系统日志', icon: MessageSquare, href: '/logs' },
   { name: '系统设置', icon: SettingsIcon, href: '/settings' },
-];
+]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const location = useLocation();
+  const location = useLocation()
 
   return (
     <div className="flex h-screen bg-bg-primary text-text-primary font-sans overflow-hidden">
@@ -34,30 +34,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.href;
+          {navItems.map(item => {
+            const isActive = location.pathname === item.href
             return (
               <Link
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative",
+                  'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
                   isActive
-                    ? "bg-accent-subtle text-accent"
-                    : "text-text-secondary hover:bg-bg-tertiary hover:text-text-primary"
+                    ? 'bg-accent-subtle text-accent'
+                    : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
                 )}
               >
-                <item.icon className={cn("w-5 h-5 transition-transform group-hover:scale-110", isActive && "text-accent")} />
+                <item.icon
+                  className={cn(
+                    'w-5 h-5 transition-transform group-hover:scale-110',
+                    isActive && 'text-accent'
+                  )}
+                />
                 {item.name}
                 {isActive && (
                   <motion.div
                     layoutId="active-nav"
                     className="absolute left-0 w-1 h-6 bg-accent rounded-r-full"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                   />
                 )}
               </Link>
-            );
+            )
           })}
         </nav>
 
@@ -80,12 +85,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
           className="relative z-10 h-full"
         >
           {children}
         </motion.div>
       </main>
     </div>
-  );
+  )
 }

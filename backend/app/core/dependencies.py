@@ -6,7 +6,7 @@ FastAPI 依赖注入配置
 
 import logging
 from functools import lru_cache
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from app.core.config import get_settings
 from app.core.oasis_manager import OASISManager, get_oasis_manager
@@ -314,7 +314,7 @@ def get_settings_cached():
 # 验证和授权依赖（占位符）
 # ============================================================================
 
-async def verify_api_key(api_key: str = None) -> bool:
+async def verify_api_key(api_key: Optional[str] = None) -> bool:
     """
     验证 API 密钥（占位符）
 
@@ -331,7 +331,7 @@ async def verify_api_key(api_key: str = None) -> bool:
     return True
 
 
-async def get_current_user(token: str = None):
+async def get_current_user(token: Optional[str] = None):
     """
     获取当前用户（占位符）
 

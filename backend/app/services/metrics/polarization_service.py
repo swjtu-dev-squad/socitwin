@@ -6,18 +6,12 @@ to current opinions using LLM-based evaluation.
 """
 
 import asyncio
-import json
 import logging
 import sqlite3
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from app.models.metrics import (
-    PolarizationMetrics,
-    AgentPolarization,
-    PolarizationDirection
-)
-from app.core.llm_evaluator import get_llm_evaluator, LLMAPIError
-
+from app.core.llm_evaluator import LLMAPIError, get_llm_evaluator
+from app.models.metrics import AgentPolarization, PolarizationDirection, PolarizationMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +295,7 @@ class PolarizationService:
             direction_counts[agent['direction']] += 1
 
         # Return most common direction
-        most_common = max(direction_counts, key=direction_counts.get)
+        most_common = max(direction_counts.keys(), key=lambda k: direction_counts[k])
 
         try:
             return PolarizationDirection(most_common)

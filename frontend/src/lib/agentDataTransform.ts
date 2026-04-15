@@ -13,39 +13,39 @@ import type {
   AgentGraphNode,
   AgentGraphEdge,
   AgentMemorySnapshot,
-} from './agentMonitorTypes';
+} from './agentMonitorTypes'
 
 // ============================================================================
 // Backend Types (matching backend/app/models/simulation.py)
 // ============================================================================
 
 export interface BackendAgent {
-  id: number;
-  user_name: string;
-  name: string;
-  description: string;
-  bio?: string;
-  status: string;
-  polarization: number;
-  influence: number;
-  activity: number;
-  interests: string[];
+  id: number
+  user_name: string
+  name: string
+  description: string
+  bio?: string
+  status: string
+  polarization: number
+  influence: number
+  activity: number
+  interests: string[]
 }
 
 export interface BackendSimulationStatus {
-  state: string;
-  current_step: number;
-  total_steps: number;
-  agent_count: number;
-  platform: string;
-  created_at?: string;
-  updated_at?: string;
-  total_posts: number;
-  total_interactions: number;
-  polarization: number;
-  active_agents: number;
-  agents: BackendAgent[];
-  metrics_summary?: any;
+  state: string
+  current_step: number
+  total_steps: number
+  agent_count: number
+  platform: string
+  created_at?: string
+  updated_at?: string
+  total_posts: number
+  total_interactions: number
+  polarization: number
+  active_agents: number
+  agents: BackendAgent[]
+  metrics_summary?: any
 }
 
 // ============================================================================
@@ -55,11 +55,9 @@ export interface BackendSimulationStatus {
 /**
  * Transform backend Agent to frontend AgentOverview
  */
-export function transformToAgentOverview(
-  backendAgent: BackendAgent
-): AgentOverview {
-  const role = deriveRoleFromDescription(backendAgent.description);
-  const roleLabel = deriveRoleLabel(role, backendAgent.description);
+export function transformToAgentOverview(backendAgent: BackendAgent): AgentOverview {
+  const role = deriveRoleFromDescription(backendAgent.description)
+  const roleLabel = deriveRoleLabel(role, backendAgent.description)
 
   return {
     id: String(backendAgent.id),
@@ -81,7 +79,7 @@ export function transformToAgentOverview(
     followingCount: (backendAgent as any).following_count || 0,
     interactionCount: (backendAgent as any).interaction_count || 0,
     memory: createEmptyMemorySnapshot(),
-  };
+  }
 }
 
 /**
@@ -90,14 +88,14 @@ export function transformToAgentOverview(
 export function transformToMonitorResponse(
   backendStatus: BackendSimulationStatus
 ): AgentMonitorResponse {
-  const agents = backendStatus.agents.map(transformToAgentOverview);
-  const nodes = transformToGraphNodes(agents);
-  const edges = generateEdgesFromAgents(agents); // 新增：从关注关系生成边
+  const agents = backendStatus.agents.map(transformToAgentOverview)
+  const nodes = transformToGraphNodes(agents)
+  const edges = generateEdgesFromAgents(agents) // 新增：从关注关系生成边
 
   // 从 metrics_summary 中提取高级指标
-  const metricsSummary = backendStatus.metrics_summary;
-  const propagationData = metricsSummary?.propagation;
-  const herdEffectData = metricsSummary?.herd_effect;
+  const metricsSummary = backendStatus.metrics_summary
+  const propagationData = metricsSummary?.propagation
+  const herdEffectData = metricsSummary?.herd_effect
 
   return {
     simulation: {
@@ -124,18 +122,18 @@ export function transformToMonitorResponse(
     },
     agents,
     updatedAt: backendStatus.updated_at || new Date().toISOString(),
-  };
+  }
 }
 
 /**
  * Transform agent detail API response to frontend format
  */
 export function transformToAgentDetail(backendData: any): AgentDetailResponse {
-  const { profile, status, recent_actions = [], recent_posts = [] } = backendData;
+  const { profile, status, recent_actions = [], recent_posts = [] } = backendData
 
   // Extract role information
-  const role = deriveRoleFromDescription(profile.description);
-  const roleLabel = deriveRoleLabel(role, profile.description);
+  const role = deriveRoleFromDescription(profile.description)
+  const roleLabel = deriveRoleLabel(role, profile.description)
 
   // Transform recent actions to timeline
   const recentTimeline = recent_actions.map((action: any) => ({
@@ -143,10 +141,10 @@ export function transformToAgentDetail(backendData: any): AgentDetailResponse {
     type: action.action_type,
     content: action.content,
     reason: action.reason,
-  }));
+  }))
 
   // Get last action
-  const lastAction = recentTimeline.length > 0 ? recentTimeline[0] : null;
+  const lastAction = recentTimeline.length > 0 ? recentTimeline[0] : null
 
   // Transform recent posts
   const seenPosts = recent_posts.map((post: any) => ({
@@ -155,7 +153,7 @@ export function transformToAgentDetail(backendData: any): AgentDetailResponse {
     content: post.content,
     timestamp: post.created_at,
     numLikes: post.num_likes,
-  }));
+  }))
 
   return {
     profile: {
@@ -190,14 +188,14 @@ export function transformToAgentDetail(backendData: any): AgentDetailResponse {
     recentTimeline,
     seenPosts,
     memory: createEmptyMemorySnapshot(),
-  };
+  }
 }
 
 /**
  * Transform agents to graph nodes
  */
 export function transformToGraphNodes(agents: AgentOverview[]): AgentGraphNode[] {
-  return agents.map((agent) => ({
+  return agents.map(agent => ({
     id: agent.id,
     name: agent.name,
     role: agent.role,
@@ -207,7 +205,7 @@ export function transformToGraphNodes(agents: AgentOverview[]): AgentGraphNode[]
     status: agent.status,
     country: agent.country,
     city: agent.city,
-  }));
+  }))
 }
 
 // ============================================================================
@@ -218,29 +216,29 @@ export function transformToGraphNodes(agents: AgentOverview[]): AgentGraphNode[]
  * Derive agent role from description
  */
 function deriveRoleFromDescription(description: string): string {
-  const desc = description.toLowerCase();
+  const desc = description.toLowerCase()
 
   if (desc.includes('kol') || desc.includes('key opinion leader') || desc.includes('influencer')) {
-    return 'KOL';
+    return 'KOL'
   }
   if (desc.includes('optimistic') || desc.includes('enthusiast') || desc.includes('supporter')) {
-    return 'Evangelist';
+    return 'Evangelist'
   }
   if (desc.includes('skeptical') || desc.includes('critic') || desc.includes('doubter')) {
-    return 'Skeptic';
+    return 'Skeptic'
   }
   if (desc.includes('neutral') || desc.includes('observer') || desc.includes('moderate')) {
-    return 'Observer';
+    return 'Observer'
   }
 
-  return 'Neutral';
+  return 'Neutral'
 }
 
 /**
  * Generate graph edges from agent follow relationships
  */
 function generateEdgesFromAgents(agents: AgentOverview[]): AgentGraphEdge[] {
-  const edges: AgentGraphEdge[] = [];
+  const edges: AgentGraphEdge[] = []
 
   for (const agent of agents) {
     // 从关注关系生成边
@@ -250,12 +248,12 @@ function generateEdgesFromAgents(agents: AgentOverview[]): AgentGraphEdge[] {
           source: agent.id,
           target: targetId,
           type: 'follow',
-        });
+        })
       }
     }
   }
 
-  return edges;
+  return edges
 }
 
 /**
@@ -268,23 +266,23 @@ function deriveRoleLabel(role: string, description: string): string {
     Skeptic: 'AI 怀疑派',
     Observer: '中立观察者',
     Neutral: '中立观察者',
-  };
+  }
 
-  return roleLabels[role] || description.slice(0, 30) || 'Neutral';
+  return roleLabels[role] || description.slice(0, 30) || 'Neutral'
 }
 
 /**
  * Normalize status string to frontend type
  */
 function normalizeStatus(status: string): 'active' | 'idle' | 'thinking' {
-  const normalized = status.toLowerCase();
+  const normalized = status.toLowerCase()
   if (normalized === 'active' || normalized === 'running') {
-    return 'active';
+    return 'active'
   }
   if (normalized === 'thinking') {
-    return 'thinking';
+    return 'thinking'
   }
-  return 'idle';
+  return 'idle'
 }
 
 /**
@@ -305,5 +303,5 @@ function createEmptyMemorySnapshot(): AgentMemorySnapshot {
       content: '',
       items: [],
     },
-  };
+  }
 }

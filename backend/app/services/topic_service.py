@@ -7,9 +7,9 @@ preprocessed topic/persona data sourced from oasis_datasets.db.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from oasis import ActionType, ManualAction, SocialAgent
+from oasis import ActionType, LLMAction, ManualAction, SocialAgent
 
 from app.core.oasis_manager import OASISManager, OASISStateError
 from app.models.simulation import PlatformType
@@ -175,7 +175,7 @@ class TopicService:
                 logger.warning("No agents to refresh")
                 return {"count": 0}
 
-            refresh_actions = {
+            refresh_actions: Dict[SocialAgent, Union[LLMAction, ManualAction]] = {
                 agent: ManualAction(action_type=ActionType.REFRESH, action_args={})
                 for agent in all_agents
             }

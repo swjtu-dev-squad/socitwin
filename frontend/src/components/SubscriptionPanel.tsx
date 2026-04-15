@@ -1,26 +1,26 @@
-import { Badge, Button, Card, Progress, Switch } from '@/components/ui';
-import { MessageCircle, Play, RefreshCcw, Wifi } from 'lucide-react';
+import { Badge, Button, Card, Progress, Switch } from '@/components/ui'
+import { MessageCircle, Play, RefreshCcw, Wifi } from 'lucide-react'
 
-export type DatasetPlatform = 'twitter' | 'reddit' | 'tiktok' | 'instagram' | 'facebook';
+export type DatasetPlatform = 'twitter' | 'reddit' | 'tiktok' | 'instagram' | 'facebook'
 
 interface SubscriptionPanelProps {
-  selectedPlatform: DatasetPlatform;
-  onPlatformChange: (platform: DatasetPlatform) => void;
-  onRefresh?: () => void;
-  topicCount?: number;
+  selectedPlatform: DatasetPlatform
+  onPlatformChange: (platform: DatasetPlatform) => void
+  onRefresh?: () => void
+  topicCount?: number
 }
 
-const Twitter = MessageCircle;
-const Instagram = MessageCircle;
-const Facebook = MessageCircle;
+const Twitter = MessageCircle
+const Instagram = MessageCircle
+const Facebook = MessageCircle
 
 const PLATFORMS: Array<{
-  id: DatasetPlatform;
-  name: string;
-  icon: typeof MessageCircle;
-  color: string;
-  latency: string;
-  hasData: boolean;
+  id: DatasetPlatform
+  name: string
+  icon: typeof MessageCircle
+  color: string
+  latency: string
+  hasData: boolean
 }> = [
   {
     id: 'twitter',
@@ -62,7 +62,7 @@ const PLATFORMS: Array<{
     latency: '210ms',
     hasData: false,
   },
-];
+]
 
 export function SubscriptionPanel({
   selectedPlatform,
@@ -78,7 +78,9 @@ export function SubscriptionPanel({
             <Wifi className="w-5 h-5 text-accent animate-pulse" />
             全网数据实时订阅 (Live-Link)
           </h2>
-          <p className="text-xs text-text-tertiary">平台保持原展示形式；当前只有 Twitter 数据可用，且一次只能选一个平台</p>
+          <p className="text-xs text-text-tertiary">
+            平台保持原展示形式；当前只有 Twitter 数据可用，且一次只能选一个平台
+          </p>
         </div>
         <Button
           type="button"
@@ -92,15 +94,15 @@ export function SubscriptionPanel({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {PLATFORMS.map((platform) => {
-          const isSelected = platform.id === selectedPlatform;
+        {PLATFORMS.map(platform => {
+          const isSelected = platform.id === selectedPlatform
           const statusText = isSelected
             ? platform.hasData
               ? 'CONNECTED'
               : 'NO DATA'
             : platform.hasData
               ? 'STANDBY'
-              : 'NO DATA';
+              : 'NO DATA'
           return (
             <button
               key={platform.id}
@@ -116,9 +118,9 @@ export function SubscriptionPanel({
                 <platform.icon className={`w-6 h-6 ${platform.color}`} />
                 <Switch
                   checked={isSelected}
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={checked => {
                     if (checked) {
-                      onPlatformChange(platform.id);
+                      onPlatformChange(platform.id)
                     }
                   }}
                 />
@@ -145,9 +147,9 @@ export function SubscriptionPanel({
                 </div>
               )}
             </button>
-          );
+          )
         })}
       </div>
     </Card>
-  );
+  )
 }

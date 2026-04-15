@@ -9,13 +9,11 @@ This service calculates herd effect metrics including:
 
 import logging
 import math
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
-
 import sqlite3
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from app.models.metrics import HerdEffectMetrics, HotPost
-
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +188,7 @@ class HerdEffectService:
         hot_posts = []
 
         # Reddit epoch (constant)
-        REDDIT_EPOCH = 1134028003  # Unix timestamp
+        reddit_epoch = 1134028003  # Unix timestamp
 
         for post in post_scores:
             net_score = post['net_score']
@@ -225,10 +223,10 @@ class HerdEffectService:
                 logger.warning(f"Failed to parse datetime: {e}, using current time")
                 post_time = datetime.now()
 
-            time_diff = (datetime.now() - post_time).total_seconds()
+            (datetime.now() - post_time).total_seconds()
 
             sign = 1 if net_score >= 0 else -1
-            hot_score = log_score + sign * ((post_time.timestamp() - REDDIT_EPOCH) / 45000)
+            hot_score = log_score + sign * ((post_time.timestamp() - reddit_epoch) / 45000)
 
             hot_posts.append(HotPost(
                 post_id=post['post_id'],
