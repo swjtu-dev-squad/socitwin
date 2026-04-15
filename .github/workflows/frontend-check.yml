@@ -31,15 +31,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # Prettier (软性提示 - 发 PR Comment)
-      - name: Install Reviewdog
-        run: pnpm add -g reviewdog
-
-      - name: Run Prettier with Reviewdog
-        env:
-          REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          pnpm run format:check | reviewdog -f=prettier -report="github-pr-review" -level=warning
+      # Prettier (软性提示 - 直接运行，不通过 Reviewdog)
+      - name: Run Prettier check
+        run: pnpm run format:check
         continue-on-error: true  # ✅ 格式问题不阻断 CI
 
       # Build (硬性失败 - 阻断 CI)
