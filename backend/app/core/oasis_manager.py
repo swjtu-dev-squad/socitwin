@@ -6,31 +6,33 @@ OASIS 环境管理器
 """
 
 import asyncio
+import csv
+import json
 import logging
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
-import uuid
+from typing import Any, Dict, List, Optional, Union
 
 # OASIS 框架导入
 import oasis
+from camel.configs import ChatGPTConfig
+
+# CAMEL 框架导入
+from camel.models import ModelFactory
+from camel.types import ModelPlatformType, ModelType
 from oasis import (
+    ActionType,
     AgentGraph,
     DefaultPlatformType,
     LLMAction,
     ManualAction,
     SocialAgent,
     UserInfo,
-    ActionType,
-    generate_twitter_agent_graph,
     generate_reddit_agent_graph,
+    generate_twitter_agent_graph,
 )
-
-# CAMEL 框架导入
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
-from camel.configs import ChatGPTConfig
 
 # 本地导入
 from app.core.config import get_settings
@@ -41,10 +43,14 @@ from app.memory import (
     MemoryRuntimeFacade,
     MemoryRuntimeNotImplementedError,
     ObservationPresetConfig,
+    ProviderRuntimePresetConfig,
     RecallPresetConfig,
     SummaryPresetConfig,
     WorkingMemoryBudgetConfig,
     apply_observation_env_overrides,
+    apply_provider_runtime_env_overrides,
+    apply_recall_env_overrides,
+    apply_summary_env_overrides,
     apply_working_memory_env_overrides,
     build_chroma_longterm_store,
     resolve_memory_runtime_config,
@@ -53,19 +59,16 @@ from app.memory.agent import build_action_v1_social_agent, build_upstream_social
 from app.memory.longterm import LongtermStore
 from app.memory.tokens import HeuristicUnicodeTokenCounter
 from app.models.simulation import (
-    SimulationConfig,
-    PlatformType,
-    SimulationState,
-    OASISActionType,
-    AgentConfig,
     ModelConfig,
+    PlatformType,
+    SimulationConfig,
+    SimulationState,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
-class OASISException(Exception):
+class OASISException(Exception):  # noqa: N818
     """OASIS 操作异常基类"""
     pass
 
@@ -200,7 +203,10 @@ class OASISManager:
             "platform": state_info["platform"],
             "context_token_limit": context_token_limit,
             "generation_max_tokens": generation_max_tokens,
-            "longterm_enabled": bool(self._memory_mode == MemoryMode.ACTION_V1 and self._action_v1_longterm_store is not None),
+            "longterm_enabled": bool(
+                self._memory_mode == MemoryMode.ACTION_V1
+                and self._action_v1_longterm_store is not None
+            ),
             "agents": agents,
         }
 
@@ -446,13 +452,35 @@ class OASISManager:
         try:
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"Agent file not found: {file_path}")
-            if self._memory_mode == MemoryMode.ACTION_V1:
-                raise MemoryRuntimeNotImplementedError(
-                    "action_v1 currently supports only template/manual agent sources; "
-                    "agent_source=file has not been migrated yet."
-                )
 
             available_actions = self._get_default_actions(platform)
+
+            if self._memory_mode == MemoryMode.ACTION_V1:
+                agent_graph = AgentGraph()
+                file_agents = self._parse_file_agent_profiles(
+                    file_path=file_path,
+                    platform=platform,
+                )
+                for agent_record in file_agents:
+                    user_info = UserInfo(
+                        user_name=agent_record["user_name"],
+                        name=agent_record["name"],
+                        description=agent_record["description"],
+                        profile=agent_record["profile"],
+                        recsys_type=platform.value,
+                    )
+                    agent = self._build_social_agent(
+                        agent_id=agent_record["agent_id"],
+                        user_info=user_info,
+                        agent_graph=agent_graph,
+                        model=model,
+                        available_actions=available_actions,
+                    )
+                    agent_graph.add_agent(agent)
+                logger.info(
+                    f"Loaded {agent_graph.get_num_nodes()} action_v1 agents from file"
+                )
+                return agent_graph
 
             if platform == PlatformType.TWITTER:
                 agent_graph = await generate_twitter_agent_graph(
@@ -473,6 +501,134 @@ class OASISManager:
         except Exception as e:
             logger.error(f"Failed to load agents from file: {e}")
             raise OASISInitError(f"File loading failed: {str(e)}")
+
+    def _parse_file_agent_profiles(
+        self,
+        *,
+        file_path: str,
+        platform: PlatformType,
+    ) -> list[dict[str, Any]]:
+        if platform == PlatformType.TWITTER:
+            return self._parse_twitter_file_agent_profiles(file_path=file_path)
+        return self._parse_reddit_file_agent_profiles(file_path=file_path)
+
+    def _parse_twitter_file_agent_profiles(self, *, file_path: str) -> list[dict[str, Any]]:
+        with open(file_path, "r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            rows = list(reader)
+        if not rows:
+            return []
+        return [
+            self._normalize_file_agent_record(
+                row=row,
+                index=index,
+                platform=PlatformType.TWITTER,
+            )
+            for index, row in enumerate(rows)
+        ]
+
+    def _parse_reddit_file_agent_profiles(self, *, file_path: str) -> list[dict[str, Any]]:
+        with open(file_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, list):
+            raise ValueError("Reddit file agent profiles must be a JSON list.")
+        return [
+            self._normalize_file_agent_record(
+                row=item,
+                index=index,
+                platform=PlatformType.REDDIT,
+            )
+            for index, item in enumerate(payload)
+            if isinstance(item, dict)
+        ]
+
+    def _normalize_file_agent_record(
+        self,
+        *,
+        row: dict[str, Any],
+        index: int,
+        platform: PlatformType,
+    ) -> dict[str, Any]:
+        row = {str(key): value for key, value in row.items()}
+        agent_id = self._coerce_int(row.get("agent_id"), index)
+        user_name = self._coerce_text(
+            row.get("user_name") or row.get("username"),
+            default=f"agent_{agent_id}",
+        )
+        name = self._coerce_text(
+            row.get("name") or row.get("realname") or row.get("username"),
+            default=user_name,
+        )
+        description = self._coerce_text(
+            row.get("description") or row.get("bio") or row.get("user_char"),
+            default="",
+        )
+
+        existing_profile = row.get("profile")
+        profile: dict[str, Any]
+        if isinstance(existing_profile, dict):
+            profile = dict(existing_profile)
+        else:
+            profile = {}
+        other_info = profile.get("other_info")
+        if not isinstance(other_info, dict):
+            other_info = {}
+            profile["other_info"] = other_info
+
+        user_profile = (
+            row.get("user_profile")
+            or row.get("persona")
+            or row.get("user_char")
+            or other_info.get("user_profile")
+            or description
+        )
+        if user_profile:
+            other_info["user_profile"] = self._coerce_text(user_profile, default="")
+
+        for field_name in ("gender", "mbti", "country"):
+            if row.get(field_name) not in (None, ""):
+                other_info[field_name] = self._coerce_text(row.get(field_name), default="")
+
+        age_value = row.get("age")
+        if age_value not in (None, ""):
+            other_info["age"] = self._coerce_int(age_value, 0)
+
+        interests = row.get("interests")
+        if interests not in (None, "") and not profile.get("interests"):
+            if isinstance(interests, str):
+                profile["interests"] = [
+                    item.strip() for item in interests.split(",") if item.strip()
+                ]
+            elif isinstance(interests, list):
+                profile["interests"] = [
+                    self._coerce_text(item, default="")
+                    for item in interests
+                    if self._coerce_text(item, default="")
+                ]
+
+        if platform == PlatformType.REDDIT and "bio" in row and not description:
+            description = self._coerce_text(row.get("bio"), default="")
+
+        return {
+            "agent_id": agent_id,
+            "user_name": user_name,
+            "name": name,
+            "description": description,
+            "profile": profile,
+        }
+
+    @staticmethod
+    def _coerce_text(value: Any, *, default: str) -> str:
+        if value is None:
+            return default
+        text = str(value).strip()
+        return text if text else default
+
+    @staticmethod
+    def _coerce_int(value: Any, default: int) -> int:
+        if value in (None, ""):
+            return default
+        return int(value)
 
     async def _generate_agents_from_template(
         self,
@@ -533,7 +689,10 @@ class OASISManager:
 
             # 如果有手动配置，使用配置的智能体
             if config.agent_source.manual_config:
-                logger.info(f"Creating {len(config.agent_source.manual_config)} agents from manual config")
+                logger.info(
+                    "Creating %s agents from manual config",
+                    len(config.agent_source.manual_config),
+                )
 
                 for agent_config_dict in config.agent_source.manual_config:
                     # 将字典转换为 AgentConfig
@@ -562,10 +721,16 @@ class OASISManager:
 
                     agent_graph.add_agent(agent)
 
-                logger.info(f"Created {len(config.agent_source.manual_config)} agents from manual config")
+                logger.info(
+                    "Created %s agents from manual config",
+                    len(config.agent_source.manual_config),
+                )
             else:
                 # 如果没有手动配置，使用生成器填充剩余数量
-                logger.info(f"No manual config provided, generating {agent_count} agents using template")
+                logger.info(
+                    "No manual config provided, generating %s agents using template",
+                    agent_count,
+                )
                 return await self._generate_agents_from_template(
                     agent_count,
                     config,
@@ -641,14 +806,18 @@ class OASISManager:
                 ),
             )
         )
-        recall_preset = RecallPresetConfig()
+        recall_preset = apply_recall_env_overrides(RecallPresetConfig())
+        summary_preset = apply_summary_env_overrides(SummaryPresetConfig())
+        provider_runtime_preset = apply_provider_runtime_env_overrides(
+            ProviderRuntimePresetConfig()
+        )
         longterm_store = self._get_action_v1_longterm_store(settings=settings)
         runtime_settings = ActionV1RuntimeSettings(
             token_counter=token_counter,
             system_message=self._build_agent_system_message(user_info=user_info),
             context_token_limit=settings.OASIS_CONTEXT_TOKEN_LIMIT,
             observation_preset=observation_preset,
-            summary_preset=SummaryPresetConfig(),
+            summary_preset=summary_preset,
             working_memory_budget=working_memory_budget,
             recall_preset=recall_preset,
             longterm_sidecar=LongtermSidecarConfig(
@@ -656,6 +825,7 @@ class OASISManager:
                 store=longterm_store,
                 retrieval_limit=recall_preset.retrieval_limit,
             ),
+            provider_runtime_preset=provider_runtime_preset,
             memory_window_size=None,
             prompt_assembly_enabled=True,
             token_counter_mode=token_counter_mode,

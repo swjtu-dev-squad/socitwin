@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from oasis import UserInfo
 
 import app.core.oasis_manager as oasis_manager_module
-from app.core.oasis_manager import OASISInitError, OASISManager
+from app.core.oasis_manager import OASISManager
 from app.memory.config import MemoryMode
 from app.models.simulation import ModelConfig, PlatformType, SimulationConfig
 
@@ -32,14 +32,17 @@ class _FakeEnv:
 
 
 class _FakeGraph:
-    def __init__(self, agents) -> None:
-        self._agents = list(agents)
+    def __init__(self, agents=None) -> None:
+        self._agents = list(agents or [])
 
     def get_num_nodes(self) -> int:
         return len(self._agents)
 
     def get_agents(self):
         return [(index, agent) for index, agent in enumerate(self._agents)]
+
+    def add_agent(self, agent) -> None:
+        self._agents.append(agent)
 
 
 class _FakeProfile:
@@ -80,27 +83,86 @@ class _FakeActionV1Agent:
         }
 
 
-def test_action_v1_file_source_is_explicitly_rejected(tmp_path: Path) -> None:
+def test_action_v1_file_source_builds_twitter_agents_from_csv(tmp_path: Path, monkeypatch) -> None:
+    manager = OASISManager()
+    manager._memory_mode = MemoryMode.ACTION_V1
+
+    profile_path = tmp_path / "agents.csv"
+    profile_path.write_text(
+        "name,username,user_char,description\n"
+        "Alice,user_alice,Tech enthusiast,Longer twitter bio\n",
+        encoding="utf-8",
+    )
+
+    captured = {}
+    monkeypatch.setattr(oasis_manager_module, "AgentGraph", _FakeGraph)
+
+    def _fake_build_social_agent(**kwargs):
+        captured.update(kwargs)
+        return _FakeAgent(kwargs["agent_id"])
+
+    monkeypatch.setattr(manager, "_build_social_agent", _fake_build_social_agent)
+
+    graph = asyncio.run(
+        manager._load_agents_from_file(
+            str(profile_path),
+            PlatformType.TWITTER,
+            model=object(),
+        )
+    )
+
+    assert graph.get_num_nodes() == 1
+    assert captured["agent_id"] == 0
+    assert captured["user_info"].user_name == "user_alice"
+    assert captured["user_info"].name == "Alice"
+    assert captured["user_info"].description == "Longer twitter bio"
+    assert (
+        captured["user_info"].profile["other_info"]["user_profile"]
+        == "Tech enthusiast"
+    )
+
+
+def test_action_v1_file_source_builds_reddit_agents_from_json(tmp_path: Path, monkeypatch) -> None:
     manager = OASISManager()
     manager._memory_mode = MemoryMode.ACTION_V1
 
     profile_path = tmp_path / "agents.json"
-    profile_path.write_text("[]", encoding="utf-8")
+    profile_path.write_text(
+        (
+            '[{"username":"user_bob","realname":"Bob","bio":"Reddit bio",'
+            '"persona":"Political persona","age":22,"gender":"male","mbti":"ENFP","country":"UK"}]'
+        ),
+        encoding="utf-8",
+    )
 
-    try:
-        asyncio.run(
-            manager._load_agents_from_file(
-                str(profile_path),
-                PlatformType.TWITTER,
-                model=object(),
-            )
+    captured = {}
+    monkeypatch.setattr(oasis_manager_module, "AgentGraph", _FakeGraph)
+
+    def _fake_build_social_agent(**kwargs):
+        captured.update(kwargs)
+        return _FakeAgent(kwargs["agent_id"])
+
+    monkeypatch.setattr(manager, "_build_social_agent", _fake_build_social_agent)
+
+    graph = asyncio.run(
+        manager._load_agents_from_file(
+            str(profile_path),
+            PlatformType.REDDIT,
+            model=object(),
         )
-    except OASISInitError as exc:
-        assert "template/manual" in str(exc)
-        assert "agent_source=file" in str(exc)
-        return
+    )
 
-    raise AssertionError("expected action_v1 file-source rejection")
+    assert graph.get_num_nodes() == 1
+    assert captured["agent_id"] == 0
+    assert captured["user_info"].user_name == "user_bob"
+    assert captured["user_info"].name == "Bob"
+    assert captured["user_info"].description == "Reddit bio"
+    other_info = captured["user_info"].profile["other_info"]
+    assert other_info["user_profile"] == "Political persona"
+    assert other_info["age"] == 22
+    assert other_info["gender"] == "male"
+    assert other_info["mbti"] == "ENFP"
+    assert other_info["country"] == "UK"
 
 
 def test_build_action_v1_runtime_settings_uses_manager_config(monkeypatch) -> None:
@@ -127,6 +189,53 @@ def test_build_action_v1_runtime_settings_uses_manager_config(monkeypatch) -> No
             OASIS_LONGTERM_ENABLED=True,
         ),
     )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "apply_recall_env_overrides",
+        lambda preset: preset.__class__(
+            retrieval_limit=7,
+            cooldown_steps=preset.cooldown_steps,
+            min_trigger_entity_count=preset.min_trigger_entity_count,
+            allow_topic_trigger=preset.allow_topic_trigger,
+            allow_anchor_trigger=preset.allow_anchor_trigger,
+            allow_recent_action_trigger=preset.allow_recent_action_trigger,
+            allow_self_authored_trigger=preset.allow_self_authored_trigger,
+            deny_repeated_query_within_steps=preset.deny_repeated_query_within_steps,
+            max_reason_trace_chars=preset.max_reason_trace_chars,
+        ),
+    )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "apply_summary_env_overrides",
+        lambda preset: preset.__class__(
+            max_action_items_per_block=11,
+            compressed_action_block_drop_protected_count=preset.compressed_action_block_drop_protected_count,
+            max_action_items_per_recent_turn=preset.max_action_items_per_recent_turn,
+            max_authored_excerpt_chars=preset.max_authored_excerpt_chars,
+            max_target_summary_chars=preset.max_target_summary_chars,
+            max_local_context_chars=preset.max_local_context_chars,
+            max_summary_merge_span=preset.max_summary_merge_span,
+            max_heartbeat_entity_samples=preset.max_heartbeat_entity_samples,
+            max_anchor_items_per_block=preset.max_anchor_items_per_block,
+            max_entities_per_heartbeat=preset.max_entities_per_heartbeat,
+            max_state_changes_per_turn=preset.max_state_changes_per_turn,
+            max_outcome_digest_chars=preset.max_outcome_digest_chars,
+            compressed_note_title=preset.compressed_note_title,
+            recall_note_title="Recall title from env",
+            omit_empty_template_fields=preset.omit_empty_template_fields,
+        ),
+    )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "apply_provider_runtime_env_overrides",
+        lambda preset: preset.__class__(
+            provider_error_matchers=preset.provider_error_matchers,
+            provider_overflow_penalty_native_tiers=preset.provider_overflow_penalty_native_tiers,
+            provider_overflow_penalty_heuristic_tiers=preset.provider_overflow_penalty_heuristic_tiers,
+            counter_uncertainty_reserve_policy=preset.counter_uncertainty_reserve_policy,
+            max_budget_retries=9,
+        ),
+    )
 
     token_counter = object()
     model = SimpleNamespace(token_counter=token_counter)
@@ -146,6 +255,10 @@ def test_build_action_v1_runtime_settings_uses_manager_config(monkeypatch) -> No
     assert runtime_settings.token_counter is token_counter
     assert runtime_settings.context_token_limit == 16384
     assert runtime_settings.working_memory_budget.generation_reserve_tokens == 1024
+    assert runtime_settings.recall_preset.retrieval_limit == 7
+    assert runtime_settings.summary_preset.max_action_items_per_block == 11
+    assert runtime_settings.summary_preset.recall_note_title == "Recall title from env"
+    assert runtime_settings.provider_runtime_preset.max_budget_retries == 9
     assert runtime_settings.longterm_sidecar.enabled is True
     assert runtime_settings.longterm_sidecar.store is fake_store
     assert runtime_settings.model_backend_family == "deepseek"

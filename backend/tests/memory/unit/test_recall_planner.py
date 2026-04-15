@@ -6,6 +6,7 @@ from app.memory.config import (
     RecallPresetConfig,
     TokenCounterLike,
 )
+from app.memory.episodic_memory import StepRecord, StepRecordKind, StepSegment
 from app.memory.recall_planner import RecallPlanner, RecallPreparation, RecallRuntimeState
 from app.memory.retrieval_policy import RetrievalPolicy
 from app.memory.working_memory import (
@@ -15,7 +16,6 @@ from app.memory.working_memory import (
     MemoryState,
     RecentWorkingMemory,
 )
-from app.memory.episodic_memory import StepRecord, StepRecordKind, StepSegment
 
 
 class FixedTokenCounter(TokenCounterLike):

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+import json
+import os
 from dataclasses import dataclass, field
 from enum import Enum
-import os
-from typing import Mapping, Protocol
+from typing import Any, Mapping, Protocol
 
 from camel.messages import BaseMessage
-
 
 UPSTREAM_OBSERVATION_WRAPPER = (
     "Please perform social media actions after observing the "
@@ -90,7 +89,9 @@ class SummaryPresetConfig:
     def validate(self) -> None:
         positive_fields = {
             "max_action_items_per_block": self.max_action_items_per_block,
-            "compressed_action_block_drop_protected_count": self.compressed_action_block_drop_protected_count,
+            "compressed_action_block_drop_protected_count": (
+                self.compressed_action_block_drop_protected_count
+            ),
             "max_action_items_per_recent_turn": self.max_action_items_per_recent_turn,
             "max_authored_excerpt_chars": self.max_authored_excerpt_chars,
             "max_target_summary_chars": self.max_target_summary_chars,
@@ -285,11 +286,35 @@ class ProviderRuntimePresetConfig:
             },
         }
     )
+    provider_overflow_penalty_native_tiers: tuple[tuple[int, float], ...] = (
+        (256, 0.03),
+        (512, 0.06),
+    )
+    provider_overflow_penalty_heuristic_tiers: tuple[tuple[int, float], ...] = (
+        (512, 0.06),
+        (1024, 0.12),
+    )
+    counter_uncertainty_reserve_policy: str = "heuristic_10pct_min256"
     max_budget_retries: int = 4
 
     def validate(self) -> None:
         if "*" not in self.provider_error_matchers:
             raise ValueError("provider_error_matchers must include '*' fallback.")
+        if not self.counter_uncertainty_reserve_policy.strip():
+            raise ValueError("counter_uncertainty_reserve_policy must be non-empty.")
+        for name, tiers in {
+            "provider_overflow_penalty_native_tiers": self.provider_overflow_penalty_native_tiers,
+            "provider_overflow_penalty_heuristic_tiers": (
+                self.provider_overflow_penalty_heuristic_tiers
+            ),
+        }.items():
+            if not tiers:
+                raise ValueError(f"{name} must contain at least one tier.")
+            for minimum_tokens, ratio in tiers:
+                if minimum_tokens <= 0:
+                    raise ValueError(f"{name} minimum tokens must be positive.")
+                if ratio <= 0:
+                    raise ValueError(f"{name} ratios must be positive.")
         if self.max_budget_retries <= 0:
             raise ValueError("max_budget_retries must be positive.")
 
@@ -502,6 +527,188 @@ def apply_working_memory_env_overrides(
     )
 
 
+def apply_recall_env_overrides(
+    preset: RecallPresetConfig,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> RecallPresetConfig:
+    env = environ or os.environ
+    return RecallPresetConfig(
+        retrieval_limit=_env_int(
+            env,
+            "OASIS_V1_RECALL_LIMIT",
+            preset.retrieval_limit,
+        ),
+        cooldown_steps=_env_int(
+            env,
+            "OASIS_V1_RECALL_COOLDOWN_STEPS",
+            preset.cooldown_steps,
+        ),
+        min_trigger_entity_count=_env_int(
+            env,
+            "OASIS_V1_RECALL_MIN_TRIGGER_ENTITY_COUNT",
+            preset.min_trigger_entity_count,
+        ),
+        allow_topic_trigger=_env_bool(
+            env,
+            "OASIS_V1_RECALL_ALLOW_TOPIC_TRIGGER",
+            preset.allow_topic_trigger,
+        ),
+        allow_anchor_trigger=_env_bool(
+            env,
+            "OASIS_V1_RECALL_ALLOW_ANCHOR_TRIGGER",
+            preset.allow_anchor_trigger,
+        ),
+        allow_recent_action_trigger=_env_bool(
+            env,
+            "OASIS_V1_RECALL_ALLOW_RECENT_ACTION_TRIGGER",
+            preset.allow_recent_action_trigger,
+        ),
+        allow_self_authored_trigger=_env_bool(
+            env,
+            "OASIS_V1_RECALL_ALLOW_SELF_AUTHORED_TRIGGER",
+            preset.allow_self_authored_trigger,
+        ),
+        deny_repeated_query_within_steps=_env_int(
+            env,
+            "OASIS_V1_RECALL_DENY_REPEATED_QUERY_WITHIN_STEPS",
+            preset.deny_repeated_query_within_steps,
+        ),
+        max_reason_trace_chars=_env_int(
+            env,
+            "OASIS_V1_RECALL_MAX_REASON_TRACE_CHARS",
+            preset.max_reason_trace_chars,
+        ),
+    )
+
+
+def apply_summary_env_overrides(
+    preset: SummaryPresetConfig,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> SummaryPresetConfig:
+    env = environ or os.environ
+    return SummaryPresetConfig(
+        max_action_items_per_block=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_ACTION_ITEMS_PER_BLOCK",
+            preset.max_action_items_per_block,
+        ),
+        compressed_action_block_drop_protected_count=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_COMPRESSED_ACTION_BLOCK_DROP_PROTECTED_COUNT",
+            preset.compressed_action_block_drop_protected_count,
+        ),
+        max_action_items_per_recent_turn=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_ACTION_ITEMS_PER_RECENT_TURN",
+            preset.max_action_items_per_recent_turn,
+        ),
+        max_authored_excerpt_chars=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_AUTHORED_EXCERPT_CHARS",
+            preset.max_authored_excerpt_chars,
+        ),
+        max_target_summary_chars=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_TARGET_SUMMARY_CHARS",
+            preset.max_target_summary_chars,
+        ),
+        max_local_context_chars=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_LOCAL_CONTEXT_CHARS",
+            preset.max_local_context_chars,
+        ),
+        max_summary_merge_span=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_MERGE_SPAN",
+            preset.max_summary_merge_span,
+        ),
+        max_heartbeat_entity_samples=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_HEARTBEAT_ENTITY_SAMPLES",
+            preset.max_heartbeat_entity_samples,
+        ),
+        max_anchor_items_per_block=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_ANCHOR_ITEMS_PER_BLOCK",
+            preset.max_anchor_items_per_block,
+        ),
+        max_entities_per_heartbeat=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_ENTITIES_PER_HEARTBEAT",
+            preset.max_entities_per_heartbeat,
+        ),
+        max_state_changes_per_turn=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_STATE_CHANGES_PER_TURN",
+            preset.max_state_changes_per_turn,
+        ),
+        max_outcome_digest_chars=_env_int(
+            env,
+            "OASIS_V1_SUMMARY_MAX_OUTCOME_DIGEST_CHARS",
+            preset.max_outcome_digest_chars,
+        ),
+        compressed_note_title=_env_str(
+            env,
+            "OASIS_V1_SUMMARY_COMPRESSED_NOTE_TITLE",
+            preset.compressed_note_title,
+        ),
+        recall_note_title=_env_str(
+            env,
+            "OASIS_V1_SUMMARY_RECALL_NOTE_TITLE",
+            preset.recall_note_title,
+        ),
+        omit_empty_template_fields=_env_bool(
+            env,
+            "OASIS_V1_SUMMARY_OMIT_EMPTY_TEMPLATE_FIELDS",
+            preset.omit_empty_template_fields,
+        ),
+    )
+
+
+def apply_provider_runtime_env_overrides(
+    preset: ProviderRuntimePresetConfig,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ProviderRuntimePresetConfig:
+    env = environ or os.environ
+    matcher_file = _env_str(
+        env,
+        "OASIS_V1_PROVIDER_ERROR_MATCHERS_FILE",
+        "",
+    )
+    provider_error_matchers = preset.provider_error_matchers
+    if matcher_file:
+        provider_error_matchers = _merge_provider_error_matchers(
+            provider_error_matchers,
+            _load_provider_error_matchers(matcher_file),
+        )
+    return ProviderRuntimePresetConfig(
+        provider_error_matchers=provider_error_matchers,
+        provider_overflow_penalty_native_tiers=_env_tiers(
+            env,
+            "OASIS_V1_PROVIDER_NATIVE_OVERFLOW_TIERS",
+            preset.provider_overflow_penalty_native_tiers,
+        ),
+        provider_overflow_penalty_heuristic_tiers=_env_tiers(
+            env,
+            "OASIS_V1_PROVIDER_HEURISTIC_OVERFLOW_TIERS",
+            preset.provider_overflow_penalty_heuristic_tiers,
+        ),
+        counter_uncertainty_reserve_policy=_env_str(
+            env,
+            "OASIS_V1_PROVIDER_COUNTER_UNCERTAINTY_RESERVE_POLICY",
+            preset.counter_uncertainty_reserve_policy,
+        ),
+        max_budget_retries=_env_int(
+            env,
+            "OASIS_V1_PROVIDER_MAX_BUDGET_RETRIES",
+            preset.max_budget_retries,
+        ),
+    )
+
+
 def _env_int(environ: Mapping[str, str], key: str, default: int) -> int:
     value = environ.get(key)
     if value in (None, ""):
@@ -514,3 +721,185 @@ def _env_float(environ: Mapping[str, str], key: str, default: float) -> float:
     if value in (None, ""):
         return default
     return float(value)
+
+
+def _env_bool(environ: Mapping[str, str], key: str, default: bool) -> bool:
+    value = environ.get(key)
+    if value in (None, ""):
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{key} must be a boolean-like value.")
+
+
+def _env_str(environ: Mapping[str, str], key: str, default: str) -> str:
+    value = environ.get(key)
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
+def _env_tiers(
+    environ: Mapping[str, str],
+    key: str,
+    default: tuple[tuple[int, float], ...],
+) -> tuple[tuple[int, float], ...]:
+    value = environ.get(key)
+    if value in (None, ""):
+        return default
+
+    tiers: list[tuple[int, float]] = []
+    for item in str(value).split(","):
+        chunk = item.strip()
+        if not chunk:
+            continue
+        minimum_raw, ratio_raw = chunk.split(":", maxsplit=1)
+        tiers.append((int(minimum_raw.strip()), float(ratio_raw.strip())))
+    if not tiers:
+        raise ValueError(f"{key} must contain at least one tier.")
+    return tuple(tiers)
+
+
+def _load_provider_error_matchers(path: str) -> dict[str, dict[str, Any]]:
+    with open(path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, Mapping):
+        raise ValueError("provider matcher payload must be a mapping.")
+
+    normalized: dict[str, dict[str, Any]] = {}
+    for provider, category_map in payload.items():
+        if not isinstance(category_map, Mapping):
+            raise ValueError("provider matcher categories must be mappings.")
+        normalized[str(provider)] = _normalize_provider_matcher_family(category_map)
+    return normalized
+
+
+def _merge_provider_error_matchers(
+    base: Mapping[str, Mapping[str, Any]],
+    overlay: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    merged = {
+        str(provider): _normalize_provider_matcher_family(category_map)
+        for provider, category_map in base.items()
+    }
+    for provider, category_map in overlay.items():
+        target = merged.setdefault(str(provider), _normalize_provider_matcher_family({}))
+        normalized_family = _normalize_provider_matcher_family(category_map)
+        target["structured"] = _merge_structured_matcher_section(
+            target.get("structured", {}),
+            normalized_family.get("structured", {}),
+        )
+        target["normalized_patterns"] = _merge_nested_matcher_section(
+            target.get("normalized_patterns", {}),
+            normalized_family.get("normalized_patterns", {}),
+        )
+        target["raw_patterns"] = _merge_nested_matcher_section(
+            target.get("raw_patterns", {}),
+            normalized_family.get("raw_patterns", {}),
+        )
+    return merged
+
+
+def _normalize_provider_matcher_family(
+    category_map: Mapping[str, Any],
+) -> dict[str, dict[str, tuple[Any, ...]]]:
+    reserved_keys = {"structured", "normalized_patterns", "raw_patterns"}
+    has_new_schema_key = any(key in category_map for key in reserved_keys)
+    if not has_new_schema_key:
+        return {
+            "structured": {
+                "status_codes": {},
+                "error_codes": {},
+                "exception_types": {},
+            },
+            "normalized_patterns": {
+                str(category): _normalize_matcher_tuple(patterns, cast="str")
+                for category, patterns in category_map.items()
+            },
+            "raw_patterns": {},
+        }
+    mixed_flat_keys = [
+        str(key) for key in category_map.keys() if str(key) not in reserved_keys
+    ]
+    if mixed_flat_keys:
+        raise ValueError(
+            "provider matcher family cannot mix legacy flat categories with new-schema sections."
+        )
+
+    structured = category_map.get("structured", {}) or {}
+    normalized_patterns = category_map.get("normalized_patterns", {}) or {}
+    raw_patterns = category_map.get("raw_patterns", {}) or {}
+    if not isinstance(structured, Mapping):
+        raise ValueError("provider matcher structured section must be a mapping.")
+    if not isinstance(normalized_patterns, Mapping):
+        raise ValueError("provider matcher normalized_patterns section must be a mapping.")
+    if not isinstance(raw_patterns, Mapping):
+        raise ValueError("provider matcher raw_patterns section must be a mapping.")
+    return {
+        "structured": {
+            "status_codes": {
+                str(category): _normalize_matcher_tuple(patterns, cast="int")
+                for category, patterns in (structured.get("status_codes", {}) or {}).items()
+            },
+            "error_codes": {
+                str(category): _normalize_matcher_tuple(patterns, cast="str")
+                for category, patterns in (structured.get("error_codes", {}) or {}).items()
+            },
+            "exception_types": {
+                str(category): _normalize_matcher_tuple(patterns, cast="str")
+                for category, patterns in (structured.get("exception_types", {}) or {}).items()
+            },
+        },
+        "normalized_patterns": {
+            str(category): _normalize_matcher_tuple(patterns, cast="str")
+            for category, patterns in normalized_patterns.items()
+        },
+        "raw_patterns": {
+            str(category): _normalize_matcher_tuple(patterns, cast="str")
+            for category, patterns in raw_patterns.items()
+        },
+    }
+
+
+def _normalize_matcher_tuple(
+    patterns: Any,
+    *,
+    cast: str,
+) -> tuple[Any, ...]:
+    if not isinstance(patterns, (list, tuple)):
+        raise ValueError("provider matcher patterns must be a list.")
+    if cast == "int":
+        return tuple(int(pattern) for pattern in patterns)
+    return tuple(str(pattern).strip() for pattern in patterns if str(pattern).strip())
+
+
+def _merge_nested_matcher_section(
+    base: Mapping[str, tuple[Any, ...]],
+    overlay: Mapping[str, tuple[Any, ...]],
+) -> dict[str, tuple[Any, ...]]:
+    merged = {str(category): tuple(values) for category, values in base.items()}
+    for category, values in overlay.items():
+        merged[str(category)] = tuple(values)
+    return merged
+
+
+def _merge_structured_matcher_section(
+    base: Mapping[str, Mapping[str, tuple[Any, ...]]],
+    overlay: Mapping[str, Mapping[str, tuple[Any, ...]]],
+) -> dict[str, dict[str, tuple[Any, ...]]]:
+    merged = {
+        str(section): {
+            str(category): tuple(values)
+            for category, values in categories.items()
+        }
+        for section, categories in base.items()
+    }
+    for section, categories in overlay.items():
+        target = merged.setdefault(str(section), {})
+        for category, values in categories.items():
+            target[str(category)] = tuple(values)
+    return merged

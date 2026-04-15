@@ -56,18 +56,23 @@
 - `manual`
   - 由 `socitwin` 自己读取配置，并逐个创建 agent
 - `file`
-  - 当前仍借用 OASIS 上游 `generate_twitter_agent_graph(...)` / `generate_reddit_agent_graph(...)`
+  - `upstream` 仍借用 OASIS 上游 `generate_twitter_agent_graph(...)` / `generate_reddit_agent_graph(...)`
+  - `action_v1` 已改为在新仓库内解析 file profile，再复用 `_build_social_agent(...)`
 
 这意味着：
 
 - `template/manual` 可以自然切入 `memory/agent.py`
-- `file` 不能自然切入，因为它绕开了新仓库自己的 agent builder
+- `file` 在 `action_v1` 下也已经纳入了新仓库自己的 agent builder
+- 但 `upstream` 与 `action_v1` 在 file source 下仍保持不同实现路径
 
 因此迁移阶段必须明确：
 
-- `action_v1` 当前只覆盖 `template/manual`
-- `file` 在 `action_v1` 下应显式报未迁移
-- 不应为了暂时“看起来全支持”而偷偷回退到原生 `SocialAgent`
+- `upstream` 可继续沿用上游 graph generator
+- `action_v1` 不应回退到原生 `SocialAgent`
+- `action_v1` 的 file parser 至少应兼容：
+  - 上游原生 Twitter CSV
+  - 上游原生 Reddit JSON
+  - 新仓库文档中整理过的统一字段子集
 
 ## 3. Old -> New Module Mapping
 
@@ -156,6 +161,12 @@
 - 已记录的剩余迁移差异；
 - 后续需要继续核对是否要补成更接近旧仓库 `llm.py` 的统一 runtime 包装。
 
+同时当前迁移边界也应明确：
+
+- 不以“把旧 `context/llm.py` 原样补回”为目标；
+- 只在它已经造成明确运行语义偏差或工程阻塞时，才考虑在新仓库里补一个更小的 model runtime helper；
+- 该 helper 应服从新仓库当前目录与职责边界，而不是回退成旧仓库壳。
+
 ### 3.4 Long-term / recall modules
 
 | 旧模块 | 当前职责 | 新位置建议 | 迁移方式 | 说明 |
@@ -197,16 +208,16 @@
 
 ### 4.3 File-based agent graph builder
 
-`action_v1 + file` 的最终补法，本质上需要一个新的 file-based agent graph builder。
+当前 `action_v1 + file` 已采用新的 file-based agent graph builder 思路落地。
 
-它的职责应当是：
+它当前承担：
 
-- 读取旧 file profile
+- 读取 Twitter CSV / Reddit JSON profile
 - 在 `socitwin` 内部重建 `UserInfo`
-- 调用新仓库自己的 mode-aware agent builder
+- 调用新仓库自己的 mode-aware `_build_social_agent(...)`
 - 最终生成 `AgentGraph`
 
-这部分不建议复用上游 `generate_*_agent_graph()` 作为最终方案，因为那会持续绕开 `memory/runtime.py` 和 `memory/agent.py`。
+这部分当前已经不再复用上游 `generate_*_agent_graph()` 作为 `action_v1` 的最终方案，因为那会持续绕开 `memory/runtime.py` 和 `memory/agent.py`。
 
 ## 5. Minimal Frontend Contract Notes
 
@@ -237,7 +248,6 @@
 
 当前还应额外记住一个迁移现实：
 
-- `file` 不属于第一波必须跑通项；
 - 第一波真正的“可运行主线”应定义为：
   - `upstream`：`template/manual/file`
-  - `action_v1`：`template/manual`
+  - `action_v1`：`template/manual/file`

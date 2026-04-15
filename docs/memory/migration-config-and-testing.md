@@ -59,10 +59,20 @@
   - `OASIS_LONGTERM_*` 的最小正式落点
   - `OASIS_V1_OBS_*`
   - `OASIS_V1_RECENT_* / COMPRESSED_* / RECALL_BUDGET_RATIO / GENERATION_RESERVE_TOKENS`
-- 仍未完整接入：
-  - `OASIS_V1_RECALL_*` 其余细项
+  - `OASIS_V1_RECALL_*`
   - `OASIS_V1_SUMMARY_*`
-  - `OASIS_V1_PROVIDER_*` 的旧仓库完整兼容面
+  - `OASIS_V1_PROVIDER_*`
+
+当前更准确的表述应是：
+
+- 旧仓库这三类 preset env 已经进入新仓库 `action_v1` runtime settings；
+- `OASISManager._build_action_v1_runtime_settings()` 已真实吃到：
+  - recall preset overrides
+  - summary preset overrides
+  - provider runtime preset overrides
+- 但这不等于“旧仓库预算/overflow 语义整套回滚”；
+  - 本轮恢复的是配置承载与接线；
+  - 没有借迁移重新打开 budget tree / reserve policy / recall algorithm 设计。
 
 这意味着当前新仓库已经具备让 `action_v1` 跑起来的最小配置面，但还没有把旧仓库全部调参表面一次性恢复。
 
@@ -117,8 +127,9 @@
 
 当前实际状态是：
 
-- 前 4 类已开始落地
-- 第 5~7 类仍应继续按“先需要、再补齐”的顺序推进
+- 第 1~7 类已经都有新仓库落点；
+- 第 5~7 类已经进入 `action_v1` runtime settings；
+- 但 provider overflow / budget reserve 相关配置当前只恢复“配置承载与接线”，不等于把旧仓库预算语义整套重开或回滚。
 
 原因：
 
@@ -171,9 +182,13 @@
 
 这些应尽量优先恢复：
 
+- `test_budget_recovery.py`
+- `test_observation_policy.py`
+- `test_observation_semantics.py`
 - `test_observation_shaper.py`
 - `test_prompt_assembler.py`
 - `test_consolidator.py`
+- `test_retrieval_policy.py`
 - `test_recall_planner.py`
 - `test_runtime_failures.py`
 
@@ -201,7 +216,17 @@
 - `action_v1` 在 `manual` source 下的 `initialize()`
 - `action_v1` 在 `manual` source 下的 `step()` 假环境 smoke
 - `action_v1` 在 `template` source 下的 `initialize()` smoke
-- `action_v1` 在 `file` source 下的显式拒绝
+- `action_v1` 在 `file` source 下的 parser / builder 验证
+- 旧仓库关键模块 contract 的新仓库单测覆盖：
+  - `budget_recovery`
+  - `observation_policy`
+  - `observation_semantics`
+  - `observation_shaper`
+  - `prompt_assembler`
+  - `consolidator`
+  - `retrieval_policy`
+  - `recall_planner`
+  - `runtime_failures`
 
 这意味着现在已经不只是模块单测通过，而是：
 
@@ -465,6 +490,40 @@
 
 1. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook；
 2. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出。
+
+### 8.1 Topic activation memory boundary
+
+当前已核对的新仓库事实是：
+
+- topic activation 会主动调用 `OASISManager.step(...)`；
+- 初始贴文使用 `ManualAction(ActionType.CREATE_POST)`；
+- 后续刷新使用 `ManualAction(ActionType.REFRESH)`；
+- OASIS 原生 `env.step(...)` 对 `ManualAction` 会调用 agent 的 `perform_action_by_data(...)`；
+- 当前 `action_v1` 的 `ActionEvidence -> ActionEpisode -> long-term` 写入链只接在 `ContextSocialAgent.perform_action_by_llm()`。
+
+因此当前语义边界是：
+
+- topic activation 产生的 seed post / refresh 能进入平台数据库与后续 observation；
+- 但它们不会作为 `action_v1` 的普通 LLM 决策步骤写入 `ActionEpisode`；
+- 也不会以普通 agent 自主行为的形式进入 long-term recall 主链。
+
+这不一定是错误，因为 topic activation 更像实验注入 / 环境初始化，而不是 agent 自主决策。
+但它必须被显式记录，避免之后误以为“所有 step 都会进入 action_v1 记忆”。
+
+后续可选处理路线：
+
+- 保持当前行为：
+  - topic activation 只作为环境种子；
+  - 不污染 agent 自主行动记忆；
+  - 这是当前迁移阶段风险最低的选择。
+- 增加专门 trace：
+  - 把 topic activation 作为 `environment_seed` / `experiment_injection` 记录到 memory debug；
+  - 不写入普通 `ActionEpisode`；
+  - 适合后续做可解释性和实验复现。
+- 接入 action episode：
+  - 需要为 `ManualAction` 补独立 evidence/outcome 构造；
+  - 容易把“实验注入”和“agent 自主行为”混在一起；
+  - 不建议在迁移阶段直接做。
 
 当前已经按下面方向收口：
 

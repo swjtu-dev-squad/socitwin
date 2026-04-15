@@ -39,18 +39,25 @@
 
 ### 1.3 Agent source migration boundary
 
-`action_v1` 在新仓库第一阶段只承诺支持：
+`action_v1` 在新仓库第一阶段已经接入：
 
 - `template`
 - `manual`
+- `file`
 
-`agent_source=file` 当前不作为第一阶段交付项，必须保持：
+`agent_source=file` 当前已经补入 `action_v1`，但补法不是继续依赖上游 graph generator，而是：
 
-- 显式未迁移
-- 明确报错
-- 不允许静默回退到 `upstream`
+- `upstream`
+  - 继续允许直接走 OASIS 上游 `generate_*_agent_graph(...)`
+- `action_v1`
+  - 自己解析 file profile
+  - 再进入新仓库自己的 `_build_social_agent(...)`
 
-这不是功能遗忘，而是当前架构边界下的有意决策。
+这样做的目的是：
+
+- 不污染 `upstream` 路径；
+- 不把 `action_v1` 再绕回原生 `SocialAgent`；
+- 用最小实现把 `file` 纳入新仓库自己的 agent builder 体系。
 
 原因是：
 
@@ -61,18 +68,12 @@
   - `generate_reddit_agent_graph(...)`
 - 上游这两个函数会在内部直接创建原生 `SocialAgent`，不会经过新仓库的 `memory/runtime.py` 和 `memory/agent.py` 装配层。
 
-因此，`file` 要支持 `action_v1`，本质上不是补一个分支，而是要：
+因此当前的落地结论是：
 
-- 重建 file-based agent graph 生成路径，让它也走新仓库自己的 agent builder；
-- 或者侵入式接管 OASIS 上游 graph generator 的内部行为。
-
-第一种是后续合理补法，第二种当前不建议采用。
-
-所以当前应把 `file` 理解为：
-
-- 不是新架构凭空制造出来的问题；
-- 而是旧仓库阶段原本就借用了 OASIS 原生 graph 生成捷径；
-- 到了新仓库做 mode-aware clean split 时，这个历史耦合被显式暴露出来了。
+- `file` 已不再是 `action_v1` 的迁移阻塞项；
+- 但 `upstream` 与 `action_v1` 在 file source 下的实现路径仍然不同：
+  - `upstream` 保持原生；
+  - `action_v1` 走自建解析与装配。
 
 ## 2. Directory Responsibility Notes
 
@@ -125,17 +126,19 @@
 
 下面这些问题尚未最终冻结：
 
-- 新仓库的 memory 配置命名是否继续沿用旧仓库 `OASIS_MODEL_*` / `OASIS_V1_*` 体系；
 - 前端 memory API 本轮是否只定义契约，不实现真实展示。
 
 这些问题不影响当前先确定“两模式 + 独立 memory 目录”这两个基础边界。
 
-当前推荐但尚未最终确认的方向：
+当前已经采用的方向：
 
 - memory 配置命名先采用“兼容层”策略；
   - 先支持旧仓库 `OASIS_MODEL_*` / `OASIS_V1_*`；
   - 内部再映射到新仓库 settings；
   - 等主链稳定后再考虑是否统一改名。
+
+当前推荐但尚未最终确认的方向：
+
 - 前端本轮不作为迁移阻塞项；
   - 先保证后端 memory 主链、配置、测试、文档完整可靠；
   - 前端只保留最小契约盘点，不抢占主链迁移优先级。
@@ -145,20 +148,31 @@
   - `backend/tests/memory/integration/`
   - `backend/tests/memory/evaluation/`
 
-### 4.1 Deferred `file` source support in `action_v1`
+### 4.1 `file` source support in `action_v1`
 
-后续若要补 `action_v1 + agent_source=file`，建议路线已经基本固定为：
+`action_v1 + agent_source=file` 当前已经按下面路线落地：
 
-- 不继续依赖 OASIS 上游 `generate_*_agent_graph()` 作为最终装配入口；
-- 改为读取 file profile 后，在 `socitwin` 内部重建：
+- 不继续依赖 OASIS 上游 `generate_*_agent_graph()` 作为 `action_v1` 的最终装配入口；
+- 读取 file profile 后，在 `socitwin` 内部重建：
   - `UserInfo`
   - `ActionV1RuntimeSettings`
   - `ContextSocialAgent`
   - `AgentGraph`
 
-也就是说，未来补法应当是“把 file 路径纳入新仓库自己的 agent builder 体系”，而不是继续把它留在原生 OASIS 快捷入口之外。
+也就是说，当前补法已经把 file 路径纳入新仓库自己的 agent builder 体系，而不是继续把它留在原生 OASIS 快捷入口之外。
 
-### 4.1 Memory status exposure route
+当前支持边界是：
+
+- Twitter CSV：
+  - 兼容上游常用字段 `name,username,user_char,description`
+  - 同时兼容新仓库整理过的 `agent_id/user_name/profile/interests` 等统一字段子集
+- Reddit JSON：
+  - 兼容上游常用字段 `username,realname,bio,persona,age,gender,mbti,country`
+  - 同时兼容统一字段子集
+
+当前验证边界是 parser / builder 单测级别，真实 provider 级长跑仍属于更重的按需验证。
+
+### 4.2 Memory status exposure route
 
 memory 运行状态不继续主要堆进：
 
@@ -175,7 +189,7 @@ memory 运行状态不继续主要堆进：
 - 避免把 `upstream` 和 `action_v1` 的内部状态边界搅混；
 - 更利于后续测试、调试和前端渐进接入。
 
-### 4.2 Mode config entry
+### 4.3 Mode config entry
 
 当前推荐方案：
 
@@ -191,6 +205,27 @@ memory 运行状态不继续主要堆进：
 - 可以把 `action_v1` 的迁入过程和默认运行行为解耦，降低回归风险。
 
 待迁移主链稳定后，再评估默认值是否需要改成 `action_v1`。
+
+### 4.4 Deferred model runtime packaging
+
+旧仓库 `context/llm.py` 负责的不是记忆主 contract，而是一层模型 runtime 包装，主要包括：
+
+- shared model runtime 构造
+- `context_token_limit` 与 `generation_max_tokens` 的显式分离
+- token counter 解析 / fallback
+- pooled model 一致性约束
+
+结合当前迁移定位，本轮决策应明确为：
+
+- 不机械迁移旧 `context/llm.py` 原文件；
+- 不把这层包装当成当前记忆主链未恢复的阻塞项；
+- 只把其中“context / generation 语义分离”等仍有工程价值的部分，记录为后续按需补强点。
+
+原因：
+
+- 这层属于模型基础设施包装，不是 `action_v1` 记忆语义主链本身；
+- 迁移期整块搬回容易把旧壳重新带入新仓库；
+- 也容易借机重新打开预算树 / token limit 语义问题，偏离本轮“保主 contract、清结构债、禁止语义重开”的边界。
 
 ## 5. Migration-As-Refactor Position
 

@@ -33,8 +33,8 @@
 - Phase 3 已基本完成
   - observation / episodic / short-term / prompt / recall / long-term / runtime-failure 主模块已迁入
   - `action_v1` 已接入新仓库 runtime
-  - 当前第一阶段只承诺 `template/manual`
-  - `agent_source=file` 在 `action_v1` 下应保持显式未迁移
+  - 当前已覆盖 `template/manual/file`
+  - `agent_source=file` 在 `action_v1` 下已接入新仓库自己的 file parser + agent builder
 - Phase 4 已基本完成
   - memory debug snapshot 已恢复
   - `/api/sim/memory` monitor/debug 接口已落地
@@ -49,9 +49,7 @@
 
 未完成部分仍包括：
 
-- `action_v1 + file` source 迁移
 - `comparison` 的更完整真实 provider 级稳定验证
-- 旧仓库 `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 的完整兼容层
 - 旧仓库 `context/llm.py` 那层更完整的模型 runtime 包装
 
 当前已经完成但需要和“完整实跑”区分开的部分是：
@@ -59,7 +57,7 @@
 - `action_v1` 的 manager-level smoke
   - `manual` source 下的 initialize/step 假环境验证
   - `template` source 下的 initialize 假环境验证
-  - `file` source 下的显式未迁移验证
+  - `file` source 下的 parser / builder 单测验证
 
 ## 2. Phase 0: Freeze Scope
 

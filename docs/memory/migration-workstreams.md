@@ -68,7 +68,7 @@
 - 新仓库的 memory runtime 骨架已建立
 - `upstream` 已显式化，不再只是隐式默认路径
 - `action_v1` 的核心模块已迁入 `backend/app/memory/`
-- `action_v1` 已在 `template/manual` 下接入新仓库 runtime 主链
+- `action_v1` 已在 `template/manual/file` 下接入新仓库 runtime 主链
 - memory debug snapshot 与 `/api/sim/memory` 已恢复
 - system evaluation harness 已恢复到：
   - `preflight`
@@ -278,10 +278,14 @@
 
 ### Layer A: module tests
 
+- budget recovery
+- observation policy
+- observation semantics
 - observation shaping
 - working memory
 - consolidator
 - prompt assembler
+- retrieval policy
 - recall planner
 - long-term backend adapter
 
@@ -313,9 +317,13 @@
 
 ### A. 优先直接迁语义
 
+- `test_budget_recovery.py`
+- `test_observation_policy.py`
+- `test_observation_semantics.py`
 - `test_observation_shaper.py`
 - `test_prompt_assembler.py`
 - `test_consolidator.py`
+- `test_retrieval_policy.py`
 - `test_recall_planner.py`
 - `test_runtime_failures.py`
 
@@ -353,10 +361,11 @@
 
 ## 6. Open Work Items
 
-- 继续细查 `oasis_manager.py` 与模型/agent 构造链，压实 memory runtime facade 的具体接线方式；
-- 继续把旧仓库各 memory 模块映射到新仓库 `backend/app/memory/` 下的文件级任务清单；
-- 明确 memory 配置命名是否继续沿用 `OASIS_MODEL_*` / `OASIS_V1_*`；
-- 明确 system evaluation harness 在新仓库中的落点。
+- 旧仓库 `context/llm.py` 对应的模型 runtime 包装仍未等价恢复；
+- `comparison` 的真实 provider 级稳定长跑验证仍应作为按需重验证项；
+- `topic activation` 已确认会通过 `ManualAction` 绕开普通 action_v1 episode 写入链；
+  当前建议先保持为环境种子，只记录为后续可选 trace hook；
+- memory monitor/debug 是否需要更细的 per-agent drill-down 输出仍待后续设计。
 
 当前新增的细化页面：
 

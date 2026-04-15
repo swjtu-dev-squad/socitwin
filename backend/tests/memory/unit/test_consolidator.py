@@ -3,6 +3,7 @@ from camel.messages import BaseMessage
 from app.memory.config import (
     ActionV1RuntimeSettings,
     SummaryPresetConfig,
+    TokenCounterLike,
     WorkingMemoryBudgetConfig,
 )
 from app.memory.consolidator import Consolidator
@@ -17,7 +18,6 @@ from app.memory.working_memory import (
     MemoryState,
     RecentWorkingMemory,
 )
-from app.memory.config import TokenCounterLike
 
 
 class FixedTokenCounter(TokenCounterLike):

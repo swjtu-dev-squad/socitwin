@@ -1,5 +1,12 @@
 from app.memory.config import SummaryPresetConfig
-from app.memory.episodic_memory import ActionEpisode, EpisodeRecord, HeartbeatRange, StepRecord, StepRecordKind, StepSegment
+from app.memory.episodic_memory import (
+    ActionEpisode,
+    EpisodeRecord,
+    HeartbeatRange,
+    StepRecord,
+    StepRecordKind,
+    StepSegment,
+)
 from app.memory.memory_rendering import (
     build_action_block_note_view,
     build_heartbeat_note_view,
@@ -7,9 +14,9 @@ from app.memory.memory_rendering import (
 )
 from app.memory.working_memory import (
     ActionSummaryBlock,
+    CompressedWorkingMemory,
     MemoryState,
     RecentWorkingMemory,
-    CompressedWorkingMemory,
     build_action_summary_block,
     build_recall_overlap_state_from_memory_state,
     episode_record_to_action_summary_block,

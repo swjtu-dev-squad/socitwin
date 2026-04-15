@@ -54,8 +54,6 @@
 
 ## 4. Current Main Risks
 
-- `action_v1 + file` source 仍未迁入；
-- 旧仓库 `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 兼容层仍未完整接回；
 - 旧仓库 `context/llm.py` 的独立模型 runtime 包装尚未以等价形态恢复；
 - `comparison` 虽已恢复到两模式代码/单测层，但真实 provider 级长跑验证仍偏重且结论不稳定。
 
@@ -64,8 +62,7 @@
 下一轮对照重点：
 
 1. 继续核对旧仓库剩余未迁移面：
-   - `action_v1 + file`
-   - recall / summary / provider env compatibility
+   - `context/llm.py` 对应的模型 runtime 包装差异
 2. 继续收口 `comparison` 的运行门控与指标口径；
 3. 在迁移完成态基础上，进入收尾验收与剩余缺口盘点。
 

@@ -1,5 +1,4 @@
 from camel.messages import BaseMessage
-from camel.types import OpenAIBackendRole
 
 from app.memory.config import ActionV1RuntimeSettings, ObservationPresetConfig
 from app.memory.observation_shaper import ObservationShaper

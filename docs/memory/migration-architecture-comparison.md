@@ -168,8 +168,7 @@
 
 当前新仓库仍未完全恢复旧记忆系统中的这些层：
 
-- `action_v1 + file` source
-- 旧仓库 recall / summary / provider env 兼容面的完整接回
+- 旧仓库 `context/llm.py` 对应的更完整模型 runtime 包装
 - 更稳定的真实 provider 级 comparison 长跑验证
 
 而下面这些层已经开始恢复，不再应被视为“完全缺失”：
@@ -215,8 +214,8 @@
 
 因此当前真正需要继续迁或继续收口的，不再是“有没有 memory runtime”，而是：
 
-- `file` source 还没有切入这条 runtime；
-- 某些旧配置兼容面还没完全补齐；
+- `file` source 已切入 `action_v1` 自建 parser / builder，但仍只完成 parser / builder 单测级验证；
+- 旧配置兼容面已经补到 runtime settings 层，但 provider overflow / budget reserve 语义没有借迁移重开；
 - comparison 的真实 provider 级运行与分析口径还没完全收口。
 
 ## 4. Core Gap
@@ -314,7 +313,8 @@
 但旧仓库的完整 env 兼容面还没有全部接回：
 
 - `OASIS_V1_OBS_*` 与 working-memory 关键 budget env 已兼容；
-- `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 仍未完整兼容。
+- `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 现在也已接入 `action_v1` runtime settings；
+- 但这轮恢复的是配置承载层，不代表旧仓库预算与 provider overflow 语义整套照搬回来了。
 
 并且 `SimulationConfig.llm_config.max_tokens` 在实际语义上更接近：
 
@@ -362,5 +362,4 @@
 当前真正剩下的测试缺口主要是：
 
 - `comparison` 的真实 provider 级稳定长跑验证；
-- `action_v1 + file` 的迁移后测试；
 - 更完整的配置兼容面回归测试。
