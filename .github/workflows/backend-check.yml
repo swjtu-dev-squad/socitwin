@@ -1,4 +1,4 @@
-name: Lint Check
+name: Backend Check
 
 on:
   push:
@@ -51,45 +51,4 @@ jobs:
           REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           uv run ruff check . --output-format=json | reviewdog -f=ruff-check -report="github-pr-review" -level=error
-        continue-on-error: true  # ✅ 无论结果如何都成功
-
-  frontend-lint:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install
-
-      # ESLint (硬性失败)
-      - name: Run ESLint
-        run: pnpm run lint
-        # ❌ 失败会阻断 CI
-
-      # Prettier (软性提示)
-      - name: Install Reviewdog
-        run: pnpm add -g reviewdog
-
-      - name: Run Prettier with Reviewdog
-        env:
-          REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          pnpm run format:check | reviewdog -f=prettier -report="github-pr-review" -level=warning
         continue-on-error: true  # ✅ 无论结果如何都成功

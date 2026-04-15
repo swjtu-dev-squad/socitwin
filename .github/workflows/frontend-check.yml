@@ -1,0 +1,48 @@
+name: Frontend Check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  frontend-style-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # Prettier (软性提示 - 发 PR Comment)
+      - name: Install Reviewdog
+        run: pnpm add -g reviewdog
+
+      - name: Run Prettier with Reviewdog
+        env:
+          REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm run format:check | reviewdog -f=prettier -report="github-pr-review" -level=warning
+        continue-on-error: true  # ✅ 格式问题不阻断 CI
+
+      # Build (硬性失败 - 阻断 CI)
+      - name: Build frontend
+        run: pnpm run build
+        # ❌ Build 失败会阻断 CI
