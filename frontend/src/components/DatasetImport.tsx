@@ -265,7 +265,7 @@ export function DatasetImport() {
                       <tr key={i} className="border-t border-border-default/30">
                         {Object.values(u)
                           .slice(0, 5)
-                          .map((v: any, j) => (
+                          .map((v: unknown, j) => (
                             <td key={j} className="pr-3 py-0.5 max-w-[120px] truncate">
                               {String(v || '')}
                             </td>

@@ -6,7 +6,6 @@ to current opinions using LLM-based evaluation.
 """
 
 import asyncio
-import json
 import logging
 import sqlite3
 from typing import Optional, List, Dict, Any

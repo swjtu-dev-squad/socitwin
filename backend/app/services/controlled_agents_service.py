@@ -2,7 +2,6 @@
 受控Agent服务 - 管理受控agents的业务逻辑
 """
 import logging
-from typing import List
 
 from app.core.oasis_manager import OASISManager
 from app.models.controlled_agents import (

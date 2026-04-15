@@ -7,7 +7,7 @@ This module defines data models for three key metrics:
 3. Herd Effect - Conformity and popularity-biased behavior patterns
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum

@@ -7,14 +7,13 @@ including information propagation, group polarization, and herd effect.
 
 import logging
 from datetime import timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException, Depends
 
 from app.core.dependencies import get_metrics_manager_dependency
 from app.services.metrics.metrics_manager import MetricsManager
 from app.models.metrics import (
-    MetricsResponse,
     MetricsSummary,
     PropagationMetrics,
     PolarizationMetrics,

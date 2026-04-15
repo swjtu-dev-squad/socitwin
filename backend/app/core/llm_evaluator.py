@@ -13,7 +13,6 @@ from typing import Dict, Any, Optional
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
-from app.models.metrics import PolarizationDirection
 
 
 logger = logging.getLogger(__name__)

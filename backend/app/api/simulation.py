@@ -6,7 +6,7 @@ OASIS 模拟 API 端点
 
 import logging
 import os
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from fastapi.responses import JSONResponse
@@ -14,7 +14,6 @@ from fastapi.responses import JSONResponse
 from app.models.simulation import (
     SimulationStatus,
     SimulationConfig,
-    SimulationState,
     StepRequest,
     StepType,
     ConfigResult,
@@ -22,8 +21,6 @@ from app.models.simulation import (
     StatusResult,
     LogFilters,
     LogResult,
-    ManualActionRequest,
-    OASISActionType,
 )
 from app.services.simulation_service import SimulationService
 from app.core.dependencies import get_simulation_service_dependency
@@ -522,7 +519,6 @@ async def get_agent_detail(
     try:
         import sqlite3
         import json
-        from datetime import datetime
 
         # 获取基本档案信息
         status = await service.get_status()

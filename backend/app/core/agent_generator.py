@@ -11,11 +11,10 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 
 from app.core.agent_profiles import (
-    AGE_GROUPS, GENDERS, COUNTRIES, REGIONS,
-    INTERESTS, ALL_INTERESTS, MBTI_TYPES,
+    AGE_GROUPS, GENDERS, COUNTRIES, INTERESTS, ALL_INTERESTS, MBTI_TYPES,
     PROFESSIONS, BIO_TEMPLATES, HOBBIES,
     POLITICAL_LEANINGS, TOPIC_PREFERENCES,
-    ACTIVITY_LEVELS, get_interests_by_category
+    ACTIVITY_LEVELS
 )
 
 logger = logging.getLogger(__name__)

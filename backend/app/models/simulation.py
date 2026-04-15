@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from enum import Enum
 from datetime import datetime
-import uuid
 
 
 # ============================================================================
@@ -314,7 +313,6 @@ class ExportResult(BaseModel):
 # This must be called after MetricsSummary is defined in metrics.py
 def resolve_simulation_forward_refs():
     """Resolve forward references in simulation models"""
-    from app.models.metrics import MetricsSummary
     SimulationStatus.model_rebuild()
 
 
