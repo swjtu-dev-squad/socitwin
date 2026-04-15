@@ -160,12 +160,12 @@ export default function Overview() {
   const availableOriginalUserCount = selectedTopicMeta?.user_count ?? 0;
   const originalUserSourceLabel = `原始用户 (${availableOriginalUserCount})`;
   // const platformLabelMap: Record<DatasetPlatform, string> = {
-    twitter: 'X / Twitter',
-    reddit: 'Reddit',
-    tiktok: 'TikTok',
-    instagram: 'Instagram',
-    facebook: 'Facebook',
-  };
+  //   twitter: 'X / Twitter',
+  //   reddit: 'Reddit',
+  //   tiktok: 'TikTok',
+  //   instagram: 'Instagram',
+  //   facebook: 'Facebook',
+  // };
   const [selectedUserSource, setSelectedUserSource] = useState<'topic-original'>('topic-original');
   const maxUserCount = availableOriginalUserCount;
   const isSupportedSimulationPlatform =
