@@ -272,19 +272,28 @@
 - 真实 smoke 过程中暴露出的 `RedditMemoryAdapter.format_action_fact` 迁移缺口已修复，并补了独立单测；
 - OpenAI-compatible embedding preflight 仍然依赖当前环境是否能从 WSL 访问到对应服务地址，不能把它和 heuristic-backed real-smoke 的可运行性混为一谈。
 
-当前不能把它误读成“旧仓库 harness 已完整迁回”。当前 `real-scenarios` 只恢复了第一版 `VAL-LTM-05 real_self_action_retrievability`，`VAL-RCL-08/09`、`real-longwindow`、`comparison` 仍需后续逐个迁入。
+当前不能把它误读成“旧仓库 harness 已完整迁回”。当前 `real-scenarios` 已恢复：
+
+- `VAL-LTM-05 real_self_action_retrievability`
+- `VAL-RCL-08 real_continuity_recall_probe`
+- `VAL-RCL-09 real_empty_observation_recall_suppression`
+
+但 `real-longwindow`、`comparison` 仍需后续逐个迁入。
 
 当前已验证的最新结果：
 
 - `embedding preflight` 已可通过本地 Ollama `http://127.0.0.1:11434/v1` 跑通，`nomic-embed-text:latest` 的 `embedding_dim=768`；
-- `real-scenarios` 最小真实 probe 已可跑通 2-agent / 3-step 的 `action_v1 + Chroma + OpenAI-compatible embedding`；
-- 当前新仓库首轮最小真实检索指标为：
-  - `hit_at_1=0.6667`
-  - `hit_at_3=1.0`
-  - `recall_at_3=1.0`
-  - `mrr=0.8333`
-  - `cross_agent_top3_count=0`
-  - `actual_persisted_action_episode_count=3`
+- `real-scenarios` 现在已可跑通 2-agent / 3-step 的 `action_v1 + Chroma + OpenAI-compatible embedding`；
+- 当前新仓库最新一轮真实场景结果：
+  - `VAL-LTM-05`: `pass`
+    - `hit_at_1=1.0`
+    - `hit_at_3=1.0`
+    - `recall_at_3=1.0`
+    - `mrr=1.0`
+    - `cross_agent_top3_count=0`
+    - `actual_persisted_action_episode_count=2`
+  - `VAL-RCL-08`: `pass`
+  - `VAL-RCL-09`: `pass`
 
 ## 7. Frontend And Status Notes
 

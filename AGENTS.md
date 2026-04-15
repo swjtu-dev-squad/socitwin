@@ -40,7 +40,7 @@ backend/
 │   └── memory/                   # 记忆系统 unit / integration / evaluation 测试
 ├── data/                         # 数据目录
 │   └── simulations/              # 模拟数据库（SQLite）
-├── test-result/                  # 测试结果（JSON）
+├── test-results/                 # 测试结果（JSON / memory eval）
 ├── pyproject.toml                # 项目配置（uv）
 ├── .env.example                  # 环境变量模板
 └── main.py                       # FastAPI 应用入口

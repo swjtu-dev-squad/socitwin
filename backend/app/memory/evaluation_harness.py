@@ -28,7 +28,8 @@ from .tokens import HeuristicUnicodeTokenCounter
 from .working_memory import MemoryState
 
 
-DEFAULT_OUTPUT_DIR = Path("test-results/memory-eval")
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "memory-eval"
 DEFAULT_PHASES = ("preflight", "deterministic")
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
@@ -664,7 +665,20 @@ def _build_real_scenario_events(
             store=store,
             candidates=candidates,
             base_metrics=base_metrics,
-        )
+        ),
+        _build_real_continuity_recall_probe_event(
+            agents=agents,
+            store=store,
+            candidates=candidates,
+            base_metrics=base_metrics,
+            next_step_id=int(manager.get_state_info().get("current_step", 0) or 0) + 1,
+        ),
+        _build_real_empty_observation_suppression_event(
+            agents=agents,
+            store=store,
+            base_metrics=base_metrics,
+            next_step_id=int(manager.get_state_info().get("current_step", 0) or 0) + 1,
+        ),
     ]
 
 
@@ -743,6 +757,182 @@ def _build_real_self_action_retrievability_event(
                 f"(hit_at_3={metrics['hit_at_3']}, threshold=0.8)."
             )
         ),
+    )
+
+
+def _build_real_continuity_recall_probe_event(
+    *,
+    agents: list[Any],
+    store: Any,
+    candidates: list[dict[str, Any]],
+    base_metrics: dict[str, Any],
+    next_step_id: int,
+) -> EvaluationEvent:
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for continuity recall probe.",
+        )
+    if not candidates:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No real action episode candidate was available for continuity recall probe.",
+        )
+
+    target = candidates[0]
+    agent = _context_agent_for_episode(agents, target) or _first_context_agent(agents)
+    if agent is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No ContextSocialAgent was available for recall probe.",
+        )
+
+    snapshot = _related_snapshot_from_episode(target)
+    query_text = _query_from_real_episode(target)
+    perception = agent._observation_policy.build_perception_envelope(  # noqa: SLF001
+        prompt_visible_snapshot=snapshot,
+        observation_prompt=query_text,
+    )
+    preparation = agent._recall_planner.prepare(  # noqa: SLF001
+        agent_id=target.get("agent_id"),
+        topic=perception.topic,
+        semantic_anchors=perception.semantic_anchors,
+        entities=perception.entities,
+        snapshot=perception.snapshot,
+        memory_state=agent._memory_state,  # noqa: SLF001
+        longterm_store=store,
+        next_step_id=next_step_id,
+        runtime_state=RecallRuntimeState(),
+    )
+    scored = _score_real_episode_retrieval_probe(
+        expected=target,
+        query_text=preparation.query_text,
+        retrieved=preparation.candidates,
+    )
+    metrics = {
+        **base_metrics,
+        "probe_scope": "retrieve_only",
+        "gate_decision": bool(preparation.gate_decision),
+        "retrieval_attempted": bool(preparation.retrieval_attempted),
+        "query_text": preparation.query_text,
+        "recalled_count": preparation.recalled_count,
+        "injected_count": 0,
+        "retrieved_step_ids": preparation.recalled_step_ids,
+        "first_hit_rank": scored["first_hit_rank"],
+        "hit_at_3": scored["hit_at_3"],
+    }
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name="VAL-RCL-08 real_continuity_recall_probe",
+        status=(
+            "pass"
+            if preparation.gate_decision and scored["hit_at_3"]
+            else "fail"
+        ),
+        metrics=metrics,
+        evidence={
+            "target_episode": _real_episode_debug_view(target),
+            "gate_reason_flags": preparation.gate_reason_flags,
+            "retrieved": [
+                _real_episode_debug_view(item)
+                for item in preparation.candidates[:3]
+            ],
+            "note": (
+                "这是 retrieve-only probe：只走 gate + prepare + retrieval，"
+                "不执行 prompt assemble，因此 injected_count 固定为 0。"
+            ),
+        },
+    )
+
+
+def _build_real_empty_observation_suppression_event(
+    *,
+    agents: list[Any],
+    store: Any,
+    base_metrics: dict[str, Any],
+    next_step_id: int,
+) -> EvaluationEvent:
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-09 real_empty_observation_recall_suppression",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for suppression recall probe.",
+        )
+
+    agent = _first_context_agent(agents)
+    if agent is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-09 real_empty_observation_recall_suppression",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No ContextSocialAgent was available for recall suppression probe.",
+        )
+
+    empty_snapshot = {
+        "posts": {"success": True, "posts": []},
+        "groups": {
+            "success": True,
+            "all_groups": [],
+            "joined_group_ids": [],
+            "messages": [],
+            "degraded_groups": False,
+            "degraded_messages": False,
+            "message_count": 0,
+        },
+    }
+    perception = agent._observation_policy.build_perception_envelope(  # noqa: SLF001
+        prompt_visible_snapshot=empty_snapshot,
+        observation_prompt="No new relevant social content is visible.",
+    )
+    preparation = agent._recall_planner.prepare(  # noqa: SLF001
+        agent_id=getattr(agent, "agent_id", None),
+        topic=perception.topic,
+        semantic_anchors=perception.semantic_anchors,
+        entities=perception.entities,
+        snapshot=perception.snapshot,
+        memory_state=agent._memory_state,  # noqa: SLF001
+        longterm_store=store,
+        next_step_id=next_step_id,
+        runtime_state=RecallRuntimeState(),
+    )
+    metrics = {
+        **base_metrics,
+        "probe_scope": "retrieve_only",
+        "gate_decision": bool(preparation.gate_decision),
+        "retrieval_attempted": bool(preparation.retrieval_attempted),
+        "recalled_count": preparation.recalled_count,
+        "injected_count": 0,
+    }
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name="VAL-RCL-09 real_empty_observation_recall_suppression",
+        status=(
+            "pass"
+            if not preparation.gate_decision
+            and not preparation.retrieval_attempted
+            and preparation.recalled_count == 0
+            else "fail"
+        ),
+        metrics=metrics,
+        evidence={
+            "gate_reason_flags": preparation.gate_reason_flags,
+            "note": (
+                "这是 retrieve-only probe：只验证空/无强信号 observation 下 gate / retrieval 是否被抑制；"
+                "不执行 prompt assemble，因此 injected_count 固定为 0。"
+            ),
+        },
     )
 
 
@@ -883,6 +1073,76 @@ def _real_episode_label(episode: dict[str, Any]) -> str:
         f"step={episode.get('step_id')} "
         f"action={episode.get('action_name')}"
     )
+
+
+def _real_episode_debug_view(episode: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "agent_id": episode.get("agent_id"),
+        "step_id": episode.get("step_id"),
+        "action_index": episode.get("action_index"),
+        "action_name": episode.get("action_name"),
+        "action_fact": episode.get("action_fact"),
+        "topic": episode.get("topic"),
+        "query_source": episode.get("query_source"),
+        "target_snapshot": episode.get("target_snapshot"),
+    }
+
+
+def _first_context_agent(agents: list[Any]) -> Any | None:
+    for agent in agents:
+        if hasattr(agent, "_recall_planner") and hasattr(agent, "_memory_state"):
+            return agent
+    return None
+
+
+def _context_agent_for_episode(
+    agents: list[Any],
+    episode: dict[str, Any],
+) -> Any | None:
+    expected_agent_id = str(episode.get("agent_id", "") or "")
+    if not expected_agent_id:
+        return None
+    for agent in agents:
+        if str(getattr(agent, "agent_id", "") or "") == expected_agent_id:
+            return agent
+    return None
+
+
+def _related_snapshot_from_episode(episode: dict[str, Any]) -> dict[str, Any]:
+    summary = _query_from_real_episode(episode) or "related remembered social content"
+    target_snapshot = episode.get("target_snapshot", {}) or {}
+    target_id = episode.get("target_id")
+    if isinstance(target_snapshot, dict):
+        target_id = target_snapshot.get("post_id", target_id)
+    post_id = target_id if target_id is not None else 900001
+    return {
+        "posts": {
+            "success": True,
+            "posts": [
+                {
+                    "object_kind": "post",
+                    "post_id": post_id,
+                    "user_id": 900001,
+                    "relation_anchor": "unknown",
+                    "self_authored": False,
+                    "summary": summary[:120],
+                    "evidence_quality": "normal",
+                    "degraded_evidence": False,
+                    "comments_omitted_count": 0,
+                    "comments": [],
+                }
+            ],
+        },
+        "groups": {
+            "success": True,
+            "all_groups": [],
+            "joined_group_ids": [],
+            "messages": [],
+            "degraded_groups": False,
+            "degraded_messages": False,
+            "message_count": 0,
+        },
+    }
 
 
 def _mean_bool(values: Any) -> float:

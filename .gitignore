@@ -52,6 +52,7 @@ htmlcov/
 
 # Test results
 backend/test-result/
+backend/test-results/
 
 # uv
 .python-version

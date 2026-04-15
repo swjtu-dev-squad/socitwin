@@ -3,11 +3,13 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.memory.evaluation_harness import (
     EvaluationConfig,
     EvaluationEvent,
+    _build_real_scenario_events,
     build_parser,
     parse_args,
     run_memory_evaluation,
@@ -132,3 +134,130 @@ def test_preflight_embedding_success_uses_inferred_dimension() -> None:
 
     assert event.status == "pass"
     assert event.metrics["embedding_dim"] == 768
+
+
+def test_build_real_scenario_events_includes_recall_probe_events() -> None:
+    class _FakeStore:
+        def __init__(self, episodes):
+            self.episodes = list(episodes)
+
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text
+            items = self.episodes
+            if agent_id is not None:
+                items = [
+                    item for item in items
+                    if str(item.get("agent_id", "")) == str(agent_id)
+                ]
+            return list(items[:limit])
+
+    class _FakeObservationPolicy:
+        def build_perception_envelope(self, *, prompt_visible_snapshot, observation_prompt):
+            if observation_prompt.startswith("No new relevant social content"):
+                return SimpleNamespace(
+                    topic="",
+                    semantic_anchors=[],
+                    entities=[],
+                    snapshot=prompt_visible_snapshot,
+                )
+            return SimpleNamespace(
+                topic="memory topic",
+                semantic_anchors=["post:1"],
+                entities=["user:1"],
+                snapshot=prompt_visible_snapshot,
+            )
+
+    class _FakeRecallPlanner:
+        def prepare(
+            self,
+            *,
+            agent_id=None,
+            topic="",
+            semantic_anchors=None,
+            entities=None,
+            snapshot=None,
+            memory_state=None,
+            longterm_store=None,
+            next_step_id=0,
+            runtime_state=None,
+        ):
+            del semantic_anchors, entities, snapshot, memory_state, next_step_id, runtime_state
+            if not topic:
+                return SimpleNamespace(
+                    gate_decision=False,
+                    retrieval_attempted=False,
+                    recalled_count=0,
+                    recalled_step_ids=[],
+                    query_text="",
+                    candidates=[],
+                    gate_reason_flags={"topic_trigger": False},
+                )
+            candidates = list(longterm_store.retrieve_relevant("memory topic", limit=3, agent_id=agent_id))
+            return SimpleNamespace(
+                gate_decision=True,
+                retrieval_attempted=True,
+                recalled_count=len(candidates),
+                recalled_step_ids=[int(item["step_id"]) for item in candidates],
+                query_text="memory topic",
+                candidates=candidates,
+                gate_reason_flags={"topic_trigger": True},
+            )
+
+    episodes = [
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 3,
+            "action_index": 0,
+            "action_name": "create_comment",
+            "action_fact": "create_comment(content=hello, post_id=1)",
+            "topic": "memory topic",
+            "query_source": "distilled_topic",
+            "target_snapshot": {"summary": "hello there", "post_id": 1},
+            "authored_content": "hello there",
+            "action_significance": "high",
+        },
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-2",
+            "step_id": 2,
+            "action_index": 0,
+            "action_name": "create_post",
+            "action_fact": "create_post(content=other)",
+            "topic": "other",
+            "query_source": "distilled_topic",
+            "target_snapshot": {"summary": "other post", "post_id": 2},
+            "authored_content": "other post",
+            "action_significance": "medium",
+        },
+    ]
+
+    fake_agent = SimpleNamespace(
+        agent_id="agent-1",
+        _observation_policy=_FakeObservationPolicy(),
+        _recall_planner=_FakeRecallPlanner(),
+        _memory_state=object(),
+        _persisted_action_episode_ids={(3, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 3},
+        _action_v1_longterm_store=_FakeStore(episodes),
+    )
+    init_result = {"agent_count": 1}
+
+    events = _build_real_scenario_events(
+        manager=manager,
+        init_result=init_result,
+        config=EvaluationConfig(phases=["real-scenarios"], embedding_url="http://127.0.0.1:11434/v1"),
+    )
+
+    event_names = [event.name for event in events]
+    assert event_names == [
+        "VAL-LTM-05 real_self_action_retrievability",
+        "VAL-RCL-08 real_continuity_recall_probe",
+        "VAL-RCL-09 real_empty_observation_recall_suppression",
+    ]
+    assert events[0].status == "pass"
+    assert events[1].status == "pass"
+    assert events[2].status == "pass"

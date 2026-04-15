@@ -184,7 +184,7 @@ python backend/tests/e2e/e2e_simulation_test.py --help
 
 ### Test Results
 
-Results are saved to `backend/test-result/` as JSON files with detailed metrics:
+Results are saved to `backend/test-results/` as JSON files with detailed metrics:
 - Execution time per step
 - Posts and interactions delta
 - Success/failure status

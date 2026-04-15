@@ -37,6 +37,8 @@ DEFAULT_MODEL_TYPE = "DEEPSEEK_CHAT"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_TOPIC = "climate_change_debate"
 DEFAULT_TIMEOUT = 120  # seconds
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "e2e"
 
 
 # ============================================================================
@@ -577,7 +579,7 @@ class SimulationTestRunner:
 class ResultExporter:
     """Export test results to JSON file and generate metrics charts"""
 
-    def __init__(self, output_dir: str = "test-result"):
+    def __init__(self, output_dir: str | Path = DEFAULT_OUTPUT_DIR):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -956,8 +958,8 @@ Examples:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="test-result",
-        help="Output directory for test results (default: test-result)"
+        default=str(DEFAULT_OUTPUT_DIR),
+        help=f"Output directory for test results (default: {DEFAULT_OUTPUT_DIR})"
     )
 
     parser.add_argument(

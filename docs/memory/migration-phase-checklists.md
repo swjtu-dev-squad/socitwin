@@ -322,8 +322,11 @@
 - embedding preflight 与最小 action_v1 real-smoke 入口已补回；
 - 1-agent / 1-step 的 `action_v1` real-smoke 已完成一次真实通过；
 - smoke 暴露出的 `episodic_memory` adapter 契约缺口已经修复并补测；
-- 最小 `real-scenarios` 已恢复到 `VAL-LTM-05 real_self_action_retrievability`；
-- 但 `VAL-RCL-08/09`、`real-longwindow`、模式对比评测还没有迁回。
+- `real-scenarios` 已恢复到：
+  - `VAL-LTM-05 real_self_action_retrievability`
+  - `VAL-RCL-08 real_continuity_recall_probe`
+  - `VAL-RCL-09 real_empty_observation_recall_suppression`
+- 但 `real-longwindow`、模式对比评测还没有迁回。
 
 ### Do Not
 
