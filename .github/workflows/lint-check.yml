@@ -1,0 +1,95 @@
+name: Lint Check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Pyright (硬性失败)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install uv
+        run: |
+          pip install --upgrade pip
+          pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Install pyright
+        run: |
+          uv add --dev pyright
+
+      - name: Run Pyright
+        run: |
+          uv run pyright app/
+        # ❌ 失败会阻断 CI
+
+      # Ruff (软性提示)
+      - name: Install Reviewdog
+        run: |
+          pip install reviewdog
+
+      - name: Run Ruff with Reviewdog
+        env:
+          REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv run ruff check . --output-format=json | reviewdog -f=ruff-check -report="github-pr-review" -level=error
+        continue-on-error: true  # ✅ 无论结果如何都成功
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # ESLint (硬性失败)
+      - name: Run ESLint
+        run: pnpm run lint
+        # ❌ 失败会阻断 CI
+
+      # Prettier (软性提示)
+      - name: Install Reviewdog
+        run: pnpm add -g reviewdog
+
+      - name: Run Prettier with Reviewdog
+        env:
+          REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm run format:check | reviewdog -f=prettier -report="github-pr-review" -level=warning
+        continue-on-error: true  # ✅ 无论结果如何都成功
