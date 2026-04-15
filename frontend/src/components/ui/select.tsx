@@ -29,9 +29,7 @@ export const SelectTrigger = React.forwardRef<HTMLDivElement, React.HTMLAttribut
 SelectTrigger.displayName = 'SelectTrigger'
 
 export const SelectValue = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
-  ({ className = '', ...props }, ref) => (
-    <span ref={ref} className={`${className}`} {...props} />
-  )
+  ({ className = '', ...props }, ref) => <span ref={ref} className={`${className}`} {...props} />
 )
 SelectValue.displayName = 'SelectValue'
 

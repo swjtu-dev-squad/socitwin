@@ -7,14 +7,7 @@ export { Badge } from './badge'
 export type { BadgeProps } from './badge'
 
 // Card Components
-export {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter
-} from './card'
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './card'
 
 // Table Components
 export {
@@ -25,7 +18,7 @@ export {
   TableRow,
   TableHead,
   TableCell,
-  TableCaption
+  TableCaption,
 } from './table'
 
 // Input Components
@@ -45,13 +38,7 @@ export { ScrollArea } from './scroll-area'
 export type { ScrollAreaProps } from './scroll-area'
 
 // Select Components
-export {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem
-} from './select'
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './select'
 export type { SelectProps } from './select'
 
 // Switch Components

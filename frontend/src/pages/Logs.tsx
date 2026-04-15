@@ -7,17 +7,10 @@ import {
   TableRow,
   TableHead,
   TableBody,
-  TableCell
-} from '@/components/ui';
-import {
-  Terminal,
-  Cpu,
-  Activity,
-  Server,
-  Network,
-  Clock
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+  TableCell,
+} from '@/components/ui'
+import { Terminal, Cpu, Activity, Server, Network, Clock } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // Mock data
 const MOCK_AGENTS = Array.from({ length: 12 }, (_, i) => ({
@@ -27,14 +20,22 @@ const MOCK_AGENTS = Array.from({ length: 12 }, (_, i) => ({
   memoryLength: Math.floor(Math.random() * 5000) + 1000,
   lastActive: new Date(Date.now() - Math.random() * 60000).toLocaleTimeString(),
   cpuUsage: Math.floor(Math.random() * 40) + 10,
-}));
+}))
 
 const MOCK_KG_LOGS = [
   { time: '10:24:01', action: 'SYNC', detail: 'Synchronized 142 new entities from Reddit stream.' },
-  { time: '10:24:05', action: 'EXTRACT', detail: 'Extracted relation: [Agent_003] -> (AGREES_WITH) -> [Topic_AI_Ethics]' },
+  {
+    time: '10:24:05',
+    action: 'EXTRACT',
+    detail: 'Extracted relation: [Agent_003] -> (AGREES_WITH) -> [Topic_AI_Ethics]',
+  },
   { time: '10:24:12', action: 'MERGE', detail: 'Merged duplicate nodes for "GPT-5".' },
-  { time: '10:24:18', action: 'INDEX', detail: 'Rebuilding vector index for fast semantic search...' },
-];
+  {
+    time: '10:24:18',
+    action: 'INDEX',
+    detail: 'Rebuilding vector index for fast semantic search...',
+  },
+]
 
 const MOCK_LLM_LOGS = Array.from({ length: 20 }, (_, i) => ({
   id: i,
@@ -44,8 +45,8 @@ const MOCK_LLM_LOGS = Array.from({ length: 20 }, (_, i) => ({
   completionTokens: Math.floor(Math.random() * 500) + 50,
   latency: (Math.random() * 2 + 0.5).toFixed(2),
   status: '200 OK',
-  task: i % 2 === 0 ? 'Generate Post' : 'Evaluate Sentiment'
-}));
+  task: i % 2 === 0 ? 'Generate Post' : 'Evaluate Sentiment',
+}))
 
 export default function Logs() {
   return (
@@ -59,7 +60,10 @@ export default function Logs() {
           <p className="text-text-tertiary mt-1">全栈系统运行状态监控与底层日志追踪</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="h-9 px-4 border-emerald-500/30 text-emerald-500 bg-emerald-500/10 gap-2">
+          <Badge
+            variant="outline"
+            className="h-9 px-4 border-emerald-500/30 text-emerald-500 bg-emerald-500/10 gap-2"
+          >
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
             SYSTEM ONLINE
           </Badge>
@@ -68,7 +72,6 @@ export default function Logs() {
 
       <ScrollArea className="flex-1 pr-4 -mr-4 custom-scrollbar">
         <div className="space-y-6 pb-10">
-          
           {/* 1. Agent Working Logs */}
           <Card className="bg-bg-secondary border-border-default overflow-hidden">
             <div className="p-4 border-b border-border-default bg-bg-secondary/50 flex justify-between items-center">
@@ -77,7 +80,8 @@ export default function Logs() {
                 智能体工作日志 (Agent Workers)
               </h2>
               <Badge variant="outline" className="text-[10px] border-accent/20 text-accent">
-                {MOCK_AGENTS.filter(a => a.status === 'ONLINE').length} / {MOCK_AGENTS.length} ONLINE
+                {MOCK_AGENTS.filter(a => a.status === 'ONLINE').length} / {MOCK_AGENTS.length}{' '}
+                ONLINE
               </Badge>
             </div>
             <div className="p-0">
@@ -87,34 +91,62 @@ export default function Logs() {
                     <TableHead className="text-xs font-bold text-text-tertiary">Agent ID</TableHead>
                     <TableHead className="text-xs font-bold text-text-tertiary">启动状态</TableHead>
                     <TableHead className="text-xs font-bold text-text-tertiary">工作状态</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">记忆长度 (Tokens)</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">CPU 占用</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">最后活跃</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      记忆长度 (Tokens)
+                    </TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      CPU 占用
+                    </TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      最后活跃
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_AGENTS.map((agent) => (
-                    <TableRow key={agent.id} className="border-border-default hover:bg-bg-tertiary/30">
-                      <TableCell className="font-mono text-xs font-bold text-text-secondary">{agent.id}</TableCell>
+                  {MOCK_AGENTS.map(agent => (
+                    <TableRow
+                      key={agent.id}
+                      className="border-border-default hover:bg-bg-tertiary/30"
+                    >
+                      <TableCell className="font-mono text-xs font-bold text-text-secondary">
+                        {agent.id}
+                      </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn(
-                          "text-[10px] py-0 h-5 border-none",
-                          agent.status === 'ONLINE' ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
-                        )}>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'text-[10px] py-0 h-5 border-none',
+                            agent.status === 'ONLINE'
+                              ? 'bg-emerald-500/10 text-emerald-500'
+                              : 'bg-amber-500/10 text-amber-500'
+                          )}
+                        >
                           {agent.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {agent.workingState === 'THINKING' && <Activity className="w-3 h-3 text-blue-400 animate-pulse" />}
-                          {agent.workingState === 'POSTING' && <Terminal className="w-3 h-3 text-purple-400" />}
-                          {agent.workingState === 'IDLE' && <Clock className="w-3 h-3 text-text-muted" />}
+                          {agent.workingState === 'THINKING' && (
+                            <Activity className="w-3 h-3 text-blue-400 animate-pulse" />
+                          )}
+                          {agent.workingState === 'POSTING' && (
+                            <Terminal className="w-3 h-3 text-purple-400" />
+                          )}
+                          {agent.workingState === 'IDLE' && (
+                            <Clock className="w-3 h-3 text-text-muted" />
+                          )}
                           <span className="text-xs text-text-secondary">{agent.workingState}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.memoryLength.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.cpuUsage}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{agent.lastActive}</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">
+                        {agent.memoryLength.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">
+                        {agent.cpuUsage}%
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">
+                        {agent.lastActive}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -144,12 +176,20 @@ export default function Logs() {
               {MOCK_KG_LOGS.map((log, i) => (
                 <div key={i} className="flex gap-4 items-start">
                   <span className="text-text-muted shrink-0">{log.time}</span>
-                  <span className={cn(
-                    "shrink-0 w-16",
-                    log.action === 'SYNC' ? "text-blue-400" :
-                    log.action === 'EXTRACT' ? "text-emerald-400" :
-                    log.action === 'MERGE' ? "text-amber-400" : "text-purple-400"
-                  )}>[{log.action}]</span>
+                  <span
+                    className={cn(
+                      'shrink-0 w-16',
+                      log.action === 'SYNC'
+                        ? 'text-blue-400'
+                        : log.action === 'EXTRACT'
+                          ? 'text-emerald-400'
+                          : log.action === 'MERGE'
+                            ? 'text-amber-400'
+                            : 'text-purple-400'
+                    )}
+                  >
+                    [{log.action}]
+                  </span>
                   <span className="text-text-secondary">{log.detail}</span>
                 </div>
               ))}
@@ -168,7 +208,10 @@ export default function Logs() {
                 <Server className="w-4 h-4 text-emerald-500" />
                 大模型启动与运行日志 (LLM Engine)
               </h2>
-              <Badge variant="outline" className="text-[10px] border-emerald-500/20 text-emerald-500">
+              <Badge
+                variant="outline"
+                className="text-[10px] border-emerald-500/20 text-emerald-500"
+              >
                 API HEALTHY
               </Badge>
             </div>
@@ -176,26 +219,50 @@ export default function Logs() {
               <Table>
                 <TableHeader className="bg-bg-tertiary/30">
                   <TableRow className="border-border-default hover:bg-transparent">
-                    <TableHead className="text-xs font-bold text-text-tertiary w-24">Time</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary w-24">
+                      Time
+                    </TableHead>
                     <TableHead className="text-xs font-bold text-text-tertiary">Model</TableHead>
                     <TableHead className="text-xs font-bold text-text-tertiary">Task</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Prompt</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Completion</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Latency</TableHead>
-                    <TableHead className="text-xs font-bold text-text-tertiary text-right">Status</TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      Prompt
+                    </TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      Completion
+                    </TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      Latency
+                    </TableHead>
+                    <TableHead className="text-xs font-bold text-text-tertiary text-right">
+                      Status
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MOCK_LLM_LOGS.map((log) => (
-                    <TableRow key={log.id} className="border-border-default hover:bg-bg-tertiary/30">
-                      <TableCell className="font-mono text-xs text-text-muted">{log.time}</TableCell>
+                  {MOCK_LLM_LOGS.map(log => (
+                    <TableRow
+                      key={log.id}
+                      className="border-border-default hover:bg-bg-tertiary/30"
+                    >
+                      <TableCell className="font-mono text-xs text-text-muted">
+                        {log.time}
+                      </TableCell>
                       <TableCell className="font-mono text-xs text-accent">{log.model}</TableCell>
                       <TableCell className="text-xs text-text-secondary">{log.task}</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{log.promptTokens}t</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-text-tertiary">{log.completionTokens}t</TableCell>
-                      <TableCell className="text-right font-mono text-xs text-amber-400">{log.latency}s</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">
+                        {log.promptTokens}t
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-text-tertiary">
+                        {log.completionTokens}t
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs text-amber-400">
+                        {log.latency}s
+                      </TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="outline" className="text-[9px] py-0 h-5 border-none bg-emerald-500/10 text-emerald-500">
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] py-0 h-5 border-none bg-emerald-500/10 text-emerald-500"
+                        >
                           {log.status}
                         </Badge>
                       </TableCell>
@@ -205,9 +272,8 @@ export default function Logs() {
               </Table>
             </div>
           </Card>
-
         </div>
       </ScrollArea>
     </div>
-  );
+  )
 }
