@@ -230,8 +230,14 @@
 当前实际进度已推进到：
 
 - 1~5 已有基础覆盖
-- 6 正在从 manager-level smoke 往更真实的 integration 推进
-- 7 已开始迁回最小 harness 脚手架，当前覆盖 `preflight + deterministic + real-smoke + 最小 real-scenarios`
+- 6 已从 manager-level smoke 推进到真实 `action_v1` integration / debug / evaluation 验证
+- 7 已恢复：
+  - `preflight`
+  - `deterministic`
+  - `real-smoke`
+  - `real-scenarios`
+  - `real-longwindow`
+  - `comparison`（两模式代码/单测层）
 
 这个顺序不能反过来。尤其不能在：
 
@@ -296,6 +302,8 @@
 当前还不能把 `comparison` 解读成“已稳定完成真实 provider 长跑验证”：
 
 - 两模式 comparison 的 phase、parser、summary 和指标汇总已迁回；
+- `action_v1` comparison 现在会先复用 embedding preflight；
+  - 如果 embedding 服务不可达或 preflight 失败，应直接记为 `blocked`，而不是晚到真实长跑阶段再暴露环境问题；
 - 但真实 provider 级 comparison 运行仍明显比 `real-scenarios` / `real-longwindow` 更重；
 - 因此它当前更适合作为按需运行的较重 phase，而不是迁移阶段的默认高频验证入口。
 

@@ -516,15 +516,9 @@ def _run_real_longwindow(config: EvaluationConfig, recorder: EvaluationRecorder)
 
 def _run_comparison(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
     for mode in (MemoryMode.UPSTREAM, MemoryMode.ACTION_V1):
-        if mode == MemoryMode.ACTION_V1 and not config.embedding_url:
-            recorder.record(
-                EvaluationEvent(
-                    phase="comparison",
-                    name=f"{mode.value}_short_comparison",
-                    status="blocked",
-                    reason="comparison for action_v1 requires embedding_url",
-                )
-            )
+        blocker = _comparison_embedding_blocker(config=config, mode=mode)
+        if blocker is not None:
+            recorder.record(blocker)
             continue
         try:
             event = asyncio.run(_run_mode_comparison_async(config=config, mode=mode))
@@ -537,6 +531,32 @@ def _run_comparison(config: EvaluationConfig, recorder: EvaluationRecorder) -> N
                 reason=str(exc),
             )
         recorder.record(event)
+
+
+def _comparison_embedding_blocker(
+    *,
+    config: EvaluationConfig,
+    mode: MemoryMode,
+) -> EvaluationEvent | None:
+    if mode != MemoryMode.ACTION_V1:
+        return None
+    embedding_event = _preflight_embedding(config)
+    if embedding_event.status == "pass":
+        return None
+    metrics = {
+        "memory_mode": mode.value,
+        **dict(embedding_event.metrics or {}),
+    }
+    return EvaluationEvent(
+        phase="comparison",
+        name=f"{mode.value}_short_comparison",
+        status="blocked",
+        metrics=metrics,
+        reason=(
+            "comparison for action_v1 requires embedding preflight pass: "
+            f"{embedding_event.reason or 'embedding preflight blocked'}"
+        ),
+    )
 
 
 async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str, Any]:

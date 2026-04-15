@@ -79,6 +79,7 @@
 |---|---|---|---|---|
 | `real_oasis_engine_v3.py` | 模式分流、模型 runtime、long-term 装配 | `backend/app/core/oasis_manager.py` + `backend/app/memory/runtime.py` | 拆分重写 | 两模式边界已冻结 |
 | `context/config.py` | runtime settings / preset / budget surface | `backend/app/memory/config.py` | 适配后迁 | 新仓库 settings 兼容层 |
+| `context/llm.py` | shared model runtime、context limit / generation limit 分离、token counter 解析 | 当前主要散落在 `backend/app/core/oasis_manager.py` | 尚未完整迁回 | 旧仓库的独立模型 runtime 包装没有以同等形态恢复 |
 | `context/agent.py` | agent 接线、bounded memory、action_v1 runtime 挂载 | `backend/app/memory/agent.py` | 适配后迁 | `memory/runtime.py` 骨架 |
 | `context/environment.py` | observation 获取与发布 | `backend/app/memory/environment.py` | 适配后迁 | `agent.py` 和 runtime facade |
 | `context/observation_shaper.py` | observation 压缩与 fallback | `backend/app/memory/observation_shaper.py` | 优先迁语义 | `memory/config.py` |
@@ -124,6 +125,36 @@
 
 - 旧仓库里的 `BaselineSocialAgent` 不再迁入运行主链；
 - 只能迁出其中仍对 `upstream` / `action_v1` 有价值的通用辅助逻辑。
+
+### 3.3.2 Special note on `context/llm.py`
+
+旧仓库的 `context/llm.py` 不是普通 helper，它承担了：
+
+- shared model runtime 构造
+- `context_token_limit` 与 `generation_max_tokens` 的显式分离
+- token counter 解析与 fallback
+- pooled model 的一致性约束
+
+当前新仓库没有一个等价的 `memory/llm.py`，而是由：
+
+- `backend/app/core/oasis_manager.py`
+  - 直接创建模型
+- `backend/app/memory/agent.py`
+  - 在 action_v1 运行时单独解析 token counter / context budget
+
+这意味着当前迁移状态应理解为：
+
+- memory 主链已经跑通；
+- 但旧仓库那套更完整的“模型 runtime 包装层”并没有以独立模块完整迁回；
+- 特别是 `context token limit` 与 `generation max tokens` 的语义分离，目前更多依赖：
+  - `OASIS_CONTEXT_TOKEN_LIMIT`
+  - `llm_config.max_tokens`
+  - `action_v1` 内部预算
+
+因此这一块应被视为：
+
+- 已记录的剩余迁移差异；
+- 后续需要继续核对是否要补成更接近旧仓库 `llm.py` 的统一 runtime 包装。
 
 ### 3.4 Long-term / recall modules
 

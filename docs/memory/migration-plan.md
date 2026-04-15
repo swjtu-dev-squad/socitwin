@@ -54,16 +54,19 @@
 
 ## 4. Current Main Risks
 
-- 新仓库当前仍没有显式 memory runtime；
-- 新仓库当前测试面仍远小于旧仓库记忆主线所需覆盖面；
-- 如果直接把旧实现按 git 历史硬合进来，极易把新架构与旧 runtime 污染在一起。
+- `action_v1 + file` source 仍未迁入；
+- 旧仓库 `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 兼容层仍未完整接回；
+- 旧仓库 `context/llm.py` 的独立模型 runtime 包装尚未以等价形态恢复；
+- `comparison` 虽已恢复到两模式代码/单测层，但真实 provider 级长跑验证仍偏重且结论不稳定。
 
 ## 5. Current Next Step
 
 下一轮对照重点：
 
-1. 继续把旧仓库 `context/*` 模块映射到新仓库 `backend/app/memory/` 的文件级任务清单；
-2. 继续梳理新仓库配置命名与旧仓库 memory 配置面的对应关系；
-3. 把测试迁移计划压实到“哪些先迁、哪些重写、哪些只保留验证目标”。
+1. 继续核对旧仓库剩余未迁移面：
+   - `action_v1 + file`
+   - recall / summary / provider env compatibility
+2. 继续收口 `comparison` 的运行门控与指标口径；
+3. 在迁移完成态基础上，进入收尾验收与剩余缺口盘点。
 
 当前这三项已经拆到独立页面持续维护，后续总览页只保留高层边界与进度。

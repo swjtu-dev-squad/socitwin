@@ -168,9 +168,9 @@
 
 当前新仓库仍未完全恢复旧记忆系统中的这些层：
 
-- 真实 provider 级 action_v1 集成验证
-- memory evaluation harness
-- 更细的 monitor/debug 深化接口
+- `action_v1 + file` source
+- 旧仓库 recall / summary / provider env 兼容面的完整接回
+- 更稳定的真实 provider 级 comparison 长跑验证
 
 而下面这些层已经开始恢复，不再应被视为“完全缺失”：
 
@@ -182,6 +182,9 @@
 - prompt assembler
 - long-term persistence / recall
 - budget recovery
+- memory debug snapshot
+- `/api/sim/memory` monitor/debug 接口
+- memory evaluation harness
 
 此外还有一个容易混淆的缺口：
 
@@ -199,11 +202,22 @@
 - `OASISManager.step()`
 - `env.step(actions)`
 
-也就是说，现在没有任何一层在接管：
+对 `upstream` 而言，这条链仍主要沿用原生 OASIS + CAMEL 默认路径。
 
-- observation text assembly
+对 `action_v1` 而言，当前已经有专门一层接管：
+
+- observation shaping
+- prompt-visible snapshot
 - prompt assembly
-- memory write / recall injection
+- episodic write
+- recall preparation / injection
+- memory debug snapshot
+
+因此当前真正需要继续迁或继续收口的，不再是“有没有 memory runtime”，而是：
+
+- `file` source 还没有切入这条 runtime；
+- 某些旧配置兼容面还没完全补齐；
+- comparison 的真实 provider 级运行与分析口径还没完全收口。
 
 ## 4. Core Gap
 
@@ -215,9 +229,14 @@
 
 新仓库：
 
-- 仍把 agent 决策几乎完全交给原生 OASIS + CAMEL 默认路径。
+- `upstream` 仍主要交给原生 OASIS + CAMEL 默认路径；
+- `action_v1` 已重新建立独立 memory runtime，但还存在少量未迁移边界与配置缺口。
 
-因此迁移工作不是“补几个 helper”，而是要在 `socitwin` 中重新建立一层 memory runtime。
+因此当前阶段的核心问题已经从“要不要建立 memory runtime”变成了：
+
+- 还有哪些旧 contract 没有迁完整；
+- 哪些验证链已经恢复、哪些还只是较重的按需验证；
+- 哪些质量问题应留到迁移后单独审查。
 
 ## 5. Insertion Point Assessment
 
@@ -270,7 +289,7 @@
 - `OASIS_V1_SUMMARY_*`
 - `OASIS_V1_PROVIDER_*`
 
-新仓库当前只有较轻的一层：
+迁移早期的新仓库确实只有较轻的一层：
 
 - `DEEPSEEK_API_KEY`
 - `OPENAI_API_KEY`
@@ -279,7 +298,25 @@
 - `OASIS_DEFAULT_PLATFORM`
 - metrics 相关配置
 
-并且当前 `SimulationConfig.llm_config.max_tokens` 在实际语义上更接近：
+当前迁移后的状态已经进一步推进到：
+
+- `backend/app/core/config.py` 已显式承载：
+  - `OASIS_MEMORY_MODE`
+  - `OASIS_CONTEXT_TOKEN_LIMIT`
+  - `OASIS_LONGTERM_*`
+- `backend/app/memory/config.py` 已显式承载：
+  - observation preset
+  - summary preset
+  - working-memory budget
+  - recall preset
+  - provider runtime preset
+
+但旧仓库的完整 env 兼容面还没有全部接回：
+
+- `OASIS_V1_OBS_*` 与 working-memory 关键 budget env 已兼容；
+- `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 仍未完整兼容。
+
+并且 `SimulationConfig.llm_config.max_tokens` 在实际语义上更接近：
 
 - generation max tokens
 
@@ -302,7 +339,7 @@
 - 系统级评测
   - memory evaluation harness
 
-新仓库当前主要只有 API 级 E2E：
+迁移早期的新仓库主要只有 API 级 E2E：
 
 - `backend/tests/e2e/e2e_simulation_test.py`
 - `backend/tests/e2e/run_tests.sh`
@@ -314,4 +351,16 @@
 - 但没有 memory-aware assertions；
 - 也没有独立的 module/integration/evaluation 分层。
 
-因此迁移时必须把测试也作为一等对象，而不是最后再补。
+当前迁移后的状态已经推进到：
+
+- `backend/tests/memory/unit/`
+- `backend/tests/memory/integration/`
+- `backend/tests/memory/evaluation/`
+
+也就是说，memory-aware 的 unit / integration / evaluation 分层已经恢复。
+
+当前真正剩下的测试缺口主要是：
+
+- `comparison` 的真实 provider 级稳定长跑验证；
+- `action_v1 + file` 的迁移后测试；
+- 更完整的配置兼容面回归测试。

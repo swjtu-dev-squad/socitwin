@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import tempfile
 from pathlib import Path
@@ -10,8 +11,10 @@ from app.memory.config import MemoryMode
 from app.memory.evaluation_harness import (
     EvaluationConfig,
     EvaluationEvent,
+    EvaluationRecorder,
     _build_real_longwindow_events,
     _build_real_scenario_events,
+    _run_comparison,
     _summarize_comparison_run,
     build_parser,
     parse_args,
@@ -184,6 +187,54 @@ def test_run_memory_evaluation_dispatches_comparison_phase() -> None:
             )
 
     comparison.assert_called_once()
+
+
+def test_run_comparison_blocks_action_v1_when_embedding_preflight_fails() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        recorder = EvaluationRecorder(Path(tmp))
+        upstream_event = EvaluationEvent(
+            phase="comparison",
+            name="upstream_short_comparison",
+            status="pass",
+            metrics={"memory_mode": "upstream"},
+        )
+
+        def _fake_asyncio_run(awaitable):
+            if inspect.iscoroutine(awaitable):
+                awaitable.close()
+            return upstream_event
+
+        with (
+            patch(
+                "app.memory.evaluation_harness._preflight_embedding",
+                return_value=EvaluationEvent(
+                    phase="preflight",
+                    name="embedding_openai_compatible",
+                    status="blocked",
+                    metrics={"embedding_url": "http://127.0.0.1:11434/v1"},
+                    reason="connection refused",
+                ),
+            ),
+            patch(
+                "app.memory.evaluation_harness.asyncio.run",
+                side_effect=_fake_asyncio_run,
+            ) as run_async,
+        ):
+            _run_comparison(
+                EvaluationConfig(
+                    phases=["comparison"],
+                    output_dir=Path(tmp),
+                    run_id="comparison-blocked-test",
+                ),
+                recorder,
+            )
+
+    assert run_async.call_count == 1
+    assert len(recorder.events) == 2
+    assert recorder.events[0] == upstream_event
+    assert recorder.events[1].name == "action_v1_short_comparison"
+    assert recorder.events[1].status == "blocked"
+    assert "embedding preflight pass" in recorder.events[1].reason
 
 
 def test_preflight_embedding_success_uses_inferred_dimension() -> None:

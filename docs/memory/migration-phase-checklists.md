@@ -30,17 +30,29 @@
 - Phase 2 已基本完成
   - `upstream` 已作为显式模式保留
   - `upstream` 与 `action_v1` 的 agent 构造开始分离
-- Phase 3 正在进行
+- Phase 3 已基本完成
   - observation / episodic / short-term / prompt / recall / long-term / runtime-failure 主模块已迁入
-  - `action_v1` 已开始接入新仓库 runtime
+  - `action_v1` 已接入新仓库 runtime
   - 当前第一阶段只承诺 `template/manual`
   - `agent_source=file` 在 `action_v1` 下应保持显式未迁移
+- Phase 4 已基本完成
+  - memory debug snapshot 已恢复
+  - `/api/sim/memory` monitor/debug 接口已落地
+- Phase 5 已基本完成
+  - evaluation harness 已恢复：
+    - `preflight`
+    - `deterministic`
+    - `real-smoke`
+    - `real-scenarios`
+    - `real-longwindow`
+    - `comparison`（两模式代码/单测层）
 
 未完成部分仍包括：
 
-- `action_v1` 的完整真实 provider / OASIS runtime 实跑验证
-- memory monitor/debug 接口
-- evaluation harness 与系统级测试迁移
+- `action_v1 + file` source 迁移
+- `comparison` 的更完整真实 provider 级稳定验证
+- 旧仓库 `OASIS_V1_RECALL_*` / `OASIS_V1_SUMMARY_*` / `OASIS_V1_PROVIDER_*` 的完整兼容层
+- 旧仓库 `context/llm.py` 那层更完整的模型 runtime 包装
 
 当前已经完成但需要和“完整实跑”区分开的部分是：
 
