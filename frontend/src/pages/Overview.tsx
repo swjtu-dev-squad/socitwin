@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { Card, Button, Badge, Slider, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
+import { Card, Button, Badge, Slider, Progress } from '@/components/ui';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
 import {
