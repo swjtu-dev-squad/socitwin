@@ -125,7 +125,7 @@ export default function Profiles() {
     () => topics.find((topic) => topic.id === selectedTopic) || null,
     [topics, selectedTopic],
   );
-  const selectedTopicLabel = selectedTopicMeta?.name || '';
+  // const selectedTopicLabel = selectedTopicMeta?.name || '';
 
   const handleGenerate = async () => {
     if (!selectedTopic) {

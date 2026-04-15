@@ -128,7 +128,7 @@ export default function LandingForceGraph({ onNodeClick }: LandingForceGraphProp
       <ForceGraph
         nodes={nodes}
         edges={edges}
-        onNodeClick={(agent) => {
+        onNodeClick={(agent: any) => {
           handleNodeClick(agent)
         }}
       />
