@@ -315,6 +315,8 @@ def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
                         "last_recall_query_text": "remember the earlier post",
                         "last_recalled_count": 2,
                         "last_injected_count": 1,
+                        "last_recall_overlap_filtered_count": 0,
+                        "last_recall_selection_stop_reason": "",
                         "last_recalled_step_ids": [3, 4],
                         "last_injected_step_ids": [3],
                         "last_prompt_tokens": 1400,
@@ -337,6 +339,8 @@ def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
                         "last_recall_query_text": "remember the earlier post",
                         "last_recalled_count": 1,
                         "last_injected_count": 1,
+                        "last_recall_overlap_filtered_count": 0,
+                        "last_recall_selection_stop_reason": "",
                         "last_recalled_step_ids": [6],
                         "last_injected_step_ids": [6],
                         "last_prompt_tokens": 1600,
@@ -366,6 +370,8 @@ def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
     assert event.metrics["recall_injected_trace_count"] == 2
     assert event.metrics["recall_recalled_trace_count"] == 2
     assert event.metrics["recall_recalled_not_injected_trace_count"] == 0
+    assert event.metrics["recall_overlap_filtered_count"] == 0
+    assert event.metrics["recall_selection_stop_reason_counts"] == {}
     assert event.metrics["used_recall_step_ids"] == [3, 6]
     assert event.metrics["observation_compression_trigger_count"] == 1
     assert event.metrics["avg_prompt_tokens"] == 1500.0

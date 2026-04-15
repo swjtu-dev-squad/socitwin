@@ -1324,6 +1324,16 @@ def _mean_bool(values: Any) -> float:
     return round(sum(1.0 if item else 0.0 for item in collected) / len(collected), 4)
 
 
+def _count_string_values(values: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized:
+            continue
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return counts
+
+
 def _summarize_longwindow_debug_snapshots(
     step_snapshots: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -1366,6 +1376,16 @@ def _summarize_longwindow_debug_snapshots(
         ),
         "recall_injected_trace_count": sum(
             1 for agent in agent_rows if int(agent.get("last_injected_count", 0) or 0) > 0
+        ),
+        "recall_overlap_filtered_count": sum(
+            int(agent.get("last_recall_overlap_filtered_count", 0) or 0)
+            for agent in agent_rows
+        ),
+        "recall_selection_stop_reason_counts": _count_string_values(
+            [
+                str(agent.get("last_recall_selection_stop_reason", "") or "")
+                for agent in agent_rows
+            ]
         ),
         "used_recall_step_ids": sorted(used_recall_step_ids),
         "avg_prompt_tokens": (
@@ -1410,6 +1430,12 @@ def _extract_longwindow_trace_examples(
                     "last_recall_query_text": agent.get("last_recall_query_text"),
                     "last_recalled_count": recalled_count,
                     "last_injected_count": injected_count,
+                    "last_recall_overlap_filtered_count": int(
+                        agent.get("last_recall_overlap_filtered_count", 0) or 0
+                    ),
+                    "last_recall_selection_stop_reason": str(
+                        agent.get("last_recall_selection_stop_reason", "") or ""
+                    ),
                     "last_recalled_step_ids": list(agent.get("last_recalled_step_ids", []) or []),
                     "last_injected_step_ids": list(agent.get("last_injected_step_ids", []) or []),
                     "last_prompt_tokens": int(agent.get("last_prompt_tokens", 0) or 0),

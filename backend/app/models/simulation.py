@@ -260,6 +260,9 @@ class MemoryDebugAgentStatus(BaseModel):
     last_recalled_step_ids: List[int] = Field(default_factory=list)
     last_injected_step_ids: List[int] = Field(default_factory=list)
     last_recall_reason_trace: str = ""
+    last_recall_overlap_filtered_count: int = 0
+    last_recall_overlap_filtered_step_ids: List[int] = Field(default_factory=list)
+    last_recall_selection_stop_reason: str = ""
     last_runtime_failure_category: str = ""
     last_runtime_failure_stage: str = ""
     last_prompt_budget_status: str = ""

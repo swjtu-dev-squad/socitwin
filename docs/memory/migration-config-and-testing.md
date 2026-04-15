@@ -304,17 +304,31 @@
   - 自动汇总 `recall_injected_count`
   - 自动汇总 `recall_injected_trace_count`
   - 自动汇总 `recall_recalled_not_injected_trace_count`
+  - 自动汇总 `recall_overlap_filtered_count`
+  - 自动汇总 `recall_selection_stop_reason_counts`
   - 自动汇总 `used_recall_step_ids`
   - 自动汇总 `avg_prompt_tokens / max_prompt_tokens`
   - 自动汇总 `shortterm recent/compressed` 保留指标
-- 当前新仓库首轮真实长窗口结果：
-  - `VAL-RCL-10`: `fail`
-  - `actual_persisted_action_episode_count=5`
-  - `recall_gate_true_count=10`
-  - `recall_recalled_trace_count=9`
-  - `recall_injected_count=0`
-  - `recall_injected_trace_count=0`
-  - 这说明 `real-longwindow` phase 已恢复并能稳定暴露问题，但当前 action_v1 在新仓库里仍存在“召回命中但未注入”的运行现状。
+- 当前新仓库已经得到两轮真实长窗口结果：
+  - 8-step:
+    - `VAL-RCL-10`: `fail`
+    - `actual_persisted_action_episode_count=5`
+    - `recall_gate_true_count=10`
+    - `recall_recalled_trace_count=9`
+    - `recall_injected_count=0`
+    - `recall_injected_trace_count=0`
+    - 结论：短窗口下主要是“已召回但未注入”。
+  - 16-step:
+    - `VAL-RCL-10`: `pass`
+    - `actual_persisted_action_episode_count=25`
+    - `recall_gate_true_count=21`
+    - `recall_recalled_trace_count=21`
+    - `recall_recalled_not_injected_trace_count=18`
+    - `recall_injected_count=5`
+    - `recall_injected_trace_count=3`
+    - `recall_overlap_filtered_count=52`
+    - `recall_selection_stop_reason_counts={"all_candidates_filtered_by_overlap": 18}`
+    - 结论：预算本身不是首要瓶颈；在较长窗口下 recall 已开始真实注入，但大量候选仍被 overlap 过滤。
 
 ## 7. Frontend And Status Notes
 

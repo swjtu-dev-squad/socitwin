@@ -349,6 +349,15 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                     {
                         "last_prompt_budget_status": assembly.budget_status,
                         "last_prompt_failure_reason": assembly.assembly_failure_reason,
+                        "last_recall_overlap_filtered_count": int(
+                            assembly.recall_overlap_filtered_count
+                        ),
+                        "last_recall_overlap_filtered_step_ids": list(
+                            assembly.recall_overlap_filtered_step_ids
+                        ),
+                        "last_recall_selection_stop_reason": str(
+                            assembly.recall_selection_stop_reason or ""
+                        ),
                         "last_selected_recent_step_ids": list(
                             assembly.selected_recent_step_ids
                         ),
@@ -896,6 +905,15 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
             "last_recalled_step_ids": list(self._last_longterm_recalled_step_ids),
             "last_injected_step_ids": list(self._last_longterm_injected_step_ids),
             "last_recall_reason_trace": str(self._last_longterm_reason_trace or ""),
+            "last_recall_overlap_filtered_count": int(
+                internal_trace.get("last_recall_overlap_filtered_count", 0) or 0
+            ),
+            "last_recall_overlap_filtered_step_ids": list(
+                internal_trace.get("last_recall_overlap_filtered_step_ids", []) or []
+            ),
+            "last_recall_selection_stop_reason": str(
+                internal_trace.get("last_recall_selection_stop_reason", "") or ""
+            ),
             "last_runtime_failure_category": str(
                 failure_trace.get("category", "") or ""
             ),

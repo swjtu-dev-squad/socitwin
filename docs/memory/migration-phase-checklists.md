@@ -333,6 +333,9 @@
   - recalled trace 已出现
   - injected 仍为 0
   - 下一步应转入注入链路/overlap 抑制的真实排查，而不是继续补 harness 壳
+- 更长的 16-step 长窗口已进一步确认：
+  - recall 不是完全进不去，真实注入已经出现
+  - 当前更主要的问题是 overlap 过滤较重，而不是 prompt 总预算不足
 - 但模式对比评测还没有迁回。
 
 ### Do Not
