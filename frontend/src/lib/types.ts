@@ -305,6 +305,26 @@ export interface PolarizationMetrics {
   calculated_at: string
 }
 
+export interface SentimentAnalyzedPost {
+  post_id: number
+  user_id: number
+  sentiment: '正向' | '负向' | '中性'
+  confidence: number
+  signed_score: number
+}
+
+export interface SentimentTendencyMetrics {
+  overall_score: number
+  positive_count: number
+  negative_count: number
+  neutral_count: number
+  analyzed_post_count: number
+  non_neutral_count: number
+  last_post_id: number
+  posts?: SentimentAnalyzedPost[]
+  calculated_at: string
+}
+
 export interface HotPost {
   post_id: number
   user_id: number
@@ -326,6 +346,7 @@ export interface MetricsSummary {
   propagation: PropagationMetrics
   polarization: PolarizationMetrics
   herd_effect: HerdEffectMetrics
+  sentiment_tendency?: SentimentTendencyMetrics
   current_step: number
   timestamp: string
 }
@@ -335,8 +356,8 @@ export interface MetricsSummary {
 export interface MetricsHistoryEntry {
   id: number
   step_number: number
-  metric_type: 'propagation' | 'polarization' | 'herd_effect'
-  metric_data: PropagationMetrics | PolarizationMetrics | HerdEffectMetrics
+  metric_type: 'propagation' | 'polarization' | 'herd_effect' | 'sentiment_tendency'
+  metric_data: PropagationMetrics | PolarizationMetrics | HerdEffectMetrics | SentimentTendencyMetrics
   calculated_at: string
 }
 
@@ -349,6 +370,7 @@ export interface MetricsHistoryResponse {
 export interface ChartDataPoint {
   step: number
   polarization?: number // from polarization.average_magnitude
+  sentimentTendency?: number // from sentiment_tendency.overall_score
   propagation?: number // from propagation.scale
   herdEffect?: number // from herd_effect.conformity_index
 }
