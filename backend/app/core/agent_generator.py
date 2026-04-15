@@ -5,16 +5,24 @@
 遵循工厂模式，确保智能体生成的可配置性和可扩展性。
 """
 
-import random
 import logging
-from typing import Dict, List, Any, Optional
+import random
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from app.core.agent_profiles import (
-    AGE_GROUPS, GENDERS, COUNTRIES, INTERESTS, ALL_INTERESTS, MBTI_TYPES,
-    PROFESSIONS, BIO_TEMPLATES, HOBBIES,
-    POLITICAL_LEANINGS, TOPIC_PREFERENCES,
-    ACTIVITY_LEVELS
+    ACTIVITY_LEVELS,
+    AGE_GROUPS,
+    ALL_INTERESTS,
+    BIO_TEMPLATES,
+    COUNTRIES,
+    GENDERS,
+    HOBBIES,
+    INTERESTS,
+    MBTI_TYPES,
+    POLITICAL_LEANINGS,
+    PROFESSIONS,
+    TOPIC_PREFERENCES,
 )
 
 logger = logging.getLogger(__name__)

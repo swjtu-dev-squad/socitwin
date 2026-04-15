@@ -1,9 +1,9 @@
 """
 受控Agent数据模型
 """
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # 受控Agent配置模型

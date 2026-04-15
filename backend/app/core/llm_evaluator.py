@@ -8,12 +8,11 @@ particularly for calculating group polarization by comparing initial and current
 import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
-
 
 logger = logging.getLogger(__name__)
 

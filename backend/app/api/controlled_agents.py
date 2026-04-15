@@ -3,15 +3,14 @@
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.core.dependencies import get_controlled_agents_service_dependency
 from app.models.controlled_agents import (
     AddControlledAgentsRequest,
     AddControlledAgentsResponse,
 )
-from app.core.dependencies import get_controlled_agents_service_dependency
 from app.services.controlled_agents_service import ControlledAgentsService
-
 
 logger = logging.getLogger(__name__)
 

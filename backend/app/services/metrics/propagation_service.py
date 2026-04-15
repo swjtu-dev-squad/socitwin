@@ -5,12 +5,11 @@ This service calculates how information spreads through the social network
 using recursive SQL CTEs to build propagation trees.
 """
 
-import sqlite3
 import logging
-from typing import Optional, Dict, Any, List
+import sqlite3
+from typing import Any, Dict, List, Optional
 
 from app.models.metrics import PropagationMetrics
-
 
 logger = logging.getLogger(__name__)
 

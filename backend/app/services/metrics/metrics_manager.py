@@ -9,15 +9,14 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from app.services.metrics.propagation_service import PropagationService
-from app.services.metrics.polarization_service import PolarizationService
-from app.services.metrics.herd_effect_service import HerdEffectService
 from app.core.llm_evaluator import get_llm_evaluator
 from app.models.metrics import MetricsSummary
+from app.services.metrics.herd_effect_service import HerdEffectService
+from app.services.metrics.polarization_service import PolarizationService
+from app.services.metrics.propagation_service import PropagationService
 from app.utils import metrics_db
-
 
 logger = logging.getLogger(__name__)
 
@@ -348,8 +347,8 @@ class MetricsManager:
         Returns:
             Current step number
         """
-        import sqlite3
         import os
+        import sqlite3
 
         try:
             if not os.path.exists(self.db_path):

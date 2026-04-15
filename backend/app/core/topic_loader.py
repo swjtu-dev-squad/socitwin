@@ -8,12 +8,11 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 import yaml
 
 from app.models.topics import Topic, TopicConfig
-
 
 logger = logging.getLogger(__name__)
 

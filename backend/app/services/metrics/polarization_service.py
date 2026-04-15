@@ -8,15 +8,10 @@ to current opinions using LLM-based evaluation.
 import asyncio
 import logging
 import sqlite3
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
-from app.models.metrics import (
-    PolarizationMetrics,
-    AgentPolarization,
-    PolarizationDirection
-)
-from app.core.llm_evaluator import get_llm_evaluator, LLMAPIError
-
+from app.core.llm_evaluator import LLMAPIError, get_llm_evaluator
+from app.models.metrics import AgentPolarization, PolarizationDirection, PolarizationMetrics
 
 logger = logging.getLogger(__name__)
 

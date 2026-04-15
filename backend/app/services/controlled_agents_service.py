@@ -11,7 +11,6 @@ from app.models.controlled_agents import (
     ControlledAgentConfig,
 )
 
-
 logger = logging.getLogger(__name__)
 
 

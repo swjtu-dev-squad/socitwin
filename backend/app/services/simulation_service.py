@@ -6,36 +6,34 @@
 """
 
 import asyncio
+import json
 import logging
 import os
+import sqlite3
 import time
 import uuid
 from datetime import datetime
-from typing import Dict, Optional, Any, Union
-import json
-
-import sqlite3
+from typing import Any, Dict, Optional, Union
 
 # OASIS framework imports
-from oasis import SocialAgent, LLMAction, ManualAction
+from oasis import LLMAction, ManualAction, SocialAgent
 
 from app.core.oasis_manager import (
     OASISManager,
 )
 from app.models.simulation import (
-    SimulationConfig,
-    SimulationStatus,
-    StepRequest,
-    StepType,
     ConfigResult,
-    StepResult,
-    StatusResult,
+    LogEntry,
     LogFilters,
     LogResult,
-    LogEntry,
     PlatformType,
+    SimulationConfig,
+    SimulationStatus,
+    StatusResult,
+    StepRequest,
+    StepResult,
+    StepType,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +217,7 @@ class SimulationService:
         self, request: StepRequest
     ) -> Dict[SocialAgent, Union[LLMAction, ManualAction]]:
         """构建动作字典"""
-        from oasis import LLMAction, ManualAction, ActionType
+        from oasis import ActionType, LLMAction, ManualAction
 
         actions = {}
 
@@ -281,8 +279,8 @@ class SimulationService:
     async def _calculate_advanced_metrics(self):
         """计算高级指标（信息传播、极化率、羊群效应）"""
         try:
-            from app.core.dependencies import get_metrics_manager
             from app.core.config import get_settings
+            from app.core.dependencies import get_metrics_manager
 
             metrics_manager = await get_metrics_manager()
             if not metrics_manager:
@@ -412,7 +410,6 @@ class SimulationService:
 
             # 查询关注列表
             following = []
-            followers = []
             if self.oasis_manager._db_path and os.path.exists(self.oasis_manager._db_path):
                 try:
                     conn = sqlite3.connect(self.oasis_manager._db_path)
@@ -420,7 +417,7 @@ class SimulationService:
                     cursor.execute("SELECT followee_id FROM follow WHERE follower_id = ?", (agent.social_agent_id,))
                     following = [str(row[0]) for row in cursor.fetchall()]
                     cursor.execute("SELECT follower_id FROM follow WHERE followee_id = ?", (agent.social_agent_id,))
-                    followers = [str(row[0]) for row in cursor.fetchall()]
+                    [str(row[0]) for row in cursor.fetchall()]
                     conn.close()
                 except Exception as e:
                     logger.warning(f"Failed to query follow relationships for agent {agent.social_agent_id}: {e}")

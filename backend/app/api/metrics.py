@@ -9,19 +9,18 @@ import logging
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.dependencies import get_metrics_manager_dependency
-from app.services.metrics.metrics_manager import MetricsManager
 from app.models.metrics import (
-    MetricsSummary,
-    PropagationMetrics,
-    PolarizationMetrics,
     HerdEffectMetrics,
+    MetricsSummary,
+    PolarizationMetrics,
+    PropagationMetrics,
     Validator,
 )
+from app.services.metrics.metrics_manager import MetricsManager
 from app.utils import metrics_db
-
 
 logger = logging.getLogger(__name__)
 
