@@ -31,10 +31,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # Prettier (软性提示 - 直接运行，不通过 Reviewdog)
+      # Prettier (硬性失败 - 阻断 CI)
       - name: Run Prettier check
         run: pnpm run format:check
-        continue-on-error: true  # ✅ 格式问题不阻断 CI
+        # ❌ 失败会阻断 CI - 格式问题现在会阻止 PR 合并
 
       # Build (硬性失败 - 阻断 CI)
       - name: Build frontend
