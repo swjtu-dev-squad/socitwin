@@ -51,6 +51,8 @@
   - [`migration-phase-checklists.md`](./migration-phase-checklists.md)
 - 迁移范围、阶段拆分、文件级工作流：
   - [`migration-workstreams.md`](./migration-workstreams.md)
+- 社交网络监控页功能迁移与 monitor/detail 接口计划：
+  - [`social-monitor-migration-plan.md`](./social-monitor-migration-plan.md)
 
 ## 4. Current Main Risks
 
@@ -64,5 +66,6 @@
 1. 确认 `context/llm.py` 对应的模型 runtime 包装差异是否需要后续小 helper；
 2. 按需运行真实 provider 级 `comparison` 长跑，而不是把它作为高频迁移验证；
 3. 盘点迁移完成后的结构清理项，例如过大的 facade / agent / config / evaluation harness。
+4. 将旧仓库社交网络监控页中已经完成的 monitor/detail、图谱边、行为轨迹和 memory/retrieval 展示能力，按新 FastAPI + memory debug 架构接入新仓库。
 
-当前这三项已经拆到独立页面持续维护，后续总览页只保留高层边界与进度。
+当前这些事项已经拆到独立页面持续维护，后续总览页只保留高层边界与进度。

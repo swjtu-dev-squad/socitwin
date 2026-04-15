@@ -22,6 +22,8 @@
   - 记录可直接执行的分阶段 checklist。
 - `migration-workstreams.md`
   - 记录迁移范围、阶段顺序、文件级工作流和测试/文档策略。
+- `social-monitor-migration-plan.md`
+  - 记录旧仓库社交网络监控页功能迁入新仓库的页面展示目标、后端接口合同、memory debug 对接方式和实施阶段。
 
 ## Editing Rule
 
@@ -33,3 +35,4 @@
 - 已确认决策，优先补到 `migration-decisions.md`。
 - 新增的可执行阶段步骤，优先补到 `migration-phase-checklists.md`。
 - 实施阶段与文件级任务，优先补到 `migration-workstreams.md`。
+- 前端社交网络监控页迁移和 monitor/detail 接口设计，优先补到 `social-monitor-migration-plan.md`。
