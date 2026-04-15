@@ -557,17 +557,13 @@ export default function Overview() {
                   <Users className="w-3 h-3" />
                   用户选择
                 </div>
-                <Select
+                <select
                   value={selectedUserSource}
-                  onValueChange={(value) => setSelectedUserSource(value as 'topic-original')}
+                  onChange={(e) => setSelectedUserSource(e.target.value as 'topic-original')}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary"
                 >
-                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
-                    <SelectValue placeholder="选择用户来源" value={originalUserSourceLabel} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="topic-original">{originalUserSourceLabel}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="topic-original">{originalUserSourceLabel}</option>
+                </select>
               </div>
             </div>
 
