@@ -51,6 +51,9 @@ class EvaluationConfig:
     scenario_steps: int = 3
     scenario_agent_count: int = 2
     scenario_timeout_seconds: int = 120
+    longwindow_steps: int = 8
+    longwindow_agent_count: int = 2
+    longwindow_timeout_seconds: int = 240
 
 
 @dataclass(slots=True)
@@ -159,6 +162,8 @@ def run_memory_evaluation(config: EvaluationConfig) -> dict[str, Any]:
         _run_real_smoke(config, recorder)
     if "real-scenarios" in config.phases:
         _run_real_scenarios(config, recorder)
+    if "real-longwindow" in config.phases:
+        _run_real_longwindow(config, recorder)
 
     return recorder.finalize(config)
 
@@ -168,7 +173,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--phase",
         action="append",
-        choices=["preflight", "deterministic", "real-smoke", "real-scenarios"],
+        choices=[
+            "preflight",
+            "deterministic",
+            "real-smoke",
+            "real-scenarios",
+            "real-longwindow",
+        ],
         help="Evaluation phases to run.",
     )
     parser.add_argument("--run-id", default="", help="Optional output run id.")
@@ -228,6 +239,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=120,
         help="Timeout for real-scenarios initialize/step flow.",
     )
+    parser.add_argument(
+        "--longwindow-steps",
+        type=int,
+        default=8,
+        help="Number of action_v1 steps for real-longwindow.",
+    )
+    parser.add_argument(
+        "--longwindow-agent-count",
+        type=int,
+        default=2,
+        help="Number of agents for real-longwindow.",
+    )
+    parser.add_argument(
+        "--longwindow-timeout-seconds",
+        type=int,
+        default=240,
+        help="Timeout for real-longwindow initialize/step flow.",
+    )
     return parser
 
 
@@ -246,6 +275,9 @@ def parse_args(args: list[str] | None = None) -> EvaluationConfig:
         scenario_steps=parsed.scenario_steps,
         scenario_agent_count=parsed.scenario_agent_count,
         scenario_timeout_seconds=parsed.scenario_timeout_seconds,
+        longwindow_steps=parsed.longwindow_steps,
+        longwindow_agent_count=parsed.longwindow_agent_count,
+        longwindow_timeout_seconds=parsed.longwindow_timeout_seconds,
     )
 
 
@@ -430,6 +462,22 @@ def _run_real_scenarios(config: EvaluationConfig, recorder: EvaluationRecorder) 
             EvaluationEvent(
                 phase="real-scenarios",
                 name="VAL-LTM-05 real_self_action_retrievability",
+                status="blocked",
+                reason=str(exc),
+            )
+        )
+
+
+def _run_real_longwindow(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    try:
+        events = asyncio.run(_run_action_v1_real_longwindow_async(config))
+        for event in events:
+            recorder.record(event)
+    except Exception as exc:
+        recorder.record(
+            EvaluationEvent(
+                phase="real-longwindow",
+                name="VAL-RCL-10 real_longwindow_recall_injection",
                 status="blocked",
                 reason=str(exc),
             )
@@ -639,6 +687,77 @@ async def _run_action_v1_real_scenarios_async(
             shutil.rmtree(db_dir, ignore_errors=True)
 
 
+async def _run_action_v1_real_longwindow_async(
+    config: EvaluationConfig,
+) -> list[EvaluationEvent]:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-longwindow-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.longwindow_timeout_seconds))
+
+    env_updates = {
+        "OASIS_MEMORY_MODE": MemoryMode.ACTION_V1.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"real_longwindow_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+
+            simulation_config = SimulationConfig(
+                platform=PlatformType.REDDIT,
+                agent_count=config.longwindow_agent_count,
+                memory_mode=MemoryMode.ACTION_V1,
+                db_path=str(db_path),
+                max_steps=max(1, config.longwindow_steps),
+                agent_source={"source_type": "template"},
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.longwindow_timeout_seconds),
+            )
+            step_snapshots: list[dict[str, Any]] = []
+            for _ in range(max(1, config.longwindow_steps)):
+                step_result = await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.longwindow_timeout_seconds),
+                )
+                step_snapshots.append(
+                    {
+                        "step_result": dict(step_result or {}),
+                        "memory_debug": manager.get_memory_debug_info(),
+                    }
+                )
+
+            return _build_real_longwindow_events(
+                manager=manager,
+                init_result=init_result,
+                config=config,
+                step_snapshots=step_snapshots,
+            )
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+
 def _build_real_scenario_events(
     *,
     manager: OASISManager,
@@ -679,6 +798,59 @@ def _build_real_scenario_events(
             base_metrics=base_metrics,
             next_step_id=int(manager.get_state_info().get("current_step", 0) or 0) + 1,
         ),
+    ]
+
+
+def _build_real_longwindow_events(
+    *,
+    manager: OASISManager,
+    init_result: dict[str, Any],
+    config: EvaluationConfig,
+    step_snapshots: list[dict[str, Any]],
+) -> list[EvaluationEvent]:
+    agents = list(manager.get_all_agents())
+    persisted_count = _count_persisted_action_episodes(agents)
+    longwindow_metrics = _summarize_longwindow_debug_snapshots(step_snapshots)
+    base_metrics = {
+        "memory_mode": MemoryMode.ACTION_V1.value,
+        "longterm_backend": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
+        "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
+        "actual_persisted_action_episode_count": persisted_count,
+        "persisted_action_episode_count": persisted_count,
+        **longwindow_metrics,
+    }
+    status = (
+        "pass"
+        if persisted_count > 0
+        and int(base_metrics.get("recall_injected_count", 0) or 0) > 0
+        and int(base_metrics.get("recall_injected_trace_count", 0) or 0) > 0
+        else "fail"
+    )
+    reason = ""
+    if status != "pass":
+        reason = (
+            "Long-window run did not show recall injection in runtime snapshots "
+            f"(persisted={persisted_count}, injected={base_metrics.get('recall_injected_count', 0)}, "
+            f"trace_hits={base_metrics.get('recall_injected_trace_count', 0)})."
+        )
+    return [
+        EvaluationEvent(
+            phase="real-longwindow",
+            name="VAL-RCL-10 real_longwindow_recall_injection",
+            status=status,
+            metrics=base_metrics,
+            evidence={
+                "trace_examples": _extract_longwindow_trace_examples(step_snapshots),
+                "note": (
+                    "该场景直接读取每步 memory debug snapshot 中的 recall 注入痕迹，"
+                    "用于确认 recall 不只停留在 gate + retrieval。"
+                ),
+            },
+            reason=reason,
+        )
     ]
 
 
@@ -1150,6 +1322,101 @@ def _mean_bool(values: Any) -> float:
     if not collected:
         return 0.0
     return round(sum(1.0 if item else 0.0 for item in collected) / len(collected), 4)
+
+
+def _summarize_longwindow_debug_snapshots(
+    step_snapshots: list[dict[str, Any]],
+) -> dict[str, Any]:
+    agent_rows: list[dict[str, Any]] = []
+    used_recall_step_ids: set[int] = set()
+    observation_compression_trigger_count = 0
+    for step_snapshot in step_snapshots:
+        debug = step_snapshot.get("memory_debug", {}) or {}
+        for agent in list(debug.get("agents", []) or []):
+            agent_rows.append(agent)
+            stage = str(agent.get("last_observation_stage", "") or "")
+            if stage in {"long_text_capped", "interaction_reduced", "physical_fallback"}:
+                observation_compression_trigger_count += 1
+            for step_id in list(agent.get("last_injected_step_ids", []) or []):
+                try:
+                    used_recall_step_ids.add(int(step_id))
+                except Exception:
+                    continue
+
+    prompt_tokens = [
+        int(agent.get("last_prompt_tokens", 0) or 0)
+        for agent in agent_rows
+        if int(agent.get("last_prompt_tokens", 0) or 0) > 0
+    ]
+    return {
+        "recall_gate_true_count": sum(
+            1 for agent in agent_rows if bool(agent.get("last_recall_gate"))
+        ),
+        "recall_recalled_trace_count": sum(
+            1 for agent in agent_rows if int(agent.get("last_recalled_count", 0) or 0) > 0
+        ),
+        "recall_recalled_not_injected_trace_count": sum(
+            1
+            for agent in agent_rows
+            if int(agent.get("last_recalled_count", 0) or 0) > 0
+            and int(agent.get("last_injected_count", 0) or 0) <= 0
+        ),
+        "recall_injected_count": sum(
+            int(agent.get("last_injected_count", 0) or 0) for agent in agent_rows
+        ),
+        "recall_injected_trace_count": sum(
+            1 for agent in agent_rows if int(agent.get("last_injected_count", 0) or 0) > 0
+        ),
+        "used_recall_step_ids": sorted(used_recall_step_ids),
+        "avg_prompt_tokens": (
+            round(sum(prompt_tokens) / len(prompt_tokens), 2) if prompt_tokens else 0.0
+        ),
+        "max_prompt_tokens": max(prompt_tokens, default=0),
+        "observation_compression_trigger_count": observation_compression_trigger_count,
+        "shortterm_recent_retained_step_count": max(
+            (int(agent.get("recent_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+        "shortterm_compressed_retained_step_count": max(
+            (int(agent.get("compressed_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+        "shortterm_total_retained_step_count": max(
+            (int(agent.get("total_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+    }
+
+
+def _extract_longwindow_trace_examples(
+    step_snapshots: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for step_snapshot in step_snapshots:
+        step_result = dict(step_snapshot.get("step_result", {}) or {})
+        step_id = int(step_result.get("step_executed", 0) or 0)
+        debug = step_snapshot.get("memory_debug", {}) or {}
+        for agent in list(debug.get("agents", []) or []):
+            injected_count = int(agent.get("last_injected_count", 0) or 0)
+            recalled_count = int(agent.get("last_recalled_count", 0) or 0)
+            if injected_count <= 0 and recalled_count <= 0:
+                continue
+            rows.append(
+                {
+                    "step_id": step_id,
+                    "agent_id": agent.get("agent_id"),
+                    "user_name": agent.get("user_name"),
+                    "last_recall_gate": agent.get("last_recall_gate"),
+                    "last_recall_query_text": agent.get("last_recall_query_text"),
+                    "last_recalled_count": recalled_count,
+                    "last_injected_count": injected_count,
+                    "last_recalled_step_ids": list(agent.get("last_recalled_step_ids", []) or []),
+                    "last_injected_step_ids": list(agent.get("last_injected_step_ids", []) or []),
+                    "last_prompt_tokens": int(agent.get("last_prompt_tokens", 0) or 0),
+                    "last_observation_stage": agent.get("last_observation_stage"),
+                }
+            )
+    return rows[:5]
 
 
 def uuid_suffix() -> str:

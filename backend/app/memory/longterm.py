@@ -549,6 +549,8 @@ def _serialize_payload(payload: Mapping[str, Any] | None) -> dict[str, Any]:
             isinstance(item, (str, int, float, bool)) or item is None
             for item in value
         ):
+            if not value:
+                continue
             serialized[str(key)] = value
     serialized[SERIALIZED_PAYLOAD_KEY] = json.dumps(
         payload,

@@ -9,6 +9,7 @@ from unittest.mock import patch
 from app.memory.evaluation_harness import (
     EvaluationConfig,
     EvaluationEvent,
+    _build_real_longwindow_events,
     _build_real_scenario_events,
     build_parser,
     parse_args,
@@ -91,6 +92,20 @@ def test_parser_accepts_real_scenarios_phase() -> None:
     assert config.scenario_steps == 4
 
 
+def test_parser_accepts_real_longwindow_phase() -> None:
+    args = build_parser().parse_args(
+        ["--phase", "real-longwindow", "--longwindow-agent-count", "3", "--longwindow-steps", "9"]
+    )
+    config = parse_args(
+        ["--phase", "real-longwindow", "--longwindow-agent-count", "3", "--longwindow-steps", "9"]
+    )
+
+    assert args.phase == ["real-longwindow"]
+    assert config.phases == ["real-longwindow"]
+    assert config.longwindow_agent_count == 3
+    assert config.longwindow_steps == 9
+
+
 def test_run_memory_evaluation_dispatches_real_smoke_phase() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         with patch(
@@ -121,6 +136,22 @@ def test_run_memory_evaluation_dispatches_real_scenarios_phase() -> None:
             )
 
     real_scenarios.assert_called_once()
+
+
+def test_run_memory_evaluation_dispatches_real_longwindow_phase() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        with patch(
+            "app.memory.evaluation_harness._run_real_longwindow"
+        ) as real_longwindow:
+            run_memory_evaluation(
+                EvaluationConfig(
+                    phases=["real-longwindow"],
+                    output_dir=Path(tmp),
+                    run_id="real-longwindow-test",
+                )
+            )
+
+    real_longwindow.assert_called_once()
 
 
 def test_preflight_embedding_success_uses_inferred_dimension() -> None:
@@ -261,3 +292,81 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
     assert events[0].status == "pass"
     assert events[1].status == "pass"
     assert events[2].status == "pass"
+
+
+def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
+    fake_agent = SimpleNamespace(
+        _persisted_action_episode_ids={(3, 0), (6, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 8},
+    )
+    init_result = {"agent_count": 1}
+    step_snapshots = [
+        {
+            "step_result": {"step_executed": 7},
+            "memory_debug": {
+                "agents": [
+                    {
+                        "agent_id": 1,
+                        "user_name": "alice",
+                        "last_recall_gate": True,
+                        "last_recall_query_text": "remember the earlier post",
+                        "last_recalled_count": 2,
+                        "last_injected_count": 1,
+                        "last_recalled_step_ids": [3, 4],
+                        "last_injected_step_ids": [3],
+                        "last_prompt_tokens": 1400,
+                        "last_observation_stage": "interaction_reduced",
+                        "recent_retained_step_count": 3,
+                        "compressed_retained_step_count": 5,
+                        "total_retained_step_count": 8,
+                    }
+                ]
+            },
+        },
+        {
+            "step_result": {"step_executed": 8},
+            "memory_debug": {
+                "agents": [
+                    {
+                        "agent_id": 1,
+                        "user_name": "alice",
+                        "last_recall_gate": True,
+                        "last_recall_query_text": "remember the earlier post",
+                        "last_recalled_count": 1,
+                        "last_injected_count": 1,
+                        "last_recalled_step_ids": [6],
+                        "last_injected_step_ids": [6],
+                        "last_prompt_tokens": 1600,
+                        "last_observation_stage": "raw_fit",
+                        "recent_retained_step_count": 3,
+                        "compressed_retained_step_count": 6,
+                        "total_retained_step_count": 9,
+                    }
+                ]
+            },
+        },
+    ]
+
+    events = _build_real_longwindow_events(
+        manager=manager,
+        init_result=init_result,
+        config=EvaluationConfig(phases=["real-longwindow"], embedding_url="http://127.0.0.1:11434/v1"),
+        step_snapshots=step_snapshots,
+    )
+
+    assert [event.name for event in events] == [
+        "VAL-RCL-10 real_longwindow_recall_injection"
+    ]
+    event = events[0]
+    assert event.status == "pass"
+    assert event.metrics["recall_injected_count"] == 2
+    assert event.metrics["recall_injected_trace_count"] == 2
+    assert event.metrics["recall_recalled_trace_count"] == 2
+    assert event.metrics["recall_recalled_not_injected_trace_count"] == 0
+    assert event.metrics["used_recall_step_ids"] == [3, 6]
+    assert event.metrics["observation_compression_trigger_count"] == 1
+    assert event.metrics["avg_prompt_tokens"] == 1500.0
+    assert event.metrics["max_prompt_tokens"] == 1600

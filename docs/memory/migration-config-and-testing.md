@@ -249,11 +249,13 @@
 - 测试：
   - `backend/tests/memory/evaluation/test_memory_evaluation_harness.py`
 
-它当前只承诺恢复：
+它当前已恢复：
 
 - `preflight`
 - `deterministic`
 - `real-smoke`
+- `real-scenarios`
+- `real-longwindow`
 
 并且已经具备这些最小能力：
 
@@ -278,7 +280,11 @@
 - `VAL-RCL-08 real_continuity_recall_probe`
 - `VAL-RCL-09 real_empty_observation_recall_suppression`
 
-但 `real-longwindow`、`comparison` 仍需后续逐个迁入。
+并且 `real-longwindow` 已恢复：
+
+- `VAL-RCL-10 real_longwindow_recall_injection`
+
+但 `comparison` 仍需后续迁入。
 
 当前已验证的最新结果：
 
@@ -294,6 +300,21 @@
     - `actual_persisted_action_episode_count=2`
   - `VAL-RCL-08`: `pass`
   - `VAL-RCL-09`: `pass`
+- `real-longwindow` 当前已恢复为基于 `memory debug snapshot` 的真实长窗口注入验证：
+  - 自动汇总 `recall_injected_count`
+  - 自动汇总 `recall_injected_trace_count`
+  - 自动汇总 `recall_recalled_not_injected_trace_count`
+  - 自动汇总 `used_recall_step_ids`
+  - 自动汇总 `avg_prompt_tokens / max_prompt_tokens`
+  - 自动汇总 `shortterm recent/compressed` 保留指标
+- 当前新仓库首轮真实长窗口结果：
+  - `VAL-RCL-10`: `fail`
+  - `actual_persisted_action_episode_count=5`
+  - `recall_gate_true_count=10`
+  - `recall_recalled_trace_count=9`
+  - `recall_injected_count=0`
+  - `recall_injected_trace_count=0`
+  - 这说明 `real-longwindow` phase 已恢复并能稳定暴露问题，但当前 action_v1 在新仓库里仍存在“召回命中但未注入”的运行现状。
 
 ## 7. Frontend And Status Notes
 

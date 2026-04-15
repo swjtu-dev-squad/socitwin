@@ -301,7 +301,7 @@
 
 ### Current Status
 
-这一阶段已经开始恢复，但当前只落了第一版评测入口：
+这一阶段已经开始恢复，并且第一版评测入口已推进到真实 recall phase：
 
 - 新增：
   - `backend/app/memory/evaluation_harness.py`
@@ -309,10 +309,10 @@
 - 当前已支持：
   - `preflight`
   - `deterministic`
--  - `real-smoke`
+- `real-smoke`
+- `real-scenarios`
+- `real-longwindow`
 - 当前明确还不支持：
-  - `real-scenarios`
-  - `real-longwindow`
   - `comparison`
 
 所以现在应把它理解为：
@@ -326,7 +326,14 @@
   - `VAL-LTM-05 real_self_action_retrievability`
   - `VAL-RCL-08 real_continuity_recall_probe`
   - `VAL-RCL-09 real_empty_observation_recall_suppression`
-- 但 `real-longwindow`、模式对比评测还没有迁回。
+- `real-longwindow` 已恢复到：
+  - `VAL-RCL-10 real_longwindow_recall_injection`
+- 当前首轮真实长窗口已经能跑完并给出结构化失败信号：
+  - persisted 已出现
+  - recalled trace 已出现
+  - injected 仍为 0
+  - 下一步应转入注入链路/overlap 抑制的真实排查，而不是继续补 harness 壳
+- 但模式对比评测还没有迁回。
 
 ### Do Not
 

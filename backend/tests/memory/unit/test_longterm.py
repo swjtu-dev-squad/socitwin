@@ -118,3 +118,26 @@ def test_chroma_longterm_store_roundtrip_and_agent_filter(tmp_path: Path) -> Non
     assert results[0]["step_id"] == 7
 
     store.clear()
+
+
+def test_chroma_longterm_store_accepts_empty_state_changes(tmp_path: Path) -> None:
+    store = build_chroma_longterm_store(
+        collection_name="memory-empty-state-changes",
+        output_dim=8,
+        embedding_backend="heuristic",
+        client_type="persistent",
+        path=str(tmp_path),
+        delete_collection_on_close=True,
+    )
+
+    episode = _episode(9, "agent-a")
+    episode["state_changes"] = []
+
+    store.write_episode(episode)
+    results = store.retrieve_relevant("follow user 9", limit=3, agent_id="agent-a")
+
+    assert len(results) == 1
+    assert results[0]["step_id"] == 9
+    assert results[0]["state_changes"] == []
+
+    store.clear()
