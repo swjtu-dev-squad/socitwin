@@ -41,14 +41,8 @@ jobs:
           uv run pyright app/
         # ❌ 失败会阻断 CI
 
-      # Ruff (软性提示)
-      - name: Install Reviewdog
+      # Ruff (硬性失败)
+      - name: Run Ruff
         run: |
-          curl -sfL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Run Ruff with Reviewdog
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          uv run ruff check . --ignore=E501 --output-format=json | reviewdog -f=ruff-check -reporter="github-pr-review" -level=error
+          uv run ruff check . --ignore=E501
         # ❌ 失败会阻断 CI - 代码风格问题现在会阻止 PR 合并
