@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from app.memory.longterm import (
     ChromaLongtermStore,
@@ -80,6 +81,21 @@ def test_build_longterm_embedding_supports_openai_compatible() -> None:
         model="text-embedding-3-small",
     )
     assert isinstance(embedding, OpenAICompatibleTextEmbedding)
+
+
+def test_build_longterm_embedding_infers_openai_compatible_dim_when_missing() -> None:
+    with patch(
+        "app.memory.longterm._infer_openai_compatible_embedding_dim",
+        return_value=768,
+    ):
+        embedding = build_longterm_embedding(
+            backend="openai-compatible",
+            model="nomic-embed-text:latest",
+            base_url="http://127.0.0.1:11434/v1",
+        )
+
+    assert isinstance(embedding, OpenAICompatibleTextEmbedding)
+    assert embedding.get_output_dim() == 768
 
 
 def test_chroma_longterm_store_roundtrip_and_agent_filter(tmp_path: Path) -> None:

@@ -241,7 +241,13 @@
 - `backend/tests/memory/integration/`
 - `backend/tests/memory/evaluation/`
 
-不建议把 memory tests 全堆进现有单个 `backend/test/` 脚本体系里。
+不建议把 memory tests 全堆进单个 E2E 脚本体系里。
+当前已经统一到：
+
+- `backend/tests/e2e/`
+- `backend/tests/memory/unit/`
+- `backend/tests/memory/integration/`
+- `backend/tests/memory/evaluation/`
 
 ### Phase 5: rewrite and migrate docs
 

@@ -29,8 +29,8 @@
   - `backend/app/services/*.py`
   - `backend/app/core/oasis_manager.py`
 - Current tests:
-  - `backend/test/e2e_simulation_test.py`
-  - `backend/test/run_tests.sh`
+  - `backend/tests/e2e/e2e_simulation_test.py`
+  - `backend/tests/e2e/run_tests.sh`
 
 ## 2. Old Repo Runtime Facts
 
@@ -304,8 +304,8 @@
 
 新仓库当前主要只有 API 级 E2E：
 
-- `backend/test/e2e_simulation_test.py`
-- `backend/test/run_tests.sh`
+- `backend/tests/e2e/e2e_simulation_test.py`
+- `backend/tests/e2e/run_tests.sh`
 
 其特点是：
 

@@ -284,7 +284,7 @@ class ChromaLongtermStore:
 def build_chroma_longterm_store(
     *,
     collection_name: str,
-    output_dim: int = 128,
+    output_dim: int | None = None,
     embedding_backend: str = "heuristic",
     embedding_model: str | None = None,
     embedding_api_key: str | None = None,
@@ -313,22 +313,60 @@ def build_chroma_longterm_store(
 def build_longterm_embedding(
     *,
     backend: str,
-    output_dim: int,
+    output_dim: int | None = None,
     model: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
 ) -> BaseEmbedding[str]:
     normalized_backend = str(backend or "heuristic").strip().lower()
     if normalized_backend in {"heuristic", "hash", "offline"}:
-        return HeuristicTextEmbedding(output_dim=output_dim)
+        return HeuristicTextEmbedding(output_dim=output_dim or 128)
     if normalized_backend in {"openai", "openai_compatible", "openai-compatible"}:
+        resolved_output_dim = output_dim
+        if resolved_output_dim is None:
+            resolved_output_dim = _infer_openai_compatible_embedding_dim(
+                model=model or "text-embedding-3-small",
+                api_key=api_key,
+                base_url=base_url,
+            )
         return OpenAICompatibleTextEmbedding(
             model=model or "text-embedding-3-small",
-            output_dim=output_dim,
+            output_dim=resolved_output_dim,
             api_key=api_key,
             base_url=base_url,
         )
     raise ValueError(f"Unsupported long-term embedding backend: {backend}")
+
+
+def _infer_openai_compatible_embedding_dim(
+    *,
+    model: str,
+    api_key: str | None,
+    base_url: str | None,
+) -> int:
+    try:
+        from openai import OpenAI
+    except ImportError as exc:
+        raise RuntimeError(
+            "OpenAI-compatible embeddings require the 'openai' package."
+        ) from exc
+
+    kwargs: dict[str, Any] = {}
+    if base_url:
+        kwargs["base_url"] = base_url
+    if api_key:
+        kwargs["api_key"] = api_key
+    elif base_url:
+        kwargs["api_key"] = "EMPTY"
+
+    client = OpenAI(**kwargs)
+    response = client.embeddings.create(
+        model=model,
+        input=["socitwin longterm embedding dim probe"],
+    )
+    if not response.data or not response.data[0].embedding:
+        raise RuntimeError("embedding response is empty")
+    return len(response.data[0].embedding)
 
 
 def episode_to_payload(record: Mapping[str, Any]) -> dict[str, Any]:

@@ -196,6 +196,32 @@ class PlatformMemoryAdapter:
     def __init__(self) -> None:
         self.action_capability_registry = ActionCapabilityRegistry()
 
+    def format_action_fact(
+        self,
+        *,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> str:
+        if not tool_args:
+            return tool_name
+
+        ordered_items = sorted(tool_args.items(), key=lambda item: item[0])
+        serialized_args = ", ".join(
+            f"{key}={value}"
+            for key, value in ordered_items
+        )
+        return f"{tool_name}({serialized_args})"
+
+    def derive_state_changes(
+        self,
+        *,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        tool_result: Any,
+    ) -> list[str]:
+        del tool_name, tool_args, tool_result
+        return []
+
     def extract_observed_entities(self, segment: StepSegment) -> list[str]:
         entities: list[str] = []
         for record in segment.perception_records:
@@ -381,7 +407,94 @@ class PlatformMemoryAdapter:
 
 
 class DefaultPlatformMemoryAdapter(PlatformMemoryAdapter):
-    pass
+    def derive_state_changes(
+        self,
+        *,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        tool_result: Any,
+    ) -> list[str]:
+        if _tool_result_explicitly_failed(tool_result):
+            return []
+
+        post_id = tool_args.get("post_id")
+        comment_id = tool_args.get("comment_id")
+        user_id = tool_args.get("user_id")
+        followee_id = tool_args.get("followee_id")
+        mutee_id = tool_args.get("mutee_id")
+        group_id = tool_args.get("group_id")
+        result_post_id = _tool_result_value(tool_result, "post_id")
+        result_comment_id = _tool_result_value(tool_result, "comment_id")
+        result_group_id = _tool_result_value(tool_result, "group_id")
+        result_message_id = _tool_result_value(tool_result, "message_id")
+
+        if tool_name == "like_post" and post_id is not None:
+            return [f"liked_post:{post_id}"]
+        if tool_name == "unlike_post" and post_id is not None:
+            return [f"unliked_post:{post_id}"]
+        if tool_name == "dislike_post" and post_id is not None:
+            return [f"disliked_post:{post_id}"]
+        if tool_name == "undo_dislike_post" and post_id is not None:
+            return [f"undid_dislike_post:{post_id}"]
+        if tool_name == "repost" and post_id is not None:
+            return [f"reposted_post:{post_id}"]
+        if tool_name == "quote_post" and post_id is not None:
+            return [f"quoted_post:{post_id}"]
+        if tool_name == "report_post" and post_id is not None:
+            return [f"reported_post:{post_id}"]
+        if tool_name == "create_post":
+            target = result_post_id if result_post_id is not None else post_id
+            if target is not None:
+                return [f"created_post:{target}"]
+            return ["created_post"]
+        if tool_name == "like_comment" and comment_id is not None:
+            return [f"liked_comment:{comment_id}"]
+        if tool_name == "unlike_comment" and comment_id is not None:
+            return [f"unliked_comment:{comment_id}"]
+        if tool_name == "dislike_comment" and comment_id is not None:
+            return [f"disliked_comment:{comment_id}"]
+        if tool_name == "undo_dislike_comment" and comment_id is not None:
+            return [f"undid_dislike_comment:{comment_id}"]
+        if tool_name == "create_comment":
+            target = result_comment_id if result_comment_id is not None else comment_id
+            if target is not None:
+                return [f"created_comment:{target}"]
+            if post_id is not None:
+                return [f"created_comment_on_post:{post_id}"]
+            return ["created_comment"]
+        if tool_name == "follow":
+            target = followee_id if followee_id is not None else user_id
+            if target is not None:
+                return [f"followed_user:{target}"]
+        if tool_name == "unfollow":
+            target = followee_id if followee_id is not None else user_id
+            if target is not None:
+                return [f"unfollowed_user:{target}"]
+        if tool_name == "mute":
+            target = mutee_id if mutee_id is not None else user_id
+            if target is not None:
+                return [f"muted_user:{target}"]
+        if tool_name == "unmute":
+            target = mutee_id if mutee_id is not None else user_id
+            if target is not None:
+                return [f"unmuted_user:{target}"]
+        if tool_name == "join_group" and group_id is not None:
+            return [f"joined_group:{group_id}"]
+        if tool_name == "leave_group" and group_id is not None:
+            return [f"left_group:{group_id}"]
+        if tool_name == "send_to_group" and group_id is not None:
+            target = result_message_id if result_message_id is not None else group_id
+            return [f"sent_group_message:{target}"]
+        if tool_name == "create_group":
+            target = result_group_id if result_group_id is not None else group_id
+            if target is not None:
+                return [f"created_group:{target}"]
+            group_name = tool_args.get("group_name")
+            if group_name:
+                return [f"created_group:{group_name}"]
+            return ["created_group"]
+
+        return []
 
 
 class RedditMemoryAdapter(DefaultPlatformMemoryAdapter):
@@ -390,6 +503,16 @@ class RedditMemoryAdapter(DefaultPlatformMemoryAdapter):
 
 class TwitterMemoryAdapter(DefaultPlatformMemoryAdapter):
     pass
+
+
+def _tool_result_explicitly_failed(tool_result: Any) -> bool:
+    return isinstance(tool_result, dict) and tool_result.get("success") is False
+
+
+def _tool_result_value(tool_result: Any, key: str) -> Any:
+    if isinstance(tool_result, dict):
+        return tool_result.get(key)
+    return None
 
 
 def build_platform_memory_adapter(platform: str) -> PlatformMemoryAdapter:

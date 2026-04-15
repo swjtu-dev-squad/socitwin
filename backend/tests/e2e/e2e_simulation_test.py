@@ -6,7 +6,7 @@ This script runs a complete simulation test with configurable parameters,
 executes multiple steps, and generates a detailed JSON report.
 
 Usage:
-    python e2e_simulation_test.py --agent-count 5 --max-steps 10 --topic climate_change_debate
+    python backend/tests/e2e/e2e_simulation_test.py --agent-count 5 --max-steps 10 --topic climate_change_debate
 """
 
 import argparse
@@ -872,16 +872,16 @@ def parse_arguments():
         epilog="""
 Examples:
   # Run with default parameters
-  python e2e_simulation_test.py
+  python backend/tests/e2e/e2e_simulation_test.py
 
   # Run with custom parameters
-  python e2e_simulation_test.py --agent-count 10 --max-steps 20 --topic tech_ai_regulation
+  python backend/tests/e2e/e2e_simulation_test.py --agent-count 10 --max-steps 20 --topic tech_ai_regulation
 
   # Run with Reddit platform
-  python e2e_simulation_test.py --platform reddit --topic crypto_discussion
+  python backend/tests/e2e/e2e_simulation_test.py --platform reddit --topic crypto_discussion
 
   # Run quietly (no colored output)
-  python e2e_simulation_test.py --no-verbose
+  python backend/tests/e2e/e2e_simulation_test.py --no-verbose
         """
     )
 

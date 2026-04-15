@@ -12,6 +12,7 @@ PLATFORM="twitter"
 AGENT_COUNT=5
 MAX_STEPS=10
 TOPIC="climate_change_debate"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -90,7 +91,7 @@ echo "  Max Steps: $MAX_STEPS"
 echo "  Topic: $TOPIC"
 echo ""
 
-python e2e_simulation_test.py \
+python "$SCRIPT_DIR/e2e_simulation_test.py" \
     --platform "$PLATFORM" \
     --agent-count "$AGENT_COUNT" \
     --max-steps "$MAX_STEPS" \

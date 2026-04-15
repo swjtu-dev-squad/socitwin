@@ -126,7 +126,6 @@
 下面这些问题尚未最终冻结：
 
 - 新仓库的 memory 配置命名是否继续沿用旧仓库 `OASIS_MODEL_*` / `OASIS_V1_*` 体系；
-- system evaluation harness 是独立落在新仓库，还是部分复用现有 `backend/test` 结构；
 - 前端 memory API 本轮是否只定义契约，不实现真实展示。
 
 这些问题不影响当前先确定“两模式 + 独立 memory 目录”这两个基础边界。
@@ -140,6 +139,11 @@
 - 前端本轮不作为迁移阻塞项；
   - 先保证后端 memory 主链、配置、测试、文档完整可靠；
   - 前端只保留最小契约盘点，不抢占主链迁移优先级。
+- 测试根目录统一为：
+  - `backend/tests/e2e/`
+  - `backend/tests/memory/unit/`
+  - `backend/tests/memory/integration/`
+  - `backend/tests/memory/evaluation/`
 
 ### 4.1 Deferred `file` source support in `action_v1`
 

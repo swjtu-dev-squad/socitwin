@@ -306,11 +306,11 @@
 - 新增：
   - `backend/app/memory/evaluation_harness.py`
   - `backend/tests/memory/evaluation/test_memory_evaluation_harness.py`
-- 当前只支持：
+- 当前已支持：
   - `preflight`
   - `deterministic`
+-  - `real-smoke`
 - 当前明确还不支持：
-  - `real-smoke`
   - `real-scenarios`
   - `real-longwindow`
   - `comparison`
@@ -319,7 +319,11 @@
 
 - 新仓库评测 harness 的第一版脚手架已恢复；
 - 结果目录、事件、摘要结构已重新建立；
-- 但真实 provider / 长窗口 / 对比评测还没有迁回。
+- embedding preflight 与最小 action_v1 real-smoke 入口已补回；
+- 1-agent / 1-step 的 `action_v1` real-smoke 已完成一次真实通过；
+- smoke 暴露出的 `episodic_memory` adapter 契约缺口已经修复并补测；
+- 最小 `real-scenarios` 已恢复到 `VAL-LTM-05 real_self_action_retrievability`；
+- 但 `VAL-RCL-08/09`、`real-longwindow`、模式对比评测还没有迁回。
 
 ### Do Not
 

@@ -146,9 +146,9 @@
 
 ### 5.1 New repo current test starting point
 
-新仓库当前主要只有：
+新仓库当前主要的 API / E2E 脚本是：
 
-- [`backend/test/e2e_simulation_test.py`](/home/grayg/socitwin/backend/test/e2e_simulation_test.py)
+- [`backend/tests/e2e/e2e_simulation_test.py`](/home/grayg/socitwin/backend/tests/e2e/e2e_simulation_test.py)
 
 它更偏：
 
@@ -231,7 +231,7 @@
 
 - 1~5 已有基础覆盖
 - 6 正在从 manager-level smoke 往更真实的 integration 推进
-- 7 已开始迁回最小 harness 脚手架，但只覆盖 `preflight + deterministic`
+- 7 已开始迁回最小 harness 脚手架，当前覆盖 `preflight + deterministic + real-smoke + 最小 real-scenarios`
 
 这个顺序不能反过来。尤其不能在：
 
@@ -253,6 +253,7 @@
 
 - `preflight`
 - `deterministic`
+- `real-smoke`
 
 并且已经具备这些最小能力：
 
@@ -262,8 +263,28 @@
 - 写出 `README.md`
 - 跑通一个最小 deterministic observation fidelity probe
 - 跑通一个最小 deterministic recall trigger probe
+- 跑通一个最小 `action_v1` 真实初始化/step smoke 入口
+- 对 OpenAI-compatible embedding 服务做 preflight 探测
 
-当前不能把它误读成“旧仓库 harness 已完整迁回”。真实场景相关 phase 仍需后续逐个迁入。
+当前已验证的最新状态：
+
+- `real-smoke` 已在新仓库中实际跑通 1-agent / 1-step 的 `action_v1` 主链；
+- 真实 smoke 过程中暴露出的 `RedditMemoryAdapter.format_action_fact` 迁移缺口已修复，并补了独立单测；
+- OpenAI-compatible embedding preflight 仍然依赖当前环境是否能从 WSL 访问到对应服务地址，不能把它和 heuristic-backed real-smoke 的可运行性混为一谈。
+
+当前不能把它误读成“旧仓库 harness 已完整迁回”。当前 `real-scenarios` 只恢复了第一版 `VAL-LTM-05 real_self_action_retrievability`，`VAL-RCL-08/09`、`real-longwindow`、`comparison` 仍需后续逐个迁入。
+
+当前已验证的最新结果：
+
+- `embedding preflight` 已可通过本地 Ollama `http://127.0.0.1:11434/v1` 跑通，`nomic-embed-text:latest` 的 `embedding_dim=768`；
+- `real-scenarios` 最小真实 probe 已可跑通 2-agent / 3-step 的 `action_v1 + Chroma + OpenAI-compatible embedding`；
+- 当前新仓库首轮最小真实检索指标为：
+  - `hit_at_1=0.6667`
+  - `hit_at_3=1.0`
+  - `recall_at_3=1.0`
+  - `mrr=0.8333`
+  - `cross_agent_top3_count=0`
+  - `actual_persisted_action_episode_count=3`
 
 ## 7. Frontend And Status Notes
 
@@ -356,13 +377,12 @@
 
 下一轮还需要继续核对并补进计划的内容：
 
-1. system evaluation harness 是放在 `backend/test/`，还是单独建 `backend/tests/memory/`；
-2. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook；
-3. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出。
+1. topic activation 相关路径在 action_v1 下是否需要额外 trace / memory ingestion hook；
+2. monitor/debug 接口是否需要第二层更细的 per-agent drill-down 输出。
 
-当前推荐先按下面方向实施：
+当前已经按下面方向收口：
 
-- 现有 `backend/test/`
-  - 保留当前 API smoke 脚本
-- 新增 `backend/tests/memory/`
-  - 用于 unit / integration / evaluation 分层测试
+- `backend/tests/e2e/`
+  - 保留 API / E2E smoke 脚本
+- `backend/tests/memory/`
+  - 承载 unit / integration / evaluation 分层测试

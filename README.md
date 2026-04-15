@@ -14,7 +14,7 @@
   [![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20Vite-61DAFB.svg)](frontend/)
   [![OASIS](https://img.shields.io/badge/OASIS-integrated-purple.svg)](https://github.com/simulation-collective/oasis)
 
-  [![Tests](https://img.shields.io/badge/tests-e2e-brightgreen.svg)](backend/test/)
+  [![Tests](https://img.shields.io/badge/tests-e2e-brightgreen.svg)](backend/tests/)
   [![Documentation](https://img.shields.io/badge/docs-latest-orange.svg)](docs/)
   [![Status](https://img.shields.io/badge/status-active-success.svg)](#)
 
@@ -139,7 +139,7 @@ pnpm dev
 
 ```bash
 # Using the E2E test script
-cd backend/test
+cd backend/tests/e2e
 ./run_tests.sh --quick
 
 # Or via API
@@ -169,7 +169,7 @@ curl -X POST http://localhost:8000/api/sim/step \
 
 ```bash
 # Quick test (3 steps, 3 agents)
-cd backend/test
+cd backend/tests/e2e
 ./run_tests.sh --quick
 
 # Full test (50 steps, 10 agents)
@@ -179,7 +179,7 @@ cd backend/test
 ./run_tests.sh --agent-count 10 --max-steps 20 --topic tech_ai_regulation
 
 # Python script
-python e2e_simulation_test.py --help
+python backend/tests/e2e/e2e_simulation_test.py --help
 ```
 
 ### Test Results
