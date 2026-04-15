@@ -4,7 +4,7 @@
 存储所有智能体可能使用的属性值，用于随机生成多样化的智能体。
 """
 
-from typing import List, Dict
+from typing import List, Dict, Any
 
 # ============================================================================
 # 年龄配置
@@ -212,7 +212,7 @@ def get_interests_by_category(count: int = 3) -> List[str]:
     return selected
 
 
-def get_demographics_by_age_range(age_group: str) -> Dict[str, any]:
+def get_demographics_by_age_range(age_group: str) -> Dict[str, Any]:
     """
     根据年龄组获取推荐的人口统计特征
 

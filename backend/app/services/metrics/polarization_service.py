@@ -300,7 +300,7 @@ class PolarizationService:
             direction_counts[agent['direction']] += 1
 
         # Return most common direction
-        most_common = max(direction_counts, key=direction_counts.get)
+        most_common = max(direction_counts.keys(), key=lambda k: direction_counts[k])
 
         try:
             return PolarizationDirection(most_common)

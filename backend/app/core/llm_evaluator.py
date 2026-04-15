@@ -93,7 +93,7 @@ class LLMEvaluator:
                 timeout=self.timeout
             )
 
-            content = response.choices[0].message.content.strip()
+            content = (response.choices[0].message.content or "").strip()
             logger.debug(f"LLM response: {content}")
 
             # Parse JSON response

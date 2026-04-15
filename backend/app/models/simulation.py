@@ -3,6 +3,8 @@ from typing import Optional, List, Dict, Any
 from enum import Enum
 from datetime import datetime
 
+from app.models.metrics import MetricsSummary
+
 
 # ============================================================================
 # 平台和状态枚举
@@ -217,7 +219,7 @@ class SimulationStatus(BaseModel):
     agents: List[Agent] = Field(default_factory=list)
 
     # 高级指标摘要（可选）
-    metrics_summary: Optional['MetricsSummary'] = None
+    metrics_summary: Optional[MetricsSummary] = None
 
     # 错误信息
     error_message: Optional[str] = None

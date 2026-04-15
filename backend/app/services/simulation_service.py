@@ -246,8 +246,8 @@ class SimulationService:
                 if agent:
                     action_type = getattr(ActionType, manual_action.action_type.value)
                     actions[agent] = ManualAction(
-                        action=action_type,
-                        args=manual_action.action_args
+                        action_type=action_type,
+                        action_args=manual_action.action_args
                     )
 
         return actions
@@ -427,17 +427,14 @@ class SimulationService:
 
             agents.append(Agent(
                 id=agent.social_agent_id,
-                user_name=agent.user_info.user_name,
-                name=agent.user_info.name,
-                description=agent.user_info.description,
+                user_name=agent.user_info.user_name or "Unknown",
+                name=agent.user_info.name or "",
+                description=agent.user_info.description or "",
                 bio=getattr(agent.user_info, 'bio', None),
                 interests=profile.get('interests', []),
                 influence=influence,
                 activity=activity,
                 following=following,
-                follower_count=len(followers),
-                following_count=len(following),
-                interaction_count=interaction_count,
             ))
 
         # 尝试获取高级指标摘要

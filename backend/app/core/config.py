@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str | None = None
 
     # DeepSeek Settings (required for OASIS)
-    DEEPSEEK_API_KEY: str
+    DEEPSEEK_API_KEY: str = ""
 
     # Metrics Settings
     METRICS_CACHE_TTL: int = 0  # Cache disabled for development (set to 0)

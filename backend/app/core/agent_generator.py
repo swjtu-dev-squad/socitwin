@@ -199,7 +199,7 @@ class AgentGenerator:
         return f"{first_name} {last_name}"
 
     def _generate_bio(self, profession: str, interests: List[str],
-                     country: str, mbti: str, political_leaning: str = None) -> str:
+                     country: str, mbti: str, political_leaning: Optional[str] = None) -> str:
         """
         生成个人简介
 

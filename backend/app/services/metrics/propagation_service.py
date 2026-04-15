@@ -189,7 +189,8 @@ class PropagationService:
                 return PropagationMetrics(
                     scale=0,
                     depth=0,
-                    max_breadth=0
+                    max_breadth=0,
+                    post_id=None
                 )
 
             # Calculate propagation for each original post
@@ -213,7 +214,8 @@ class PropagationService:
                 return PropagationMetrics(
                     scale=0,
                     depth=0,
-                    max_breadth=0
+                    max_breadth=0,
+                    post_id=None
                 )
 
             # Calculate averages
@@ -230,7 +232,8 @@ class PropagationService:
             return PropagationMetrics(
                 scale=int(avg_scale),
                 depth=int(avg_depth),
-                max_breadth=int(avg_breadth)
+                max_breadth=int(avg_breadth),
+                post_id=None
             )
 
     async def get_propagation_tree(
