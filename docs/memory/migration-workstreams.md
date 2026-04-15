@@ -74,6 +74,21 @@
   - 保持 `file` 在 `action_v1` 下显式未迁移
   - 逐步恢复 monitor/debug/test harness
 
+当前还需要特别区分两类工作：
+
+- 迁移恢复
+  - 目标是把旧仓库已审定的 memory 主链完整、干净地接回新架构；
+- 质量调优
+  - 目标是继续优化 recall overlap、预算利用、事件化细节等运行质量问题。
+
+当前优先级应固定为前者。像下面这类现象，已记录但不应打断迁移主线：
+
+- 长窗口下 recall 候选大量被 overlap 过滤；
+- 短窗口下 recalled 已出现但 injected 尚未出现；
+- 某些动作 episode 的 `state_changes` 为空。
+
+这些问题后续要审，但不应和“迁移是否高质量完成”混成一件事。
+
 ## 2. First-Wave File Candidates
 
 第一波最值得优先迁移或重写的闭环是：

@@ -312,8 +312,9 @@
 - `real-smoke`
 - `real-scenarios`
 - `real-longwindow`
+- `comparison`（两模式代码/单测层）
 - 当前明确还不支持：
-  - `comparison`
+  - 稳定的真实 provider 级 comparison 长跑结论
 
 所以现在应把它理解为：
 
@@ -336,7 +337,10 @@
 - 更长的 16-step 长窗口已进一步确认：
   - recall 不是完全进不去，真实注入已经出现
   - 当前更主要的问题是 overlap 过滤较重，而不是 prompt 总预算不足
-- 但模式对比评测还没有迁回。
+- `comparison` 已迁回为两模式版本：
+  - `upstream_short_comparison`
+  - `action_v1_short_comparison`
+- 但真实 provider 级 comparison 仍偏重，不应作为迁移阶段默认高频验证。
 
 ### Do Not
 

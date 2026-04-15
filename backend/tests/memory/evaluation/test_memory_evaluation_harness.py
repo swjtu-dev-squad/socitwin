@@ -6,11 +6,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from app.memory.config import MemoryMode
 from app.memory.evaluation_harness import (
     EvaluationConfig,
     EvaluationEvent,
     _build_real_longwindow_events,
     _build_real_scenario_events,
+    _summarize_comparison_run,
     build_parser,
     parse_args,
     run_memory_evaluation,
@@ -106,6 +108,20 @@ def test_parser_accepts_real_longwindow_phase() -> None:
     assert config.longwindow_steps == 9
 
 
+def test_parser_accepts_comparison_phase() -> None:
+    args = build_parser().parse_args(
+        ["--phase", "comparison", "--comparison-agent-count", "3", "--comparison-steps", "10"]
+    )
+    config = parse_args(
+        ["--phase", "comparison", "--comparison-agent-count", "3", "--comparison-steps", "10"]
+    )
+
+    assert args.phase == ["comparison"]
+    assert config.phases == ["comparison"]
+    assert config.comparison_agent_count == 3
+    assert config.comparison_steps == 10
+
+
 def test_run_memory_evaluation_dispatches_real_smoke_phase() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         with patch(
@@ -152,6 +168,22 @@ def test_run_memory_evaluation_dispatches_real_longwindow_phase() -> None:
             )
 
     real_longwindow.assert_called_once()
+
+
+def test_run_memory_evaluation_dispatches_comparison_phase() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        with patch(
+            "app.memory.evaluation_harness._run_comparison"
+        ) as comparison:
+            run_memory_evaluation(
+                EvaluationConfig(
+                    phases=["comparison"],
+                    output_dir=Path(tmp),
+                    run_id="comparison-test",
+                )
+            )
+
+    comparison.assert_called_once()
 
 
 def test_preflight_embedding_success_uses_inferred_dimension() -> None:
@@ -376,3 +408,75 @@ def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
     assert event.metrics["observation_compression_trigger_count"] == 1
     assert event.metrics["avg_prompt_tokens"] == 1500.0
     assert event.metrics["max_prompt_tokens"] == 1600
+
+
+def test_summarize_comparison_run_for_action_v1_uses_memory_debug_metrics() -> None:
+    metrics = _summarize_comparison_run(
+        mode=MemoryMode.ACTION_V1,
+        init_result={"agent_count": 2},
+        manager_step_count=5,
+        step_times_ms=[100.0, 200.0],
+        step_snapshots=[
+            {
+                "memory_debug": {
+                    "agents": [
+                        {
+                            "last_recall_gate": True,
+                            "last_recalled_count": 1,
+                            "last_injected_count": 1,
+                            "last_recall_overlap_filtered_count": 0,
+                            "last_recall_selection_stop_reason": "",
+                            "last_injected_step_ids": [3],
+                            "last_prompt_tokens": 1200,
+                            "last_observation_stage": "raw_fit",
+                            "recent_retained_step_count": 3,
+                            "compressed_retained_step_count": 4,
+                            "total_retained_step_count": 5,
+                        }
+                    ]
+                }
+            }
+        ],
+        duration_ms=321.0,
+        persisted_action_episode_count=7,
+    )
+
+    assert metrics["memory_mode"] == "action_v1"
+    assert metrics["persisted_action_episode_count"] == 7
+    assert metrics["recall_injected_count"] == 1
+    assert metrics["shortterm_total_retained_step_count"] == 5
+
+
+def test_summarize_comparison_run_for_upstream_uses_chat_history_metrics() -> None:
+    metrics = _summarize_comparison_run(
+        mode=MemoryMode.UPSTREAM,
+        init_result={"agent_count": 2},
+        manager_step_count=5,
+        step_times_ms=[100.0, 200.0],
+        step_snapshots=[
+            {
+                "chat_history": [
+                    {
+                        "token_truncation_active": True,
+                        "window_drop_active": False,
+                        "context_token_limit": 16384,
+                        "stored_raw_tokens": 20000,
+                        "selected_context_tokens": 15000,
+                        "stored_record_count": 50,
+                        "selected_context_message_count": 20,
+                        "token_selection_dropped_record_count": 12,
+                        "window_dropped_record_count": 0,
+                        "stored_observation_round_count": 6,
+                        "selected_observation_round_count": 4,
+                    }
+                ]
+            }
+        ],
+        duration_ms=321.0,
+        persisted_action_episode_count=0,
+    )
+
+    assert metrics["memory_mode"] == "upstream"
+    assert metrics["chat_history_token_truncation_active_count"] == 1
+    assert metrics["max_chat_history_stored_raw_tokens"] == 20000
+    assert metrics["peak_chat_history_selected_observation_round_count"] == 4

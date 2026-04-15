@@ -284,7 +284,20 @@
 
 - `VAL-RCL-10 real_longwindow_recall_injection`
 
-但 `comparison` 仍需后续迁入。
+并且两模式 `comparison` phase 已恢复到代码与单测层：
+
+- 事件：
+  - `upstream_short_comparison`
+  - `action_v1_short_comparison`
+- 指标口径：
+  - `upstream` 侧重点是 chat-history 压力与 token-selection 诊断；
+  - `action_v1` 侧重点是 short-term / long-term / recall 注入诊断。
+
+当前还不能把 `comparison` 解读成“已稳定完成真实 provider 长跑验证”：
+
+- 两模式 comparison 的 phase、parser、summary 和指标汇总已迁回；
+- 但真实 provider 级 comparison 运行仍明显比 `real-scenarios` / `real-longwindow` 更重；
+- 因此它当前更适合作为按需运行的较重 phase，而不是迁移阶段的默认高频验证入口。
 
 当前已验证的最新结果：
 
@@ -329,6 +342,27 @@
     - `recall_overlap_filtered_count=52`
     - `recall_selection_stop_reason_counts={"all_candidates_filtered_by_overlap": 18}`
     - 结论：预算本身不是首要瓶颈；在较长窗口下 recall 已开始真实注入，但大量候选仍被 overlap 过滤。
+
+## 6.2 Recorded But Deferred Runtime Issue
+
+当前已记录但暂不在迁移阶段继续深挖的问题：
+
+- 长窗口 recall 在新仓库里已经确认不是“完全无法注入”；
+- 当前更典型的运行现象是：
+  - 短窗口下 recalled 已出现，但大量候选没有进入 injected；
+  - 更长窗口下 injected 已出现，但 `all_candidates_filtered_by_overlap` 仍然大量存在。
+
+这意味着当前问题应先理解为：
+
+- 不是总 prompt 预算先撞墙；
+- 更像是 short-term / overlap suppression 在当前参数下较强；
+- 属于 `action_v1` 质量调优问题，而不是迁移主链未恢复的问题。
+
+本轮迁移阶段对它的处理边界固定为：
+
+- 先记录现象与指标；
+- 保留当前 harness 诊断能力；
+- 暂不在迁移阶段展开 recall overlap 策略调参或语义重构。
 
 ## 7. Frontend And Status Notes
 

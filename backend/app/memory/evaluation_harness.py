@@ -10,9 +10,12 @@ from pathlib import Path
 import shutil
 import tempfile
 from typing import Any, Iterator
+import time
+import warnings
 
 from contextlib import contextmanager
 
+from camel.memories import MemoryRecord
 from camel.messages import BaseMessage
 
 from app.core.config import get_settings
@@ -54,6 +57,9 @@ class EvaluationConfig:
     longwindow_steps: int = 8
     longwindow_agent_count: int = 2
     longwindow_timeout_seconds: int = 240
+    comparison_steps: int = 5
+    comparison_agent_count: int = 2
+    comparison_timeout_seconds: int = 240
 
 
 @dataclass(slots=True)
@@ -164,6 +170,8 @@ def run_memory_evaluation(config: EvaluationConfig) -> dict[str, Any]:
         _run_real_scenarios(config, recorder)
     if "real-longwindow" in config.phases:
         _run_real_longwindow(config, recorder)
+    if "comparison" in config.phases:
+        _run_comparison(config, recorder)
 
     return recorder.finalize(config)
 
@@ -179,6 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
             "real-smoke",
             "real-scenarios",
             "real-longwindow",
+            "comparison",
         ],
         help="Evaluation phases to run.",
     )
@@ -257,6 +266,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=240,
         help="Timeout for real-longwindow initialize/step flow.",
     )
+    parser.add_argument(
+        "--comparison-steps",
+        type=int,
+        default=5,
+        help="Number of steps for two-mode comparison.",
+    )
+    parser.add_argument(
+        "--comparison-agent-count",
+        type=int,
+        default=2,
+        help="Number of agents for two-mode comparison.",
+    )
+    parser.add_argument(
+        "--comparison-timeout-seconds",
+        type=int,
+        default=240,
+        help="Timeout for two-mode comparison initialize/step flow.",
+    )
     return parser
 
 
@@ -278,6 +305,9 @@ def parse_args(args: list[str] | None = None) -> EvaluationConfig:
         longwindow_steps=parsed.longwindow_steps,
         longwindow_agent_count=parsed.longwindow_agent_count,
         longwindow_timeout_seconds=parsed.longwindow_timeout_seconds,
+        comparison_steps=parsed.comparison_steps,
+        comparison_agent_count=parsed.comparison_agent_count,
+        comparison_timeout_seconds=parsed.comparison_timeout_seconds,
     )
 
 
@@ -482,6 +512,31 @@ def _run_real_longwindow(config: EvaluationConfig, recorder: EvaluationRecorder)
                 reason=str(exc),
             )
         )
+
+
+def _run_comparison(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    for mode in (MemoryMode.UPSTREAM, MemoryMode.ACTION_V1):
+        if mode == MemoryMode.ACTION_V1 and not config.embedding_url:
+            recorder.record(
+                EvaluationEvent(
+                    phase="comparison",
+                    name=f"{mode.value}_short_comparison",
+                    status="blocked",
+                    reason="comparison for action_v1 requires embedding_url",
+                )
+            )
+            continue
+        try:
+            event = asyncio.run(_run_mode_comparison_async(config=config, mode=mode))
+        except Exception as exc:
+            event = EvaluationEvent(
+                phase="comparison",
+                name=f"{mode.value}_short_comparison",
+                status="blocked",
+                metrics={"memory_mode": mode.value},
+                reason=str(exc),
+            )
+        recorder.record(event)
 
 
 async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str, Any]:
@@ -756,6 +811,110 @@ async def _run_action_v1_real_longwindow_async(
                 pass
             get_settings.cache_clear()
             shutil.rmtree(db_dir, ignore_errors=True)
+
+
+async def _run_mode_comparison_async(
+    *,
+    config: EvaluationConfig,
+    mode: MemoryMode,
+) -> EvaluationEvent:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix=f"socitwin-comparison-{mode.value}-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.comparison_timeout_seconds))
+    longterm_enabled = mode == MemoryMode.ACTION_V1
+    env_updates = {
+        "OASIS_MEMORY_MODE": mode.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true" if longterm_enabled else "false",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"comparison_{mode.value}_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    step_snapshots: list[dict[str, Any]] = []
+    step_times_ms: list[float] = []
+    persisted_action_episode_count = 0
+    started_at = time.perf_counter()
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+
+            simulation_config = SimulationConfig(
+                platform=PlatformType.TWITTER,
+                agent_count=config.comparison_agent_count,
+                memory_mode=mode,
+                db_path=str(db_path),
+                max_steps=max(1, config.comparison_steps),
+                agent_source={"source_type": "template"},
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.comparison_timeout_seconds),
+            )
+            for _ in range(max(1, config.comparison_steps)):
+                step_started = time.perf_counter()
+                step_result = await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.comparison_timeout_seconds),
+                )
+                step_times_ms.append((time.perf_counter() - step_started) * 1000.0)
+                step_snapshots.append(
+                    {
+                        "step_result": dict(step_result or {}),
+                        "memory_debug": manager.get_memory_debug_info(),
+                        "chat_history": _collect_manager_chat_history_stats(manager),
+                    }
+                )
+            persisted_action_episode_count = _count_persisted_action_episodes(
+                list(manager.get_all_agents())
+            )
+        except Exception as exc:
+            return EvaluationEvent(
+                phase="comparison",
+                name=f"{mode.value}_short_comparison",
+                status="blocked",
+                metrics={"memory_mode": mode.value},
+                reason=str(exc),
+            )
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+    metrics = _summarize_comparison_run(
+        mode=mode,
+        init_result=init_result,
+        manager_step_count=max(
+            (int(snapshot.get("step_result", {}).get("step_executed", 0) or 0) for snapshot in step_snapshots),
+            default=0,
+        ),
+        step_times_ms=step_times_ms,
+        step_snapshots=step_snapshots,
+        duration_ms=(time.perf_counter() - started_at) * 1000.0,
+        persisted_action_episode_count=persisted_action_episode_count,
+    )
+    return EvaluationEvent(
+        phase="comparison",
+        name=f"{mode.value}_short_comparison",
+        status="pass",
+        metrics=metrics,
+        evidence={"step_count": len(step_snapshots)},
+    )
 
 
 def _build_real_scenario_events(
@@ -1443,6 +1602,305 @@ def _extract_longwindow_trace_examples(
                 }
             )
     return rows[:5]
+
+
+def _collect_manager_chat_history_stats(manager: OASISManager) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for agent in manager.get_all_agents():
+        stats = _extract_agent_chat_history_stats(agent)
+        if stats:
+            rows.append(stats)
+    return rows
+
+
+def _extract_agent_chat_history_stats(agent: Any) -> dict[str, Any]:
+    memory = getattr(agent, "memory", None)
+    if memory is None:
+        return {}
+
+    stats: dict[str, Any] = {
+        "memory_class": memory.__class__.__name__,
+        "context_creator_class": "",
+        "context_token_limit": 0,
+        "window_size": None,
+        "stored_record_count": 0,
+        "retrieved_record_count": 0,
+        "selected_context_message_count": 0,
+        "stored_raw_tokens": 0,
+        "selected_context_tokens": 0,
+        "window_dropped_record_count": 0,
+        "token_selection_dropped_record_count": 0,
+        "stored_observation_round_count": 0,
+        "selected_observation_round_count": 0,
+        "dropped_observation_round_count": 0,
+        "window_drop_active": False,
+        "token_truncation_active": False,
+    }
+
+    context_creator = None
+    try:
+        context_creator = memory.get_context_creator()
+    except Exception:
+        context_creator = None
+    if context_creator is not None:
+        stats["context_creator_class"] = context_creator.__class__.__name__
+        token_limit = getattr(context_creator, "token_limit", None)
+        if isinstance(token_limit, int):
+            stats["context_token_limit"] = token_limit
+
+    window_size = getattr(memory, "window_size", getattr(memory, "_window_size", None))
+    if isinstance(window_size, int):
+        stats["window_size"] = window_size
+
+    raw_memory_records: list[MemoryRecord] = []
+    storage = getattr(getattr(memory, "_chat_history_block", None), "storage", None)
+    load = getattr(storage, "load", None)
+    if callable(load):
+        try:
+            raw_records = load()
+        except Exception:
+            raw_records = []
+        if isinstance(raw_records, list):
+            stats["stored_record_count"] = len(raw_records)
+            try:
+                raw_memory_records = [
+                    MemoryRecord.from_dict(record)
+                    for record in raw_records
+                    if isinstance(record, dict)
+                ]
+            except Exception:
+                raw_memory_records = []
+
+    token_counter = getattr(context_creator, "token_counter", None)
+    if token_counter is not None and raw_memory_records:
+        try:
+            raw_messages = [record.to_openai_message() for record in raw_memory_records]
+            stats["stored_raw_tokens"] = int(
+                token_counter.count_tokens_from_messages(raw_messages)
+            )
+        except Exception:
+            stats["stored_raw_tokens"] = 0
+    if raw_memory_records:
+        stats["stored_observation_round_count"] = sum(
+            1
+            for record in raw_memory_records
+            if _is_observation_prompt_text(
+                (record.to_openai_message() or {}).get("content", "")
+            )
+        )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            retrieved_records = memory.retrieve()
+        except Exception:
+            retrieved_records = []
+        try:
+            selected_messages, selected_tokens = memory.get_context()
+        except Exception:
+            selected_messages, selected_tokens = [], 0
+
+    if isinstance(retrieved_records, list):
+        stats["retrieved_record_count"] = len(retrieved_records)
+    if isinstance(selected_messages, list):
+        stats["selected_context_message_count"] = len(selected_messages)
+    if isinstance(selected_tokens, int):
+        stats["selected_context_tokens"] = selected_tokens
+
+    selected_record_indices = _match_selected_record_indices(
+        retrieved_records=(
+            retrieved_records if isinstance(retrieved_records, list) else []
+        ),
+        selected_messages=selected_messages if isinstance(selected_messages, list) else [],
+    )
+    if selected_record_indices and isinstance(retrieved_records, list):
+        selected_records = [
+            retrieved_records[index]
+            for index in selected_record_indices
+            if 0 <= index < len(retrieved_records)
+        ]
+        stats["selected_observation_round_count"] = sum(
+            1
+            for record in selected_records
+            if getattr(record, "memory_record", None) is not None
+            and _is_observation_prompt_text(
+                (record.memory_record.to_openai_message() or {}).get("content", "")
+            )
+        )
+
+    stats["dropped_observation_round_count"] = max(
+        0,
+        int(stats["stored_observation_round_count"])
+        - int(stats["selected_observation_round_count"]),
+    )
+    stats["window_dropped_record_count"] = max(
+        0,
+        int(stats["stored_record_count"]) - int(stats["retrieved_record_count"]),
+    )
+    stats["token_selection_dropped_record_count"] = max(
+        0,
+        int(stats["retrieved_record_count"])
+        - int(stats["selected_context_message_count"]),
+    )
+    stats["window_drop_active"] = stats["window_dropped_record_count"] > 0
+
+    token_limit = int(stats["context_token_limit"] or 0)
+    raw_tokens = int(stats["stored_raw_tokens"] or 0)
+    stats["token_truncation_active"] = bool(
+        token_limit > 0
+        and (
+            raw_tokens > token_limit
+            or stats["token_selection_dropped_record_count"] > 0
+        )
+    )
+    return stats
+
+
+def _message_match_key(message: Any) -> str:
+    try:
+        return json.dumps(message, sort_keys=True, ensure_ascii=False, default=str)
+    except TypeError:
+        return str(message)
+
+
+def _is_observation_prompt_text(content: Any) -> bool:
+    text = str(content or "")
+    return "After refreshing" in text and "pick one you want to perform action" in text
+
+
+def _match_selected_record_indices(
+    *,
+    retrieved_records: list[Any],
+    selected_messages: list[dict[str, Any]],
+) -> list[int]:
+    retrieved_keys = [
+        _message_match_key(record.memory_record.to_openai_message())
+        for record in retrieved_records
+        if getattr(record, "memory_record", None) is not None
+    ]
+    selected_keys = [_message_match_key(message) for message in selected_messages]
+
+    matched_indices: list[int] = []
+    search_from = 0
+    for selected_key in selected_keys:
+        try:
+            index = retrieved_keys.index(selected_key, search_from)
+        except ValueError:
+            continue
+        matched_indices.append(index)
+        search_from = index + 1
+    return matched_indices
+
+
+def _summarize_comparison_run(
+    *,
+    mode: MemoryMode,
+    init_result: dict[str, Any],
+    manager_step_count: int,
+    step_times_ms: list[float],
+    step_snapshots: list[dict[str, Any]],
+    duration_ms: float,
+    persisted_action_episode_count: int,
+) -> dict[str, Any]:
+    metrics: dict[str, Any] = {
+        "memory_mode": mode.value,
+        "agent_count": int(init_result.get("agent_count", 0) or 0),
+        "step_count": manager_step_count,
+        "step_success_rate": 1.0 if step_snapshots else 0.0,
+        "avg_step_time_ms": (
+            round(sum(step_times_ms) / len(step_times_ms), 3) if step_times_ms else 0.0
+        ),
+        "max_step_time_ms": round(max(step_times_ms), 3) if step_times_ms else 0.0,
+        "duration_ms": round(duration_ms, 3),
+    }
+
+    if mode == MemoryMode.ACTION_V1:
+        debug_snapshots = [
+            {"memory_debug": snapshot.get("memory_debug", {}) or {}}
+            for snapshot in step_snapshots
+        ]
+        longwindow_like = _summarize_longwindow_debug_snapshots(debug_snapshots)
+        metrics.update(
+            {
+                "avg_prompt_tokens": longwindow_like["avg_prompt_tokens"],
+                "max_prompt_tokens": longwindow_like["max_prompt_tokens"],
+                "persisted_action_episode_count": int(persisted_action_episode_count or 0),
+                "recall_gate_true_count": longwindow_like["recall_gate_true_count"],
+                "recall_recalled_trace_count": longwindow_like["recall_recalled_trace_count"],
+                "recall_recalled_not_injected_trace_count": longwindow_like[
+                    "recall_recalled_not_injected_trace_count"
+                ],
+                "recall_injected_count": longwindow_like["recall_injected_count"],
+                "recall_injected_trace_count": longwindow_like["recall_injected_trace_count"],
+                "recall_overlap_filtered_count": longwindow_like["recall_overlap_filtered_count"],
+                "recall_selection_stop_reason_counts": longwindow_like[
+                    "recall_selection_stop_reason_counts"
+                ],
+                "shortterm_recent_retained_step_count": longwindow_like[
+                    "shortterm_recent_retained_step_count"
+                ],
+                "shortterm_compressed_retained_step_count": longwindow_like[
+                    "shortterm_compressed_retained_step_count"
+                ],
+                "shortterm_total_retained_step_count": longwindow_like[
+                    "shortterm_total_retained_step_count"
+                ],
+                "observation_compression_trigger_count": longwindow_like[
+                    "observation_compression_trigger_count"
+                ],
+            }
+        )
+        return metrics
+
+    chat_history_entries: list[dict[str, Any]] = [
+        agent_stats
+        for snapshot in step_snapshots
+        for agent_stats in list(snapshot.get("chat_history", []) or [])
+        if isinstance(agent_stats, dict)
+    ]
+
+    def _max_chat_history_metric(key: str) -> int:
+        values = [int(item.get(key, 0) or 0) for item in chat_history_entries]
+        return max(values) if values else 0
+
+    metrics.update(
+        {
+            "chat_history_token_truncation_active_count": sum(
+                1 for item in chat_history_entries if item.get("token_truncation_active")
+            ),
+            "chat_history_window_drop_active_count": sum(
+                1 for item in chat_history_entries if item.get("window_drop_active")
+            ),
+            "chat_history_context_token_limit": _max_chat_history_metric(
+                "context_token_limit"
+            ),
+            "max_chat_history_stored_raw_tokens": _max_chat_history_metric(
+                "stored_raw_tokens"
+            ),
+            "max_chat_history_selected_context_tokens": _max_chat_history_metric(
+                "selected_context_tokens"
+            ),
+            "max_chat_history_stored_record_count": _max_chat_history_metric(
+                "stored_record_count"
+            ),
+            "max_chat_history_selected_context_message_count": _max_chat_history_metric(
+                "selected_context_message_count"
+            ),
+            "max_chat_history_token_selection_dropped_record_count": _max_chat_history_metric(
+                "token_selection_dropped_record_count"
+            ),
+            "max_chat_history_window_dropped_record_count": _max_chat_history_metric(
+                "window_dropped_record_count"
+            ),
+            "peak_chat_history_stored_observation_round_count": _max_chat_history_metric(
+                "stored_observation_round_count"
+            ),
+            "peak_chat_history_selected_observation_round_count": _max_chat_history_metric(
+                "selected_observation_round_count"
+            ),
+        }
+    )
+    return metrics
 
 
 def uuid_suffix() -> str:
