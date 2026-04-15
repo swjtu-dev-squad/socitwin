@@ -50,5 +50,5 @@ jobs:
         env:
           REVIEWDOG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          uv run ruff check . --ignore=E501 --output-format=json | reviewdog -f=ruff-check -report="github-pr-review" -level=error
+          uv run ruff check . --ignore=E501 --output-format=json | reviewdog -f=ruff-check -reporter="github-pr-review" -level=error
         # ❌ 失败会阻断 CI - 代码风格问题现在会阻止 PR 合并
