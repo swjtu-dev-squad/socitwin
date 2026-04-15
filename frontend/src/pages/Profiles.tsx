@@ -275,12 +275,7 @@ export default function Profiles() {
               <option value="semantic-homophily">
                 Semantic Homophily
               </option>
-                  <div className="text-[10px] text-text-muted">
-                    基于兴趣语义相似度建立社交连接
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            </select>
           </section>
 
           <section className="space-y-4">
