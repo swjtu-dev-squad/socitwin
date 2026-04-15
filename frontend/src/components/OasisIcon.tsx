@@ -1,9 +1,9 @@
 interface SocitwinIconProps {
-  className?: string;
-  size?: number;
+  className?: string
+  size?: number
 }
 
-export function SocitwinIcon({ className = "", size = 40 }: SocitwinIconProps) {
+export function SocitwinIcon({ className = '', size = 40 }: SocitwinIconProps) {
   return (
     <img
       src="/logo.png"
@@ -15,7 +15,7 @@ export function SocitwinIcon({ className = "", size = 40 }: SocitwinIconProps) {
         borderRadius: '8px',
       }}
     />
-  );
+  )
 }
 
-export default SocitwinIcon;
+export default SocitwinIcon

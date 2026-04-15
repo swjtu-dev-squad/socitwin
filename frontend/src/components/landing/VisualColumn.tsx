@@ -1,20 +1,22 @@
-import type { Agent } from '@/lib/types';
+import type { Agent } from '@/lib/types'
 
 interface VisualColumnProps {
-  className?: string;
-  onNodeClick?: (agent: Agent) => void;
+  className?: string
+  onNodeClick?: (agent: Agent) => void
 }
 
 export default function VisualColumn({ className = '' }: VisualColumnProps) {
-
   return (
-    <div className={`relative w-full h-full flex items-center justify-center p-4 lg:p-6 ${className}`}>
+    <div
+      className={`relative w-full h-full flex items-center justify-center p-4 lg:p-6 ${className}`}
+    >
       {/* 容器框 - 深灰色背景，点状网格，橙红色发光边框 */}
       <div
         className="relative w-full h-full rounded-2xl border-2 overflow-hidden animate-fade-in-scale"
         style={{
           borderColor: '#D72638',
-          boxShadow: '0 0 20px rgba(215, 38, 56, 0.3), 0 0 40px rgba(215, 38, 56, 0.1), inset 0 0 20px rgba(215, 38, 56, 0.05)',
+          boxShadow:
+            '0 0 20px rgba(215, 38, 56, 0.3), 0 0 40px rgba(215, 38, 56, 0.1), inset 0 0 20px rgba(215, 38, 56, 0.05)',
           background: '#1a1a1a',
           animationDelay: '0.5s',
         }}
@@ -45,9 +47,7 @@ export default function VisualColumn({ className = '' }: VisualColumnProps) {
             <div className="relative">
               {/* 气泡主体 */}
               <div className="relative bg-white rounded-3xl px-5 py-3 shadow-xl">
-                <div className="text-xl lg:text-2xl font-bold text-gray-800">
-                  Coming Soon
-                </div>
+                <div className="text-xl lg:text-2xl font-bold text-gray-800">Coming Soon</div>
               </div>
 
               {/* 装饰性小圆点 */}
@@ -74,5 +74,5 @@ export default function VisualColumn({ className = '' }: VisualColumnProps) {
         }
       `}</style>
     </div>
-  );
+  )
 }

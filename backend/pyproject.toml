@@ -39,5 +39,5 @@ select = ["E", "F", "I", "N", "W"]
 [tool.pyright]
 include = ["app"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv"]
-typeCheckingMode = "basic"
+typeCheckingMode = "strict"
 pythonVersion = "3.11"
