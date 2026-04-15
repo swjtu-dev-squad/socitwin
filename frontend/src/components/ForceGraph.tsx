@@ -17,6 +17,10 @@ interface Agent {
   followerCount?: number
   followingCount?: number
   interactionCount?: number
+  lastAction?: {
+    targetAgentId?: string
+    type?: string
+  }
 }
 
 type ForceGraphProps = {
@@ -28,7 +32,7 @@ type ForceGraphProps = {
 }
 
 export function ForceGraph({ agents, nodes, edges, onNodeClick, focusId }: ForceGraphProps) {
-  const fgRef = useRef<typeof ForceGraph2D | undefined>(undefined)
+  const fgRef = useRef<any>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 600, height: 400 })
 
@@ -102,35 +106,38 @@ export function ForceGraph({ agents, nodes, edges, onNodeClick, focusId }: Force
         val: Math.max(8, Math.round((node.influence || 0) * 50) || 8), // 基于影响力调整节点大小
         color: getActivityColor(node.activity || 0), // 基于活跃度的热力图颜色
       })),
-      links: sourceEdges.map(edge => ({
-        ...edge,
-        color:
-          edge.type === 'follow'
-            ? 'rgba(59, 130, 246, 0.24)'
-            : getActionColor(edge.actionType || 'interaction'),
-        width: edge.active ? 2.5 : edge.type === 'interaction' ? 1.8 : 1,
-      })),
+      links: sourceEdges.map(edge => {
+        const isActive = 'active' in edge ? edge.active : false
+        return {
+          ...edge,
+          color:
+            edge.type === 'follow'
+              ? 'rgba(59, 130, 246, 0.24)'
+              : getActionColor(edge.actionType || 'interaction'),
+          width: isActive ? 2.5 : edge.type === 'interaction' ? 1.8 : 1,
+        }
+      }),
     }
   }, [agents, nodes, edges])
 
   useEffect(() => {
     if (fgRef.current && graphData.nodes.length > 0) {
       // 增加力导向图的中心力，确保它在画布中央
-      fgRef.current.d3Force('center', d3.forceCenter(dimensions.width / 2, dimensions.height / 2))
+      fgRef.current?.d3Force('center', d3.forceCenter(dimensions.width / 2, dimensions.height / 2))
 
       // 增加排斥力，防止节点重叠
-      fgRef.current.d3Force('charge').strength(-150)
+      fgRef.current?.d3Force('charge')?.strength(-150)
 
       // 增加碰撞力
-      fgRef.current.d3Force(
+      fgRef.current?.d3Force(
         'collide',
-        d3.forceCollide((node: { val: number }) => node.val + 5)
+        d3.forceCollide((node: any) => node.val + 5)
       )
 
       // 自动缩放
       setTimeout(() => {
-        fgRef.current.zoomToFit(400, 50)
-        fgRef.current.d3ReheatSimulation()
+        fgRef.current?.zoomToFit(400, 50)
+        fgRef.current?.d3ReheatSimulation()
       }, 100)
     }
   }, [graphData.nodes.length, dimensions.width, dimensions.height])

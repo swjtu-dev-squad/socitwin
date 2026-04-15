@@ -515,21 +515,17 @@ export default function Overview() {
                   <Cpu className="w-3 h-3" />
                   平台选择
                 </div>
-                <Select
+                <select
                   value={selectedPlatform}
-                  onValueChange={(value) => setSelectedPlatform(value as DatasetPlatform)}
+                  onChange={(e) => setSelectedPlatform(e.target.value as DatasetPlatform)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary"
                 >
-                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
-                    <SelectValue placeholder="选择平台" value={platformLabelMap[selectedPlatform]} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="twitter">X / Twitter</SelectItem>
-                    <SelectItem value="reddit">Reddit</SelectItem>
-                    <SelectItem value="tiktok">TikTok</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="twitter">X / Twitter</option>
+                  <option value="reddit">Reddit</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="facebook">Facebook</option>
+                </select>
               </div>
 
               <div className="space-y-4">
@@ -537,28 +533,23 @@ export default function Overview() {
                   <BookOpen className="w-3 h-3" />
                   话题选择
                 </div>
-                <Select
+                <select
                   value={selectedTopic}
-                  onValueChange={(val) => {
+                  onChange={(e) => {
                     if (!topicsLoading) {
-                      setSelectedTopic(val);
+                      setSelectedTopic(e.target.value);
                     }
                   }}
+                  className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary ${topicsLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                  disabled={topicsLoading}
                 >
-                  <SelectTrigger className={cn(
-                    "bg-bg-primary border-accent/20 text-text-primary",
-                    topicsLoading && "opacity-50 cursor-not-allowed"
-                  )}>
-                    <SelectValue placeholder={topicsLoading ? "加载话题中..." : "选择话题"} value={selectedTopicLabel} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {topics?.map((topic) => (
-                      <SelectItem key={topic.id} value={topic.id}>
-                        {topic.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="">{topicsLoading ? "加载话题中..." : "选择话题"}</option>
+                  {topics?.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-4">

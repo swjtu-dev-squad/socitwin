@@ -267,7 +267,7 @@ export function DatasetImport() {
                           .slice(0, 5)
                           .map((v: unknown, j) => (
                             <td key={j} className="pr-3 py-0.5 max-w-[120px] truncate">
-                              {String(v || '')}
+                              {String(v ?? '')}
                             </td>
                           ))}
                       </tr>
@@ -324,13 +324,13 @@ export function DatasetImport() {
           {importResult.analytics && (
             <div className="mt-2 flex gap-4">
               <span>
-                总 Agents: <strong>{importResult.analytics.totalAgents}</strong>
+                总 Agents: <strong>{String(importResult.analytics.totalAgents ?? '0')}</strong>
               </span>
               <span>
-                总帖子: <strong>{importResult.analytics.totalPosts}</strong>
+                总帖子: <strong>{String(importResult.analytics.totalPosts ?? '0')}</strong>
               </span>
               <span>
-                总关系: <strong>{importResult.analytics.totalRelationships}</strong>
+                总关系: <strong>{String(importResult.analytics.totalRelationships ?? '0')}</strong>
               </span>
             </div>
           )}
