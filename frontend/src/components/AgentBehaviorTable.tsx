@@ -15,7 +15,7 @@ export function AgentBehaviorTable({
 }) {
   const rows = agents.map((agent) => ({
     ...agent,
-    displayMemoryContent: getDisplayMemoryContent(agent.memory?.content) || '-',
+    displayMemoryContent: getAgentMemoryDisplay(agent.memory),
   }));
 
   return (
@@ -24,12 +24,13 @@ export function AgentBehaviorTable({
         <TableHeader className="sticky top-0 bg-bg-secondary z-10">
           <TableRow className="border-border-default hover:bg-transparent">
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">Agent</TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">角色</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">影响力</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">活跃度</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">最近动作</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">动作内容</TableHead>
             <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆长度</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆内容</TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">长期记忆</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -43,6 +44,9 @@ export function AgentBehaviorTable({
               onClick={() => onSelect?.(agent)}
             >
               <TableCell className="font-bold text-sm">{agent.name}</TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-[10px]">{agent.roleLabel || agent.role}</Badge>
+              </TableCell>
               <TableCell className="font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
               <TableCell className="font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
               <TableCell>
@@ -74,4 +78,61 @@ export function AgentBehaviorTable({
 
 function formatMemoryLength(value: number | null | undefined) {
   return typeof value === 'number' && Number.isFinite(value) ? value : '-';
+}
+
+function getAgentMemoryDisplay(memory: AgentOverview['memory'] | null | undefined) {
+  const retrieval = memory?.retrieval;
+
+  if (!retrieval) {
+    return getDisplayMemoryContent(memory?.content) || '-';
+  }
+
+  if (retrieval.status === 'empty') {
+    return '已检索，无可注入记忆';
+  }
+
+  if (retrieval.status === 'error') {
+    return '长期记忆暂不可用';
+  }
+
+  if (retrieval.status === 'ready') {
+    const retrievalContent = summarizeMemoryContent(retrieval.content);
+    if (retrievalContent) {
+      return retrievalContent;
+    }
+
+    const firstItemContent = retrieval.items.find((item) => summarizeMemoryContent(item.content))?.content;
+    if (firstItemContent) {
+      return `Long-term memory: ${summarizeMemoryContent(firstItemContent)}`;
+    }
+
+    return 'Long-term memory ready';
+  }
+
+  const query = memory?.debug?.lastRecallQueryText;
+  if (query) {
+    return `待召回：${query}`;
+  }
+
+  return getDisplayMemoryContent(memory?.content) || '尚未触发长期记忆';
+}
+
+function summarizeMemoryContent(value: string | null | undefined) {
+  const normalized = String(value ?? '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) return '';
+
+  const lines = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return '';
+  if (lines.length === 1) return lines[0].replace(/^[-*•]\s*/, '');
+
+  const [first, second] = lines;
+  if (/^Long-term memory/i.test(first)) {
+    return `Long-term memory: ${second.replace(/^[-*•]\s*/, '')}`;
+  }
+
+  return first.replace(/^[-*•]\s*/, '');
 }

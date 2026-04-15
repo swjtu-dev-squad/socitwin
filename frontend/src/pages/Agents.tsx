@@ -67,6 +67,8 @@ export default function SocialNetworkMonitor() {
       const nextSelected = resolveSelectedAgentId(filterAgentsBySearch(data.agents, searchRef.current), currentSelected);
       if (nextSelected && nextSelected !== currentSelected) {
         setSelectedAgentId(nextSelected);
+        setSelectedDetail(null);
+        setLoadingDetail(true);
       }
       if (nextSelected) {
         await loadDetail(nextSelected);
@@ -95,9 +97,13 @@ export default function SocialNetworkMonitor() {
 
     socket.on('agents_dirty', handleDirty);
     void loadMonitor();
+    const pollId = window.setInterval(() => {
+      void loadMonitor();
+    }, 5000);
 
     return () => {
       socket.off('agents_dirty', handleDirty);
+      window.clearInterval(pollId);
     };
   }, []);
 
@@ -110,17 +116,23 @@ export default function SocialNetworkMonitor() {
     const nextSelected = resolveSelectedAgentId(filteredAgents, current);
     if (nextSelected && nextSelected !== current) {
       setSelectedAgentId(nextSelected);
+      setSelectedDetail(null);
+      setLoadingDetail(true);
       void loadDetail(nextSelected);
     }
   }, [filteredAgents, monitor]);
 
   const handleSelectAgent = (agent: AgentOverview) => {
     setSelectedAgentId(agent.id);
+    setSelectedDetail(null);
+    setLoadingDetail(true);
     void loadDetail(agent.id);
   };
 
   const handleNodeClick = (agentId: string) => {
     setSelectedAgentId(agentId);
+    setSelectedDetail(null);
+    setLoadingDetail(true);
     void loadDetail(agentId);
   };
 

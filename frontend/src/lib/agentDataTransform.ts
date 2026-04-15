@@ -300,6 +300,7 @@ function createEmptyMemorySnapshot(): AgentMemorySnapshot {
       content: '',
     },
     retrieval: {
+      length: 0,
       enabled: false,
       status: 'not_configured',
       content: '',

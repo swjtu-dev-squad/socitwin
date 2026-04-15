@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui';
-import type { AgentDetailResponse } from '@/lib/agentMonitorTypes';
+import { getDisplayMemoryContent } from '@/lib/agentMemoryDisplay';
+import type { AgentDetailResponse, AgentMemorySnapshot } from '@/lib/agentMonitorTypes';
 import { displayMetric, displayPercentage, displayCount } from '@/lib/safeDisplay';
 
 type AgentDeepMonitorProps = {
@@ -21,7 +22,12 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
     return <StatePanel title="请选择一个 Agent" description="点击左侧图谱节点或表格行查看详细数据。" />;
   }
 
-  const { profile, status, lastAction, recentTimeline, seenPosts } = detail;
+  const { profile, status, currentViewpoint, lastAction, recentTimeline, seenPosts } = detail;
+  const memory = detail.memory ?? getEmptyMemorySnapshot();
+  const retrieval = memory.retrieval ?? getEmptyRetrieval();
+  const memoryContent = getMemoryContent(memory, retrieval);
+  const memoryItems = Array.isArray(retrieval.items) ? retrieval.items : [];
+  const debug = memory.debug ?? {};
 
   return (
     <div className="space-y-6">
@@ -50,6 +56,121 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
           </div>
         </div>
       </div>
+
+      {/* 长短期记忆状态 */}
+      <div className="space-y-4">
+        <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">记忆与召回</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">模式</p>
+            <p className="text-sm font-bold text-text-primary">{debug.memoryMode || '-'}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">Prompt Tokens</p>
+            <p className="text-xl font-mono text-accent">{formatMemoryLength(memory.length)}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">召回状态</p>
+            <Badge variant="outline" className="text-[10px]">{retrieval.status}</Badge>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">召回条目</p>
+            <p className="text-sm font-mono text-text-primary">
+              {displayCount(debug.lastInjectedCount ?? memoryItems.length)} / {displayCount(debug.lastRecalledCount ?? memoryItems.length)}
+            </p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">Recent 保留</p>
+            <p className="text-sm font-mono text-text-primary">
+              {displayCount(debug.recentRetainedStepCount ?? (debug.recentRetainedStepIds || []).length)}
+            </p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">Compressed 保留</p>
+            <p className="text-sm font-mono text-text-primary">{displayCount(debug.compressedRetainedStepCount)}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">本轮 Recent</p>
+            <p className="text-sm font-mono text-text-primary">{displayCount((debug.lastSelectedRecentStepIds || []).length)}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">本轮 Compressed</p>
+            <p className="text-sm font-mono text-text-primary">{displayCount((debug.lastSelectedCompressedKeys || []).length)}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">本轮 Recall</p>
+            <p className="text-sm font-mono text-text-primary">{displayCount((debug.lastSelectedRecallStepIds || []).length)}</p>
+          </div>
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold">观察 Tokens</p>
+            <p className="text-sm font-mono text-text-primary">{displayCount(debug.lastObservationPromptTokens)}</p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+          <p className="text-[9px] text-text-muted font-bold mb-2">本轮 Prompt 记忆构成</p>
+          <div className="grid grid-cols-3 gap-2 text-[11px] text-text-secondary">
+            <MemoryIdList label="Recent" values={debug.lastSelectedRecentStepIds} />
+            <MemoryIdList label="Compressed" values={debug.lastSelectedCompressedKeys} />
+            <MemoryIdList label="Recall" values={debug.lastSelectedRecallStepIds} />
+          </div>
+        </div>
+
+        {debug.lastRecallQueryText ? (
+          <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+            <p className="text-[9px] text-text-muted font-bold mb-2">召回查询</p>
+            <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">{debug.lastRecallQueryText}</p>
+          </div>
+        ) : null}
+
+        <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
+          <p className="text-[9px] text-text-muted font-bold mb-2">
+            {retrieval.status === 'ready'
+              ? 'Long-term memory recall'
+              : retrieval.status === 'empty'
+                ? '已检索，无可注入记忆'
+                : retrieval.status === 'error'
+                  ? '长期记忆暂不可用'
+                  : '记忆状态'}
+          </p>
+          <div className="max-h-36 overflow-auto rounded-lg border border-border-default bg-bg-secondary/80 p-3">
+            <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">
+              {memoryContent || '-'}
+            </p>
+          </div>
+        </div>
+
+        <div className="p-3 bg-bg-primary rounded-xl border border-border-default space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[9px] text-text-muted font-bold">召回条目</p>
+            <Badge variant="outline" className="text-[10px]">{memoryItems.length}</Badge>
+          </div>
+          <div className="max-h-52 overflow-auto space-y-2 pr-1">
+            {memoryItems.length > 0 ? memoryItems.map((item) => (
+              <div key={item.id} className="rounded-lg border border-border-default bg-bg-secondary/80 p-3">
+                <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">{item.content || '-'}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-text-tertiary">
+                  <span>{formatMemoryItemStep(item.createdAt)}</span>
+                  {typeof item.score === 'number' && Number.isFinite(item.score) ? <span>score {item.score.toFixed(2)}</span> : null}
+                  {item.source ? <span>{item.source}</span> : null}
+                </div>
+              </div>
+            )) : (
+              <p className="text-sm text-text-tertiary">暂无召回条目</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 当前话题观点 */}
+      {currentViewpoint && (
+        <div className="space-y-4">
+          <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest">当前话题观点</h4>
+          <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+             <p className="text-sm font-bold text-blue-400">{currentViewpoint}</p>
+          </div>
+        </div>
+      )}
 
       {/* 社交核心指标 */}
       <div className="space-y-4">
@@ -144,6 +265,85 @@ function StatePanel({ title, description, tone = 'default' }: { title: string; d
         <h3 className="text-lg font-bold text-text-primary">{title}</h3>
         <p className="mt-2 text-sm text-text-tertiary max-w-xs">{description}</p>
       </div>
+    </div>
+  );
+}
+
+function getEmptyRetrieval(): AgentMemorySnapshot['retrieval'] {
+  return {
+    length: 0,
+    enabled: false,
+    status: 'not_configured',
+    content: '',
+    items: [],
+  };
+}
+
+function getEmptyMemorySnapshot(): AgentMemorySnapshot {
+  return {
+    length: 0,
+    content: '',
+    contentSource: 'system_prompt',
+    systemPrompt: {
+      length: 0,
+      content: '',
+    },
+    retrieval: getEmptyRetrieval(),
+    debug: {},
+  };
+}
+
+function getMemoryContent(memory: AgentMemorySnapshot, retrieval: AgentMemorySnapshot['retrieval']) {
+  if (retrieval.status === 'empty') {
+    return '本轮触发长期记忆检索，但没有可注入的召回结果。';
+  }
+
+  if (retrieval.status === 'error') {
+    return retrieval.content || '长期记忆暂不可用';
+  }
+
+  if (retrieval.status === 'ready') {
+    const retrievalContent = normalizeDisplayContent(retrieval.content);
+    if (retrievalContent) {
+      return retrievalContent;
+    }
+
+    const itemContent = retrieval.items
+      .map((item) => normalizeDisplayContent(item.content))
+      .filter(Boolean);
+
+    if (itemContent.length > 0) {
+      return `Long-term memory:\n${itemContent.map((content) => `- ${content}`).join('\n')}`;
+    }
+
+    return 'Long-term memory ready';
+  }
+
+  return retrieval.content || getDisplayMemoryContent(memory.content) || '尚未触发长期记忆召回';
+}
+
+function normalizeDisplayContent(value: string | null | undefined) {
+  return String(value ?? '').replace(/\r\n/g, '\n').trim();
+}
+
+function formatMemoryItemStep(value: string | null | undefined) {
+  const normalized = normalizeDisplayContent(value);
+  if (!normalized) return 'step -';
+  return /^\d+$/.test(normalized) ? `step ${normalized}` : normalized;
+}
+
+function formatMemoryLength(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : '-';
+}
+
+function MemoryIdList({ label, values }: { label: string; values?: Array<number | string> }) {
+  const items = values || [];
+  return (
+    <div className="rounded-lg border border-border-default bg-bg-secondary/70 p-2 min-w-0">
+      <p className="text-[9px] font-bold text-text-muted">{label}</p>
+      <p className="mt-1 truncate font-mono text-text-primary" title={items.join(', ')}>
+        {items.length > 0 ? items.join(', ') : '-'}
+      </p>
     </div>
   );
 }

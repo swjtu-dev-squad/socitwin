@@ -1,6 +1,6 @@
 # Social Network Monitor Migration Plan
 
-- Status: planning
+- Status: in progress
 - Audience: migration implementers, reviewers, frontend/backend maintainers
 - Scope: migrate useful social network monitor page capabilities from `oasis-dashboard` into `socitwin`
 
@@ -71,7 +71,7 @@ frontend /agents
 - `/home/grayg/socitwin`
 - `feature/oasis-memory-migration-plan`
 
-新页面当前主链：
+迁移前，新页面主链是：
 
 ```text
 frontend /agents
@@ -106,6 +106,8 @@ frontend selected agent
 - `/api/sim/agents`
 - `/api/sim/agents/{agent_id}`
 - `/api/sim/memory`
+- `/api/sim/agents/monitor`
+- `/api/sim/agents/{agent_id}/monitor`
 
 其中 `/api/sim/memory` 已经能暴露 `action_v1` 的 memory debug 摘要：
 
@@ -121,6 +123,29 @@ frontend selected agent
 - recall query；
 - runtime failure；
 - selected recent / compressed / recall ids。
+
+注意：monitor 页第一版读取的是 memory debug summary，不是完整的 recent /
+compressed / recall 渲染正文。它用于判断各层是否参与、占用和选入情况；
+如果后续要展示每个 recent segment 或 compressed block 的完整文本，需要
+在 memory snapshot 中新增更重的、可分页或可折叠的 detail 字段。
+
+当前第一轮 monitor 迁移已经新增：
+
+- `backend/app/models/agent_monitor.py`
+- `backend/app/services/agent_monitor_service.py`
+- `backend/tests/memory/integration/test_agent_monitor_api.py`
+
+新页面当前主链已经调整为：
+
+```text
+frontend /agents
+  -> GET /api/sim/agents/monitor
+  -> page render
+
+frontend selected agent
+  -> GET /api/sim/agents/{agent_id}/monitor
+  -> detail render
+```
 
 ## 3. Migration Position
 
@@ -217,6 +242,7 @@ frontend selected agent
 | 记忆状态 | memory mode, prompt tokens, recent/compressed retained | `/api/sim/memory` |
 | 长期召回 | recall gate, query, recalled/injected count, step ids, status | `/api/sim/memory` |
 | 召回条目 | optional content summaries | 需要新增后端字段 |
+| 本轮 prompt 构成 | selected recent ids, selected compressed keys, selected recall ids | `/api/sim/memory` |
 
 ### 5.3 Memory display states
 
@@ -236,7 +262,7 @@ frontend selected agent
 
 ### 6.1 Recommended endpoints
 
-建议新增：
+当前已新增：
 
 ```text
 GET /api/sim/agents/monitor
@@ -252,19 +278,13 @@ GET /api/sim/agents/{agent_id}/monitor
 
 ### 6.2 Service boundary
 
-建议新增或扩展 service：
+当前已新增：
 
 ```text
 backend/app/services/agent_monitor_service.py
 ```
 
-或在第一版中放入：
-
-```text
-backend/app/services/simulation_service.py
-```
-
-更干净的长期结构是独立 `AgentMonitorService`，因为它不是单纯 simulation lifecycle，而是页面级聚合视图。
+这比放进 `SimulationService` 更干净，因为 monitor 不是单纯 simulation lifecycle，而是页面级聚合视图。
 
 职责：
 
@@ -337,14 +357,14 @@ interface AgentMemorySnapshot {
 
 ### 7.2 API client
 
-`frontend/src/lib/agentMonitorApi.ts` 应改为调用专用 monitor 接口：
+`frontend/src/lib/agentMonitorApi.ts` 当前已改为调用专用 monitor 接口：
 
 ```text
 GET /api/sim/agents/monitor
 GET /api/sim/agents/{agent_id}/monitor
 ```
 
-`agentDataTransform.ts` 可保留为 fallback 或逐步废弃。
+`agentDataTransform.ts` 当前仍保留，主要避免一次性删除旧兼容转换造成额外风险。
 
 ### 7.3 Components
 
@@ -383,9 +403,10 @@ POST /api/sim/step
 2. step API 成功后前端主动刷新；
 3. 后续再接 WebSocket/SSE。
 
-当前推荐：
+当前第一轮落地：
 
-- 迁移第一版先用轮询或主动刷新；
+- 前端继续监听旧 `agents_dirty`；
+- 同时新增 5 秒轻量轮询作为 FastAPI 后端未发 socket 事件时的兜底；
 - 不为了一个页面立刻引入完整 Socket.IO 服务；
 - 如果后续主前端需要全局实时事件，再统一设计 WebSocket/SSE。
 
@@ -403,6 +424,8 @@ POST /api/sim/step
 
 - 文档有字段级数据来源；
 - 不需要读旧 `server.ts` 才知道页面要什么。
+
+状态：已完成第一版。
 
 ### Phase B: Backend monitor aggregation
 
@@ -422,6 +445,8 @@ POST /api/sim/step
 - upstream 下 memory 显示合理空态；
 - action_v1 下 memory 显示 recall/debug 摘要。
 
+状态：已完成第一版，已加 integration test。
+
 ### Phase C: Frontend wiring
 
 任务：
@@ -439,6 +464,8 @@ POST /api/sim/step
 - memory 区块不再长期为空；
 - 没有 TypeScript build 错误。
 
+状态：已完成第一版，已通过 frontend build。
+
 ### Phase D: Refresh and verification
 
 任务：
@@ -455,16 +482,45 @@ POST /api/sim/step
 - recent timeline 随 trace 更新；
 - action_v1 memory debug 随 step 更新。
 
+状态：部分完成。当前采用轮询兜底，真实 step 长跑验证待后续进行。
+
 ## 10. Open Questions
 
 当前需要后续实现时边做边核对的问题：
 
 1. 是否需要后端暴露真实 recall item content，而不只是 recalled/injected step ids；
-2. `memory.length` 在 UI 上最终叫“记忆长度”还是“最近 prompt tokens”；
-3. `contentSource` 是否扩展 `action_v1`；
+2. `memory.length` 当前在 monitor 中使用 `last_prompt_tokens`，UI 第一版显示为 `Prompt Tokens`；
+3. `contentSource` 第一版仍保持旧类型 `system_prompt | retrieval`，没有扩展 `action_v1`；
 4. `currentViewpoint` 是否保留旧启发式推断，还是暂时删除；
-5. 刷新机制第一版采用轮询、主动刷新还是 WebSocket/SSE；
-6. 是否把旧 `agentDataTransform.ts` 作为 fallback 保留一段时间。
+5. 刷新机制第一版已采用 `agents_dirty` listener + 5 秒轮询兜底；
+6. `agentDataTransform.ts` 第一版暂时保留，后续确认无引用后再清理。
+
+## 12. Current Implementation Notes
+
+第一轮已经落地：
+
+- 后端新增 monitor response model；
+- 后端新增 `AgentMonitorService`；
+- 后端新增 `/api/sim/agents/monitor`；
+- 后端新增 `/api/sim/agents/{agent_id}/monitor`；
+- monitor 聚合 `SimulationStatus`、SQLite 与 memory debug；
+- memory debug 覆盖 recent retained、compressed retained、recall 和本轮 selected recent/compressed/recall；
+- graph edges 支持 follow、like、comment 形成的 interaction；
+- action content 在后端格式化为可读文案；
+- 前端 API client 改接专用 monitor 接口；
+- 行为表恢复角色列和 retrieval-aware memory summary；
+- 右侧详情新增“记忆与召回”区块；
+- 保留新版 ForceGraph；
+- 前端增加轮询兜底；
+- 新增 monitor API integration test。
+
+当前仍未解决：
+
+- recall item content 仍然是 step id 摘要，不是真实 episode 正文；
+- recent / compressed 当前展示的是 count、ids、keys，不展示完整块正文；
+- `currentViewpoint` 仍是轻量启发式，后续可按需要确认是否保留；
+- `agentDataTransform.ts` 仍保留为兼容残留，后续可清理；
+- 尚未跑真实浏览器页面和真实 step 长跑，只完成 API contract test 与 frontend build。
 
 ## 11. Guardrails
 

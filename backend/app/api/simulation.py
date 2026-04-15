@@ -26,7 +26,9 @@ from app.models.simulation import (
     ManualActionRequest,
     OASISActionType,
 )
+from app.models.agent_monitor import AgentMonitorResponse, AgentDetailResponse
 from app.services.simulation_service import SimulationService
+from app.services.agent_monitor_service import AgentMonitorService
 from app.core.dependencies import get_simulation_service_dependency
 
 
@@ -486,6 +488,48 @@ async def get_agents(
     except Exception as e:
         logger.error(f"Failed to get agents: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get agents: {str(e)}")
+
+
+@router.get("/agents/monitor", response_model=AgentMonitorResponse)
+async def get_agent_monitor(
+    service: SimulationService = Depends(get_simulation_service_dependency)
+):
+    """
+    获取社交网络监控页首屏数据。
+
+    该接口按新仓库 FastAPI 架构聚合 simulation status、SQLite 行为数据和
+    memory debug 摘要，避免前端继续从 /status 中推断页面字段。
+    """
+    try:
+        monitor_service = AgentMonitorService(service)
+        return await monitor_service.get_monitor()
+    except Exception as e:
+        logger.error(f"Failed to get agent monitor: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent monitor: {str(e)}",
+        )
+
+
+@router.get("/agents/{agent_id}/monitor", response_model=AgentDetailResponse)
+async def get_agent_monitor_detail(
+    agent_id: int,
+    service: SimulationService = Depends(get_simulation_service_dependency),
+):
+    """
+    获取社交网络监控页右侧详情数据。
+    """
+    try:
+        monitor_service = AgentMonitorService(service)
+        return await monitor_service.get_detail(agent_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Failed to get agent monitor detail: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent monitor detail: {str(e)}",
+        )
 
 
 @router.get("/agents/{agent_id}")

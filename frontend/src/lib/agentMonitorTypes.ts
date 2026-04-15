@@ -19,10 +19,38 @@ export interface AgentMemorySnapshot {
     content: string;
   };
   retrieval: {
+    length: number;
     enabled: boolean;
     status: AgentMemoryRetrievalStatus;
     content: string;
     items: AgentMemoryRetrievalItem[];
+  };
+  debug?: {
+    memoryMode?: string;
+    memorySupported?: boolean;
+    recentRetainedStepCount?: number;
+    recentRetainedStepIds?: number[];
+    compressedActionBlockCount?: number;
+    compressedHeartbeatCount?: number;
+    compressedRetainedStepCount?: number;
+    totalRetainedStepCount?: number;
+    lastObservationStage?: string;
+    lastObservationPromptTokens?: number;
+    lastPromptTokens?: number;
+    lastRecallGate?: boolean | null;
+    lastRecallQuerySource?: string;
+    lastRecallQueryText?: string;
+    lastRecallReasonTrace?: string;
+    lastRecalledCount?: number;
+    lastInjectedCount?: number;
+    lastRecalledStepIds?: number[];
+    lastInjectedStepIds?: number[];
+    lastRuntimeFailureCategory?: string;
+    lastRuntimeFailureStage?: string;
+    lastPromptBudgetStatus?: string;
+    lastSelectedRecentStepIds?: number[];
+    lastSelectedCompressedKeys?: string[];
+    lastSelectedRecallStepIds?: number[];
   };
 }
 
@@ -90,6 +118,7 @@ export interface AgentMonitorResponse {
     propagationBreadth?: number;    // 传播广度（单层最大用户数）
     // 从众效应
     herdIndex?: number;
+    memoryMode?: string;
   };
   graph: {
     nodes: AgentGraphNode[];
