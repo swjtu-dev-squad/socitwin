@@ -128,11 +128,8 @@ export default function LandingForceGraph({ onNodeClick }: LandingForceGraphProp
       <ForceGraph
         nodes={nodes}
         edges={edges}
-        onNodeClick={agentId => {
-          const agent = mockAgents.find(item => item.id === agentId)
-          if (agent) {
-            handleNodeClick(agent)
-          }
+        onNodeClick={(agent) => {
+          handleNodeClick(agent)
         }}
       />
     </div>

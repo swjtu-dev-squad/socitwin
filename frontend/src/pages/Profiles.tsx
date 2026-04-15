@@ -3,11 +3,6 @@ import {
   Badge,
   Button,
   Card,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Slider,
 } from '@/components/ui';
 import {
@@ -215,21 +210,19 @@ export default function Profiles() {
               <div className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
                 话题来源
               </div>
-              <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-                <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                  <SelectValue
-                    placeholder={topicsLoading ? '加载话题中...' : '选择话题'}
-                    value={selectedTopicLabel}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {topics.map((topic) => (
-                    <SelectItem key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select
+                value={selectedTopic}
+                onChange={(e) => setSelectedTopic(e.target.value)}
+                className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-border-default"
+                disabled={topicsLoading}
+              >
+                <option value="">{topicsLoading ? '加载话题中...' : '选择话题'}</option>
+                {topics.map((topic) => (
+                  <option key={topic.id} value={topic.id}>
+                    {topic.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-3">
@@ -268,25 +261,20 @@ export default function Profiles() {
             <h3 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
               <Sparkles className="w-4 h-4" /> 2. 生成策略算法
             </h3>
-            <Select value={algorithm} onValueChange={setAlgorithm}>
-              <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                <SelectValue placeholder="选择生成算法" value={algorithm} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="persona-llm">
-                  <div className="font-bold">Persona-LLM (深层特征)</div>
-                  <div className="text-[10px] text-text-muted">
-                    基于话题参与者的真实行为痕迹生成仿真画像
-                  </div>
-                </SelectItem>
-                <SelectItem value="ba-structural">
-                  <div className="font-bold">Structural Preferential Attachment</div>
-                  <div className="text-[10px] text-text-muted">
-                    侧重于生成具有幂律分布特征的复杂社交网络
-                  </div>
-                </SelectItem>
-                <SelectItem value="semantic-homophily">
-                  <div className="font-bold">Semantic Homophily</div>
+            <select
+              value={algorithm}
+              onChange={(e) => setAlgorithm(e.target.value)}
+              className="flex h-12 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-border-default"
+            >
+              <option value="persona-llm">
+                Persona-LLM (深层特征)
+              </option>
+              <option value="ba-structural">
+                Structural Preferential Attachment
+              </option>
+              <option value="semantic-homophily">
+                Semantic Homophily
+              </option>
                   <div className="text-[10px] text-text-muted">
                     基于兴趣语义相似度建立社交连接
                   </div>

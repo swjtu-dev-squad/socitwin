@@ -156,10 +156,10 @@ export default function Overview() {
     () => topics.find((topic) => topic.id === selectedTopic) || null,
     [topics, selectedTopic],
   );
-  const selectedTopicLabel = selectedTopicMeta?.name || '';
+  // const selectedTopicLabel = selectedTopicMeta?.name || '';
   const availableOriginalUserCount = selectedTopicMeta?.user_count ?? 0;
   const originalUserSourceLabel = `原始用户 (${availableOriginalUserCount})`;
-  const platformLabelMap: Record<DatasetPlatform, string> = {
+  // const platformLabelMap: Record<DatasetPlatform, string> = {
     twitter: 'X / Twitter',
     reddit: 'Reddit',
     tiktok: 'TikTok',
