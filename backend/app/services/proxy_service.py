@@ -3,18 +3,25 @@ import logging
 import math
 import re
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import uuid
 from typing import Any, Dict, List
 
-import httpx
 import jieba
 from fastapi import HTTPException
 
-from app.core.config import get_settings
 from app.models.proxy import ChatCompletionRequest, ChatCompletionResponse
 
 
 logger = logging.getLogger(__name__)
+
+BAIDU_APP_ID = "122858586"
+BAIDU_API_KEY = "wbFOBD27hI2fXddoWrnbh0PN"
+BAIDU_SECRET_KEY = "dKRt5eV2I7EWrA7NlMIzI9ijuIBRHAns"
+BAIDU_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
+BAIDU_SENTIMENT_URL = "https://aip.baidubce.com/rpc/2.0/nlp/v1/sentiment_classify?charset=UTF-8"
 
 
 class TextPreprocessor:
@@ -139,31 +146,129 @@ class EnhancedSentimentPipeline:
         return result
 
 
-class OllamaBackendProxy:
-    def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
-        self.client = httpx.AsyncClient(timeout=120.0)
+class BaiduSentimentService:
+    def __init__(self):
+        self._access_token: str | None = None
+        self._token_expires_at: float = 0.0
+        self._result_cache: dict[str, Dict[str, Any]] = {}
 
-    async def forward_chat_completion(self, request_data: dict) -> dict:
-        url = f"{self.base_url}/v1/chat/completions"
+    def analyze(self, text: str) -> Dict[str, Any]:
+        text_str = str(text or "").strip()
+        cached = self._result_cache.get(text_str)
+        if cached is not None:
+            return cached
+
+        payload = self._request_sentiment(text_str)
+        items = payload.get("items") or []
+        item = items[0] if items else {}
+
+        sentiment_code = item.get("sentiment", 1)
+        label_map = {2: "正向", 1: "中性", 0: "负向"}
+        final_result = label_map.get(sentiment_code, "中性")
+
+        result = {
+            "provider": "baidu_nlp",
+            "app_id": BAIDU_APP_ID,
+            "text": payload.get("text", text_str),
+            "final_result": final_result,
+            "analysis": {
+                "prediction": {
+                    "label": final_result,
+                    "confidence": float(item.get("confidence", 0.0) or 0.0),
+                    "positive_prob": float(item.get("positive_prob", 0.0) or 0.0),
+                    "negative_prob": float(item.get("negative_prob", 0.0) or 0.0),
+                    "sentiment": int(sentiment_code),
+                },
+                "raw_response": payload,
+                "timestamp": int(time.time()),
+                "status": "success",
+            },
+        }
+        self._result_cache[text_str] = result
+        return result
+
+    def _request_sentiment(self, text: str) -> Dict[str, Any]:
+        for attempt in range(4):
+            access_token = self._get_access_token()
+            body = json.dumps({"text": text}).encode("utf-8")
+            request = urllib.request.Request(
+                f"{BAIDU_SENTIMENT_URL}&access_token={access_token}",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                method="POST",
+            )
+
+            try:
+                with urllib.request.urlopen(request, timeout=20) as response:
+                    result = response.read().decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as exc:
+                result = exc.read().decode("utf-8", errors="replace")
+            except urllib.error.URLError as exc:
+                raise HTTPException(status_code=502, detail=f"Baidu sentiment API error: {exc}") from exc
+
+            try:
+                payload = json.loads(result)
+            except json.JSONDecodeError as exc:
+                raise HTTPException(status_code=502, detail=f"Invalid Baidu sentiment API response: {result}") from exc
+
+            error_code = payload.get("error_code")
+            if not error_code:
+                return payload
+
+            if error_code == 18 and attempt < 3:
+                wait_seconds = 0.5 * (attempt + 1)
+                logger.warning("Baidu sentiment QPS limited, retrying in %.1fs", wait_seconds)
+                time.sleep(wait_seconds)
+                continue
+
+            raise HTTPException(
+                status_code=502,
+                detail=f"Baidu sentiment API error {payload.get('error_code')}: {payload.get('error_msg', 'unknown error')}",
+            )
+
+        raise HTTPException(status_code=502, detail="Baidu sentiment API error: retry exhausted")
+
+    def _get_access_token(self) -> str:
+        now = time.time()
+        if self._access_token and now < self._token_expires_at:
+            return self._access_token
+
+        token_url = (
+            f"{BAIDU_TOKEN_URL}?" + urllib.parse.urlencode(
+                {
+                    "grant_type": "client_credentials",
+                    "client_id": BAIDU_API_KEY,
+                    "client_secret": BAIDU_SECRET_KEY,
+                }
+            )
+        )
+
         try:
-            response = await self.client.post(url, json=request_data)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as exc:
-            logger.error("Upstream status error: %s", exc.response.text)
-            raise HTTPException(status_code=exc.response.status_code, detail=exc.response.text) from exc
-        except httpx.RequestError as exc:
-            logger.warning("Upstream request failed: %s", exc)
-            raise
+            with urllib.request.urlopen(token_url, timeout=20) as token_response:
+                token_result = json.loads(token_response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise HTTPException(status_code=502, detail=f"Baidu token HTTP error: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise HTTPException(status_code=502, detail=f"Baidu token request failed: {exc}") from exc
+
+        access_token = token_result.get("access_token")
+        if not access_token:
+            raise HTTPException(status_code=502, detail=f"Failed to get Baidu access token: {token_result}")
+
+        expires_in = int(token_result.get("expires_in", 0) or 0)
+        self._access_token = access_token
+        self._token_expires_at = now + max(expires_in - 60, 60)
+        return access_token
 
 
 class ProxyService:
-    def __init__(self, base_url: str | None = None):
-        settings = get_settings()
-        resolved_base_url = base_url or settings.PROXY_OLLAMA_BASE_URL
-        self.ollama_proxy = OllamaBackendProxy(base_url=resolved_base_url)
+    def __init__(self):
         self.sentiment_pipeline = EnhancedSentimentPipeline()
+        self.baidu_sentiment = BaiduSentimentService()
 
     async def list_models(self) -> Dict[str, Any]:
         return {
@@ -173,7 +278,7 @@ class ProxyService:
                     "id": "qwen2.5:0.5b",
                     "object": "model",
                     "created": int(time.time()),
-                    "owned_by": "ollama",
+                    "owned_by": "baidu-nlp",
                 }
             ],
         }
@@ -184,46 +289,22 @@ class ProxyService:
 
         last_message = request.messages[-1].content
         analysis_a = self.sentiment_pipeline.analyze(last_message)
-        a_label = analysis_a.get("prediction", {}).get("label", "未知")
+        baidu_input = self.baidu_sentiment.analyze(last_message)
+        return self._build_response(request, analysis_a, baidu_input)
 
-        request_dict = request.model_dump(exclude_unset=True)
-        request_dict["stream"] = False
-
-        try:
-            result = await self.ollama_proxy.forward_chat_completion(request_dict)
-            b_content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            analysis_c = self.sentiment_pipeline.analyze(b_content)
-            c_label = analysis_c.get("prediction", {}).get("label", "未知")
-
-            final_label = a_label if a_label == c_label or a_label == "中性" else c_label
-            content_dict = {
-                "mode": "upstream",
-                "model_reply": b_content,
-                "input_analysis_a": a_label,
-                "reply_analysis_c": c_label,
-                "final_result": final_label,
-            }
-
-            result["choices"][0]["message"]["content"] = json.dumps(content_dict, ensure_ascii=False)
-            return ChatCompletionResponse.model_validate(result)
-        except httpx.RequestError:
-            logger.info("Falling back to local sentiment inference")
-            return self._build_fallback_response(request, analysis_a)
-
-    def _build_fallback_response(
+    def _build_response(
         self,
         request: ChatCompletionRequest,
         analysis_a: Dict[str, Any],
+        baidu_analysis: Dict[str, Any],
     ) -> ChatCompletionResponse:
-        a_label = analysis_a.get("prediction", {}).get("label", "未知")
         content_dict = {
-            "mode": "fallback",
-            "reason": "ollama_unavailable",
+            "mode": "baidu_only",
             "model_reply": "",
-            "input_analysis_a": a_label,
-            "reply_analysis_c": a_label,
-            "final_result": a_label,
-            "analysis": analysis_a,
+            "input_analysis_a": analysis_a.get("prediction", {}).get("label", "未知"),
+            "reply_analysis_c": analysis_a.get("prediction", {}).get("label", "未知"),
+            "final_result": baidu_analysis["final_result"],
+            "analysis": baidu_analysis["analysis"],
         }
         content = json.dumps(content_dict, ensure_ascii=False)
         created = int(time.time())
@@ -248,9 +329,18 @@ class ProxyService:
                     "completion_tokens": completion_tokens,
                     "total_tokens": prompt_tokens + completion_tokens,
                 },
-                "system_fingerprint": "fallback-sentiment",
+                "system_fingerprint": "baidu-sentiment",
             }
         )
+
+    async def classify_sentiment(self, text: str) -> Dict[str, Any]:
+        neural_analysis = self.sentiment_pipeline.analyze(text)
+        baidu_analysis = self.baidu_sentiment.analyze(text)
+        return {
+            "neural_analysis": neural_analysis,
+            "final_result": baidu_analysis["final_result"],
+            "analysis": baidu_analysis["analysis"],
+        }
 
 
 proxy_service = ProxyService()

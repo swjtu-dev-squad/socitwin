@@ -11,11 +11,12 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+from app.services.metrics.propagation_service import PropagationService
+from app.services.metrics.polarization_service import PolarizationService
+from app.services.metrics.herd_effect_service import HerdEffectService
+from app.services.metrics.sentiment_tendency_service import SentimentTendencyService
 from app.core.llm_evaluator import get_llm_evaluator
 from app.models.metrics import MetricsSummary
-from app.services.metrics.herd_effect_service import HerdEffectService
-from app.services.metrics.polarization_service import PolarizationService
-from app.services.metrics.propagation_service import PropagationService
 from app.utils import metrics_db
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,7 @@ class MetricsManager:
         # Initialize services
         self.propagation_service = PropagationService(db_path)
         self.herd_service = HerdEffectService(db_path)
+        self.sentiment_service = SentimentTendencyService(db_path)
 
         # Polarization service needs LLM evaluator
         llm_evaluator = get_llm_evaluator()
@@ -132,6 +134,7 @@ class MetricsManager:
                 'propagation': TTLCache(maxsize=1, ttl=0),
                 'polarization': TTLCache(maxsize=1, ttl=0),
                 'herd_effect': TTLCache(maxsize=1, ttl=0),
+                'sentiment_tendency': TTLCache(maxsize=1, ttl=0),
             }
         else:
             # Use different TTLs per metric based on config base
@@ -139,6 +142,7 @@ class MetricsManager:
                 'propagation': TTLCache(maxsize=100, ttl=cache_ttl),  # Use config TTL
                 'polarization': TTLCache(maxsize=100, ttl=max(cache_ttl, 3600)),  # At least 1 hour for expensive LLM
                 'herd_effect': TTLCache(maxsize=100, ttl=max(cache_ttl // 2, 60)),  # Half of config TTL, min 1 min
+                'sentiment_tendency': TTLCache(maxsize=100, ttl=cache_ttl),
             }
             logger.info(f"Metrics cache enabled with TTL: propagation={cache_ttl}s, polarization={max(cache_ttl, 3600)}s, herd_effect={max(cache_ttl // 2, 60)}s")
 
@@ -251,6 +255,10 @@ class MetricsManager:
                 tasks.append(self._update_herd_effect())
                 metrics_to_update.append('herd_effect')
 
+            logger.info("  sentiment_tendency: force update each step")
+            tasks.append(self._update_sentiment_tendency())
+            metrics_to_update.append('sentiment_tendency')
+
             # Polarization: check if we should calculate
             polarization_expired = await self._is_cache_expired('polarization')
             should_calculate_polarization = force_polarization or polarization_expired
@@ -301,6 +309,7 @@ class MetricsManager:
             propagation = await self.caches['propagation'].get('propagation')
             polarization = await self.caches['polarization'].get('polarization')
             herd_effect = await self.caches['herd_effect'].get('herd_effect')
+            sentiment_tendency = await self.caches['sentiment_tendency'].get('sentiment_tendency')
 
             # Calculate missing metrics
             if not propagation:
@@ -319,6 +328,10 @@ class MetricsManager:
                 herd_effect = await self.herd_service.get_metrics()
                 await self.caches['herd_effect'].set('herd_effect', herd_effect)
 
+            if not sentiment_tendency:
+                sentiment_tendency = await self.sentiment_service.get_metrics()
+                await self.caches['sentiment_tendency'].set('sentiment_tendency', sentiment_tendency)
+
             # Prefer the simulation-maintained step counter. The old database
             # approximation used post count as a proxy, which drifts badly in
             # multi-agent runs and corrupts monitoring/e2e interpretation.
@@ -330,6 +343,7 @@ class MetricsManager:
                 propagation=propagation,
                 polarization=polarization,
                 herd_effect=herd_effect,
+                sentiment_tendency=sentiment_tendency,
                 current_step=current_step,
                 timestamp=datetime.now()
             )
@@ -403,6 +417,28 @@ class MetricsManager:
             )
         except Exception as e:
             logger.error(f"Failed to update herd effect: {e}")
+
+    async def _update_sentiment_tendency(self):
+        """Update sentiment tendency metrics."""
+        try:
+            metrics = await self.sentiment_service.get_metrics()
+            await self.caches['sentiment_tendency'].set('sentiment_tendency', metrics)
+
+            if self.enable_db_persistence:
+                metrics_db.save_metrics(
+                    self.db_path,
+                    self.current_step,
+                    'sentiment_tendency',
+                    metrics
+                )
+
+            logger.debug(
+                "Sentiment tendency metrics updated: score=%.2f, analyzed_posts=%s",
+                metrics.overall_score,
+                metrics.analyzed_post_count,
+            )
+        except Exception as e:
+            logger.error(f"Failed to update sentiment tendency: {e}")
 
     async def _is_cache_expired(self, metric_name: str) -> bool:
         """

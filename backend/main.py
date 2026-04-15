@@ -48,12 +48,9 @@ app.include_router(simulation_router, prefix="/api")
 app.include_router(topics_router, prefix="/api")
 app.include_router(metrics_router, prefix="/api")
 app.include_router(controlled_agents_router, prefix="/api")
-<<<<<<< HEAD
 app.include_router(persona_router, prefix="/api")
 app.include_router(person_dataset_router, prefix="/api")
-=======
 app.include_router(proxy_router)
->>>>>>> 36d3712 (增加了3个情感分析api以及依赖服务)
 
 
 @app.get("/")
