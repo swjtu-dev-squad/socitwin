@@ -333,3 +333,36 @@ export interface ChartDataPoint {
   propagation?: number // from propagation.scale
   herdEffect?: number // from herd_effect.conformity_index
 }
+
+// ========== Controlled Agent Types ==========
+
+export interface ControlledAgentConfig {
+  user_name: string
+  name: string
+  description: string
+  bio?: string
+  profile?: Record<string, any>
+  interests?: string[]
+}
+
+export interface AgentAddResult {
+  agent_id: number
+  user_name: string
+  success: boolean
+  error_message?: string
+}
+
+export interface AddControlledAgentsRequest {
+  agents: ControlledAgentConfig[]
+  check_polarization?: boolean
+  polarization_threshold?: number
+}
+
+export interface AddControlledAgentsResponse {
+  success: boolean
+  message: string
+  added_count: number
+  current_polarization: number
+  added_agent_ids: number[]
+  results: AgentAddResult[]
+}

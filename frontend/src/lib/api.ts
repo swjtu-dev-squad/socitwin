@@ -13,6 +13,8 @@ import type {
   PropagationMetrics,
   PolarizationMetrics,
   HerdEffectMetrics,
+  AddControlledAgentsRequest,
+  AddControlledAgentsResponse,
 } from './types'
 
 const api = axios.create({
@@ -132,4 +134,8 @@ export const simulationApi = {
 
   getLatestMetrics: (metricType: string) =>
     api.get<any>(`/metrics/history/latest`, { params: { metric_type: metricType } }),
+
+  // Controlled Agents APIs
+  addControlledAgents: (request: AddControlledAgentsRequest) =>
+    api.post<AddControlledAgentsResponse>('/sim/agents/controlled', request),
 }

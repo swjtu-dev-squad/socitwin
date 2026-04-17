@@ -1,8 +1,20 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useSimulationStore } from '@/lib/store'
-import { Card, Button, Badge, Slider, Progress } from '@/components/ui'
+import {
+  Card,
+  Button,
+  Badge,
+  Slider,
+  Progress,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { simulationApi } from '@/lib/api'
+import type { ControlledAgentConfig } from '@/lib/types'
 import {
   useSimulationStatusLightweight,
   useTopics,
@@ -29,6 +41,10 @@ import {
   ArrowDownRight,
   AlertCircle,
   PieChart as PieChartIcon,
+  Plus,
+  Trash2,
+  Check,
+  UserPlus,
 } from 'lucide-react'
 import {
   XAxis,
@@ -156,25 +172,90 @@ export default function Overview() {
   const [selectedTopic, setSelectedTopic] = useState<string>(initialFilters?.selectedTopic ?? '')
   const [showAlgorithm, setShowAlgorithm] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  // Controlled agent addition state
+  const [controlledAgents, setControlledAgents] = useState<ControlledAgentConfig[]>([
+    { user_name: '', name: '', description: '', interests: [] },
+  ])
+  const [checkPolarization, setCheckPolarization] = useState(false)
+  const [polarizationThreshold, setPolarizationThreshold] = useState(0.6)
+  const [isAddingAgents, setIsAddingAgents] = useState(false)
 
   const selectedTopicMeta = useMemo(
     () => topics.find(topic => topic.id === selectedTopic) || null,
     [topics, selectedTopic]
   )
-  // const selectedTopicLabel = selectedTopicMeta?.name || '';
+  const selectedTopicLabel = selectedTopicMeta?.name || ''
   const availableOriginalUserCount = selectedTopicMeta?.user_count ?? 0
   const originalUserSourceLabel = `原始用户 (${availableOriginalUserCount})`
-  // const platformLabelMap: Record<DatasetPlatform, string> = {
-  //   twitter: 'X / Twitter',
-  //   reddit: 'Reddit',
-  //   tiktok: 'TikTok',
-  //   instagram: 'Instagram',
-  //   facebook: 'Facebook',
-  // };
+  const platformLabelMap: Record<DatasetPlatform, string> = {
+    twitter: 'X / Twitter',
+    reddit: 'Reddit',
+    tiktok: 'TikTok',
+    instagram: 'Instagram',
+    facebook: 'Facebook',
+  }
   const [selectedUserSource, setSelectedUserSource] = useState<'topic-original'>('topic-original')
   const maxUserCount = availableOriginalUserCount
   const isSupportedSimulationPlatform =
     selectedPlatform === 'twitter' || selectedPlatform === 'reddit'
+
+  // Controlled agent addition helper functions
+  const addAgentRow = () => {
+    setControlledAgents([
+      ...controlledAgents,
+      { user_name: '', name: '', description: '', interests: [] },
+    ])
+  }
+
+  const removeAgentRow = (index: number) => {
+    const newAgents = [...controlledAgents]
+    newAgents.splice(index, 1)
+    if (newAgents.length === 0) {
+      // 如果删除了所有行，添加一个空行
+      setControlledAgents([{ user_name: '', name: '', description: '', interests: [] }])
+    } else {
+      setControlledAgents(newAgents)
+    }
+  }
+
+  const updateAgentRow = (index: number, field: keyof ControlledAgentConfig, value: any) => {
+    const newAgents = [...controlledAgents]
+    newAgents[index] = { ...newAgents[index], [field]: value }
+    setControlledAgents(newAgents)
+  }
+
+  const handleAddControlledAgents = async () => {
+    // Validate required fields
+    const invalidAgents = controlledAgents.filter(
+      agent => !agent.user_name.trim() || !agent.name.trim() || !agent.description.trim()
+    )
+    if (invalidAgents.length > 0) {
+      toast.error('请填写所有必需字段：用户名、名称和描述')
+      return
+    }
+
+    setIsAddingAgents(true)
+    try {
+      const request = {
+        agents: controlledAgents,
+        check_polarization: checkPolarization,
+        polarization_threshold: checkPolarization ? polarizationThreshold : undefined,
+      }
+      const response = await simulationApi.addControlledAgents(request)
+      if (response.data.success) {
+        toast.success(`成功添加 ${response.data.added_count} 个受控agent`)
+        // Reset form or keep for further additions
+        setControlledAgents([{ user_name: '', name: '', description: '', interests: [] }])
+      } else {
+        toast.error(`添加失败: ${response.data.message}`)
+      }
+    } catch (error) {
+      console.error('添加受控agent失败:', error)
+      toast.error(`请求失败: ${getRequestErrorMessage(error)}`)
+    } finally {
+      setIsAddingAgents(false)
+    }
+  }
 
   // Update store status when hook data changes
   useEffect(() => {
@@ -657,17 +738,24 @@ export default function Overview() {
                   <Cpu className="w-3 h-3" />
                   平台选择
                 </div>
-                <select
+                <Select
                   value={selectedPlatform}
-                  onChange={e => setSelectedPlatform(e.target.value as DatasetPlatform)}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary"
+                  onValueChange={(value: string) => setSelectedPlatform(value as DatasetPlatform)}
                 >
-                  <option value="twitter">X / Twitter</option>
-                  <option value="reddit">Reddit</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="facebook">Facebook</option>
-                </select>
+                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
+                    <SelectValue
+                      placeholder="选择平台"
+                      value={platformLabelMap[selectedPlatform]}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="twitter">X / Twitter</SelectItem>
+                    <SelectItem value="reddit">Reddit</SelectItem>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="instagram">Instagram</SelectItem>
+                    <SelectItem value="facebook">Facebook</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4">
@@ -675,23 +763,33 @@ export default function Overview() {
                   <BookOpen className="w-3 h-3" />
                   话题选择
                 </div>
-                <select
+                <Select
                   value={selectedTopic}
-                  onChange={e => {
+                  onValueChange={(val: string) => {
                     if (!topicsLoading) {
-                      setSelectedTopic(e.target.value)
+                      setSelectedTopic(val)
                     }
                   }}
-                  className={`flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary ${topicsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  disabled={topicsLoading}
                 >
-                  <option value="">{topicsLoading ? '加载话题中...' : '选择话题'}</option>
-                  {topics?.map(topic => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                    className={cn(
+                      'bg-bg-primary border-accent/20 text-text-primary',
+                      topicsLoading && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    <SelectValue
+                      placeholder={topicsLoading ? '加载话题中...' : '选择话题'}
+                      value={selectedTopicLabel}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {topics?.map(topic => (
+                      <SelectItem key={topic.id} value={topic.id}>
+                        {topic.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4">
@@ -699,13 +797,19 @@ export default function Overview() {
                   <Users className="w-3 h-3" />
                   用户选择
                 </div>
-                <select
+                <Select
                   value={selectedUserSource}
-                  onChange={e => setSelectedUserSource(e.target.value as 'topic-original')}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 bg-bg-primary border-accent/20 text-text-primary"
+                  onValueChange={(value: string) =>
+                    setSelectedUserSource(value as 'topic-original')
+                  }
                 >
-                  <option value="topic-original">{originalUserSourceLabel}</option>
-                </select>
+                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
+                    <SelectValue placeholder="选择用户来源" value={originalUserSourceLabel} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="topic-original">{originalUserSourceLabel}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -721,7 +825,7 @@ export default function Overview() {
                 </div>
                 <Slider
                   value={agentCount}
-                  onValueChange={val => {
+                  onValueChange={(val: number[]) => {
                     setAgentCount(val)
                     // 只更新本地状态，不调用 API
                   }}
@@ -921,67 +1025,242 @@ export default function Overview() {
           </div>
         </Card>
 
-        {/* Combined Chart Section (Situational Awareness) */}
-        <div className="lg:col-span-6 space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-accent/10 border border-accent/20">
-                <TrendingUp className="w-5 h-5 text-accent" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold uppercase tracking-tight">
-                  综合态势趋势演化 // SITUATIONAL_AWARENESS
-                </h2>
-                <p className="text-xs text-text-tertiary font-mono">
-                  MODEL: COGNITIVE_DYNAMICS_V4 // REAL-TIME SENSING
-                </p>
-              </div>
+        {/* Controlled Agent Addition Section */}
+        <Card className={cn('lg:col-span-6 p-8 space-y-8', industrialCardClass)}>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10 border border-green-500/20">
+              <UserPlus className="w-5 h-5 text-green-500" />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest border-accent/30 text-accent hover:bg-accent/10"
-              onClick={() => setShowAlgorithm(!showAlgorithm)}
-            >
-              <Info className="w-3.5 h-3.5" />
-              分析算法说明
-            </Button>
+            <h2 className="text-lg font-bold uppercase tracking-tight">
+              受控Agent添加 // CONTROLLED_AGENT_ADDITION
+            </h2>
           </div>
+          <div className="text-sm text-text-secondary">
+            <p>手动添加受控agent用于舆论引导，支持批量添加和可选极化率检查。</p>
+          </div>
+          <div className="space-y-6">
+            {/* Agent list */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold uppercase tracking-widest text-accent">
+                  Agent配置列表
+                </h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1 text-xs"
+                  onClick={addAgentRow}
+                >
+                  <Plus className="w-3 h-3" />
+                  添加Agent
+                </Button>
+              </div>
 
-          <AnimatePresence>
-            {showAlgorithm && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-4 rounded-lg bg-bg-primary border border-accent/30 text-xs text-text-tertiary leading-relaxed grid grid-cols-1 md:grid-cols-3 gap-6 font-mono">
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-accent uppercase tracking-widest flex items-center gap-2">
-                      <Zap className="w-3 h-3" /> 极化计算模型
-                    </h4>
-                    <p>采用 Esteban-Ray 极化测度算法，量化认知极端化程度。</p>
+              {controlledAgents.map((agent, index) => (
+                <div
+                  key={index}
+                  className="p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-text-tertiary uppercase">
+                      Agent #{index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200"
+                      onClick={() => removeAgentRow(index)}
+                      title="删除此行"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-                      <BarChart3 className="w-3 h-3" /> 传播动力学
-                    </h4>
-                    <p>基于改进的 SIRS 模型，实时计算信息渗透速率。</p>
-                  </div>
-                  <div className="space-y-2">
-                    <h4 className="font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-3 h-3" /> 从众效应评估
-                    </h4>
-                    <p>利用 Asch 范式数字化模型，监测群体压力影响。</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        用户名 *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.user_name}
+                        onChange={e => updateAgentRow(index, 'user_name', e.target.value)}
+                        placeholder="official_responder"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        显示名称 *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.name}
+                        onChange={e => updateAgentRow(index, 'name', e.target.value)}
+                        placeholder="极化警察"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        描述 *
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent min-h-[60px]"
+                        value={agent.description}
+                        onChange={e => updateAgentRow(index, 'description', e.target.value)}
+                        placeholder="应急响应极化事件"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        兴趣标签 (逗号分隔)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.interests?.join(', ') || ''}
+                        onChange={e =>
+                          updateAgentRow(
+                            index,
+                            'interests',
+                            e.target.value
+                              .split(',')
+                              .map(s => s.trim())
+                              .filter(Boolean)
+                          )
+                        }
+                        placeholder="emergency, safety, government"
+                      />
+                    </div>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              ))}
+            </div>
 
-          <SituationalAwarenessChart currentStep={currentStep || 0} />
+            {/* Options */}
+            <div className="p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-accent">添加选项</h3>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="checkPolarization"
+                  checked={checkPolarization}
+                  onChange={e => setCheckPolarization(e.target.checked)}
+                  className="w-4 h-4 rounded border-accent/30 bg-bg-secondary text-accent focus:ring-accent"
+                />
+                <label htmlFor="checkPolarization" className="text-sm text-text-primary">
+                  添加前检查极化率阈值
+                </label>
+              </div>
+
+              {checkPolarization && (
+                <div className="space-y-2 pl-7">
+                  <div className="flex justify-between">
+                    <label className="text-xs font-bold text-text-tertiary uppercase">
+                      极化率阈值
+                    </label>
+                    <span className="text-xs font-mono text-accent">
+                      {polarizationThreshold.toFixed(2)}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[polarizationThreshold]}
+                    onValueChange={(val: number[]) => setPolarizationThreshold(val[0])}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    className="py-2"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Submit button */}
+            <Button
+              className="w-full h-12 rounded-lg font-bold gap-2 bg-green-600 hover:bg-green-700 text-white shadow-lg transition-all"
+              onClick={handleAddControlledAgents}
+              disabled={isAddingAgents}
+            >
+              {isAddingAgents ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  添加中...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  批量添加受控Agent
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      </div>
+
+      {/* Situational Awareness Chart Section */}
+      <div className="pt-12 border-t border-accent/20 space-y-8">
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-accent/10 border border-accent/20">
+              <TrendingUp className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold uppercase tracking-tight">
+                综合态势趋势演化 // SITUATIONAL_AWARENESS
+              </h2>
+              <p className="text-xs text-text-tertiary font-mono">
+                MODEL: COGNITIVE_DYNAMICS_V4 // REAL-TIME SENSING
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-lg gap-2 text-[10px] font-bold uppercase tracking-widest border-accent/30 text-accent hover:bg-accent/10"
+            onClick={() => setShowAlgorithm(!showAlgorithm)}
+          >
+            <Info className="w-3.5 h-3.5" />
+            分析算法说明
+          </Button>
         </div>
+
+        <AnimatePresence>
+          {showAlgorithm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="p-4 rounded-lg bg-bg-primary border border-accent/30 text-xs text-text-tertiary leading-relaxed grid grid-cols-1 md:grid-cols-3 gap-6 font-mono">
+                <div className="space-y-2">
+                  <h4 className="font-bold text-accent uppercase tracking-widest flex items-center gap-2">
+                    <Zap className="w-3 h-3" /> 极化计算模型
+                  </h4>
+                  <p>采用 Esteban-Ray 极化测度算法，量化认知极端化程度。</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                    <BarChart3 className="w-3 h-3" /> 传播动力学
+                  </h4>
+                  <p>基于改进的 SIRS 模型，实时计算信息渗透速率。</p>
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
+                    <Activity className="w-3 h-3" /> 从众效应评估
+                  </h4>
+                  <p>利用 Asch 范式数字化模型，监测群体压力影响。</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <SituationalAwarenessChart currentStep={currentStep || 0} />
       </div>
 
       {/* Analytics Merge Section */}
