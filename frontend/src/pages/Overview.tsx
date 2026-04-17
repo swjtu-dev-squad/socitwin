@@ -44,7 +44,6 @@ import {
   Plus,
   Trash2,
   Check,
-  AlertTriangle,
   UserPlus,
 } from 'lucide-react'
 import {
@@ -741,7 +740,7 @@ export default function Overview() {
                 </div>
                 <Select
                   value={selectedPlatform}
-                  onValueChange={value => setSelectedPlatform(value as DatasetPlatform)}
+                  onValueChange={(value: string) => setSelectedPlatform(value as DatasetPlatform)}
                 >
                   <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
                     <SelectValue
@@ -766,7 +765,7 @@ export default function Overview() {
                 </div>
                 <Select
                   value={selectedTopic}
-                  onValueChange={val => {
+                  onValueChange={(val: string) => {
                     if (!topicsLoading) {
                       setSelectedTopic(val)
                     }
@@ -800,7 +799,9 @@ export default function Overview() {
                 </div>
                 <Select
                   value={selectedUserSource}
-                  onValueChange={value => setSelectedUserSource(value as 'topic-original')}
+                  onValueChange={(value: string) =>
+                    setSelectedUserSource(value as 'topic-original')
+                  }
                 >
                   <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
                     <SelectValue placeholder="选择用户来源" value={originalUserSourceLabel} />
@@ -824,7 +825,7 @@ export default function Overview() {
                 </div>
                 <Slider
                   value={agentCount}
-                  onValueChange={val => {
+                  onValueChange={(val: number[]) => {
                     setAgentCount(val)
                     // 只更新本地状态，不调用 API
                   }}
@@ -1168,7 +1169,7 @@ export default function Overview() {
                   </div>
                   <Slider
                     value={[polarizationThreshold]}
-                    onValueChange={val => setPolarizationThreshold(val[0])}
+                    onValueChange={(val: number[]) => setPolarizationThreshold(val[0])}
                     min={0}
                     max={1}
                     step={0.05}
