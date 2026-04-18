@@ -332,6 +332,8 @@
 
 这个差异如果不在迁移时明确，会导致后续把旧仓库的预算树错误挂到当前的 `ModelConfig.max_tokens` 上。
 
+迁移后 UI 实测进一步确认了这个风险：CAMEL `BaseModelBackend.token_limit` 会优先使用 `model_config_dict["max_tokens"]`，导致 upstream 路线的 chat history context creator 被错误限制到 1000 token。当前处理是保持 `max_tokens` 的生成上限语义，同时在 upstream agent 创建后显式把 CAMEL memory context limit 调整为 `OASIS_CONTEXT_TOKEN_LIMIT`。这不是 action_v1 记忆接管，而是避免参数语义串线。
+
 这意味着新仓库迁移时需要新增一整层 memory-aware config surface，而不是做零散补丁。
 
 ## 7. Test Surface Gap

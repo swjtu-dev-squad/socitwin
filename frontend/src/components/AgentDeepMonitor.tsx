@@ -25,9 +25,10 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
   const { profile, status, currentViewpoint, lastAction, recentTimeline, seenPosts } = detail;
   const memory = detail.memory ?? getEmptyMemorySnapshot();
   const retrieval = memory.retrieval ?? getEmptyRetrieval();
-  const memoryContent = getMemoryContent(memory, retrieval);
   const memoryItems = Array.isArray(retrieval.items) ? retrieval.items : [];
   const debug = memory.debug ?? {};
+  const recallSummary = getRecallSummary(memory, retrieval);
+  const recallItemMode = getRecallItemMode(memoryItems);
 
   return (
     <div className="space-y-6">
@@ -123,40 +124,45 @@ export function AgentDeepMonitor({ detail, loading = false, error = null }: Agen
           </div>
         ) : null}
 
-        <div className="p-3 bg-bg-primary rounded-xl border border-border-default">
-          <p className="text-[9px] text-text-muted font-bold mb-2">
-            {retrieval.status === 'ready'
-              ? 'Long-term memory recall'
-              : retrieval.status === 'empty'
-                ? '已检索，无可注入记忆'
-                : retrieval.status === 'error'
-                  ? '长期记忆暂不可用'
-                  : '记忆状态'}
-          </p>
+        <div className="p-3 bg-bg-primary rounded-xl border border-border-default space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[9px] text-text-muted font-bold">长期记忆召回摘要</p>
+            <Badge variant="outline" className="text-[10px]">
+              {displayCount(debug.lastInjectedCount ?? 0)} / {displayCount(debug.lastRecalledCount ?? 0)} 注入/召回
+            </Badge>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <RecallStage label="Gate" value={debug.lastRecallGate ? '触发' : '未触发'} active={debug.lastRecallGate === true} />
+            <RecallStage label="Recalled" value={displayCount(debug.lastRecalledCount ?? 0)} active={(debug.lastRecalledCount ?? 0) > 0} />
+            <RecallStage label="Injected" value={displayCount(debug.lastInjectedCount ?? 0)} active={(debug.lastInjectedCount ?? 0) > 0} />
+          </div>
           <div className="max-h-36 overflow-auto rounded-lg border border-border-default bg-bg-secondary/80 p-3">
             <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">
-              {memoryContent || '-'}
+              {recallSummary || '-'}
             </p>
           </div>
         </div>
 
         <div className="p-3 bg-bg-primary rounded-xl border border-border-default space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[9px] text-text-muted font-bold">召回条目</p>
-            <Badge variant="outline" className="text-[10px]">{memoryItems.length}</Badge>
+            <div>
+              <p className="text-[9px] text-text-muted font-bold">{recallItemMode.title}</p>
+              <p className="mt-1 text-[10px] text-text-tertiary">{recallItemMode.description}</p>
+            </div>
+            <Badge className={recallItemMode.badgeClass}>{memoryItems.length}</Badge>
           </div>
           <div className="max-h-52 overflow-auto space-y-2 pr-1">
             {memoryItems.length > 0 ? memoryItems.map((item) => (
               <div key={item.id} className="rounded-lg border border-border-default bg-bg-secondary/80 p-3">
-                <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">{item.content || '-'}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-text-tertiary">
-                  <span>{formatMemoryItemStep(item.createdAt)}</span>
-                  {typeof item.score === 'number' && Number.isFinite(item.score) ? <span>score {item.score.toFixed(2)}</span> : null}
-                  {item.source ? <span>{item.source}</span> : null}
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <Badge className={getRecallSourceBadgeClass(item.source)}>{formatRecallSource(item.source)}</Badge>
+                  <span className="text-[10px] text-text-tertiary">{formatMemoryItemStep(item.createdAt)}</span>
+                  {typeof item.score === 'number' && Number.isFinite(item.score) ? <span className="text-[10px] text-text-tertiary">score {item.score.toFixed(2)}</span> : null}
                 </div>
+                <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-6">{item.content || '-'}</p>
               </div>
             )) : (
-              <p className="text-sm text-text-tertiary">暂无召回条目</p>
+              <p className="text-sm text-text-tertiary">{recallItemMode.emptyText}</p>
             )}
           </div>
         </div>
@@ -293,7 +299,7 @@ function getEmptyMemorySnapshot(): AgentMemorySnapshot {
   };
 }
 
-function getMemoryContent(memory: AgentMemorySnapshot, retrieval: AgentMemorySnapshot['retrieval']) {
+function getRecallSummary(memory: AgentMemorySnapshot, retrieval: AgentMemorySnapshot['retrieval']) {
   if (retrieval.status === 'empty') {
     return '本轮触发长期记忆检索，但没有可注入的召回结果。';
   }
@@ -308,18 +314,70 @@ function getMemoryContent(memory: AgentMemorySnapshot, retrieval: AgentMemorySna
       return retrievalContent;
     }
 
-    const itemContent = retrieval.items
-      .map((item) => normalizeDisplayContent(item.content))
-      .filter(Boolean);
-
-    if (itemContent.length > 0) {
-      return `Long-term memory:\n${itemContent.map((content) => `- ${content}`).join('\n')}`;
-    }
-
-    return 'Long-term memory ready';
+    return '长期记忆检索已完成，但后端没有返回摘要。';
   }
 
   return retrieval.content || getDisplayMemoryContent(memory.content) || '尚未触发长期记忆召回';
+}
+
+function getRecallItemMode(items: AgentMemorySnapshot['retrieval']['items']) {
+  const hasInjected = items.some((item) => item.source === 'injected');
+  const hasRecalled = items.some((item) => item.source === 'recalled');
+
+  if (hasInjected && hasRecalled) {
+    return {
+      title: '长期记忆召回列表',
+      description: '展示全部召回候选；Injected 表示该条已进入本轮 prompt。',
+      badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      emptyText: '暂无长期记忆条目。',
+    };
+  }
+
+  if (hasInjected) {
+    return {
+      title: '已注入长期记忆',
+      description: '这些条目已经进入本轮 prompt，模型可以实际读到。',
+      badgeClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+      emptyText: '本轮没有注入长期记忆。',
+    };
+  }
+
+  if (hasRecalled) {
+    return {
+      title: '召回候选，未注入',
+      description: '这些条目被检索到，但未进入最终 prompt。',
+      badgeClass: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      emptyText: '本轮没有可展示的召回候选。',
+    };
+  }
+
+  return {
+    title: '长期记忆条目',
+    description: '展示本轮检索或注入的长期记忆内容。',
+    badgeClass: 'text-text-tertiary border-border-default',
+    emptyText: '暂无长期记忆条目。',
+  };
+}
+
+function formatRecallSource(source: string | undefined) {
+  if (source === 'injected') return 'Injected';
+  if (source === 'recalled') return 'Recalled only';
+  return 'Memory';
+}
+
+function getRecallSourceBadgeClass(source: string | undefined) {
+  if (source === 'injected') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+  if (source === 'recalled') return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+  return 'text-text-tertiary border-border-default';
+}
+
+function RecallStage({ label, value, active }: { label: string; value: string | number; active: boolean }) {
+  return (
+    <div className={`rounded-lg border px-2 py-2 ${active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-border-default bg-bg-secondary/80 text-text-tertiary'}`}>
+      <p className="text-[9px] font-bold uppercase tracking-widest">{label}</p>
+      <p className="mt-1 font-mono text-sm text-text-primary">{value}</p>
+    </div>
+  );
 }
 
 function normalizeDisplayContent(value: string | null | undefined) {

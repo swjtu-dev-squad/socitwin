@@ -165,6 +165,9 @@ class OASISManager:
         agent_count = 0
         if self._agent_graph:
             agent_count = self._agent_graph.get_num_nodes()
+        context_token_limit = self._resolve_context_token_limit()
+        generation_max_tokens = self._resolve_generation_max_tokens()
+        model_backend_token_limit = self._resolve_model_backend_token_limit()
 
         return {
             "state": self._state.value,
@@ -176,7 +179,32 @@ class OASISManager:
             "created_at": self._created_at.isoformat() if self._created_at else None,
             "updated_at": self._updated_at.isoformat() if self._updated_at else None,
             "db_path": self._db_path,
+            "context_token_limit": context_token_limit,
+            "generation_max_tokens": generation_max_tokens,
+            "model_backend_token_limit": model_backend_token_limit,
         }
+
+    def _resolve_context_token_limit(self) -> Optional[int]:
+        try:
+            return int(get_settings().OASIS_CONTEXT_TOKEN_LIMIT)
+        except Exception:
+            return None
+
+    def _resolve_generation_max_tokens(self) -> Optional[int]:
+        if self._config is None:
+            return None
+        try:
+            return int(getattr(self._config.llm_config, "max_tokens", 0) or 0)
+        except Exception:
+            return None
+
+    def _resolve_model_backend_token_limit(self) -> Optional[int]:
+        if self._model is None:
+            return None
+        try:
+            return int(getattr(self._model, "token_limit", 0) or 0)
+        except Exception:
+            return None
 
     def get_memory_debug_info(self) -> Dict[str, Any]:
         """获取独立于 /status 的 memory 调试摘要。"""
@@ -772,6 +800,7 @@ class OASISManager:
                 agent_graph=agent_graph,
                 model=model,
                 available_actions=available_actions,
+                context_token_limit=self._resolve_context_token_limit(),
             )
 
         return build_action_v1_social_agent(
@@ -884,13 +913,17 @@ class OASISManager:
 
     async def step(
         self,
-        actions: Optional[Dict[SocialAgent, Union[LLMAction, ManualAction]]] = None
+        actions: Optional[Dict[SocialAgent, Union[LLMAction, ManualAction]]] = None,
+        *,
+        count_towards_budget: bool = True,
     ) -> Dict[str, Any]:
         """
         执行一步模拟
 
         Args:
             actions: 智能体动作字典，None 表示所有智能体自动决策
+            count_towards_budget: 是否消耗正式模拟 step 预算。topic 激活等
+                启动阶段动作应传 False，避免挤占用户配置的 max_steps。
 
         Returns:
             执行结果
@@ -905,7 +938,7 @@ class OASISManager:
                     f"Cannot execute step in state: {self._state.value}"
                 )
 
-            if self._current_step >= self._max_steps:
+            if count_towards_budget and self._current_step >= self._max_steps:
                 await self._complete_simulation()
                 return {
                     "success": True,
@@ -929,11 +962,12 @@ class OASISManager:
                 await self._env.step(actions)
 
                 # 更新计数
-                self._current_step += 1
+                if count_towards_budget:
+                    self._current_step += 1
                 self._updated_at = datetime.now()
 
                 # 检查是否完成
-                if self._current_step >= self._max_steps:
+                if count_towards_budget and self._current_step >= self._max_steps:
                     await self._complete_simulation()
                 else:
                     self._state = SimulationState.READY

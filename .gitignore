@@ -42,8 +42,18 @@ env/
 # Simulation data directories
 backend/data/simulations/
 backend/data/simulations/**/*
+backend/data/memory/
+backend/data/memory/**/*
 backend/log/
 backend/log/**/*
+
+# Downloaded model/cache directories
+backend/data/huggingface/
+backend/data/huggingface/**/*
+backend/models/
+backend/models/**/*
+/models/
+/models/**/*
 
 # Python testing
 .pytest_cache/

@@ -330,6 +330,9 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                     "last_recall_query_source": str(recall_preparation.query_source or ""),
                     "last_recall_query_text": str(recall_preparation.query_text or ""),
                     "last_recall_candidate_count": int(recall_preparation.recalled_count),
+                    "last_recall_candidate_items": [
+                        dict(item) for item in recall_preparation.candidates
+                    ],
                 }
                 assembly = self._prompt_assembler.assemble(
                     system_message=self.system_message,
@@ -367,6 +370,9 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                         "last_selected_recall_step_ids": list(
                             assembly.selected_recall_step_ids
                         ),
+                        "last_selected_recall_items": [
+                            dict(item) for item in assembly.selected_recall_items
+                        ],
                     }
                 )
                 if assembly.budget_status != "ok":
@@ -932,6 +938,16 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
             "last_selected_recall_step_ids": list(
                 internal_trace.get("last_selected_recall_step_ids", []) or []
             ),
+            "last_recall_candidate_items": [
+                dict(item)
+                for item in (internal_trace.get("last_recall_candidate_items", []) or [])
+                if isinstance(item, dict)
+            ],
+            "last_selected_recall_items": [
+                dict(item)
+                for item in (internal_trace.get("last_selected_recall_items", []) or [])
+                if isinstance(item, dict)
+            ],
         }
 
 
@@ -942,14 +958,22 @@ def build_upstream_social_agent(
     agent_graph: AgentGraph,
     model: Any,
     available_actions: list[ActionType],
+    context_token_limit: int | None = None,
 ) -> SocialAgent:
-    return SocialAgent(
+    agent = SocialAgent(
         agent_id=agent_id,
         user_info=user_info,
         agent_graph=agent_graph,
         model=model,
         available_actions=available_actions,
     )
+    if context_token_limit and context_token_limit > 0:
+        agent.memory = build_chat_history_memory(
+            token_counter=agent.model_backend.token_counter,
+            context_token_limit=context_token_limit,
+            agent_id=str(agent.agent_id),
+        )
+    return agent
 
 
 def build_action_v1_social_agent(

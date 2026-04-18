@@ -6,10 +6,11 @@ OASIS 模拟 API 端点
 
 import logging
 import os
+import json
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.models.simulation import (
     SimulationStatus,
@@ -30,6 +31,7 @@ from app.models.agent_monitor import AgentMonitorResponse, AgentDetailResponse
 from app.services.simulation_service import SimulationService
 from app.services.agent_monitor_service import AgentMonitorService
 from app.core.dependencies import get_simulation_service_dependency
+from app.core.simulation_events import simulation_event_bus
 
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,26 @@ async def get_memory_debug_status(
             status_code=500,
             detail=f"Failed to get memory debug status: {str(e)}",
         )
+
+
+@router.get("/events")
+async def stream_simulation_events():
+    """Stream coarse simulation lifecycle events for monitor refreshes."""
+
+    async def event_stream():
+        async for event in simulation_event_bus.subscribe():
+            event_type = event.get("type", "simulation_changed")
+            yield f"event: {event_type}\n"
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/health")
@@ -158,7 +180,18 @@ async def update_config(
     """
     try:
         logger.info(f"Updating simulation config: {config.platform.value}, {config.agent_count} agents")
-        return await service.configure(config)
+        result = await service.configure(config)
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_configured",
+                {
+                    "simulation_id": result.simulation_id,
+                    "agent_count": result.agents_created,
+                    "platform": config.platform.value,
+                    "memory_mode": config.memory_mode.value,
+                },
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
         return ConfigResult(
@@ -232,7 +265,16 @@ async def execute_step(
             )
         else:
             # 同步执行
-            return await service.step(request)
+            result = await service.step(request)
+            if result.success:
+                await simulation_event_bus.publish(
+                    "simulation_step_completed",
+                    {
+                        "step_executed": result.step_executed,
+                        "actions_taken": result.actions_taken,
+                    },
+                )
+            return result
 
     except Exception as e:
         logger.error(f"Failed to execute step: {e}")
@@ -288,7 +330,13 @@ async def pause_simulation(
         }
     """
     try:
-        return await service.pause()
+        result = await service.pause()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_state_changed",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to pause simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to pause: {str(e)}")
@@ -316,7 +364,13 @@ async def resume_simulation(
         }
     """
     try:
-        return await service.resume()
+        result = await service.resume()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_state_changed",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to resume simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to resume: {str(e)}")
@@ -344,7 +398,13 @@ async def reset_simulation(
         }
     """
     try:
-        return await service.reset()
+        result = await service.reset()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_reset",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to reset simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to reset: {str(e)}")

@@ -18,6 +18,7 @@ from app.models.topics import (
     TopicListResponse,
     TopicReloadResult,
 )
+from app.core.simulation_events import simulation_event_bus
 
 
 logger = logging.getLogger(__name__)
@@ -141,6 +142,15 @@ async def activate_topic(
 
         # Activate topic
         result = await topic_service.activate_topic(topic_id)
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_topic_activated",
+                {
+                    "topic_id": result.topic_id,
+                    "initial_post_created": result.initial_post_created,
+                    "agents_refreshed": result.agents_refreshed,
+                },
+            )
 
         return result
 

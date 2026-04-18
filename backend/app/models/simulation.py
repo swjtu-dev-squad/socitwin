@@ -214,6 +214,9 @@ class SimulationStatus(BaseModel):
     agent_count: int
     platform: PlatformType
     memory_mode: MemoryMode = MemoryMode.UPSTREAM
+    context_token_limit: Optional[int] = None
+    generation_max_tokens: Optional[int] = None
+    model_backend_token_limit: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     background_task_id: Optional[str] = None
@@ -269,6 +272,8 @@ class MemoryDebugAgentStatus(BaseModel):
     last_selected_recent_step_ids: List[int] = Field(default_factory=list)
     last_selected_compressed_keys: List[str] = Field(default_factory=list)
     last_selected_recall_step_ids: List[int] = Field(default_factory=list)
+    last_recall_candidate_items: List[Dict[str, Any]] = Field(default_factory=list)
+    last_selected_recall_items: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class MemoryDebugStatus(BaseModel):

@@ -108,6 +108,7 @@ export default function Overview() {
   // Local state for UI controls
   const [agentCount, setAgentCount] = useState([10]); // 默认10个agents
   const [selectedTopic, setSelectedTopic] = useState<string>('');
+  const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>('upstream');
   const [showAlgorithm, setShowAlgorithm] = useState(false);
 
   // Update store status when hook data changes
@@ -460,6 +461,29 @@ export default function Overview() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
+                  <Cpu className="w-3 h-3" />
+                  记忆路线
+                </div>
+                <Select
+                  value={selectedMemoryMode}
+                  onValueChange={(val) => setSelectedMemoryMode(val as 'upstream' | 'action_v1')}
+                >
+                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
+                    <SelectValue placeholder="选择记忆路线" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="upstream">Upstream 原生 OASIS</SelectItem>
+                    <SelectItem value="action_v1">Action V1 长短期记忆</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="grid grid-cols-3 gap-2 text-[10px]">
+                  <RuntimeBadge label="当前路线" value={currentStatus.memoryMode || '未初始化'} />
+                  <RuntimeBadge label="上下文预算" value={formatTokenValue(currentStatus.contextTokenLimit)} />
+                  <RuntimeBadge label="输出上限" value={formatTokenValue(currentStatus.generationMaxTokens)} />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-6">
@@ -506,6 +530,7 @@ export default function Overview() {
                         await simulationApi.updateConfig({
                           platform: 'twitter',
                           agentCount: agentCount[0],
+                          memoryMode: selectedMemoryMode,
                           maxSteps: 100
                         });
 
@@ -809,3 +834,18 @@ export default function Overview() {
   );
 }
 
+function formatTokenValue(value?: number | null) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return '-';
+  }
+  return `${value.toLocaleString()}t`;
+}
+
+function RuntimeBadge({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-accent/15 bg-bg-primary/70 px-3 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-text-tertiary">{label}</p>
+      <p className="mt-1 truncate font-mono text-xs font-bold text-text-primary">{value}</p>
+    </div>
+  );
+}

@@ -173,7 +173,10 @@ class TopicService:
 
             # Execute step with only the posting agent
             actions = {agent: action}
-            result = await self.oasis_manager.step(actions)
+            result = await self.oasis_manager.step(
+                actions,
+                count_towards_budget=False,
+            )
 
             if result["success"]:
                 logger.info(
@@ -219,7 +222,10 @@ class TopicService:
             }
 
             # Execute refresh step
-            result = await self.oasis_manager.step(refresh_actions)
+            result = await self.oasis_manager.step(
+                refresh_actions,
+                count_towards_budget=False,
+            )
 
             if result["success"]:
                 logger.info(f"Refreshed {len(all_agents)} agents")

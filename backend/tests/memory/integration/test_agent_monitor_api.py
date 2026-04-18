@@ -92,6 +92,38 @@ class _StubSimulationService:
                     last_selected_recent_step_ids=[7],
                     last_selected_compressed_keys=["action:2-3", "heartbeat:4-5"],
                     last_selected_recall_step_ids=[3],
+                    last_recall_candidate_items=[
+                        {
+                            "memory_kind": "action_episode",
+                            "step_id": 3,
+                            "action_index": 0,
+                            "platform": "twitter",
+                            "action_name": "create_comment",
+                            "action_fact": "create_comment(post_id=42)",
+                            "target_type": "post",
+                            "target_id": 42,
+                            "target_snapshot": {"summary": "AI safety regulation debate"},
+                            "local_context": {},
+                            "state_changes": ["comment_created"],
+                            "outcome": "The agent added a policy-oriented reply.",
+                        }
+                    ],
+                    last_selected_recall_items=[
+                        {
+                            "memory_kind": "action_episode",
+                            "step_id": 3,
+                            "action_index": 0,
+                            "platform": "twitter",
+                            "action_name": "create_comment",
+                            "action_fact": "create_comment(post_id=42)",
+                            "target_type": "post",
+                            "target_id": 42,
+                            "target_snapshot": {"summary": "AI safety regulation debate"},
+                            "local_context": {},
+                            "state_changes": ["comment_created"],
+                            "outcome": "The agent added a policy-oriented reply.",
+                        }
+                    ],
                 )
             ],
         )
@@ -126,6 +158,8 @@ def test_agent_monitor_endpoint_returns_frontend_contract() -> None:
         ]
         assert agent["memory"]["debug"]["lastSelectedRecallStepIds"] == [3]
         assert agent["memory"]["retrieval"]["items"][0]["createdAt"] == "3"
+        assert "create_comment(post_id=42)" in agent["memory"]["retrieval"]["items"][0]["content"]
+        assert "AI safety regulation debate" in agent["memory"]["retrieval"]["items"][0]["content"]
     finally:
         app.dependency_overrides.clear()
 

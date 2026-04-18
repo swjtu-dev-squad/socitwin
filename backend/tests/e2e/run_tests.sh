@@ -12,6 +12,8 @@ PLATFORM="twitter"
 AGENT_COUNT=5
 MAX_STEPS=10
 TOPIC="climate_change_debate"
+MEMORY_MODE="action_v1"
+MAX_TOKENS=1024
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -33,6 +35,14 @@ while [[ $# -gt 0 ]]; do
             TOPIC="$2"
             shift 2
             ;;
+        --memory-mode)
+            MEMORY_MODE="$2"
+            shift 2
+            ;;
+        --max-tokens)
+            MAX_TOKENS="$2"
+            shift 2
+            ;;
         --quick)
             MAX_STEPS=3
             AGENT_COUNT=3
@@ -51,6 +61,8 @@ while [[ $# -gt 0 ]]; do
             echo "  --agent-count COUNT       Number of agents [default: 5]"
             echo "  --max-steps STEPS         Number of steps [default: 10]"
             echo "  --topic TOPIC             Topic ID [default: climate_change_debate]"
+            echo "  --memory-mode MODE        Memory route (upstream/action_v1) [default: action_v1]"
+            echo "  --max-tokens TOKENS       LLM generation max tokens [default: 1024]"
             echo "  --quick                   Quick test (3 steps, 3 agents)"
             echo "  --full                    Full test (50 steps, 10 agents)"
             echo "  -h, --help                Show this help message"
@@ -89,12 +101,16 @@ echo "  Platform: $PLATFORM"
 echo "  Agent Count: $AGENT_COUNT"
 echo "  Max Steps: $MAX_STEPS"
 echo "  Topic: $TOPIC"
+echo "  Memory Mode: $MEMORY_MODE"
+echo "  Max Tokens: $MAX_TOKENS"
 echo ""
 
 python "$SCRIPT_DIR/e2e_simulation_test.py" \
     --platform "$PLATFORM" \
     --agent-count "$AGENT_COUNT" \
     --max-steps "$MAX_STEPS" \
-    --topic "$TOPIC"
+    --topic "$TOPIC" \
+    --memory-mode "$MEMORY_MODE" \
+    --max-tokens "$MAX_TOKENS"
 
 exit $?

@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -18,6 +19,13 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 import requests
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(BACKEND_ROOT / "test-results" / ".matplotlib"),
+)
+
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend for server environments
 import matplotlib.pyplot as plt
@@ -35,9 +43,10 @@ DEFAULT_MAX_STEPS = 10
 DEFAULT_MODEL_PLATFORM = "DEEPSEEK"
 DEFAULT_MODEL_TYPE = "DEEPSEEK_CHAT"
 DEFAULT_TEMPERATURE = 0.7
+DEFAULT_MAX_TOKENS = 1024
+DEFAULT_MEMORY_MODE = "action_v1"
 DEFAULT_TOPIC = "climate_change_debate"
 DEFAULT_TIMEOUT = 120  # seconds
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "e2e"
 
 
@@ -90,6 +99,10 @@ class SimulationAPIClient:
     def get_simulation_status(self) -> Dict[str, Any]:
         """Get current simulation status"""
         return self._request("GET", "/api/sim/status")
+
+    def get_memory_debug_status(self) -> Dict[str, Any]:
+        """Get current memory runtime debug status"""
+        return self._request("GET", "/api/sim/memory")
 
     def list_topics(self) -> Dict[str, Any]:
         """List available topics"""
@@ -171,6 +184,8 @@ class SimulationTestRunner:
         model_platform: str,
         model_type: str,
         temperature: float,
+        max_tokens: int,
+        memory_mode: str,
     ) -> Dict[str, Any]:
         """Run the complete test"""
 
@@ -183,6 +198,8 @@ class SimulationTestRunner:
             "model_platform": model_platform,
             "model_type": model_type,
             "temperature": temperature,
+            "max_tokens": max_tokens,
+            "memory_mode": memory_mode,
             "test_start_time": datetime.now().isoformat(),
         }
 
@@ -206,11 +223,12 @@ class SimulationTestRunner:
                 "platform": platform,
                 "agent_count": agent_count,
                 "max_steps": max_steps,
+                "memory_mode": memory_mode,
                 "llm_config": {
                     "model_platform": model_platform,
                     "model_type": model_type,
                     "temperature": temperature,
-                    "max_tokens": 1000,
+                    "max_tokens": max_tokens,
                 }
             })
 
@@ -255,6 +273,7 @@ class SimulationTestRunner:
             self._print("="*60, Colors.HEADER)
 
             final_status = self.client.get_simulation_status()
+            final_memory_debug = self._collect_memory_debug()
 
             self._print(f"✓ Simulation completed", Colors.OKGREEN)
             self._print(f"  - Final state: {final_status.get('state')}", Colors.OKCYAN)
@@ -264,6 +283,8 @@ class SimulationTestRunner:
 
             # Generate summary
             self.results["summary"] = self._generate_summary(final_status)
+            if final_memory_debug:
+                self.results["summary"]["final_memory_debug"] = final_memory_debug
 
             # Collect final OASIS metrics
             self._print("\n" + "="*60, Colors.HEADER)
@@ -333,6 +354,7 @@ class SimulationTestRunner:
 
         # Get OASIS metrics after step
         oasis_metrics = self._collect_oasis_metrics()
+        memory_debug = self._collect_memory_debug()
 
         # Collect step information
         step_info = {
@@ -359,6 +381,7 @@ class SimulationTestRunner:
                     "interactions_added": status_after.get("total_interactions", 0) - status_before.get("total_interactions", 0),
                 },
                 "oasis_metrics": oasis_metrics,
+                "memory_debug": memory_debug,
             },
             "state": status_after.get("state", "unknown"),
         }
@@ -397,6 +420,17 @@ class SimulationTestRunner:
                     f"direction={pol.get('average_direction', 'N/A')}",
                     Colors.OKCYAN
                 )
+
+            if memory_debug:
+                self._print(
+                    "  └─ Memory: "
+                    f"mode={memory_debug.get('memory_mode')}, "
+                    f"recent_total={memory_debug.get('total_recent_retained')}, "
+                    f"compressed_total={memory_debug.get('total_compressed_retained')}, "
+                    f"recall_injected={memory_debug.get('total_recall_injected')}, "
+                    f"max_prompt_tokens={memory_debug.get('max_prompt_tokens')}",
+                    Colors.OKCYAN,
+                )
         else:
             self._print_step(step_num, total_steps, f"Step failed: {step_result.get('message')}")
 
@@ -419,6 +453,39 @@ class SimulationTestRunner:
         except Exception as e:
             # If metrics API fails, return None and continue
             self._print(f"  ⚠ Failed to collect OASIS metrics: {str(e)}", Colors.WARNING)
+            return None
+
+    def _collect_memory_debug(self) -> Dict[str, Any]:
+        """Collect compact memory debug data after a step."""
+        try:
+            debug = self.client.get_memory_debug_status()
+            agents = debug.get("agents", []) or []
+            recent_total = sum(
+                agent.get("recent_retained_step_count", 0) for agent in agents
+            )
+            compressed_total = sum(
+                agent.get("compressed_retained_step_count", 0) for agent in agents
+            )
+            injected_total = sum(agent.get("last_injected_count", 0) for agent in agents)
+            max_prompt_tokens = max(
+                [agent.get("last_prompt_tokens", 0) for agent in agents] or [0]
+            )
+            max_observation_tokens = max(
+                [agent.get("last_observation_prompt_tokens", 0) for agent in agents] or [0]
+            )
+            return {
+                "memory_mode": debug.get("memory_mode"),
+                "agent_count": debug.get("agent_count"),
+                "context_token_limit": debug.get("context_token_limit"),
+                "generation_max_tokens": debug.get("generation_max_tokens"),
+                "total_recent_retained": recent_total,
+                "total_compressed_retained": compressed_total,
+                "total_recall_injected": injected_total,
+                "max_prompt_tokens": max_prompt_tokens,
+                "max_observation_tokens": max_observation_tokens,
+            }
+        except Exception as e:
+            self._print(f"  ⚠ Failed to collect memory debug: {str(e)}", Colors.WARNING)
             return None
 
     def _validate_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -882,6 +949,9 @@ Examples:
   # Run with Reddit platform
   python backend/tests/e2e/e2e_simulation_test.py --platform reddit --topic crypto_discussion
 
+  # Run action_v1 memory route with compact tracking
+  python backend/tests/e2e/e2e_simulation_test.py --memory-mode action_v1 --agent-count 3 --max-steps 3
+
   # Run quietly (no colored output)
   python backend/tests/e2e/e2e_simulation_test.py --no-verbose
         """
@@ -917,6 +987,14 @@ Examples:
         help="Topic ID to activate (default: climate_change_debate)"
     )
 
+    parser.add_argument(
+        "--memory-mode",
+        type=str,
+        default=DEFAULT_MEMORY_MODE,
+        choices=["upstream", "action_v1"],
+        help=f"Memory route to use (default: {DEFAULT_MEMORY_MODE})"
+    )
+
     # LLM parameters
     parser.add_argument(
         "--model-platform",
@@ -937,6 +1015,13 @@ Examples:
         type=float,
         default=DEFAULT_TEMPERATURE,
         help="LLM temperature (default: 0.7)"
+    )
+
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"LLM generation max tokens (default: {DEFAULT_MAX_TOKENS})"
     )
 
     # API configuration
@@ -987,8 +1072,10 @@ def main():
     print(f"  Agent Count: {args.agent_count}")
     print(f"  Max Steps: {args.max_steps}")
     print(f"  Topic: {args.topic}")
+    print(f"  Memory Mode: {args.memory_mode}")
     print(f"  Model: {args.model_platform}/{args.model_type}")
     print(f"  Temperature: {args.temperature}")
+    print(f"  Max Tokens: {args.max_tokens}")
     print(f"  Base URL: {args.base_url}")
     print(f"  Output Dir: {args.output_dir}")
 
@@ -1006,6 +1093,8 @@ def main():
             model_platform=args.model_platform,
             model_type=args.model_type,
             temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            memory_mode=args.memory_mode,
         )
 
         # Export results

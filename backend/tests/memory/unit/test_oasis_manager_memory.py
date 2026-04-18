@@ -280,6 +280,11 @@ def test_build_social_agent_uses_upstream_builder(monkeypatch) -> None:
         "build_upstream_social_agent",
         _fake_builder,
     )
+    monkeypatch.setattr(
+        oasis_manager_module,
+        "get_settings",
+        lambda: SimpleNamespace(OASIS_CONTEXT_TOKEN_LIMIT=16384),
+    )
 
     result = manager._build_social_agent(
         agent_id=7,
@@ -291,6 +296,7 @@ def test_build_social_agent_uses_upstream_builder(monkeypatch) -> None:
 
     assert result is sentinel_agent
     assert captured["agent_id"] == 7
+    assert captured["context_token_limit"] == 16384
 
 
 def test_build_social_agent_uses_action_v1_builder(monkeypatch) -> None:
@@ -496,3 +502,25 @@ def test_get_memory_debug_info_for_upstream_agent() -> None:
     assert payload["agent_count"] == 1
     assert payload["agents"][0]["memory_supported"] is False
     assert payload["agents"][0]["recent_retained_step_count"] == 0
+
+
+def test_step_can_skip_budget_count_for_setup_actions() -> None:
+    manager = OASISManager()
+    manager._env = _FakeEnv()
+    manager._agent_graph = _FakeGraph([_FakeAgent(0)])
+    manager._state = oasis_manager_module.SimulationState.READY
+    manager._current_step = 2
+    manager._max_steps = 3
+
+    result = asyncio.run(
+        manager.step(
+            actions={_FakeAgent(0): object()},
+            count_towards_budget=False,
+        )
+    )
+
+    assert result["success"] is True
+    assert result["step_executed"] == 2
+    assert result["completed"] is False
+    assert manager._current_step == 2
+    assert manager._state == oasis_manager_module.SimulationState.READY

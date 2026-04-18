@@ -204,6 +204,17 @@ class SimulationService:
 
             # 执行步骤
             result = await self.step(request)
+            if result.success:
+                from app.core.simulation_events import simulation_event_bus
+
+                await simulation_event_bus.publish(
+                    "simulation_step_completed",
+                    {
+                        "step_executed": result.step_executed,
+                        "actions_taken": result.actions_taken,
+                        "task_id": task_id,
+                    },
+                )
 
             # 保存结果
             self.task_results[task_id] = {
@@ -468,6 +479,9 @@ class SimulationService:
             agent_count=state_info["agent_count"],
             platform=PlatformType(state_info["platform"]),
             memory_mode=state_info["memory_mode"],
+            context_token_limit=state_info.get("context_token_limit"),
+            generation_max_tokens=state_info.get("generation_max_tokens"),
+            model_backend_token_limit=state_info.get("model_backend_token_limit"),
             created_at=datetime.fromisoformat(state_info["created_at"]) if state_info["created_at"] else None,
             updated_at=datetime.fromisoformat(state_info["updated_at"]) if state_info["updated_at"] else None,
             total_posts=self.total_posts,
@@ -618,6 +632,7 @@ class SimulationService:
         task.add_done_callback(self.background_tasks.discard)
 
         logger.info(f"Created background task: {task_id}")
+        return task_id
 
     def _calculate_influence(self, post_count: int, total_interactions: int) -> float:
         """

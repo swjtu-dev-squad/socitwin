@@ -86,6 +86,41 @@
 
 这两者迁移时不能混用。
 
+### 2.1 Upstream/CAMEL Token Limit Coupling Found During UI Runs
+
+2026-04-18 在前端“态势推演”页面启动 upstream 模拟时，后端出现了大量 CAMEL 日志：
+
+- `Context truncation performed: before=..., after=..., limit=1000`
+- `Message with ... tokens exceeds remaining budget ...`
+
+这不是 action_v1 的 observation / working memory 预算触发，而是 upstream 路线使用的 CAMEL `ChatAgent`/`ChatHistoryMemory` 在截断。
+
+代码事实如下：
+
+- `backend/app/models/simulation.py::ModelConfig.max_tokens` 默认是 `1000`；
+- 该默认值来自新仓库初始提交 `cc7be51 Initial commit: Socitwin multi-agent social simulation platform`，不是本轮 memory migration / action_v1 接入新增；
+- 初始提交中的 `backend/app/core/oasis_manager.py::_create_model()` 已经会把该值传入 CAMEL model config；
+- CAMEL `BaseModelBackend.token_limit` 当前实现会优先读取 `model_config_dict["max_tokens"]`，否则才回退到模型类型自带上下文上限；
+- DeepSeek chat 模型类型本身的 CAMEL token limit 是 `64000`；
+- 因此项目侧的“生成输出上限”被 CAMEL 误用成了 upstream chat history 的“上下文选择上限”，导致 upstream 页面运行时上下文被压到 1000。
+
+责任边界：
+
+- 这不是 OASIS 原生默认上下文上限；
+- 这不是 action_v1 记忆算法直接造成的问题；
+- 这是新仓库原有 OASIS/CAMEL 接入层中 `max_tokens` 参数语义没有拆清楚的问题；
+- 本轮 memory migration 暴露并修正了该问题，因为 action_v1/upstream 对比测试开始显式关注上下文预算。
+
+当前修正原则：
+
+- `ModelConfig.max_tokens` 继续作为生成输出上限，不把它解释成上下文窗口；
+- `OASIS_CONTEXT_TOKEN_LIMIT` 作为项目侧上下文预算入口；
+- upstream agent 创建后显式把 CAMEL memory context creator 的 token limit 调整为 `OASIS_CONTEXT_TOKEN_LIMIT`，避免被 `max_tokens` 污染；
+- action_v1 继续使用 `OASIS_CONTEXT_TOKEN_LIMIT` 作为 prompt assembly / observation / recent / compressed / recall 的统一预算入口；
+- 前端态势推演页需要展示当前 `memory_mode`、`context_token_limit`、`generation_max_tokens`，避免运行时误判路线和预算。
+
+这属于参数语义修正，不是把 upstream 改造成 action_v1。upstream 仍使用 OASIS/CAMEL 原生记忆与动作链路，只是避免项目侧输出长度配置把 CAMEL 历史上下文错误压短。
+
 ## 3. Recommended Config Landing
 
 ### 3.1 Keep existing app settings as the outer shell

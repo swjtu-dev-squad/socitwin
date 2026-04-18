@@ -24,10 +24,12 @@ export const simulationApi = {
     agentCount: number;
     maxSteps?: number;
     recsysType?: string;
+    memoryMode?: 'upstream' | 'action_v1';
   }) => api.post('/sim/config', {
     platform: config.platform,
     agent_count: config.agentCount,
     recsys_type: config.recsysType || 'twitter',
+    memory_mode: config.memoryMode,
     max_steps: config.maxSteps || 50
   }),
 

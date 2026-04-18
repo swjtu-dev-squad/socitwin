@@ -41,6 +41,10 @@ export interface SimulationStatus {
   polarization: number;
   agents: Agent[];
   platform?: string;
+  memoryMode?: 'upstream' | 'action_v1' | string;
+  contextTokenLimit?: number | null;
+  generationMaxTokens?: number | null;
+  modelBackendTokenLimit?: number | null;
   recsys?: string;
   topics?: string[];
   regions?: string[];

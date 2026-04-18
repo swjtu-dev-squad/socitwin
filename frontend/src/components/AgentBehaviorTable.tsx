@@ -20,17 +20,17 @@ export function AgentBehaviorTable({
 
   return (
     <div className="h-full overflow-auto custom-scrollbar">
-      <Table>
+      <Table className="table-fixed">
         <TableHeader className="sticky top-0 bg-bg-secondary z-10">
           <TableRow className="border-border-default hover:bg-transparent">
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">Agent</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">角色</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">影响力</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">活跃度</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">最近动作</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">动作内容</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆长度</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">长期记忆</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">Agent</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">角色</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">影响力</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">活跃度</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">最近动作</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">动作内容</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆长度</TableHead>
+            <TableHead className="h-10 px-3 text-text-tertiary font-bold uppercase text-[10px] tracking-widest">长期记忆</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -43,24 +43,24 @@ export function AgentBehaviorTable({
               )}
               onClick={() => onSelect?.(agent)}
             >
-              <TableCell className="font-bold text-sm">{agent.name}</TableCell>
-              <TableCell>
+              <TableCell className="h-12 px-3 py-2 font-bold text-sm truncate">{agent.name}</TableCell>
+              <TableCell className="h-12 px-3 py-2">
                 <Badge variant="outline" className="text-[10px]">{agent.roleLabel || agent.role}</Badge>
               </TableCell>
-              <TableCell className="font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
-              <TableCell className="font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
-              <TableCell>
+              <TableCell className="h-12 px-3 py-2 font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
+              <TableCell className="h-12 px-3 py-2 font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
+              <TableCell className="h-12 px-3 py-2">
                 <Badge className="bg-bg-tertiary text-text-secondary border-border-default text-[9px]">
                   {agent.lastAction?.type || '-'}
                 </Badge>
               </TableCell>
-              <TableCell className="text-xs text-text-secondary italic max-w-xs truncate">
-                {agent.lastAction?.content || agent.actionContent || '-'}
+              <TableCell className="h-12 px-3 py-2 text-xs text-text-secondary italic">
+                <div className="truncate">{agent.lastAction?.content || agent.actionContent || '-'}</div>
               </TableCell>
-              <TableCell className="font-mono text-accent">
+              <TableCell className="h-12 px-3 py-2 font-mono text-accent">
                 {formatMemoryLength(agent.memory?.length)}
               </TableCell>
-              <TableCell className="max-w-[18rem]">
+              <TableCell className="h-12 px-3 py-2">
                 <div
                   className="truncate text-xs text-text-secondary italic"
                   title={agent.displayMemoryContent}

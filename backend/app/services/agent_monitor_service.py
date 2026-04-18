@@ -27,6 +27,7 @@ from app.models.agent_monitor import (
     AgentTimelineItem,
 )
 from app.models.simulation import Agent, MemoryDebugAgentStatus, MemoryDebugStatus
+from app.memory.retrieval_policy import RetrievalPolicy
 from app.services.simulation_service import SimulationService
 
 
@@ -38,6 +39,7 @@ class AgentMonitorService:
 
     def __init__(self, simulation_service: SimulationService):
         self.simulation_service = simulation_service
+        self.retrieval_policy = RetrievalPolicy()
 
     async def get_monitor(self) -> AgentMonitorResponse:
         status = await self.simulation_service.get_status()
@@ -559,22 +561,53 @@ class AgentMonitorService:
     def _build_retrieval_items(
         self, memory_agent: MemoryDebugAgentStatus
     ) -> list[AgentMemoryRetrievalItem]:
-        injected = list(memory_agent.last_injected_step_ids or [])
-        recalled = list(memory_agent.last_recalled_step_ids or [])
-        preferred = injected or recalled
-        if not preferred:
+        selected_items = [
+            item
+            for item in (memory_agent.last_selected_recall_items or [])
+            if isinstance(item, dict)
+        ]
+        candidate_items = [
+            item
+            for item in (memory_agent.last_recall_candidate_items or [])
+            if isinstance(item, dict)
+        ]
+
+        selected_keys = {
+            (item.get("step_id"), item.get("action_index"))
+            for item in selected_items
+        }
+        merged_items = list(candidate_items)
+        candidate_keys = {
+            (item.get("step_id"), item.get("action_index"))
+            for item in candidate_items
+        }
+        for item in selected_items:
+            key = (item.get("step_id"), item.get("action_index"))
+            if key not in candidate_keys:
+                merged_items.append(item)
+
+        if not merged_items:
             return []
 
-        source = "injected" if injected else "recalled"
-        return [
-            AgentMemoryRetrievalItem(
-                id=f"{source}_step_{step_id}",
-                content=f"{source} memory episode from step {step_id}",
-                source="action_v1",
-                createdAt=str(step_id),
+        items: list[AgentMemoryRetrievalItem] = []
+        for index, item in enumerate(merged_items):
+            step_id = item.get("step_id")
+            action_index = item.get("action_index")
+            source = (
+                "injected"
+                if (step_id, action_index) in selected_keys
+                else "recalled"
             )
-            for step_id in preferred
-        ]
+            item_id = f"{source}_step_{step_id}_{action_index if action_index is not None else index}"
+            items.append(
+                AgentMemoryRetrievalItem(
+                    id=item_id,
+                    content=self._format_recall_item_content(item),
+                    source=source,
+                    createdAt=str(step_id) if step_id is not None else None,
+                )
+            )
+        return items
 
     def _format_recall_content(self, memory_agent: MemoryDebugAgentStatus) -> str:
         lines = ["Long-term memory recall:"]
@@ -593,8 +626,19 @@ class AgentMonitorService:
                 + ", ".join(str(item) for item in memory_agent.last_recalled_step_ids)
             )
         if memory_agent.last_recall_reason_trace:
-            lines.append(f"- reason: {memory_agent.last_recall_reason_trace}")
+            lines.append(
+                f"- representative memory: {memory_agent.last_recall_reason_trace}"
+            )
+        if memory_agent.last_recalled_count > 0 and memory_agent.last_injected_count == 0:
+            lines.append("- note: recalled candidates were not injected into the final prompt")
         return "\n".join(lines)
+
+    def _format_recall_item_content(self, item: dict[str, Any]) -> str:
+        rendered = self.retrieval_policy.format_results([item], title="").strip()
+        if rendered:
+            return rendered
+        step_id = item.get("step_id", "?")
+        return f"long-term memory episode from step {step_id}"
 
     def _build_action_summary(self, row: dict[str, Any]) -> AgentActionSummary:
         action = str(row.get("action") or "")
