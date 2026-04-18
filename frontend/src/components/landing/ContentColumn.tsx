@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui';
-import LoopingTypewriter from './LoopingTypewriter';
+import { Link } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
+import { Button } from '@/components/ui'
+import LoopingTypewriter from './LoopingTypewriter'
 
 interface ContentColumnProps {
-  className?: string;
+  className?: string
 }
 
 export default function ContentColumn({ className = '' }: ContentColumnProps) {
@@ -18,18 +18,17 @@ export default function ContentColumn({ className = '' }: ContentColumnProps) {
       </div>
 
       {/* Bio */}
-      <p className="text-base lg:text-lg text-text-secondary leading-relaxed max-w-lg animate-fade-in" style={{ animationDelay: '0.2s' }}>
+      <p
+        className="text-base lg:text-lg text-text-secondary leading-relaxed max-w-lg animate-fade-in"
+        style={{ animationDelay: '0.2s' }}
+      >
         基于 <span className="text-accent">CAMEL-AI</span> 框架的可视化社会智能模拟平台
       </p>
 
       {/* 循环打字机效果 */}
       <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
         <LoopingTypewriter
-          texts={[
-            '观测信息茧房',
-            '分析舆论传播',
-            '洞察群体极化',
-          ]}
+          texts={['观测信息茧房', '分析舆论传播', '洞察群体极化']}
           speed={100}
           deleteSpeed={50}
           pauseDuration={2000}
@@ -61,5 +60,5 @@ export default function ContentColumn({ className = '' }: ContentColumnProps) {
         }
       `}</style>
     </div>
-  );
+  )
 }

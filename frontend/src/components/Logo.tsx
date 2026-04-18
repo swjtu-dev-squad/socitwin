@@ -5,10 +5,10 @@ export const Logo = ({ className }: { className?: string }) => {
       <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
         {/* Left Circle - Solid (Real Baseline) - Silver White */}
         <div className="absolute left-0.5 w-6 h-6 rounded-full border-[2px] border-[#E2E8F0]" />
-        
+
         {/* Right Circle - Dashed (Simulation) - Cobalt Blue */}
         <div className="absolute right-0.5 w-6 h-6 rounded-full border-[2px] border-[#0047AB] border-dashed animate-[spin_15s_linear_infinite]" />
-        
+
         {/* Core Dot - Intersection - Bright White */}
         <div className="absolute w-2 h-2 bg-white rounded-full shadow-[0_0_10px_2px_rgba(255,255,255,0.9)] z-10" />
       </div>
@@ -28,5 +28,5 @@ export const Logo = ({ className }: { className?: string }) => {
         </p>
       </div>
     </div>
-  );
-};
+  )
+}

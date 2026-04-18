@@ -1,13 +1,13 @@
-import {StrictMode} from 'react';
-import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
-import { initSocket } from './lib/socket';
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+import { initSocket } from './lib/socket'
 
-initSocket();
+initSocket()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>,
-);
+  </StrictMode>
+)

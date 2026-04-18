@@ -8,13 +8,11 @@ particularly for calculating group polarization by comparing initial and current
 import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from openai import AsyncOpenAI
 
 from app.core.config import get_settings
-from app.models.metrics import PolarizationDirection
-
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +92,7 @@ class LLMEvaluator:
                 timeout=self.timeout
             )
 
-            content = response.choices[0].message.content.strip()
+            content = (response.choices[0].message.content or "").strip()
             logger.debug(f"LLM response: {content}")
 
             # Parse JSON response

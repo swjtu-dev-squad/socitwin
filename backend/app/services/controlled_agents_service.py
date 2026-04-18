@@ -2,7 +2,6 @@
 受控Agent服务 - 管理受控agents的业务逻辑
 """
 import logging
-from typing import List
 
 from app.core.oasis_manager import OASISManager
 from app.models.controlled_agents import (
@@ -11,7 +10,6 @@ from app.models.controlled_agents import (
     AgentAddResult,
     ControlledAgentConfig,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +60,7 @@ class ControlledAgentsService:
         Raises:
             SimulationNotReadyError: 模拟未就绪
         """
+        current_polarization = 0.0
         try:
             # 检查模拟状态
             if not self.oasis_manager.is_ready:
@@ -70,8 +69,6 @@ class ControlledAgentsService:
                 )
 
             # 检查极化率（如果需要）
-            current_polarization = 0.0
-
             if request.check_polarization:
                 current_polarization = await self._get_polarization()
 
@@ -185,6 +182,7 @@ class ControlledAgentsService:
         )
 
         # 创建SocialAgent
+        assert self.oasis_manager._agent_graph is not None
         agent = SocialAgent(
             agent_id=agent_id,
             user_info=user_info,
@@ -197,10 +195,13 @@ class ControlledAgentsService:
         self.oasis_manager._agent_graph.add_agent(agent)
 
         # 在平台上注册
-        await self.oasis_manager._env.platform.sign_up(
-            agent_id,
-            (config.user_name, config.name, config.description)
-        )
+        if self.oasis_manager._env is not None:  # type: ignore
+            platform = self.oasis_manager._env.platform  # type: ignore
+            if platform is not None:
+                await platform.sign_up(  # type: ignore
+                    agent_id,
+                    (config.user_name, config.name, config.description)
+                )
 
         logger.info(f"Added controlled agent {agent_id}: {config.user_name}")
         return agent_id

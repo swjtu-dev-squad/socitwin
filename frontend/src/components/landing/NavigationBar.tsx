@@ -1,8 +1,8 @@
-import { Link } from 'react-router-dom';
-import { BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom'
+import { BookOpen } from 'lucide-react'
 
 // Icon placeholder for removed lucide-react icon
-const Github = BookOpen;
+const Github = BookOpen
 
 export default function NavigationBar() {
   return (
@@ -36,5 +36,5 @@ export default function NavigationBar() {
         </div>
       </div>
     </nav>
-  );
+  )
 }

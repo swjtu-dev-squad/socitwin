@@ -844,7 +844,7 @@ export default function Profiles() {
     } finally {
       setGenerationLoading(false);
     }
-  };
+  }
 
   return (
     <div className="px-6 lg:px-12 py-12 space-y-8">
@@ -1381,7 +1381,7 @@ export default function Profiles() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 /** 将 SQLite LLM 返回的 user 文档映射为与图谱列表一致的 GeneratedAgentRecord（仅前端预览）。 */
@@ -1475,11 +1475,13 @@ function StatsCard({ label, value, icon: Icon }: { label: string; value: string 
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">{label}</p>
+        <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">
+          {label}
+        </p>
         <p className="text-2xl font-mono font-bold">{value}</p>
       </div>
     </Card>
-  );
+  )
 }
 
 function EmptyState({ text }: { text: string }) {

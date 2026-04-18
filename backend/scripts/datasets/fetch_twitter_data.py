@@ -5,19 +5,19 @@ Twitter 数据采集脚本
 """
 
 import argparse
-import os
-import sys
-import time
 import json
+import os
 import re
 import sqlite3
-from typing import Dict, Any, List, Optional, Set, Tuple
+import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
-from dotenv import load_dotenv, dotenv_values
-from pathlib import Path
+from dotenv import dotenv_values, load_dotenv
 
 # 脚本所在目录 = backend/scripts/datasets
 # 后端根目录 = 向上两级
@@ -577,7 +577,7 @@ def import_payload_to_sqlite(
 
         if content_topic_rows:
             for row in content_topic_rows:
-                pl, rt, cid, tk, score = row[0], row[1], row[2], row[3], row[4]
+                pl, rt, cid, tk, _score = row[0], row[1], row[2], row[3], row[4]
                 if conn.execute(
                     """
                     SELECT 1 FROM content_topics
@@ -599,7 +599,7 @@ def import_payload_to_sqlite(
 
         if user_topic_rows:
             for row in user_topic_rows:
-                pl, rt, tk, uid, role, ccnt, news_ext_ut = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
+                pl, rt, tk, uid, role, _ccnt, news_ext_ut = row[0], row[1], row[2], row[3], row[4], row[5], row[6]
                 if news_ext_ut:
                     dup = conn.execute(
                         """

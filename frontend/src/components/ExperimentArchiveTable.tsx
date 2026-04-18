@@ -1,42 +1,44 @@
-import { useState, useEffect } from 'react';
-import { Archive, RefreshCw, Filter, ChevronRight, AlertCircle } from 'lucide-react';
-import { listExperiments, type ExperimentListItem } from '../lib/experimentArchiveApi';
+import { useState, useEffect } from 'react'
+import { Archive, RefreshCw, Filter, ChevronRight, AlertCircle } from 'lucide-react'
+import { listExperiments, type ExperimentListItem } from '../lib/experimentArchiveApi'
 
 interface Props {
-  onSelect: (id: string) => void;
-  selectedId?: string;
+  onSelect: (id: string) => void
+  selectedId?: string
 }
 
 export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) {
-  const [experiments, setExperiments] = useState<ExperimentListItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [filterDataset, setFilterDataset] = useState('');
-  const [filterRec, setFilterRec] = useState('');
+  const [experiments, setExperiments] = useState<ExperimentListItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [filterDataset, setFilterDataset] = useState('')
+  const [filterRec, setFilterRec] = useState('')
 
   const fetchList = async () => {
-    setLoading(true);
-    setError('');
+    setLoading(true)
+    setError('')
     try {
-      const list = await listExperiments();
-      setExperiments(list);
-    } catch (e: any) {
-      setError(e.message);
+      const list = await listExperiments()
+      setExperiments(list)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  useEffect(() => { fetchList(); }, []);
+  useEffect(() => {
+    fetchList()
+  }, [])
 
-  const allDatasets = [...new Set(experiments.map(e => e.datasetId).filter(Boolean))];
-  const allRecs = [...new Set(experiments.flatMap(e => e.recommenders))];
+  const allDatasets = [...new Set(experiments.map(e => e.datasetId).filter(Boolean))]
+  const allRecs = [...new Set(experiments.flatMap(e => e.recommenders))]
 
   const filtered = experiments.filter(e => {
-    if (filterDataset && e.datasetId !== filterDataset) return false;
-    if (filterRec && !e.recommenders.includes(filterRec)) return false;
-    return true;
-  });
+    if (filterDataset && e.datasetId !== filterDataset) return false
+    if (filterRec && !e.recommenders.includes(filterRec)) return false
+    return true
+  })
 
   return (
     <div className="space-y-4">
@@ -46,7 +48,10 @@ export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) 
           <Archive className="w-4 h-4 text-yellow-400" />
           历史实验 ({filtered.length})
         </h3>
-        <button onClick={fetchList} className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors">
+        <button
+          onClick={fetchList}
+          className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
+        >
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> 刷新
         </button>
       </div>
@@ -62,7 +67,11 @@ export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) 
           className="bg-gray-700 text-white rounded px-2 py-1 text-xs border border-gray-600"
         >
           <option value="">全部数据集</option>
-          {allDatasets.map(d => <option key={d} value={d}>{d}</option>)}
+          {allDatasets.map(d => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
         </select>
         <select
           value={filterRec}
@@ -70,7 +79,11 @@ export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) 
           className="bg-gray-700 text-white rounded px-2 py-1 text-xs border border-gray-600"
         >
           <option value="">全部推荐器</option>
-          {allRecs.map(r => <option key={r} value={r}>{r}</option>)}
+          {allRecs.map(r => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -105,13 +118,25 @@ export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) 
                     <span className="text-xs text-gray-500">·</span>
                     <span className="text-xs text-blue-300">{exp.recommenders.join(', ')}</span>
                     <span className="text-xs text-gray-500">·</span>
-                    <span className="text-xs text-gray-400">{exp.steps} steps / seed {exp.seed}</span>
+                    <span className="text-xs text-gray-400">
+                      {exp.steps} steps / seed {exp.seed}
+                    </span>
                   </div>
                   {exp.summary?.bestPolarization !== undefined && (
                     <div className="flex gap-3 mt-1">
-                      <span className="text-xs text-gray-400">极化: <span className="text-white">{exp.summary.bestPolarization?.toFixed(4)}</span></span>
-                      <span className="text-xs text-gray-400">速度: <span className="text-white">{exp.summary.bestVelocity?.toFixed(4)}</span></span>
-                      <span className="text-xs text-gray-400">帖子: <span className="text-white">{exp.summary.totalPosts}</span></span>
+                      <span className="text-xs text-gray-400">
+                        极化:{' '}
+                        <span className="text-white">
+                          {exp.summary.bestPolarization?.toFixed(4)}
+                        </span>
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        速度:{' '}
+                        <span className="text-white">{exp.summary.bestVelocity?.toFixed(4)}</span>
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        帖子: <span className="text-white">{exp.summary.totalPosts}</span>
+                      </span>
                     </div>
                   )}
                 </div>
@@ -122,5 +147,5 @@ export default function ExperimentArchiveTable({ onSelect, selectedId }: Props) 
         </div>
       )}
     </div>
-  );
+  )
 }

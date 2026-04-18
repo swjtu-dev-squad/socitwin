@@ -3,7 +3,7 @@ import ForceGraph2D from 'react-force-graph-2d';
 import * as d3 from 'd3';
 
 interface SocialKnowledgeGraphProps {
-  data: any;
+  data: any
 }
 
 function escapeHtml(s: string) {
@@ -119,7 +119,7 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
                 <div class="text-text-secondary italic">实时热度: ${node.heat || 'High'}</div>
                 <div class="mt-1 text-[8px] text-text-tertiary">订阅源: ${node.source || 'Live-Link'}</div>
               </div>
-            `;
+            `
           }
           const badge = node.isKol ? '<span class="text-amber-400 font-bold">KOL</span> · ' : '';
           const bio = escapeHtml(node.bio || '');
@@ -135,7 +135,7 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
               <div class="text-text-secondary italic line-clamp-4">"${bio}"</div>
               <div class="mt-1 flex flex-wrap gap-1">${interests}</div>
             </div>
-          `;
+          `
         }}
         nodeRelSize={6}
         nodeColor={(node: any) => {
@@ -150,7 +150,7 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
         linkLineDash={() => []}
         backgroundColor="transparent"
         onNodeClick={(node: any) => {
-          console.log('Clicked node:', node);
+          console.log('Clicked node:', node)
         }}
         nodeCanvasObject={(node: any, ctx, globalScale) => {
           const label = String(node.name ?? node.id ?? '');
@@ -178,5 +178,5 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
         }}
       />
     </div>
-  );
-};
+  )
+}

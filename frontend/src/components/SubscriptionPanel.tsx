@@ -123,5 +123,5 @@ export function SubscriptionPanel({
         })}
       </div>
     </Card>
-  );
+  )
 }

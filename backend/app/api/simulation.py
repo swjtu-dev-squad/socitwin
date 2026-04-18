@@ -6,28 +6,24 @@ OASIS 模拟 API 端点
 
 import logging
 import os
-from typing import Optional, List
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from app.core.dependencies import get_simulation_service_dependency
 from app.models.simulation import (
-    SimulationStatus,
-    SimulationConfig,
-    SimulationState,
-    StepRequest,
-    StepType,
     ConfigResult,
-    StepResult,
-    StatusResult,
     LogFilters,
     LogResult,
-    ManualActionRequest,
-    OASISActionType,
+    SimulationConfig,
+    SimulationStatus,
+    StatusResult,
+    StepRequest,
+    StepResult,
+    StepType,
 )
 from app.services.simulation_service import SimulationService
-from app.core.dependencies import get_simulation_service_dependency
-
 
 logger = logging.getLogger(__name__)
 
@@ -520,9 +516,8 @@ async def get_agent_detail(
         }
     """
     try:
-        import sqlite3
         import json
-        from datetime import datetime
+        import sqlite3
 
         # 获取基本档案信息
         status = await service.get_status()
@@ -602,7 +597,7 @@ async def get_agent_detail(
                         info_dict = json.loads(info) if info else {}
                         content = info_dict.get("content", "")
                         reason = info_dict.get("reason", "")
-                    except:
+                    except json.JSONDecodeError:
                         content = ""
                         reason = ""
 

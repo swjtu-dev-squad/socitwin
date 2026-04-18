@@ -6,11 +6,10 @@ indexes that optimize metrics calculation queries.
 """
 
 import logging
-import sqlite3
 import os
+import sqlite3
 from pathlib import Path
 from typing import Dict
-
 
 logger = logging.getLogger(__name__)
 

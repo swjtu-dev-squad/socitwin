@@ -1,9 +1,10 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any, Union
-from enum import Enum
 from datetime import datetime
-import uuid
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.metrics import MetricsSummary
 
 # ============================================================================
 # 平台和状态枚举
@@ -137,7 +138,7 @@ class AgentConfig(BaseModel):
 class SimulationConfig(BaseModel):
     """模拟配置"""
     platform: PlatformType = PlatformType.TWITTER
-    agent_count: int = 5
+    agent_count: int = Field(default=5, ge=1, le=1000, description="智能体数量，必须在1-1000之间")
     llm_config: ModelConfig = Field(default_factory=ModelConfig)
     recsys_type: str = "twitter"
     agent_source: AgentSource = Field(default_factory=AgentSource)
@@ -218,7 +219,7 @@ class SimulationStatus(BaseModel):
     agents: List[Agent] = Field(default_factory=list)
 
     # 高级指标摘要（可选）
-    metrics_summary: Optional['MetricsSummary'] = None
+    metrics_summary: Optional[MetricsSummary] = None
 
     # 错误信息
     error_message: Optional[str] = None
@@ -314,7 +315,6 @@ class ExportResult(BaseModel):
 # This must be called after MetricsSummary is defined in metrics.py
 def resolve_simulation_forward_refs():
     """Resolve forward references in simulation models"""
-    from app.models.metrics import MetricsSummary
     SimulationStatus.model_rebuild()
 
 

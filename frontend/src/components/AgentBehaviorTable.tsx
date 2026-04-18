@@ -1,50 +1,76 @@
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } from '@/components/ui';
-import type { AgentOverview } from '@/lib/agentMonitorTypes';
-import { getDisplayMemoryContent } from '@/lib/agentMemoryDisplay';
-import { displayMetric, displayPercentage } from '@/lib/safeDisplay';
-import { cn } from '@/lib/utils';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+  Badge,
+} from '@/components/ui'
+import type { AgentOverview } from '@/lib/agentMonitorTypes'
+import { getDisplayMemoryContent } from '@/lib/agentMemoryDisplay'
+import { displayMetric, displayPercentage } from '@/lib/safeDisplay'
+import { cn } from '@/lib/utils'
 
 export function AgentBehaviorTable({
   agents,
   onSelect,
   selectedId,
 }: {
-  agents: AgentOverview[];
-  onSelect?: (agent: AgentOverview) => void;
-  selectedId?: string | null;
+  agents: AgentOverview[]
+  onSelect?: (agent: AgentOverview) => void
+  selectedId?: string | null
 }) {
-  const rows = agents.map((agent) => ({
+  const rows = agents.map(agent => ({
     ...agent,
     displayMemoryContent: getDisplayMemoryContent(agent.memory?.content) || '-',
-  }));
+  }))
 
   return (
     <div className="h-full overflow-auto custom-scrollbar">
       <Table>
         <TableHeader className="sticky top-0 bg-bg-secondary z-10">
           <TableRow className="border-border-default hover:bg-transparent">
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">Agent</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">影响力</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">活跃度</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">最近动作</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">动作内容</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆长度</TableHead>
-            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">记忆内容</TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              Agent
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              影响力
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              活跃度
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              最近动作
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              动作内容
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              记忆长度
+            </TableHead>
+            <TableHead className="text-text-tertiary font-bold uppercase text-[10px] tracking-widest">
+              记忆内容
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((agent) => (
-            <TableRow 
-              key={agent.id} 
+          {rows.map(agent => (
+            <TableRow
+              key={agent.id}
               className={cn(
-                "border-border-default hover:bg-bg-tertiary/30 transition-colors cursor-pointer",
-                selectedId === agent.id && "bg-accent/10 border-l-2 border-l-accent"
+                'border-border-default hover:bg-bg-tertiary/30 transition-colors cursor-pointer',
+                selectedId === agent.id && 'bg-accent/10 border-l-2 border-l-accent'
               )}
               onClick={() => onSelect?.(agent)}
             >
               <TableCell className="font-bold text-sm">{agent.name}</TableCell>
-              <TableCell className="font-mono text-accent">{displayMetric(agent.influence)}</TableCell>
-              <TableCell className="font-mono text-emerald-500">{displayPercentage(agent.activity)}</TableCell>
+              <TableCell className="font-mono text-accent">
+                {displayMetric(agent.influence)}
+              </TableCell>
+              <TableCell className="font-mono text-emerald-500">
+                {displayPercentage(agent.activity)}
+              </TableCell>
               <TableCell>
                 <Badge className="bg-bg-tertiary text-text-secondary border-border-default text-[9px]">
                   {agent.lastAction?.type || '-'}
@@ -69,9 +95,9 @@ export function AgentBehaviorTable({
         </TableBody>
       </Table>
     </div>
-  );
+  )
 }
 
 function formatMemoryLength(value: number | null | undefined) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : '-';
+  return typeof value === 'number' && Number.isFinite(value) ? value : '-'
 }
