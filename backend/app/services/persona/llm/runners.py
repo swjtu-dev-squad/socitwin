@@ -6,7 +6,11 @@ import asyncio
 import json
 from typing import Any, Dict
 
-from app.services.persona.llm.batch import generate_llm_persona_users, generate_synthetic_topics, model_spec_from_env
+from app.services.persona.llm.batch import (
+    generate_llm_persona_users,
+    generate_synthetic_topics,
+    model_spec_from_env,
+)
 from app.services.persona.llm.camel_llm_build import build_shared_model
 
 

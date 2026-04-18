@@ -15,7 +15,7 @@ class HeuristicUnicodeTokenCounter(BaseTokenCounter):
 
     _MESSAGE_OVERHEAD = 4
 
-    def count_tokens_from_messages(self, messages: list[dict[str, Any]]) -> int:
+    def count_tokens_from_messages(self, messages: list[Any]) -> int:
         total = 0
         for message in messages:
             total += self._MESSAGE_OVERHEAD

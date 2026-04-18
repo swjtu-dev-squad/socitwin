@@ -5,7 +5,7 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple, cast
 
 
 class Config:
@@ -35,12 +35,12 @@ class Config:
 @dataclass
 class SocialRelationship:
     id: str
-    fromUserId: str
-    toUserId: str
+    fromUserId: str  # noqa: N815
+    toUserId: str  # noqa: N815
     type: str
-    createdAt: datetime
-    updatedAt: datetime
-    isActive: bool
+    createdAt: datetime  # noqa: N815
+    updatedAt: datetime  # noqa: N815
+    isActive: bool  # noqa: N815
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -325,7 +325,7 @@ class RelationshipGenerator:
             candidates = core_users[i + 1 : i + 1 + peer_range * 2]
             for u2 in candidates:
                 id2 = self._uid(u2)
-                pair_key = tuple(sorted([id1, id2]))
+                pair_key = cast(Tuple[str, str], tuple(sorted([id1, id2])))
                 if pair_key in self._created_pairs:
                     continue
                 topics2 = self.user_topics_map.get(id2, [])
@@ -353,7 +353,7 @@ class RelationshipGenerator:
                 candidates.extend(random.sample(core_users, min(len(core_users), random.randint(4, 5))))
             for u2 in candidates:
                 id2 = self._uid(u2)
-                pair_key = tuple(sorted([id1, id2]))
+                pair_key = cast(Tuple[str, str], tuple(sorted([id1, id2])))
                 if pair_key in self._created_pairs:
                     continue
                 topics2 = self.user_topics_map.get(id2, [])

@@ -14,9 +14,9 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.services.dataset_service import DatasetService
-from app.services.persona.llm.runners import run_persona_llm_only, run_topics_users_llm
 from app.services.persona import sqlite_seed as seed
 from app.services.persona.legacy_pipeline.runner import persist_topics_users_get
+from app.services.persona.llm.runners import run_persona_llm_only, run_topics_users_llm
 from app.services.persona.social_graph_sqlite import build_social_graph_bundle
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,8 @@
 """旧 dashboard 的 /api/datasets/* 兼容端点。"""
 
-from fastapi import APIRouter, HTTPException
 from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
 
 from app.services.persona.legacy_pipeline.runner import (
     get_social_graph_bundle,

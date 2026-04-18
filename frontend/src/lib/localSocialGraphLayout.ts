@@ -7,134 +7,136 @@
  */
 
 export type SocialGraphBundle = {
-  users: unknown;
-  relationships: unknown[];
-  topics: { data?: Array<{ category?: string; topics?: string[] }> } | null;
-  metrics?: Record<string, unknown>;
-};
+  users: unknown
+  relationships: unknown[]
+  topics: { data?: Array<{ category?: string; topics?: string[] }> } | null
+  metrics?: Record<string, unknown>
+}
 
 function diskPoint(cx: number, cy: number, radius: number, rng: () => number) {
-  const t = 2 * Math.PI * rng();
-  const r = radius * Math.sqrt(rng());
-  return { x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) };
+  const t = 2 * Math.PI * rng()
+  const r = radius * Math.sqrt(rng())
+  return { x: cx + r * Math.cos(t), y: cy + r * Math.sin(t) }
 }
 
 function coerceUsers(data: unknown): Array<Record<string, unknown>> {
-  if (Array.isArray(data)) return data as Array<Record<string, unknown>>;
-  if (data && typeof data === "object" && Array.isArray((data as { data?: unknown[] }).data)) {
-    return (data as { data: Array<Record<string, unknown>> }).data;
+  if (Array.isArray(data)) return data as Array<Record<string, unknown>>
+  if (data && typeof data === 'object' && Array.isArray((data as { data?: unknown[] }).data)) {
+    return (data as { data: Array<Record<string, unknown>> }).data
   }
-  return [];
+  return []
 }
 
 /** 与 ``users.json`` 中每条用户记录一致：只认顶层 ``user_type``（kol / normal）。 */
-export function userTypeFromUsersJsonRecord(u: Record<string, unknown>): "kol" | "normal" {
-  const ut = String(u.user_type ?? "").trim().toLowerCase();
-  return ut === "kol" ? "kol" : "normal";
+export function userTypeFromUsersJsonRecord(u: Record<string, unknown>): 'kol' | 'normal' {
+  const ut = String(u.user_type ?? '')
+    .trim()
+    .toLowerCase()
+  return ut === 'kol' ? 'kol' : 'normal'
 }
 
-function collectTopicTitles(topicsDoc: SocialGraphBundle["topics"]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  if (!topicsDoc?.data) return out;
+function collectTopicTitles(topicsDoc: SocialGraphBundle['topics']): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  if (!topicsDoc?.data) return out
   for (const block of topicsDoc.data) {
-    const list = Array.isArray(block.topics) ? block.topics : [];
+    const list = Array.isArray(block.topics) ? block.topics : []
     for (const t of list) {
-      const s = String(t).trim();
+      const s = String(t).trim()
       if (s && !seen.has(s)) {
-        seen.add(s);
-        out.push(s);
+        seen.add(s)
+        out.push(s)
       }
     }
   }
-  return out;
+  return out
 }
 
 function topicNodeId(title: string, index: number) {
-  return `topic:${index}:${title.slice(0, 80)}`;
+  return `topic:${index}:${title.slice(0, 80)}`
 }
 
 function isUserNodeId(id: string) {
-  return id.startsWith("user_");
+  return id.startsWith('user_')
 }
 
 /** 整体放大系数，拉开话题簇与用户环带 */
-const LAYOUT_SCALE = 1.52;
+const LAYOUT_SCALE = 1.52
 
 export function buildLocalSocialGraphLayout(bundle: SocialGraphBundle, seed = 42) {
-  let s = seed;
+  let s = seed
   const rng = () => {
-    s = (s * 1664525 + 1013904223) % 4294967296;
-    return s / 4294967296;
-  };
+    s = (s * 1664525 + 1013904223) % 4294967296
+    return s / 4294967296
+  }
 
-  const users = coerceUsers(bundle.users);
-  const rels = Array.isArray(bundle.relationships) ? bundle.relationships : [];
-  const topicTitles = collectTopicTitles(bundle.topics);
+  const users = coerceUsers(bundle.users)
+  const rels = Array.isArray(bundle.relationships) ? bundle.relationships : []
+  const topicTitles = collectTopicTitles(bundle.topics)
 
-  const topicDiskR = 52;
-  const userDiskR = 138;
-  const topicClusterR = 72;
+  const topicDiskR = 52
+  const userDiskR = 138
+  const topicClusterR = 72
 
-  const topicPositions = new Map<string, { x: number; y: number }>();
-  topicTitles.forEach((title) => {
-    const p = diskPoint(0, 0, topicClusterR, rng);
-    topicPositions.set(title, p);
-  });
+  const topicPositions = new Map<string, { x: number; y: number }>()
+  topicTitles.forEach(title => {
+    const p = diskPoint(0, 0, topicClusterR, rng)
+    topicPositions.set(title, p)
+  })
 
-  const nodes: any[] = [];
-  const edges: any[] = [];
+  const nodes: any[] = []
+  const edges: any[] = []
 
   for (let i = 0; i < topicTitles.length; i++) {
-    const title = topicTitles[i];
-    const { x, y } = topicPositions.get(title) || { x: 0, y: 0 };
-    const jitter = diskPoint(x, y, topicDiskR * 0.38, rng);
-    const sx = jitter.x * LAYOUT_SCALE;
-    const sy = jitter.y * LAYOUT_SCALE;
-    const id = topicNodeId(title, i);
+    const title = topicTitles[i]
+    const { x, y } = topicPositions.get(title) || { x: 0, y: 0 }
+    const jitter = diskPoint(x, y, topicDiskR * 0.38, rng)
+    const sx = jitter.x * LAYOUT_SCALE
+    const sy = jitter.y * LAYOUT_SCALE
+    const id = topicNodeId(title, i)
     nodes.push({
       id,
       name: title,
-      type: "topic",
-      heat: "High",
-      source: "topics.json",
+      type: 'topic',
+      heat: 'High',
+      source: 'topics.json',
       x: sx,
       y: sy,
       homeX: sx,
       homeY: sy,
-    });
+    })
   }
 
   const primaryTopicForUser = (u: Record<string, unknown>): string | null => {
-    const prof = u.profile as { other_info?: { topics?: unknown[] } } | undefined;
-    const topics = prof?.other_info?.topics;
-    if (!Array.isArray(topics)) return topicTitles[0] ?? null;
+    const prof = u.profile as { other_info?: { topics?: unknown[] } } | undefined
+    const topics = prof?.other_info?.topics
+    if (!Array.isArray(topics)) return topicTitles[0] ?? null
     for (const t of topics) {
-      const key = String(t).trim();
-      if (key && topicPositions.has(key)) return key;
+      const key = String(t).trim()
+      if (key && topicPositions.has(key)) return key
     }
-    return topicTitles[0] ?? null;
-  };
+    return topicTitles[0] ?? null
+  }
 
   for (const u of users) {
-    const aid = Number(u.agent_id);
-    if (!Number.isFinite(aid)) continue;
-    const uid = `user_${aid}`;
-    const name = String(u.name || u.user_name || uid);
-    const desc = String(u.description || "");
-    const userType = userTypeFromUsersJsonRecord(u);
-    const prof = u.profile as { other_info?: { topics?: string[] } } | undefined;
+    const aid = Number(u.agent_id)
+    if (!Number.isFinite(aid)) continue
+    const uid = `user_${aid}`
+    const name = String(u.name || u.user_name || uid)
+    const desc = String(u.description || '')
+    const userType = userTypeFromUsersJsonRecord(u)
+    const prof = u.profile as { other_info?: { topics?: string[] } } | undefined
     const interests = Array.isArray(prof?.other_info?.topics)
-      ? prof!.other_info!.topics!.map((x) => String(x))
-      : [];
-    const pt = primaryTopicForUser(u);
-    const center = pt ? topicPositions.get(pt) || { x: 0, y: 0 } : { x: 0, y: 0 };
-    const scaledCenter = { x: center.x * LAYOUT_SCALE, y: center.y * LAYOUT_SCALE };
-    const pos = diskPoint(scaledCenter.x, scaledCenter.y, userDiskR, rng);
+      ? prof!.other_info!.topics!.map(x => String(x))
+      : []
+    const pt = primaryTopicForUser(u)
+    const center = pt ? topicPositions.get(pt) || { x: 0, y: 0 } : { x: 0, y: 0 }
+    const scaledCenter = { x: center.x * LAYOUT_SCALE, y: center.y * LAYOUT_SCALE }
+    const pos = diskPoint(scaledCenter.x, scaledCenter.y, userDiskR, rng)
     nodes.push({
       id: uid,
       name,
-      type: "agent",
+      type: 'agent',
       user_type: userType,
       bio: desc,
       interests,
@@ -142,35 +144,35 @@ export function buildLocalSocialGraphLayout(bundle: SocialGraphBundle, seed = 42
       y: pos.y,
       homeX: pos.x,
       homeY: pos.y,
-    });
+    })
     if (pt) {
-      const ti = topicTitles.indexOf(pt);
-      const tid = topicNodeId(pt, ti >= 0 ? ti : 0);
+      const ti = topicTitles.indexOf(pt)
+      const tid = topicNodeId(pt, ti >= 0 ? ti : 0)
       edges.push({
         source: uid,
         target: tid,
-        type: "topic_link",
-        origin: "topic",
-      });
+        type: 'topic_link',
+        origin: 'topic',
+      })
     }
   }
 
-  const nodeIds = new Set(nodes.map((n) => n.id));
+  const nodeIds = new Set(nodes.map(n => n.id))
 
   for (const r of rels) {
-    if (!r || typeof r !== "object") continue;
-    const from = String((r as { fromUserId?: string }).fromUserId || "");
-    const to = String((r as { toUserId?: string }).toUserId || "");
-    if (!from || !to || !nodeIds.has(from) || !nodeIds.has(to)) continue;
-    if (!isUserNodeId(from) || !isUserNodeId(to)) continue;
-    const typ = String((r as { type?: string }).type || "follow");
+    if (!r || typeof r !== 'object') continue
+    const from = String((r as { fromUserId?: string }).fromUserId || '')
+    const to = String((r as { toUserId?: string }).toUserId || '')
+    if (!from || !to || !nodeIds.has(from) || !nodeIds.has(to)) continue
+    if (!isUserNodeId(from) || !isUserNodeId(to)) continue
+    const typ = String((r as { type?: string }).type || 'follow')
     edges.push({
       source: from,
       target: to,
       type: typ,
-      origin: "real",
-    });
+      origin: 'real',
+    })
   }
 
-  return { nodes, edges, fixedLayout: false as const };
+  return { nodes, edges, fixedLayout: false as const }
 }

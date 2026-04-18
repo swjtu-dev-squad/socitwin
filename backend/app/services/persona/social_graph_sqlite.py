@@ -19,6 +19,13 @@ def _norm_uid(x: Any) -> str:
     return str(x or "").strip()
 
 
+def _safe_int(value: Any, fallback: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def _datasets_data_dir() -> Path:
     backend_root = Path(__file__).resolve().parents[3]
     return backend_root / "data" / "datasets" / "data"
@@ -30,7 +37,11 @@ def _write_bundle_json_files(bundle: Dict[str, Any]) -> None:
     users = bundle.get("users") or []
     topics = bundle.get("topics") or {"data": []}
     rels = bundle.get("relationships") or []
-    user_ids = [f"user_{int(u.get('agent_id'))}" for u in users if isinstance(u, dict) and u.get("agent_id") is not None]
+    user_ids = [
+        f"user_{_safe_int(u.get('agent_id'), 0)}"
+        for u in users
+        if isinstance(u, dict) and u.get("agent_id") is not None
+    ]
     stats: Dict[str, Dict[str, int]] = {uid: {"followersCount": 0, "followsCount": 0, "friendsCount": 0} for uid in user_ids}
     for r in rels:
         if not isinstance(r, dict):
@@ -112,10 +123,7 @@ def _map_agent_to_seed(agent: Dict[str, Any], seeds: List[str]) -> str:
     sk = _norm_uid(agent.get("source_user_key"))
     if sk and sk in set(seeds):
         return sk
-    try:
-        idx = int(agent.get("generated_agent_id")) - 1
-    except (TypeError, ValueError):
-        idx = 0
+    idx = _safe_int(agent.get("generated_agent_id"), 1) - 1
     return seeds[max(0, idx) % len(seeds)]
 
 
@@ -157,10 +165,7 @@ def build_social_graph_bundle(
     agent_uid: List[str] = []
     seed_for_agent: List[str] = []
     for agent in agents:
-        try:
-            gid = int(agent.get("generated_agent_id"))
-        except (TypeError, ValueError):
-            gid = len(users_out) + 1
+        gid = _safe_int(agent.get("generated_agent_id"), len(users_out) + 1)
         topics = _agent_topics(agent)
         ut = str(agent.get("user_type") or "normal").strip().lower()
         if ut != "kol":

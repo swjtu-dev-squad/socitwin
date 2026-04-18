@@ -285,7 +285,8 @@ def _build_stats_rows(networks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         uid = str(block.get("userId") or "").strip()
         if not uid:
             continue
-        st = block.get("statistics") if isinstance(block.get("statistics"), dict) else {}
+        raw_stats = block.get("statistics")
+        st: Dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
         out.append({"user_id": uid, "followers_count": st.get("followersCount"), "follows_count": st.get("followsCount"), "friends_count": st.get("friendsCount"), "last_updated": st.get("lastUpdated")})
     return out
 

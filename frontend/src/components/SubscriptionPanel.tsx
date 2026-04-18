@@ -1,31 +1,31 @@
-import { Card, Badge, Switch, Progress } from '@/components/ui';
-import { MessageCircle, Play } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Card, Badge, Switch, Progress } from '@/components/ui'
+import { MessageCircle, Play } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 /** 与 Overview / Profiles 共用的平台字面量（无 Mongo 时仍用于类型） */
-export type DatasetPlatform = 'twitter' | 'reddit' | 'tiktok' | 'instagram' | 'facebook';
+export type DatasetPlatform = 'twitter' | 'reddit' | 'tiktok' | 'instagram' | 'facebook'
 
-const Twitter = MessageCircle;
-const Instagram = MessageCircle;
-const Facebook = MessageCircle;
+const Twitter = MessageCircle
+const Instagram = MessageCircle
+const Facebook = MessageCircle
 
 export interface SubscriptionPlatformCard {
-  id: string;
-  name: string;
-  status: 'connected' | 'syncing' | 'standby' | 'error';
-  progress: number;
-  checked: boolean;
-  canToggle: boolean;
-  datasets: number;
-  note: string;
-  colorClass?: string;
+  id: string
+  name: string
+  status: 'connected' | 'syncing' | 'standby' | 'error'
+  progress: number
+  checked: boolean
+  canToggle: boolean
+  datasets: number
+  note: string
+  colorClass?: string
 }
 
 interface SubscriptionPanelProps {
-  platforms: SubscriptionPlatformCard[];
-  selectedPlatform: string;
-  onSelectPlatform: (platformId: string) => void;
-  onTogglePlatform: (platformId: string, checked: boolean) => void;
+  platforms: SubscriptionPlatformCard[]
+  selectedPlatform: string
+  onSelectPlatform: (platformId: string) => void
+  onTogglePlatform: (platformId: string, checked: boolean) => void
 }
 
 const PLATFORM_ICONS = {
@@ -34,20 +34,20 @@ const PLATFORM_ICONS = {
   tiktok: Play,
   instagram: Instagram,
   facebook: Facebook,
-} as const;
+} as const
 
 function statusTone(status: SubscriptionPlatformCard['status']) {
-  if (status === 'connected') return 'bg-emerald-500/10 text-emerald-500';
-  if (status === 'syncing') return 'bg-blue-500/10 text-blue-400';
-  if (status === 'error') return 'bg-rose-500/10 text-rose-500';
-  return 'bg-text-muted/10 text-text-muted';
+  if (status === 'connected') return 'bg-emerald-500/10 text-emerald-500'
+  if (status === 'syncing') return 'bg-blue-500/10 text-blue-400'
+  if (status === 'error') return 'bg-rose-500/10 text-rose-500'
+  return 'bg-text-muted/10 text-text-muted'
 }
 
 function statusLabel(status: SubscriptionPlatformCard['status']) {
-  if (status === 'connected') return 'CONNECTED';
-  if (status === 'syncing') return 'SYNCING';
-  if (status === 'error') return 'ERROR';
-  return 'STANDBY';
+  if (status === 'connected') return 'CONNECTED'
+  if (status === 'syncing') return 'SYNCING'
+  if (status === 'error') return 'ERROR'
+  return 'STANDBY'
 }
 
 export function SubscriptionPanel({
@@ -67,15 +67,17 @@ export function SubscriptionPanel({
           </div>
           <div>
             <h2 className="text-lg font-bold">全网数据实时订阅 (Live-Link)</h2>
-            <p className="text-xs text-text-tertiary">订阅一个平台后，按日期和快照选择可用的数据集。</p>
+            <p className="text-xs text-text-tertiary">
+              订阅一个平台后，按日期和快照选择可用的数据集。
+            </p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {platforms.map((platform) => {
-          const Icon = PLATFORM_ICONS[platform.id as keyof typeof PLATFORM_ICONS] || Twitter;
-          const isSelected = selectedPlatform === platform.id;
+        {platforms.map(platform => {
+          const Icon = PLATFORM_ICONS[platform.id as keyof typeof PLATFORM_ICONS] || Twitter
+          const isSelected = selectedPlatform === platform.id
 
           return (
             <div
@@ -83,17 +85,19 @@ export function SubscriptionPanel({
               onClick={() => onSelectPlatform(platform.id)}
               className={cn(
                 'p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group',
-                isSelected ? 'bg-accent/5 border-accent/50' : 'bg-bg-primary border-border-default hover:border-accent/30',
+                isSelected
+                  ? 'bg-accent/5 border-accent/50'
+                  : 'bg-bg-primary border-border-default hover:border-accent/30'
               )}
             >
               <div className="flex justify-between items-start mb-4">
                 <Icon className={cn('w-6 h-6', platform.colorClass || 'text-text-primary')} />
-                <div onClick={(event) => event.stopPropagation()}>
+                <div onClick={event => event.stopPropagation()}>
                   <Switch
                     checked={platform.checked}
-                    onCheckedChange={(checked) => {
-                      if (!platform.canToggle) return;
-                      onTogglePlatform(platform.id, checked);
+                    onCheckedChange={checked => {
+                      if (!platform.canToggle) return
+                      onTogglePlatform(platform.id, checked)
                     }}
                     className={!platform.canToggle ? 'opacity-50 cursor-not-allowed' : undefined}
                   />
@@ -103,10 +107,15 @@ export function SubscriptionPanel({
               <h3 className="font-bold text-sm mb-3">{platform.name}</h3>
 
               <div className="flex justify-between items-center mb-2">
-                <Badge variant="outline" className={cn('text-[9px] px-2 py-0 border-none', statusTone(platform.status))}>
+                <Badge
+                  variant="outline"
+                  className={cn('text-[9px] px-2 py-0 border-none', statusTone(platform.status))}
+                >
                   {statusLabel(platform.status)}
                 </Badge>
-                <span className="text-[10px] text-text-tertiary font-mono">{platform.datasets} snapshots</span>
+                <span className="text-[10px] text-text-tertiary font-mono">
+                  {platform.datasets} snapshots
+                </span>
               </div>
 
               <p className="text-[11px] text-text-tertiary min-h-[32px]">{platform.note}</p>
@@ -119,7 +128,7 @@ export function SubscriptionPanel({
                 <Progress value={platform.checked ? platform.progress : 0} className="h-1" />
               </div>
             </div>
-          );
+          )
         })}
       </div>
     </Card>

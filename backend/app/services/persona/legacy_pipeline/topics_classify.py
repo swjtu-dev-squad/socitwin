@@ -6,6 +6,7 @@ import re
 from typing import Any, Final
 
 import requests
+
 from app.services.persona.legacy_pipeline.common import data_dir, load_backend_env
 
 CATEGORIES: Final[tuple[str, ...]] = ("Politics", "Economics", "Society")

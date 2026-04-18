@@ -8,7 +8,9 @@ from app.services.persona.legacy_pipeline.relations_generate import (
     generate_relationship_and_network_files,
 )
 from app.services.persona.legacy_pipeline.topics_classify import classify_topics_to_topics_json
-from app.services.persona.legacy_pipeline.users_format_convert import convert_users_get_to_users_json
+from app.services.persona.legacy_pipeline.users_format_convert import (
+    convert_users_get_to_users_json,
+)
 
 
 def persist_topics_users_get(topics: List[Dict[str, Any]], users: List[Dict[str, Any]]) -> Dict[str, Any]:

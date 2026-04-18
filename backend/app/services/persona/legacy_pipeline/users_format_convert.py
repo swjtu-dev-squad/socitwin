@@ -59,7 +59,8 @@ def _convert_user(row: dict[str, Any], *, agent_id: int, title_to_cat: dict[str,
         inner = profile.get("other_info")
         if isinstance(inner, dict):
             oi = inner
-    topics_list = oi.get("topics") if isinstance(oi.get("topics"), list) else []
+    raw_topics = oi.get("topics")
+    topics_list: list[Any] = raw_topics if isinstance(raw_topics, list) else []
     topic_type = _resolve_topic_type(topics_list, title_to_cat)
     user_type = str(oi.get("user_type") or row.get("user_type") or "normal").strip().lower()
     if user_type not in ("kol", "normal"):
