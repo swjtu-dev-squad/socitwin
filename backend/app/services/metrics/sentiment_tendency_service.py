@@ -27,10 +27,18 @@ class SentimentTendencyService:
         neutral_count = 0
 
         for post in posts:
-            analysis_payload = await proxy_service.classify_sentiment(post["content"] or "")
-            prediction = analysis_payload.get("analysis", {}).get("prediction", {})
-            final_result = analysis_payload.get("final_result", "中性")
-            confidence = float(prediction.get("confidence", 0.0) or 0.0)
+            try:
+                analysis_payload = await proxy_service.classify_sentiment(post["content"] or "")
+                prediction = analysis_payload.get("analysis", {}).get("prediction", {})
+                final_result = analysis_payload.get("final_result", "中性")
+                confidence = float(prediction.get("confidence", 0.0) or 0.0)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping post %s for sentiment tendency due to analysis failure: %s",
+                    post.get("post_id"),
+                    exc,
+                )
+                continue
 
             if final_result == "正向":
                 signed_score = confidence
