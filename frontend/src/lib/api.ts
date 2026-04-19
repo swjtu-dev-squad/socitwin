@@ -27,12 +27,16 @@ export const simulationApi = {
     maxSteps?: number;
     recsysType?: string;
     memoryMode?: 'upstream' | 'action_v1';
+    contextTokenLimit?: number;
+    maxTokens?: number;
   }) => api.post<ConfigResult>('/sim/config', {
     platform: config.platform,
     agent_count: config.agentCount,
     recsys_type: config.recsysType || 'twitter',
     memory_mode: config.memoryMode,
-    max_steps: config.maxSteps || 50
+    max_steps: config.maxSteps || 50,
+    context_token_limit: config.contextTokenLimit,
+    llm_config: config.maxTokens ? { max_tokens: config.maxTokens } : undefined,
   }),
 
   getStatus: () => api.get<SimulationStatus>('/sim/status'),

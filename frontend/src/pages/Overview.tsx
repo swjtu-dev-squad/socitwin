@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useSimulationStore } from '@/lib/store';
-import { Card, Button, Badge, Slider, Progress, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui';
+import { Card, Button, Badge, Slider, Progress } from '@/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { simulationApi } from '@/lib/api';
 import {
@@ -49,12 +49,45 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SituationalAwarenessChart } from '@/components/SituationalAwarenessChart';
 
+const CONTEXT_BUDGET_OPTIONS = [
+  { value: 'default', label: '默认' },
+  { value: '8192', label: '8K' },
+  { value: '16384', label: '16K' },
+  { value: '32768', label: '32K' },
+  { value: '65536', label: '64K' },
+  { value: 'custom', label: '自定义' },
+] as const;
+
+const OUTPUT_LIMIT_OPTIONS = [
+  { value: 'default', label: '默认' },
+  { value: '512', label: '512' },
+  { value: '1024', label: '1024' },
+  { value: '2048', label: '2048' },
+  { value: '4096', label: '4096' },
+  { value: 'custom', label: '自定义' },
+] as const;
+
 function getApiErrorMessage(error: unknown, fallback: string): string {
   const message =
     (error as any)?.response?.data?.detail ||
     (error as any)?.response?.data?.message ||
     (error as any)?.message;
   return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
+function resolveOptionalTokenValue(option: string, customValue: string): number | undefined {
+  if (option === 'default') {
+    return undefined;
+  }
+  const rawValue = option === 'custom' ? customValue.trim() : option;
+  if (!rawValue) {
+    throw new Error('请输入有效的数值。');
+  }
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error('请输入大于 0 的整数。');
+  }
+  return parsed;
 }
 
 export default function Overview() {
@@ -118,6 +151,11 @@ export default function Overview() {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>('upstream');
   const [showAlgorithm, setShowAlgorithm] = useState(false);
+  const [showAdvancedParams, setShowAdvancedParams] = useState(false);
+  const [contextBudgetOption, setContextBudgetOption] = useState<string>('default');
+  const [customContextBudget, setCustomContextBudget] = useState('');
+  const [outputLimitOption, setOutputLimitOption] = useState<string>('default');
+  const [customOutputLimit, setCustomOutputLimit] = useState('');
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
@@ -448,46 +486,127 @@ export default function Overview() {
                   <BookOpen className="w-3 h-3" />
                   话题选择
                 </div>
-                <Select
+                <select
                   value={selectedTopic}
-                  onValueChange={(val) => {
-                    if (!topicsLoading) {
-                      setSelectedTopic(val);
-                    }
-                  }}
+                  disabled={topicsLoading || isConfiguring || isResetting}
+                  onChange={(event) => setSelectedTopic(event.target.value)}
+                  className={cn(
+                    "flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50",
+                    !selectedTopic && "text-text-muted"
+                  )}
                 >
-                  <SelectTrigger className={cn(
-                    "bg-bg-primary border-accent/20 text-text-primary",
-                    topicsLoading && "opacity-50 cursor-not-allowed"
-                  )}>
-                    <SelectValue placeholder={topicsLoading ? "加载话题中..." : "选择话题"} value={selectedTopic} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {topics?.map((topic) => (
-                      <SelectItem key={topic.id} value={topic.id}>
-                        {topic.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <option value="" disabled>
+                    {topicsLoading ? '加载话题中...' : '选择话题'}
+                  </option>
+                  {topics?.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
-                  <Cpu className="w-3 h-3" />
-                  记忆路线
-                </div>
-                <Select
-                  value={selectedMemoryMode}
-                  onValueChange={(val) => setSelectedMemoryMode(val as 'upstream' | 'action_v1')}
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedParams((prev) => !prev)}
+                  className="flex w-full items-center justify-between rounded-xl border border-accent/20 bg-bg-primary px-4 py-3 text-left transition-all hover:border-accent/40 hover:bg-bg-primary/80"
                 >
-                  <SelectTrigger className="bg-bg-primary border-accent/20 text-text-primary">
-                    <SelectValue placeholder="选择记忆路线" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="upstream">Upstream 原生 OASIS</SelectItem>
-                    <SelectItem value="action_v1">Action V1 长短期记忆</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <div>
+                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
+                      <Cpu className="w-3 h-3" />
+                      高级参数
+                    </div>
+                    <div className="mt-1 text-xs text-text-tertiary">
+                      记忆路线、上下文预算、输出上限
+                    </div>
+                  </div>
+                  <span className={cn("text-xs text-text-tertiary transition-transform", showAdvancedParams && "rotate-180")}>
+                    ▼
+                  </span>
+                </button>
+                {showAdvancedParams && (
+                  <div className="space-y-4 rounded-xl border border-accent/20 bg-bg-primary/40 p-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                        记忆路线
+                      </label>
+                      <select
+                        value={selectedMemoryMode}
+                        disabled={isConfiguring || isResetting}
+                        onChange={(event) => setSelectedMemoryMode(event.target.value as 'upstream' | 'action_v1')}
+                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="upstream">Upstream 原生 OASIS</option>
+                        <option value="action_v1">Action V1 长短期记忆</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                        上下文预算
+                      </label>
+                      <select
+                        value={contextBudgetOption}
+                        disabled={isConfiguring || isResetting}
+                        onChange={(event) => setContextBudgetOption(event.target.value)}
+                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {CONTEXT_BUDGET_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      {contextBudgetOption === 'custom' && (
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={customContextBudget}
+                          disabled={isConfiguring || isResetting}
+                          onChange={(event) => setCustomContextBudget(event.target.value)}
+                          placeholder="输入上下文预算"
+                          className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                        输出上限
+                      </label>
+                      <select
+                        value={outputLimitOption}
+                        disabled={isConfiguring || isResetting}
+                        onChange={(event) => setOutputLimitOption(event.target.value)}
+                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {OUTPUT_LIMIT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      {outputLimitOption === 'custom' && (
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={customOutputLimit}
+                          disabled={isConfiguring || isResetting}
+                          onChange={(event) => setCustomOutputLimit(event.target.value)}
+                          placeholder="输入输出上限"
+                          className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      )}
+                      <div className="text-[11px] text-text-tertiary">
+                        “默认”表示本次不覆盖。下方徽标展示的是后端当前实际生效值。
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-2 text-[10px]">
                   <RuntimeBadge label="当前路线" value={currentStatus.memoryMode || '未初始化'} />
                   <RuntimeBadge label="上下文预算" value={formatTokenValue(currentStatus.contextTokenLimit)} />
@@ -538,12 +657,22 @@ export default function Overview() {
                         toast.info('仿真已暂停');
                       } else {
                         setIsConfiguring(true);
+                        const contextTokenLimit = resolveOptionalTokenValue(
+                          contextBudgetOption,
+                          customContextBudget,
+                        );
+                        const maxTokens = resolveOptionalTokenValue(
+                          outputLimitOption,
+                          customOutputLimit,
+                        );
                         // 启动：只配置模拟
                         const configRes = await simulationApi.updateConfig({
                           platform: 'twitter',
                           agentCount: agentCount[0],
                           memoryMode: selectedMemoryMode,
-                          maxSteps: 100
+                          maxSteps: 100,
+                          contextTokenLimit,
+                          maxTokens,
                         });
                         if (!configRes.data?.success) {
                           const statusRes = await simulationApi.getStatus();

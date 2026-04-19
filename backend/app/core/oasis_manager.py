@@ -201,6 +201,13 @@ class OASISManager:
         }
 
     def _resolve_context_token_limit(self) -> Optional[int]:
+        if self._config is not None:
+            try:
+                explicit_limit = getattr(self._config, "context_token_limit", None)
+                if explicit_limit:
+                    return int(explicit_limit)
+            except Exception:
+                pass
         try:
             return int(get_settings().OASIS_CONTEXT_TOKEN_LIMIT)
         except Exception:
@@ -897,6 +904,7 @@ class OASISManager:
 
         settings = get_settings()
         token_counter, token_counter_mode = self._resolve_action_v1_token_counter(model)
+        resolved_context_token_limit = self._resolve_context_token_limit()
         observation_preset = apply_observation_env_overrides(ObservationPresetConfig())
         working_memory_budget = apply_working_memory_env_overrides(
             WorkingMemoryBudgetConfig(
@@ -915,7 +923,7 @@ class OASISManager:
         runtime_settings = ActionV1RuntimeSettings(
             token_counter=token_counter,
             system_message=self._build_agent_system_message(user_info=user_info),
-            context_token_limit=settings.OASIS_CONTEXT_TOKEN_LIMIT,
+            context_token_limit=resolved_context_token_limit or settings.OASIS_CONTEXT_TOKEN_LIMIT,
             observation_preset=observation_preset,
             summary_preset=summary_preset,
             working_memory_budget=working_memory_budget,

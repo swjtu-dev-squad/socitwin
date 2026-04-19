@@ -141,6 +141,7 @@ class SimulationConfig(BaseModel):
     agent_count: int = 5
     memory_mode: MemoryMode = MemoryMode.UPSTREAM
     llm_config: ModelConfig = Field(default_factory=ModelConfig)
+    context_token_limit: Optional[int] = Field(default=None, ge=1, le=512000)
     recsys_type: str = "twitter"
     agent_source: AgentSource = Field(default_factory=AgentSource)
 
