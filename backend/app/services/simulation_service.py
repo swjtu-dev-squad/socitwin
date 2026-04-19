@@ -455,20 +455,31 @@ class SimulationService:
                     propagation = await metrics_manager.caches['propagation'].get('propagation')
                     polarization = await metrics_manager.caches['polarization'].get('polarization')
                     herd_effect = await metrics_manager.caches['herd_effect'].get('herd_effect')
+                    sentiment_tendency = await metrics_manager.caches['sentiment_tendency'].get(
+                        'sentiment_tendency'
+                    )
 
-                    # 只有当三个metrics都有缓存时才返回
+                    # 只有当核心 metrics 都有缓存时才返回
                     if propagation and polarization and herd_effect:
                         from app.models.metrics import MetricsSummary
+
                         metrics_summary = MetricsSummary(
                             propagation=propagation,
                             polarization=polarization,
                             herd_effect=herd_effect,
+                            sentiment_tendency=sentiment_tendency,
                             current_step=state_info["current_step"],
                             timestamp=datetime.now()
                         )
                         logger.debug("Using cached metrics for status endpoint")
                     else:
-                        logger.debug(f"Metrics not all cached: P={bool(propagation)}, Pol={bool(polarization)}, H={bool(herd_effect)}")
+                        logger.debug(
+                            "Metrics not all cached: P=%s, Pol=%s, H=%s, S=%s",
+                            bool(propagation),
+                            bool(polarization),
+                            bool(herd_effect),
+                            bool(sentiment_tendency),
+                        )
                 except Exception as cache_error:
                     logger.warning(f"Failed to get metrics from cache: {cache_error}")
 

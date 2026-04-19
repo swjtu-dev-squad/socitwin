@@ -1546,18 +1546,49 @@ export default function Overview() {
                         <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="colorSent2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.16}/>
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.16} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="currentStep" stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#52525b" fontSize={8} tickLine={false} axisLine={false} domain={[-1, 1]} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px', fontSize: '10px' }}
+                    <XAxis
+                      dataKey="currentStep"
+                      stroke="#52525b"
+                      fontSize={8}
+                      tickLine={false}
+                      axisLine={false}
                     />
-                    <Area type="monotone" dataKey="polarization" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorPol2)" />
-                    <Area type="monotone" dataKey="sentimentTendency" stroke="#06b6d4" strokeWidth={2} fillOpacity={1} fill="url(#colorSent2)" />
+                    <YAxis
+                      stroke="#52525b"
+                      fontSize={8}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={[-1, 1]}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#18181b',
+                        border: '1px solid #27272a',
+                        borderRadius: '8px',
+                        fontSize: '10px',
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="polarization"
+                      stroke="#f43f5e"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorPol2)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="sentimentTendency"
+                      stroke="#06b6d4"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorSent2)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (

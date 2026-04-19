@@ -357,7 +357,11 @@ export interface MetricsHistoryEntry {
   id: number
   step_number: number
   metric_type: 'propagation' | 'polarization' | 'herd_effect' | 'sentiment_tendency'
-  metric_data: PropagationMetrics | PolarizationMetrics | HerdEffectMetrics | SentimentTendencyMetrics
+  metric_data:
+    | PropagationMetrics
+    | PolarizationMetrics
+    | HerdEffectMetrics
+    | SentimentTendencyMetrics
   calculated_at: string
 }
 
