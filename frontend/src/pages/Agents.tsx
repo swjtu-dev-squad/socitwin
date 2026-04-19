@@ -1,128 +1,136 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { ForceGraph } from '@/components/ForceGraph';
-import { AgentBehaviorTable } from '@/components/AgentBehaviorTable';
-import { AgentDeepMonitor } from '@/components/AgentDeepMonitor';
-import { Card, Badge, Input } from '@/components/ui';
-import { Network, List, Search } from 'lucide-react';
-import { getAgentDetail, getAgentMonitor } from '@/lib/agentMonitorApi';
-import type { AgentDetailResponse, AgentDirtyEvent, AgentMonitorResponse, AgentOverview } from '@/lib/agentMonitorTypes';
-import { initSocket } from '@/lib/socket';
-import { displayPercentageFormatted, displayMetricFormatted } from '@/lib/safeDisplay';
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { ForceGraph } from '@/components/ForceGraph'
+import { AgentBehaviorTable } from '@/components/AgentBehaviorTable'
+import { AgentDeepMonitor } from '@/components/AgentDeepMonitor'
+import { Card, Badge, Input } from '@/components/ui'
+import { Network, List, Search } from 'lucide-react'
+import { getAgentDetail, getAgentMonitor } from '@/lib/agentMonitorApi'
+import type {
+  AgentDetailResponse,
+  AgentDirtyEvent,
+  AgentMonitorResponse,
+  AgentOverview,
+} from '@/lib/agentMonitorTypes'
+import { initSocket } from '@/lib/socket'
+import { displayPercentageFormatted, displayMetricFormatted } from '@/lib/safeDisplay'
 
 export default function SocialNetworkMonitor() {
-  const [monitor, setMonitor] = useState<AgentMonitorResponse | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedDetail, setSelectedDetail] = useState<AgentDetailResponse | null>(null);
-  const [loadingMonitor, setLoadingMonitor] = useState(false);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const selectedAgentIdRef = useRef<string | null>(null);
-  const searchRef = useRef('');
-  const monitorRequestId = useRef(0);
-  const detailRequestId = useRef(0);
+  const [monitor, setMonitor] = useState<AgentMonitorResponse | null>(null)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [selectedDetail, setSelectedDetail] = useState<AgentDetailResponse | null>(null)
+  const [loadingMonitor, setLoadingMonitor] = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const selectedAgentIdRef = useRef<string | null>(null)
+  const searchRef = useRef('')
+  const monitorRequestId = useRef(0)
+  const detailRequestId = useRef(0)
 
   const filteredAgents = useMemo(() => {
-    return filterAgentsBySearch(monitor?.agents || [], search);
-  }, [monitor?.agents, search]);
+    return filterAgentsBySearch(monitor?.agents || [], search)
+  }, [monitor?.agents, search])
 
-  const graphEdges = useMemo(() => monitor?.graph.edges || [], [monitor?.graph.edges]);
-
-  useEffect(() => {
-    selectedAgentIdRef.current = selectedAgentId;
-  }, [selectedAgentId]);
+  const graphEdges = useMemo(() => monitor?.graph.edges || [], [monitor?.graph.edges])
 
   useEffect(() => {
-    searchRef.current = search;
-  }, [search]);
+    selectedAgentIdRef.current = selectedAgentId
+  }, [selectedAgentId])
+
+  useEffect(() => {
+    searchRef.current = search
+  }, [search])
 
   async function loadDetail(agentId: string) {
-    const requestId = ++detailRequestId.current;
-    setLoadingDetail(true);
-    setError(null);
+    const requestId = ++detailRequestId.current
+    setLoadingDetail(true)
+    setError(null)
     try {
-      const detail = await getAgentDetail(agentId);
-      if (requestId !== detailRequestId.current) return;
-      setSelectedDetail(detail);
+      const detail = await getAgentDetail(agentId)
+      if (requestId !== detailRequestId.current) return
+      setSelectedDetail(detail)
     } catch (err: any) {
-      if (requestId !== detailRequestId.current) return;
-      setSelectedDetail(null);
-      setError(err?.message || '加载 detail 失败');
+      if (requestId !== detailRequestId.current) return
+      setSelectedDetail(null)
+      setError(err?.message || '加载 detail 失败')
     } finally {
       if (requestId === detailRequestId.current) {
-        setLoadingDetail(false);
+        setLoadingDetail(false)
       }
     }
   }
 
   async function loadMonitor() {
-    const requestId = ++monitorRequestId.current;
-    setLoadingMonitor(true);
-    setError(null);
+    const requestId = ++monitorRequestId.current
+    setLoadingMonitor(true)
+    setError(null)
     try {
-      const data = await getAgentMonitor();
-      if (requestId !== monitorRequestId.current) return;
-      setMonitor(data);
-      const currentSelected = selectedAgentIdRef.current;
-      const nextSelected = resolveSelectedAgentId(filterAgentsBySearch(data.agents, searchRef.current), currentSelected);
+      const data = await getAgentMonitor()
+      if (requestId !== monitorRequestId.current) return
+      setMonitor(data)
+      const currentSelected = selectedAgentIdRef.current
+      const nextSelected = resolveSelectedAgentId(
+        filterAgentsBySearch(data.agents, searchRef.current),
+        currentSelected
+      )
       if (nextSelected && nextSelected !== currentSelected) {
-        setSelectedAgentId(nextSelected);
+        setSelectedAgentId(nextSelected)
       }
       if (nextSelected) {
-        await loadDetail(nextSelected);
+        await loadDetail(nextSelected)
       } else {
-        setSelectedDetail(null);
+        setSelectedDetail(null)
       }
     } catch (err: any) {
-      if (requestId !== monitorRequestId.current) return;
-      setError(err?.message || '加载 monitor 失败');
-      setMonitor(null);
-      setSelectedDetail(null);
-      setSelectedAgentId(null);
+      if (requestId !== monitorRequestId.current) return
+      setError(err?.message || '加载 monitor 失败')
+      setMonitor(null)
+      setSelectedDetail(null)
+      setSelectedAgentId(null)
     } finally {
       if (requestId === monitorRequestId.current) {
-        setLoadingMonitor(false);
+        setLoadingMonitor(false)
       }
     }
   }
 
   useEffect(() => {
-    const socket = initSocket();
+    const socket = initSocket()
 
     const handleDirty = async (_payload: AgentDirtyEvent) => {
-      await loadMonitor();
-    };
+      await loadMonitor()
+    }
 
-    socket.on('agents_dirty', handleDirty);
-    void loadMonitor();
+    socket.on('agents_dirty', handleDirty)
+    void loadMonitor()
 
     return () => {
-      socket.off('agents_dirty', handleDirty);
-    };
-  }, []);
+      socket.off('agents_dirty', handleDirty)
+    }
+  }, [])
 
   useEffect(() => {
-    const current = selectedAgentIdRef.current;
+    const current = selectedAgentIdRef.current
     if (!monitor || monitor.agents.length === 0 || current === null) {
-      return;
+      return
     }
 
-    const nextSelected = resolveSelectedAgentId(filteredAgents, current);
+    const nextSelected = resolveSelectedAgentId(filteredAgents, current)
     if (nextSelected && nextSelected !== current) {
-      setSelectedAgentId(nextSelected);
-      void loadDetail(nextSelected);
+      setSelectedAgentId(nextSelected)
+      void loadDetail(nextSelected)
     }
-  }, [filteredAgents, monitor]);
+  }, [filteredAgents, monitor])
 
   const handleSelectAgent = (agent: AgentOverview) => {
-    setSelectedAgentId(agent.id);
-    void loadDetail(agent.id);
-  };
+    setSelectedAgentId(agent.id)
+    void loadDetail(agent.id)
+  }
 
   const handleNodeClick = (agentId: string) => {
-    setSelectedAgentId(agentId);
-    void loadDetail(agentId);
-  };
+    setSelectedAgentId(agentId)
+    void loadDetail(agentId)
+  }
 
   return (
     <div className="px-6 py-8 h-full flex flex-col space-y-6 overflow-hidden">
@@ -151,11 +159,35 @@ export default function SocialNetworkMonitor() {
             </div>
           </div>
         </div>
-        
-        <div className="flex gap-8 px-6 border-l border-border-default">
-          <StatMini label="群体极化率" value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)} color="text-rose-500" />
-          <StatMini label="信息传播速度" value={`${displayMetricFormatted(monitor?.simulation.propagationVelocity)} msg/s`} color="text-emerald-500" />
-          <StatMini label="从众效应指数" value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)} color="text-blue-500" />
+
+        <div className="flex gap-6 px-6 border-l border-border-default">
+          <StatMini
+            label="群体极化率"
+            value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)}
+            color="text-rose-500"
+          />
+          <div className="flex gap-3">
+            <StatMini
+              label="传播规模"
+              value={displayMetricFormatted(monitor?.simulation.propagationScale)}
+              color="text-emerald-500"
+            />
+            <StatMini
+              label="传播深度"
+              value={displayMetricFormatted(monitor?.simulation.propagationDepth)}
+              color="text-cyan-500"
+            />
+            <StatMini
+              label="传播广度"
+              value={displayMetricFormatted(monitor?.simulation.propagationBreadth)}
+              color="text-purple-500"
+            />
+          </div>
+          <StatMini
+            label="从众效应"
+            value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)}
+            color="text-blue-500"
+          />
         </div>
       </header>
 
@@ -166,31 +198,35 @@ export default function SocialNetworkMonitor() {
           <Card className="flex-1 min-h-0 bg-bg-secondary border-border-default flex flex-col overflow-hidden relative">
             <div className="p-4 border-b border-border-default flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <Network className="w-4 h-4 text-accent"/>
+                <Network className="w-4 h-4 text-accent" />
                 <span className="text-sm font-bold uppercase tracking-wider">影响力拓扑图</span>
               </div>
               <div className="relative w-64">
-                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-                 <Input 
-                   placeholder="搜索特定 Agent..." 
-                   className="pl-9 h-9 bg-bg-primary" 
-                   value={search}
-                   onChange={(e) => setSearch(e.target.value)}
-                 />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                <Input
+                  placeholder="搜索特定 Agent..."
+                  className="pl-9 h-9 bg-bg-primary"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
               </div>
             </div>
             <div className="flex-1 relative overflow-hidden bg-black/20">
-              <ForceGraph 
+              <ForceGraph
                 nodes={filteredAgents}
-                edges={graphEdges.filter((edge) =>
-                  filteredAgents.some((agent) => agent.id === edge.source) &&
-                  filteredAgents.some((agent) => agent.id === edge.target)
+                edges={graphEdges.filter(
+                  edge =>
+                    filteredAgents.some(agent => agent.id === edge.source) &&
+                    filteredAgents.some(agent => agent.id === edge.target)
                 )}
-                onNodeClick={handleNodeClick}
+                onNodeClick={agent => handleNodeClick(agent.id)}
                 focusId={selectedAgentId}
               />
               {loadingMonitor ? (
-                <OverlayMessage title="正在加载真实 monitor 数据" description="图谱和列表会在数据返回后自动刷新。" />
+                <OverlayMessage
+                  title="正在加载真实 monitor 数据"
+                  description="图谱和列表会在数据返回后自动刷新。"
+                />
               ) : null}
             </div>
           </Card>
@@ -198,41 +234,50 @@ export default function SocialNetworkMonitor() {
           {/* 行为列表 - 放在下面并带滚动条 */}
           <Card className="flex-1 min-h-0 bg-bg-secondary border-border-default flex flex-col overflow-hidden">
             <div className="p-4 border-b border-border-default flex items-center gap-2 shrink-0">
-              <List className="w-4 h-4 text-blue-400"/>
+              <List className="w-4 h-4 text-blue-400" />
               <span className="text-sm font-bold uppercase tracking-wider">Agent 行为动态列表</span>
             </div>
             <div className="flex-1 min-h-0">
-              <AgentBehaviorTable agents={filteredAgents} onSelect={handleSelectAgent} selectedId={selectedAgentId} />
+              <AgentBehaviorTable
+                agents={filteredAgents}
+                onSelect={handleSelectAgent}
+                selectedId={selectedAgentId}
+              />
             </div>
           </Card>
         </div>
 
         {/* 右侧：选中 Agent 的深度监控 */}
         <Card className="hidden lg:flex col-span-3 bg-bg-secondary border-border-default p-6 flex-col space-y-6 overflow-auto custom-scrollbar">
-          <AgentDeepMonitor detail={selectedDetail} loading={loadingDetail || loadingMonitor} error={error} />
+          <AgentDeepMonitor
+            detail={selectedDetail}
+            loading={loadingDetail || loadingMonitor}
+            error={error}
+          />
         </Card>
       </div>
     </div>
-  );
+  )
 }
 
 function resolveSelectedAgentId(agents: AgentOverview[], currentSelected: string | null) {
-  if (currentSelected && agents.some((agent) => agent.id === currentSelected)) {
-    return currentSelected;
+  if (currentSelected && agents.some(agent => agent.id === currentSelected)) {
+    return currentSelected
   }
-  if (agents.length === 0) return null;
-  return [...agents]
-    .sort((a, b) => (b.influence || 0) - (a.influence || 0) || (b.activity || 0) - (a.activity || 0))[0].id;
+  if (agents.length === 0) return null
+  return [...agents].sort(
+    (a, b) => (b.influence || 0) - (a.influence || 0) || (b.activity || 0) - (a.activity || 0)
+  )[0].id
 }
 
 function filterAgentsBySearch(agents: AgentOverview[], search: string) {
-  const query = search.trim().toLowerCase();
-  if (!query) return agents;
-  return agents.filter((agent) =>
+  const query = search.trim().toLowerCase()
+  if (!query) return agents
+  return agents.filter(agent =>
     [agent.id, agent.name, agent.roleLabel, agent.country, agent.city]
       .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query))
-  );
+      .some(value => String(value).toLowerCase().includes(query))
+  )
 }
 
 function OverlayMessage({ title, description }: { title: string; description: string }) {
@@ -243,7 +288,7 @@ function OverlayMessage({ title, description }: { title: string; description: st
         <p className="mt-1 text-xs text-text-tertiary">{description}</p>
       </div>
     </div>
-  );
+  )
 }
 
 function StatMini({ label, value, color }: any) {
@@ -252,5 +297,5 @@ function StatMini({ label, value, color }: any) {
       <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">{label}</p>
       <p className={`text-xl font-mono font-bold ${color}`}>{value}</p>
     </div>
-  );
+  )
 }

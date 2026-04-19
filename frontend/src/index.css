@@ -4,22 +4,46 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  
+
   --color-bg-primary: #09090b;
   --color-bg-secondary: #18181b;
   --color-bg-tertiary: #27272a;
-  
+
   --color-border-default: #27272a;
   --color-border-strong: #3f3f46;
-  
+
   --color-accent: #10b981;
   --color-accent-hover: #059669;
   --color-accent-subtle: rgba(16, 185, 129, 0.1);
-  
+
   --color-text-primary: #fafafa;
   --color-text-secondary: #a1a1aa;
   --color-text-tertiary: #71717a;
   --color-text-muted: #52525b;
+}
+
+/* Standard CSS variables for Radix UI components */
+:root {
+  --background: 0 0% 9%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 11%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 44%;
+  --accent: 158 64% 52%;
+  --accent-foreground: 0 0% 9%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 15%;
+  --input: 0 0% 15%;
+  --ring: 158 64% 52%;
+  --radius: 0.5rem;
 }
 
 @layer base {

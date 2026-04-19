@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios from 'axios'
 import type {
   SimulationStatus,
   GenerateUsersRequest,
@@ -7,29 +7,52 @@ import type {
   TopicListResponse,
   TopicDetail,
   TopicActivationResult,
+  TopicProfilesResponse,
+  TopicSimulationResponse,
   MetricsSummary,
   PropagationMetrics,
   PolarizationMetrics,
-  HerdEffectMetrics
-} from './types';
+  HerdEffectMetrics,
+  AddControlledAgentsRequest,
+  AddControlledAgentsResponse,
+} from './types'
 
 const api = axios.create({
-  baseURL: '/api',  // 使用相对路径，自动适配本地开发和部署环境
-  timeout: 600000,  // 10分钟超时 - 支持大规模agent的LLM调用
-});
+  baseURL: '/api', // 使用相对路径，自动适配本地开发和部署环境
+  timeout: 600000, // 10分钟超时 - 支持大规模agent的LLM调用
+})
+
+const encodeTopicId = (topicId: string) => encodeURIComponent(topicId)
 
 export const simulationApi = {
   updateConfig: (config: {
-    platform: string;
-    agentCount: number;
-    maxSteps?: number;
-    recsysType?: string;
-  }) => api.post('/sim/config', {
-    platform: config.platform,
-    agent_count: config.agentCount,
-    recsys_type: config.recsysType || 'twitter',
-    max_steps: config.maxSteps || 50
-  }),
+    platform: string
+    agentCount: number
+    maxSteps?: number
+    recsysType?: string
+    agentSource?: {
+      sourceType: 'template' | 'file' | 'manual'
+      templateName?: string
+      filePath?: string
+      manualConfig?: Record<string, any>[]
+    }
+  }) =>
+    api.post('/sim/config', {
+      platform: config.platform,
+      agent_count: config.agentCount,
+      recsys_type: config.recsysType || config.platform,
+      max_steps: config.maxSteps || 50,
+      ...(config.agentSource
+        ? {
+            agent_source: {
+              source_type: config.agentSource.sourceType,
+              template_name: config.agentSource.templateName,
+              file_path: config.agentSource.filePath,
+              manual_config: config.agentSource.manualConfig,
+            },
+          }
+        : {}),
+    }),
 
   getStatus: () => api.get<SimulationStatus>('/sim/status'),
 
@@ -49,42 +72,70 @@ export const simulationApi = {
 
   getLogs: () => api.get<{ logs: LogEntry[] }>('/sim/logs'),
 
-  getTopics: () => api.get<TopicListResponse>('/topics'),
+  getTopics: (params?: { platform?: string; limit?: number }) =>
+    api.get<TopicListResponse>('/topics', { params }),
 
-  getTopicById: (topicId: string) => api.get<TopicDetail>(`/topics/${topicId}`),
+  getTopicById: (topicId: string) => api.get<TopicDetail>(`/topics/${encodeTopicId(topicId)}`),
 
-  activateTopic: (topicId: string) => api.post<TopicActivationResult>(`/topics/${topicId}/activate`),
+  getTopicProfiles: (topicId: string, params?: { platform?: string; limit?: number }) =>
+    api.get<TopicProfilesResponse>(`/topics/${encodeTopicId(topicId)}/profiles`, { params }),
 
-  reloadTopics: () => api.post<{ success: boolean; message: string; topics_count: number }>('/topics/reload'),
+  getTopicSimulation: (
+    topicId: string,
+    params?: { platform?: string; participant_limit?: number; content_limit?: number }
+  ) => api.get<TopicSimulationResponse>(`/topics/${encodeTopicId(topicId)}/simulation`, { params }),
+
+  activateTopic: (topicId: string, params?: { platform?: string }) =>
+    api.post<TopicActivationResult>(`/topics/${encodeTopicId(topicId)}/activate`, undefined, {
+      params,
+    }),
+
+  reloadTopics: (params?: { platform?: string }) =>
+    api.post<{ success: boolean; message: string; topics_loaded: number }>(
+      '/topics/reload',
+      undefined,
+      { params }
+    ),
 
   // Metrics APIs
   getMetricsSummary: () => api.get<MetricsSummary>('/metrics/summary'),
 
   getPropagationMetrics: (postId?: number) =>
-    api.get<PropagationMetrics>('/metrics/propagation', { params: postId ? { post_id: postId } : {} }),
+    api.get<PropagationMetrics>('/metrics/propagation', {
+      params: postId ? { post_id: postId } : {},
+    }),
 
   getPolarizationMetrics: (agentIds?: string) =>
-    api.get<PolarizationMetrics>('/metrics/polarization', { params: agentIds ? { agent_ids: agentIds } : {} }),
+    api.get<PolarizationMetrics>('/metrics/polarization', {
+      params: agentIds ? { agent_ids: agentIds } : {},
+    }),
 
   getHerdEffectMetrics: (timeWindowSeconds?: number) =>
-    api.get<HerdEffectMetrics>('/metrics/herd-effect', { params: timeWindowSeconds ? { time_window_seconds: timeWindowSeconds } : {} }),
+    api.get<HerdEffectMetrics>('/metrics/herd-effect', {
+      params: timeWindowSeconds ? { time_window_seconds: timeWindowSeconds } : {},
+    }),
 
   getMetricsHistory: (params?: {
-    metric_type?: string;
-    step_from?: number;
-    step_to?: number;
-    limit?: number;
-  }) => api.get<{
-    history: Array<{
-      id: number;
-      step_number: number;
-      metric_type: string;
-      metric_data: any;
-      calculated_at: string;
-    }>;
-    total_count: number;
-  }>('/metrics/history', { params }),
+    metric_type?: string
+    step_from?: number
+    step_to?: number
+    limit?: number
+  }) =>
+    api.get<{
+      history: Array<{
+        id: number
+        step_number: number
+        metric_type: string
+        metric_data: any
+        calculated_at: string
+      }>
+      total_count: number
+    }>('/metrics/history', { params }),
 
   getLatestMetrics: (metricType: string) =>
     api.get<any>(`/metrics/history/latest`, { params: { metric_type: metricType } }),
-};
+
+  // Controlled Agents APIs
+  addControlledAgents: (request: AddControlledAgentsRequest) =>
+    api.post<AddControlledAgentsResponse>('/sim/agents/controlled', request),
+}

@@ -6,13 +6,10 @@ FastAPI 依赖注入配置
 
 import logging
 from functools import lru_cache
-from typing import AsyncGenerator
-
-from fastapi import Depends
+from typing import AsyncGenerator, Optional
 
 from app.core.config import get_settings
-from app.core.oasis_manager import get_oasis_manager, OASISManager
-
+from app.core.oasis_manager import OASISManager, get_oasis_manager
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +22,7 @@ _simulation_service = None
 _topic_service = None
 _metrics_manager = None
 _behavior_controller = None
+_controlled_agents_service = None
 
 
 async def get_simulation_service():
@@ -155,19 +153,14 @@ async def get_topic_service():
 
     Returns:
         TopicService: 主题服务实例
-
-    Note:
-        这个函数将创建并返回 TopicService 单例
     """
     from app.services.topic_service import TopicService
-    from app.core.topic_loader import get_topic_loader
 
     global _topic_service
 
     if _topic_service is None:
         oasis_manager = await get_oasis_manager()
-        topic_loader = get_topic_loader()
-        _topic_service = TopicService(oasis_manager, topic_loader)
+        _topic_service = TopicService(oasis_manager)
         logger.info("Topic Service singleton created")
 
     return _topic_service
@@ -209,8 +202,8 @@ async def get_metrics_manager():
     Note:
         提供集中化的指标计算和缓存功能
     """
-    from app.services.metrics.metrics_manager import MetricsManager
     from app.core.config import get_settings
+    from app.services.metrics.metrics_manager import MetricsManager
 
     global _metrics_manager
 
@@ -226,7 +219,7 @@ async def get_metrics_manager():
             )
             logger.info("Metrics Manager singleton created")
         else:
-            logger.warning("Cannot create Metrics Manager: no database path")
+            logger.debug("Cannot create Metrics Manager: no database path")
             return None
 
     return _metrics_manager
@@ -378,7 +371,7 @@ def get_settings_cached():
 # 验证和授权依赖（占位符）
 # ============================================================================
 
-async def verify_api_key(api_key: str = None) -> bool:
+async def verify_api_key(api_key: Optional[str] = None) -> bool:
     """
     验证 API 密钥（占位符）
 
@@ -395,7 +388,7 @@ async def verify_api_key(api_key: str = None) -> bool:
     return True
 
 
-async def get_current_user(token: str = None):
+async def get_current_user(token: Optional[str] = None):
     """
     获取当前用户（占位符）
 
@@ -410,6 +403,52 @@ async def get_current_user(token: str = None):
     """
     # TODO: 实现实际的用户认证
     return {"user_id": "anonymous", "permissions": []}
+
+
+# ============================================================================
+# Controlled Agents Service
+# ============================================================================
+
+async def get_controlled_agents_service():
+    """
+    获取受控agent服务单例
+
+    Returns:
+        ControlledAgentsService: 受控agent服务实例
+    """
+    from app.services.controlled_agents_service import ControlledAgentsService
+
+    global _controlled_agents_service
+
+    if _controlled_agents_service is None:
+        oasis_manager = await get_oasis_manager()
+        _controlled_agents_service = ControlledAgentsService(oasis_manager)
+        logger.info("Controlled Agents Service singleton created")
+
+    return _controlled_agents_service
+
+
+async def get_controlled_agents_service_dependency():
+    """
+    受控agent服务依赖注入
+
+    Yields:
+        ControlledAgentsService: 受控agent服务实例
+
+    Example:
+        @router.post("/agents/controlled")
+        async def add_controlled_agents(
+            request: AddControlledAgentsRequest,
+            service: ControlledAgentsService = Depends(get_controlled_agents_service_dependency)
+        ):
+            return await service.add_controlled_agents(request)
+    """
+    service = await get_controlled_agents_service()
+    try:
+        yield service
+    except Exception as e:
+        logger.error(f"Error in controlled agents service dependency: {e}")
+        raise
 
 
 # ============================================================================

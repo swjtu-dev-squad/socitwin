@@ -1,28 +1,28 @@
 """
-Topics API Endpoints - FastAPI router for topic management
+Topics API Endpoints - FastAPI router for topic and seed-data management.
 
-Provides REST API endpoints for managing simulation topics.
+Serves topic metadata, preprocessed persona seeds, and simulation seed content
+from the unified SQLite dataset database.
 """
 
 import logging
-from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.services.topic_service import TopicService
-from app.services.simulation_service import SimulationService
+from app.models.simulation import PlatformType
 from app.models.topics import (
     TopicActivationResult,
     TopicDetail,
-    TopicListItem,
     TopicListResponse,
+    TopicProfilesResponse,
     TopicReloadResult,
+    TopicSimulationResponse,
 )
-
+from app.services.simulation_service import SimulationService
+from app.services.topic_service import TopicService
 
 logger = logging.getLogger(__name__)
 
-# Create router
 router = APIRouter(
     prefix="/topics",
     tags=["topics"],
@@ -30,177 +30,188 @@ router = APIRouter(
 )
 
 
-# ============================================================================
-# Dependencies
-# ============================================================================
-
-# These will be provided by the dependency injection system
-# For now, we'll use placeholder functions that will be replaced
-# when we update the dependencies module
-
 async def get_topic_service():
-    """Get topic service instance (placeholder)"""
-    # This will be replaced by proper dependency injection
+    """Get topic service instance."""
     from app.core.dependencies import get_topic_service_dependency
+
     return await get_topic_service_dependency().__anext__()
 
 
 async def get_simulation_service():
-    """Get simulation service instance (placeholder)"""
-    # This will be replaced by proper dependency injection
+    """Get simulation service instance."""
     from app.core.dependencies import get_simulation_service_dependency
+
     return await get_simulation_service_dependency().__anext__()
 
 
-# ============================================================================
-# Endpoints
-# ============================================================================
-
 @router.get("", response_model=TopicListResponse)
 async def list_topics(
-    service: TopicService = Depends(get_topic_service)
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    limit: int = Query(default=50, ge=1, le=200),
+    service: TopicService = Depends(get_topic_service),
 ):
-    """
-    List all available topics
-
-    Returns a list of all topics with their basic information.
-    """
+    """List topics directly from `oasis_datasets.db`."""
     try:
-        topics = service.list_topics()
-
-        return TopicListResponse(
-            success=True,
-            count=len(topics),
-            topics=topics,
-        )
-
-    except Exception as e:
-        logger.error(f"Failed to list topics: {e}")
+        topics = service.list_topics(platform=platform, limit=limit)
+        return TopicListResponse(success=True, count=len(topics), topics=topics)
+    except Exception as exc:
+        logger.error("Failed to list topics: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list topics: {str(e)}"
+            detail=f"Failed to list topics: {exc}",
+        ) from exc
+
+
+@router.get("/{topic_id}/profiles", response_model=TopicProfilesResponse)
+async def get_topic_profiles(
+    topic_id: str,
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    limit: int = Query(default=50, ge=1, le=500),
+    service: TopicService = Depends(get_topic_service),
+):
+    """Get preprocessed participant profiles for the user-profile sidebar."""
+    try:
+        result = service.get_topic_profiles(topic_id, platform=platform, limit=limit)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Topic not found: {topic_id}",
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get profiles for topic '%s': %s", topic_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get topic profiles: {exc}",
+        ) from exc
+
+
+@router.get("/{topic_id}/simulation", response_model=TopicSimulationResponse)
+async def get_topic_simulation_data(
+    topic_id: str,
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    participant_limit: int = Query(default=50, ge=1, le=500),
+    content_limit: int = Query(default=80, ge=1, le=500),
+    service: TopicService = Depends(get_topic_service),
+):
+    """Get simulation-ready seed data for the situational inference module."""
+    try:
+        result = service.get_topic_simulation(
+            topic_id,
+            platform=platform,
+            participant_limit=participant_limit,
+            content_limit=content_limit,
         )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Topic not found: {topic_id}",
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to get simulation data for topic '%s': %s", topic_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get topic simulation data: {exc}",
+        ) from exc
 
 
 @router.get("/{topic_id}", response_model=TopicDetail)
 async def get_topic(
     topic_id: str,
-    service: TopicService = Depends(get_topic_service)
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    service: TopicService = Depends(get_topic_service),
 ):
-    """
-    Get detailed information about a specific topic
-
-    Returns complete topic configuration including initial post and settings.
-    """
+    """Get detailed topic information from the dataset database."""
     try:
-        topic = service.get_topic(topic_id)
-
+        topic = service.get_topic(topic_id, platform=platform)
         if not topic:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Topic not found: {topic_id}"
+                detail=f"Topic not found: {topic_id}",
             )
-
         return topic
-
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to get topic '{topic_id}': {e}")
+    except Exception as exc:
+        logger.error("Failed to get topic '%s': %s", topic_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get topic: {str(e)}"
-        )
+            detail=f"Failed to get topic: {exc}",
+        ) from exc
 
 
 @router.post("/{topic_id}/activate", response_model=TopicActivationResult)
 async def activate_topic(
     topic_id: str,
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
     topic_service: TopicService = Depends(get_topic_service),
-    sim_service: SimulationService = Depends(get_simulation_service)
+    sim_service: SimulationService = Depends(get_simulation_service),
 ):
-    """
-    Activate a topic by posting initial content and refreshing feeds
-
-    This endpoint will:
-    1. Load the topic configuration
-    2. Have the specified agent post the initial content
-    3. Refresh all agents' feeds (if configured)
-
-    The simulation must be in READY state for activation to succeed.
-    """
+    """Activate a topic by publishing its dataset-backed seed content into the simulation."""
     try:
-        # Validate simulation state
         if not sim_service.oasis_manager.is_ready:
             return TopicActivationResult(
                 success=False,
-                message=f"Simulation not ready. Current state: {sim_service.oasis_manager.state.value}",
+                message=(
+                    "Simulation not ready. "
+                    f"Current state: {sim_service.oasis_manager.state.value}"
+                ),
                 topic_id=topic_id,
-                error="SIMULATION_NOT_READY"
+                error="SIMULATION_NOT_READY",
             )
 
-        # Activate topic
-        result = await topic_service.activate_topic(topic_id)
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Failed to activate topic '{topic_id}': {e}")
+        return await topic_service.activate_topic(topic_id, platform=platform)
+    except Exception as exc:
+        logger.error("Failed to activate topic '%s': %s", topic_id, exc)
         return TopicActivationResult(
             success=False,
-            message=f"Topic activation failed: {str(e)}",
+            message=f"Topic activation failed: {exc}",
             topic_id=topic_id,
-            error=str(e),
+            error=str(exc),
         )
 
 
 @router.post("/reload", response_model=TopicReloadResult)
 async def reload_topics(
-    service: TopicService = Depends(get_topic_service)
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    service: TopicService = Depends(get_topic_service),
 ):
-    """
-    Reload topic configuration from disk
-
-    This endpoint reloads the topics.yaml file to pick up any changes
-    without requiring a server restart.
-    """
+    """Refresh topic metadata. Database-backed topics do not require file reloads."""
     try:
-        result = await service.reload_config()
-        return result
-
-    except Exception as e:
-        logger.error(f"Failed to reload topics: {e}")
+        return await service.reload_config(platform=platform)
+    except Exception as exc:
+        logger.error("Failed to refresh topics: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reload topics: {str(e)}"
-        )
+            detail=f"Failed to refresh topics: {exc}",
+        ) from exc
 
 
 @router.get("/{topic_id}/validate")
 async def validate_topic(
     topic_id: str,
-    topic_service: TopicService = Depends(get_topic_service)
+    platform: PlatformType = Query(default=PlatformType.TWITTER),
+    topic_service: TopicService = Depends(get_topic_service),
 ):
-    """
-    Validate if a topic can be activated in the current simulation
-
-    Returns validation result with any issues found.
-    """
+    """Validate whether a dataset topic can be activated in the current simulation."""
     try:
-        if not topic_service.topic_exists(topic_id):
+        if not topic_service.topic_exists(topic_id, platform=platform):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Topic not found: {topic_id}"
+                detail=f"Topic not found: {topic_id}",
             )
 
-        validation = topic_service.validate_topic_for_simulation(topic_id)
-        return validation
-
+        return topic_service.validate_topic_for_simulation(topic_id, platform=platform)
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to validate topic '{topic_id}': {e}")
+    except Exception as exc:
+        logger.error("Failed to validate topic '%s': %s", topic_id, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Validation failed: {str(e)}"
-        )
+            detail=f"Validation failed: {exc}",
+        ) from exc

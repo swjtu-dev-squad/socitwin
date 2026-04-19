@@ -1,7 +1,7 @@
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react'
 
 // Icon placeholders for removed lucide-react icons
-const Github = ExternalLink;
+const Github = ExternalLink
 
 export default function FooterLinks() {
   const links = [
@@ -14,15 +14,15 @@ export default function FooterLinks() {
       name: 'Socitwin',
       href: 'https://github.com/your-org/socitwin',
       icon: Github,
-    }
-  ];
+    },
+  ]
 
   return (
     <footer className="h-20 glass-effect border-t border-border-default">
       <div className="w-full max-w-7xl mx-auto px-6 lg:px-12 xl:px-16 h-full flex flex-col md:flex-row items-center justify-between gap-4">
         {/* 左侧：外部链接 */}
         <div className="flex items-center gap-6">
-          {links.map((link) => (
+          {links.map(link => (
             <a
               key={link.name}
               href={link.href}
@@ -46,5 +46,5 @@ export default function FooterLinks() {
         </div>
       </div>
     </footer>
-  );
+  )
 }

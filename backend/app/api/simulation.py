@@ -5,28 +5,25 @@ OASIS 模拟 API 端点
 """
 
 import logging
-from typing import Optional, List
+import os
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from app.core.dependencies import get_simulation_service_dependency
 from app.models.simulation import (
-    SimulationStatus,
-    SimulationConfig,
-    SimulationState,
-    StepRequest,
-    StepType,
     ConfigResult,
-    StepResult,
-    StatusResult,
     LogFilters,
     LogResult,
-    ManualActionRequest,
-    OASISActionType,
+    SimulationConfig,
+    SimulationStatus,
+    StatusResult,
+    StepRequest,
+    StepResult,
+    StepType,
 )
 from app.services.simulation_service import SimulationService
-from app.core.dependencies import get_simulation_service_dependency
-
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +461,184 @@ async def get_agents(
     except Exception as e:
         logger.error(f"Failed to get agents: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get agents: {str(e)}")
+
+
+@router.get("/agents/{agent_id}")
+async def get_agent_detail(
+    agent_id: int,
+    service: SimulationService = Depends(get_simulation_service_dependency)
+):
+    """
+    获取单个智能体的详细信息
+
+    Args:
+        agent_id: 智能体ID
+
+    Returns:
+        智能体详细信息，包括档案、统计数据、最近行为等
+
+    Example:
+        GET /api/sim/agents/0
+
+        Response:
+        {
+            "profile": {
+                "id": 0,
+                "name": "Alice",
+                "user_name": "alice",
+                "bio": "...",
+                "interests": ["AI", "technology"],
+                "description": "Tech enthusiast"
+            },
+            "status": {
+                "influence": 0.156,
+                "activity": 1.0,
+                "follower_count": 5,
+                "following_count": 3,
+                "interaction_count": 28
+            },
+            "recent_actions": [
+                {
+                    "timestamp": "2024-01-01T12:00:00",
+                    "action_type": "CREATE_POST",
+                    "content": "...",
+                    "reason": "..."
+                }
+            ],
+            "recent_posts": [
+                {
+                    "post_id": 1,
+                    "content": "...",
+                    "created_at": "2024-01-01T12:00:00",
+                    "num_likes": 5
+                }
+            ]
+        }
+    """
+    try:
+        import json
+        import sqlite3
+
+        # 获取基本档案信息
+        status = await service.get_status()
+        agent = next((a for a in status.agents if a.id == agent_id), None)
+
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+
+        # 从数据库获取详细信息
+        detail_data = {
+            "profile": {
+                "id": agent.id,
+                "name": agent.name,
+                "user_name": agent.user_name,
+                "bio": agent.bio or agent.description,
+                "interests": agent.interests,
+                "description": agent.description,
+            },
+            "status": {
+                "influence": agent.influence,
+                "activity": agent.activity,
+                "polarization": agent.polarization,
+            },
+            "recent_actions": [],
+            "recent_posts": [],
+            "following": [],  # 新增：关注列表
+            "followers": [],   # 新增：粉丝列表
+        }
+
+        # 查询数据库统计信息
+        if service.oasis_manager._db_path and os.path.exists(service.oasis_manager._db_path):
+            try:
+                conn = sqlite3.connect(service.oasis_manager._db_path)
+                cursor = conn.cursor()
+
+                # 查询社交统计
+                cursor.execute("SELECT COUNT(DISTINCT follower_id) FROM follow WHERE followee_id = ?", (agent_id,))
+                follower_count = cursor.fetchone()[0] or 0
+
+                cursor.execute("SELECT COUNT(DISTINCT followee_id) FROM follow WHERE follower_id = ?", (agent_id,))
+                following_count = cursor.fetchone()[0] or 0
+
+                cursor.execute("SELECT COUNT(*) FROM trace WHERE user_id = ?", (agent_id,))
+                interaction_count = cursor.fetchone()[0] or 0
+
+                detail_data["status"]["follower_count"] = follower_count
+                detail_data["status"]["following_count"] = following_count
+                detail_data["status"]["interaction_count"] = interaction_count
+
+                # 查询关注关系（新增）
+                cursor.execute("""
+                    SELECT followee_id
+                    FROM follow
+                    WHERE follower_id = ?
+                """, (agent_id,))
+                detail_data["following"] = [str(row[0]) for row in cursor.fetchall()]
+
+                # 查询粉丝关系（新增）
+                cursor.execute("""
+                    SELECT follower_id
+                    FROM follow
+                    WHERE followee_id = ?
+                """, (agent_id,))
+                detail_data["followers"] = [str(row[0]) for row in cursor.fetchall()]
+
+                # 查询最近行为（最近10条）
+                cursor.execute("""
+                    SELECT created_at, action, info
+                    FROM trace
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                """, (agent_id,))
+
+                for created_at, action, info in cursor.fetchall():
+                    try:
+                        info_dict = json.loads(info) if info else {}
+                        content = info_dict.get("content", "")
+                        reason = info_dict.get("reason", "")
+                    except json.JSONDecodeError:
+                        content = ""
+                        reason = ""
+
+                    detail_data["recent_actions"].append({
+                        "timestamp": created_at,
+                        "action_type": action.upper(),
+                        "content": content,
+                        "reason": reason
+                    })
+
+                # 查询最近帖子（最近5条）
+                cursor.execute("""
+                    SELECT post_id, content, created_at, num_likes, num_dislikes, num_shares
+                    FROM post
+                    WHERE user_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                """, (agent_id,))
+
+                for post_id, content, created_at, num_likes, num_dislikes, num_shares in cursor.fetchall():
+                    detail_data["recent_posts"].append({
+                        "post_id": post_id,
+                        "content": content,
+                        "created_at": created_at,
+                        "num_likes": num_likes or 0,
+                        "num_dislikes": num_dislikes or 0,
+                        "num_shares": num_shares or 0
+                    })
+
+                conn.close()
+
+            except Exception as e:
+                logger.warning(f"Failed to query agent details from database: {e}")
+
+        return detail_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get agent detail: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get agent detail: {str(e)}")
 
 
 # ============================================================================

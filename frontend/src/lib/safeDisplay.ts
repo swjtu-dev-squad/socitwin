@@ -19,9 +19,9 @@
  */
 export function displayMetric(value: number | null | undefined): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+    return '--'
   }
-  return String(value);
+  return String(value)
 }
 
 /**
@@ -37,9 +37,9 @@ export function displayMetric(value: number | null | undefined): string {
  */
 export function displayText(value: string | null | undefined): string {
   if (value === null || value === undefined) {
-    return '--';
+    return '--'
   }
-  return value;
+  return value
 }
 
 /**
@@ -56,9 +56,9 @@ export function displayText(value: string | null | undefined): string {
  */
 export function displayPercentage(value: number | null | undefined): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+    return '--'
   }
-  return `${value}%`;
+  return `${value}%`
 }
 
 /**
@@ -75,9 +75,9 @@ export function displayPercentage(value: number | null | undefined): string {
  */
 export function displayCount(value: number | null | undefined): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+    return '--'
   }
-  return String(value);
+  return String(value)
 }
 
 /**
@@ -97,9 +97,9 @@ export function displayMetricFormatted(
   decimals: number = 1
 ): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+    return '--'
   }
-  return value.toFixed(decimals);
+  return value.toFixed(decimals)
 }
 
 /**
@@ -118,9 +118,9 @@ export function displayPercentageFormatted(
   decimals: number = 1
 ): string {
   if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '--';
+    return '--'
   }
-  return `${value.toFixed(decimals)}%`;
+  return `${value.toFixed(decimals)}%`
 }
 
 /**
@@ -141,9 +141,9 @@ export function displayRatio(
   denominator: number | null | undefined,
   separator: string = ' / '
 ): string {
-  const safeNum = displayCount(numerator);
-  const safeDen = displayCount(denominator);
-  return `${safeNum}${separator}${safeDen}`;
+  const safeNum = displayCount(numerator)
+  const safeDen = displayCount(denominator)
+  return `${safeNum}${separator}${safeDen}`
 }
 
 /**
@@ -164,10 +164,8 @@ export function displayLocation(
   city: string | null | undefined,
   separator: string = ' / '
 ): string {
-  const parts = [country, city].filter(
-    (v) => v !== null && v !== undefined && v !== ''
-  );
-  return parts.length > 0 ? parts.join(separator) : '--';
+  const parts = [country, city].filter(v => v !== null && v !== undefined && v !== '')
+  return parts.length > 0 ? parts.join(separator) : '--'
 }
 
 /**
@@ -175,20 +173,18 @@ export function displayLocation(
  * @param value - The value to check
  * @returns true if the value is considered empty
  */
-export function isEmpty(
-  value: any
-): value is null | undefined | '' | [] {
+export function isEmpty(value: any): value is null | undefined | '' | [] {
   if (value === null || value === undefined) {
-    return true;
+    return true
   }
   if (typeof value === 'string' && value.trim() === '') {
-    return true;
+    return true
   }
   if (Array.isArray(value) && value.length === 0) {
-    return true;
+    return true
   }
   if (typeof value === 'number' && Number.isNaN(value)) {
-    return true;
+    return true
   }
-  return false;
+  return false
 }

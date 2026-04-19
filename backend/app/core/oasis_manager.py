@@ -8,60 +8,57 @@ OASIS 环境管理器
 import asyncio
 import logging
 import os
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
-import uuid
+from typing import Any, Dict, List, Optional, Union
 
 # OASIS 框架导入
 import oasis
+from camel.configs import ChatGPTConfig
+
+# CAMEL 框架导入
+from camel.models import ModelFactory
+from camel.types import ModelPlatformType, ModelType
 from oasis import (
+    ActionType,
     AgentGraph,
     DefaultPlatformType,
     LLMAction,
     ManualAction,
     SocialAgent,
     UserInfo,
-    ActionType,
-    generate_twitter_agent_graph,
     generate_reddit_agent_graph,
+    generate_twitter_agent_graph,
 )
-
-# CAMEL 框架导入
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType, ModelType
-from camel.configs import ChatGPTConfig
 
 # 本地导入
 from app.models.simulation import (
-    SimulationConfig,
-    PlatformType,
-    SimulationState,
-    OASISActionType,
-    AgentConfig,
     ModelConfig,
+    PlatformType,
+    SimulationConfig,
+    SimulationState,
 )
-
 
 logger = logging.getLogger(__name__)
 
 
-class OASISException(Exception):
+class OASError(Exception):
     """OASIS 操作异常基类"""
     pass
 
 
-class OASISInitError(OASISException):
+class OASISInitError(OASError):
     """OASIS 初始化错误"""
     pass
 
 
-class OASISOperationError(OASISException):
+class OASISOperationError(OASError):
     """OASIS 操作错误"""
     pass
 
 
-class OASISStateError(OASISException):
+class OASISStateError(OASError):
     """OASIS 状态错误"""
     pass
 

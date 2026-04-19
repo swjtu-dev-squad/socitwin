@@ -5,18 +5,17 @@
 支持多种格式和筛选选项。
 """
 
+import csv
+import json
 import logging
 import os
 import sqlite3
-import json
-import csv
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from app.models.simulation import ExportConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class OASISDataExporter:
             db_path: OASIS 数据库文件路径
         """
         self.db_path = db_path
-        self.conn = None
+        self.conn: Optional[sqlite3.Connection] = None
 
     def __enter__(self):
         """上下文管理器入口"""
@@ -88,6 +87,7 @@ class OASISDataExporter:
 
     def _get_users_data(self) -> List[Dict[str, Any]]:
         """获取用户数据"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 user_id,
@@ -106,6 +106,7 @@ class OASISDataExporter:
 
     def _get_posts_data(self) -> List[Dict[str, Any]]:
         """获取帖子数据"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 post_id,
@@ -126,6 +127,7 @@ class OASISDataExporter:
 
     def _get_interactions_data(self) -> List[Dict[str, Any]]:
         """获取交互数据"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 user_id,
@@ -151,6 +153,7 @@ class OASISDataExporter:
 
     def _get_comments_data(self) -> List[Dict[str, Any]]:
         """获取评论数据"""
+        assert self.conn is not None
         try:
             cursor = self.conn.execute("""
                 SELECT
@@ -172,6 +175,7 @@ class OASISDataExporter:
 
     def _get_follows_data(self) -> List[Dict[str, Any]]:
         """获取关注关系数据"""
+        assert self.conn is not None
         try:
             cursor = self.conn.execute("""
                 SELECT
@@ -197,6 +201,7 @@ class OASISDataExporter:
 
         # 获取统计信息
         try:
+            assert self.conn is not None
             # 用户统计
             metadata["user_count"] = self.conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
 
@@ -348,6 +353,7 @@ class OASISDataExporter:
 
     def _export_table_to_csv(self, table_name: str, output_path: Path):
         """导出单个表到 CSV"""
+        assert self.conn is not None
         cursor = self.conn.execute(f"SELECT * FROM {table_name}")
         columns = [description[0] for description in cursor.description]
 
@@ -360,6 +366,7 @@ class OASISDataExporter:
 
     def _export_interactions_to_csv(self, output_path: Path):
         """导出交互数据到 CSV（处理 JSON info 字段）"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 user_id,
@@ -426,6 +433,7 @@ class OASISDataExporter:
 
     def _get_user_statistics(self) -> Dict[str, Any]:
         """获取用户统计"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 COUNT(*) as total_users,
@@ -439,6 +447,7 @@ class OASISDataExporter:
 
     def _get_post_statistics(self) -> Dict[str, Any]:
         """获取帖子统计"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 COUNT(*) as total_posts,
@@ -452,6 +461,7 @@ class OASISDataExporter:
 
     def _get_interaction_statistics(self) -> Dict[str, Any]:
         """获取交互统计"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 action,
@@ -466,6 +476,7 @@ class OASISDataExporter:
     def _get_network_statistics(self) -> Dict[str, Any]:
         """获取网络统计"""
         try:
+            assert self.conn is not None
             cursor = self.conn.execute("SELECT COUNT(*) FROM follow")
             follow_count = cursor.fetchone()[0]
 
@@ -478,6 +489,7 @@ class OASISDataExporter:
 
     def _get_temporal_statistics(self) -> Dict[str, Any]:
         """获取时间统计"""
+        assert self.conn is not None
         cursor = self.conn.execute("""
             SELECT
                 strftime('%Y-%m-%d', created_at) as date,
@@ -491,6 +503,7 @@ class OASISDataExporter:
 
     def _get_user_count(self) -> int:
         """获取用户数量"""
+        assert self.conn is not None
         cursor = self.conn.execute("SELECT COUNT(*) FROM user")
         return cursor.fetchone()[0]
 
@@ -502,7 +515,7 @@ class OASISDataExporter:
 def export_oasis_data(
     db_path: str,
     export_format: str = "json",
-    output_path: str = None,
+    output_path: Optional[str] = None,
     include_agents: bool = True,
     include_posts: bool = True,
     include_interactions: bool = True,

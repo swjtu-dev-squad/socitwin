@@ -1,36 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Database, Cpu, Save, RefreshCw, Trash2, AlertTriangle, Plus, Edit2, X, Key, Brain, Dice1 as Dice, GitBranch, Calendar, BarChart3, AlertCircle, Zap } from 'lucide-react';
-import { Card, Button, Input, Badge, Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui';
+import { Card, Button, Input, Badge } from '@/components/ui';
 import { toast } from 'sonner';
 import { getBehaviorControllerStatus, getBehaviorStatistics, applyPresetConfig, getAvailableStrategies } from '@/lib/behaviorApi';
 import type { BehaviorControllerStatus } from '@/lib/behaviorTypes';
 
 interface ModelConfig {
-  id: string;
-  name: string;
-  apiEndpoint: string;
-  apiKey: string;
-  isDefault: boolean;
+  id: string
+  name: string
+  apiEndpoint: string
+  apiKey: string
+  isDefault: boolean
 }
 
 const defaultModelConfigs: ModelConfig[] = [
-  { id: '1', name: 'GPT-4o-mini (推荐)', apiEndpoint: 'https://api.openai.com/v1', apiKey: '', isDefault: true },
-  { id: '2', name: 'GPT-4o (高性能)', apiEndpoint: 'https://api.openai.com/v1', apiKey: '', isDefault: false },
-  { id: '3', name: 'Claude 3.5 Sonnet', apiEndpoint: 'https://api.anthropic.com/v1', apiKey: '', isDefault: false },
-  { id: '4', name: 'DeepSeek-V3', apiEndpoint: 'https://api.deepseek.com/v1', apiKey: '', isDefault: false },
-];
+  {
+    id: '1',
+    name: 'GPT-4o-mini (推荐)',
+    apiEndpoint: 'https://api.openai.com/v1',
+    apiKey: '',
+    isDefault: true,
+  },
+  {
+    id: '2',
+    name: 'GPT-4o (高性能)',
+    apiEndpoint: 'https://api.openai.com/v1',
+    apiKey: '',
+    isDefault: false,
+  },
+  {
+    id: '3',
+    name: 'Claude 3.5 Sonnet',
+    apiEndpoint: 'https://api.anthropic.com/v1',
+    apiKey: '',
+    isDefault: false,
+  },
+  {
+    id: '4',
+    name: 'DeepSeek-V3',
+    apiEndpoint: 'https://api.deepseek.com/v1',
+    apiKey: '',
+    isDefault: false,
+  },
+]
 
 export default function Settings() {
-  const [isSaving, setIsSaving] = useState(false);
-  const [modelConfigs, setModelConfigs] = useState<ModelConfig[]>([]);
-  const [editingConfig, setEditingConfig] = useState<ModelConfig | null>(null);
-  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isSaving, setIsSaving] = useState(false)
+  const [modelConfigs, setModelConfigs] = useState<ModelConfig[]>([])
+  const [editingConfig, setEditingConfig] = useState<ModelConfig | null>(null)
+  const [isAddingNew, setIsAddingNew] = useState(false)
   const [newConfig, setNewConfig] = useState<Omit<ModelConfig, 'id'>>({
     name: '',
     apiEndpoint: '',
     apiKey: '',
     isDefault: false,
-  });
+  })
 
   // 行为控制相关状态
   const [behaviorStatus, setBehaviorStatus] = useState<BehaviorControllerStatus | null>(null);
@@ -39,23 +63,24 @@ export default function Settings() {
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const [selectedPreset, setSelectedPreset] = useState('default');
   const [presetPlatform, setPresetPlatform] = useState<'twitter' | 'reddit'>('twitter');
+  const [activeBehaviorTab, setActiveBehaviorTab] = useState<'overview' | 'strategies' | 'engines'>('overview');
 
   // 从 localStorage 加载配置
   useEffect(() => {
-    const savedConfigs = localStorage.getItem('socitwin_model_configs');
+    const savedConfigs = localStorage.getItem('socitwin_model_configs')
     if (savedConfigs) {
       try {
-        setModelConfigs(JSON.parse(savedConfigs));
+        setModelConfigs(JSON.parse(savedConfigs))
       } catch (e) {
-        console.error('Failed to load model configs:', e);
+        console.error('Failed to load model configs:', e)
         // 使用默认配置
-        setModelConfigs(defaultModelConfigs);
+        setModelConfigs(defaultModelConfigs)
       }
     } else {
       // 如果没有保存的配置，使用默认配置
-      setModelConfigs(defaultModelConfigs);
+      setModelConfigs(defaultModelConfigs)
     }
-  }, []);
+  }, [])
 
   // 加载行为控制数据
   useEffect(() => {
@@ -85,40 +110,40 @@ export default function Settings() {
 
   // 保存配置到 localStorage
   const saveConfigsToStorage = (configs: ModelConfig[]) => {
-    localStorage.setItem('socitwin_model_configs', JSON.stringify(configs));
-  };
+    localStorage.setItem('socitwin_model_configs', JSON.stringify(configs))
+  }
 
   const handleSave = () => {
-    setIsSaving(true);
+    setIsSaving(true)
     // 保存到 localStorage
-    saveConfigsToStorage(modelConfigs);
+    saveConfigsToStorage(modelConfigs)
     setTimeout(() => {
-      setIsSaving(false);
-      toast.success('模型配置已保存');
-    }, 1000);
-  };
+      setIsSaving(false)
+      toast.success('模型配置已保存')
+    }, 1000)
+  }
 
   const handleAddConfig = () => {
     if (!newConfig.name.trim() || !newConfig.apiEndpoint.trim()) {
-      toast.error('请填写模型名称和API端点');
-      return;
+      toast.error('请填写模型名称和API端点')
+      return
     }
 
-    const newId = Date.now().toString();
+    const newId = Date.now().toString()
     const configToAdd: ModelConfig = {
       id: newId,
       ...newConfig,
-    };
+    }
 
     // 如果设置为默认，先取消其他默认设置
     if (newConfig.isDefault) {
       const updatedConfigs = modelConfigs.map((config: ModelConfig) => ({
         ...config,
         isDefault: false,
-      }));
-      setModelConfigs([...updatedConfigs, configToAdd]);
+      }))
+      setModelConfigs([...updatedConfigs, configToAdd])
     } else {
-      setModelConfigs([...modelConfigs, configToAdd]);
+      setModelConfigs([...modelConfigs, configToAdd])
     }
 
     // 重置表单
@@ -127,56 +152,59 @@ export default function Settings() {
       apiEndpoint: '',
       apiKey: '',
       isDefault: false,
-    });
-    setIsAddingNew(false);
-    toast.success('模型配置已添加');
-  };
+    })
+    setIsAddingNew(false)
+    toast.success('模型配置已添加')
+  }
 
   const handleEditConfig = (config: ModelConfig) => {
-    setEditingConfig(config);
-  };
+    setEditingConfig(config)
+  }
 
   const handleUpdateConfig = () => {
-    if (!editingConfig) return;
+    if (!editingConfig) return
 
     if (!editingConfig.name.trim() || !editingConfig.apiEndpoint.trim()) {
-      toast.error('请填写模型名称和API端点');
-      return;
+      toast.error('请填写模型名称和API端点')
+      return
     }
 
     const updatedConfigs = modelConfigs.map((config: ModelConfig) =>
-      config.id === editingConfig.id ? editingConfig :
-      editingConfig.isDefault ? { ...config, isDefault: false } : config
-    );
-    setModelConfigs(updatedConfigs);
-    setEditingConfig(null);
-    toast.success('模型配置已更新');
-  };
+      config.id === editingConfig.id
+        ? editingConfig
+        : editingConfig.isDefault
+          ? { ...config, isDefault: false }
+          : config
+    )
+    setModelConfigs(updatedConfigs)
+    setEditingConfig(null)
+    toast.success('模型配置已更新')
+  }
 
   const handleDeleteConfig = (id: string) => {
-    const configToDelete = modelConfigs.find((c: ModelConfig) => c.id === id);
+    const configToDelete = modelConfigs.find((c: ModelConfig) => c.id === id)
     if (configToDelete?.isDefault) {
-      toast.error('不能删除默认模型配置');
-      return;
+      toast.error('不能删除默认模型配置')
+      return
     }
 
-    const updatedConfigs = modelConfigs.filter((config: ModelConfig) => config.id !== id);
-    setModelConfigs(updatedConfigs);
-    toast.success('模型配置已删除');
-  };
+    const updatedConfigs = modelConfigs.filter((config: ModelConfig) => config.id !== id)
+    setModelConfigs(updatedConfigs)
+    toast.success('模型配置已删除')
+  }
 
   const handleSetDefault = (id: string) => {
     const updatedConfigs = modelConfigs.map((config: ModelConfig) => ({
       ...config,
       isDefault: config.id === id,
-    }));
-    setModelConfigs(updatedConfigs);
-    toast.success('默认模型已更新');
-  };
+    }))
+    setModelConfigs(updatedConfigs)
+    toast.success('默认模型已更新')
+  }
 
   const getDefaultModel = () => {
-    return modelConfigs.find((config: ModelConfig) => config.isDefault) || modelConfigs[0];
-  };
+    return modelConfigs.find((config: ModelConfig) => config.isDefault) || modelConfigs[0]
+  }
 
   // 行为控制相关处理函数
   const handleApplyPreset = async () => {
@@ -260,11 +288,7 @@ export default function Settings() {
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-bold text-text-primary">模型配置列表</h3>
-              <Button
-                onClick={() => setIsAddingNew(true)}
-                variant="outline"
-                className="gap-2"
-              >
+              <Button onClick={() => setIsAddingNew(true)} variant="outline" className="gap-2">
                 <Plus className="w-4 h-4" />
                 添加新模型
               </Button>
@@ -278,7 +302,7 @@ export default function Settings() {
               </div>
             ) : (
               <div className="space-y-4">
-                {modelConfigs.map((config) => (
+                {modelConfigs.map(config => (
                   <div
                     key={config.id}
                     className={`p-6 border rounded-2xl transition-all ${config.isDefault ? 'border-accent bg-accent/5' : 'border-border-default bg-bg-primary'}`}
@@ -288,7 +312,9 @@ export default function Settings() {
                         <div className="flex items-center gap-3">
                           <h4 className="text-base font-bold text-text-primary">{config.name}</h4>
                           {config.isDefault && (
-                            <Badge className="bg-accent/10 text-accent border-accent/20">默认</Badge>
+                            <Badge className="bg-accent/10 text-accent border-accent/20">
+                              默认
+                            </Badge>
                           )}
                         </div>
                         <div className="space-y-1">
@@ -359,7 +385,9 @@ export default function Settings() {
                   </label>
                   <Input
                     value={newConfig.name}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewConfig({...newConfig, name: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setNewConfig({ ...newConfig, name: e.target.value })
+                    }
                     placeholder="例如: GPT-4o"
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
@@ -370,7 +398,9 @@ export default function Settings() {
                   </label>
                   <Input
                     value={newConfig.apiEndpoint}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewConfig({...newConfig, apiEndpoint: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setNewConfig({ ...newConfig, apiEndpoint: e.target.value })
+                    }
                     placeholder="例如: https://api.openai.com/v1"
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
@@ -382,7 +412,9 @@ export default function Settings() {
                   <Input
                     type="password"
                     value={newConfig.apiKey}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewConfig({...newConfig, apiKey: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setNewConfig({ ...newConfig, apiKey: e.target.value })
+                    }
                     placeholder="输入API密钥（可选）"
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
@@ -392,7 +424,9 @@ export default function Settings() {
                     type="checkbox"
                     id="isDefault"
                     checked={newConfig.isDefault}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewConfig({...newConfig, isDefault: e.target.checked})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setNewConfig({ ...newConfig, isDefault: e.target.checked })
+                    }
                     className="w-4 h-4 accent-accent"
                   />
                   <label htmlFor="isDefault" className="text-sm text-text-secondary">
@@ -433,7 +467,9 @@ export default function Settings() {
                   </label>
                   <Input
                     value={editingConfig.name}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingConfig({...editingConfig, name: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditingConfig({ ...editingConfig, name: e.target.value })
+                    }
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
                 </div>
@@ -443,7 +479,9 @@ export default function Settings() {
                   </label>
                   <Input
                     value={editingConfig.apiEndpoint}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingConfig({...editingConfig, apiEndpoint: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditingConfig({ ...editingConfig, apiEndpoint: e.target.value })
+                    }
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
                 </div>
@@ -454,7 +492,9 @@ export default function Settings() {
                   <Input
                     type="password"
                     value={editingConfig.apiKey}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingConfig({...editingConfig, apiKey: e.target.value})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditingConfig({ ...editingConfig, apiKey: e.target.value })
+                    }
                     placeholder="输入API密钥（可选）"
                     className="bg-bg-primary border-border-default rounded-xl"
                   />
@@ -464,7 +504,9 @@ export default function Settings() {
                     type="checkbox"
                     id="editIsDefault"
                     checked={editingConfig.isDefault}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditingConfig({...editingConfig, isDefault: e.target.checked})}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setEditingConfig({ ...editingConfig, isDefault: e.target.checked })
+                    }
                     className="w-4 h-4 accent-accent"
                   />
                   <label htmlFor="editIsDefault" className="text-sm text-text-secondary">
@@ -495,21 +537,19 @@ export default function Settings() {
                   className="w-full h-11 bg-bg-primary border border-border-default rounded-xl px-4 text-sm"
                   value={getDefaultModel()?.id || ''}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    const selectedId = e.target.value;
+                    const selectedId = e.target.value
                     if (selectedId) {
-                      handleSetDefault(selectedId);
+                      handleSetDefault(selectedId)
                     }
                   }}
                 >
-                  {modelConfigs.map((config) => (
+                  {modelConfigs.map(config => (
                     <option key={config.id} value={config.id}>
                       {config.name} {config.isDefault ? '(默认)' : ''}
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-text-tertiary mt-2">
-                  选择默认模型用于所有推理任务
-                </p>
+                <p className="text-xs text-text-tertiary mt-2">选择默认模型用于所有推理任务</p>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-text-tertiary">
@@ -518,9 +558,7 @@ export default function Settings() {
                 <div className="p-3 bg-bg-primary border border-border-default rounded-xl text-sm text-text-secondary font-mono">
                   {getDefaultModel()?.apiEndpoint || '未设置'}
                 </div>
-                <p className="text-xs text-text-tertiary mt-2">
-                  当前默认模型的API端点地址
-                </p>
+                <p className="text-xs text-text-tertiary mt-2">当前默认模型的API端点地址</p>
               </div>
             </div>
           </div>
@@ -548,6 +586,38 @@ export default function Settings() {
               <Badge variant={behaviorStatus?.available ? "default" : "destructive"} className="text-xs">
                 {behaviorStatus?.available ? "控制器在线" : "控制器离线"}
               </Badge>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              variant="outline"
+              className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default"
+            >
+              <Database className="w-5 h-5 text-text-tertiary" />
+              <div className="text-left">
+                <p className="text-sm font-bold">备份 simulation.db</p>
+                <p className="text-[10px] text-text-tertiary">下载当前所有模拟状态</p>
+              </div>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default"
+            >
+              <RefreshCw className="w-5 h-5 text-text-tertiary" />
+              <div className="text-left">
+                <p className="text-sm font-bold">重建索引</p>
+                <p className="text-[10px] text-text-tertiary">优化 SQLite 查询性能</p>
+              </div>
+            </Button>
+          </div>
+
+          <div className="p-6 bg-rose-500/5 border border-rose-500/20 rounded-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-500">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="text-sm font-bold uppercase tracking-widest">危险区域</h4>
+            </div>
+          </div>
             </div>
           </div>
 
@@ -695,14 +765,32 @@ export default function Settings() {
                 </div>
 
                 <div className="p-6 border border-border-default bg-bg-primary rounded-2xl">
-                  <Tabs defaultValue="overview">
-                    <TabsList className="grid w-full grid-cols-3 mb-4">
-                      <TabsTrigger value="overview">概览</TabsTrigger>
-                      <TabsTrigger value="strategies">策略统计</TabsTrigger>
-                      <TabsTrigger value="engines">引擎状态</TabsTrigger>
-                    </TabsList>
+                  <div className="grid w-full grid-cols-3 mb-4 gap-2">
+                    <Button
+                      variant={activeBehaviorTab === 'overview' ? "default" : "outline"}
+                      onClick={() => setActiveBehaviorTab('overview')}
+                      className="w-full"
+                    >
+                      概览
+                    </Button>
+                    <Button
+                      variant={activeBehaviorTab === 'strategies' ? "default" : "outline"}
+                      onClick={() => setActiveBehaviorTab('strategies')}
+                      className="w-full"
+                    >
+                      策略统计
+                    </Button>
+                    <Button
+                      variant={activeBehaviorTab === 'engines' ? "default" : "outline"}
+                      onClick={() => setActiveBehaviorTab('engines')}
+                      className="w-full"
+                    >
+                      引擎状态
+                    </Button>
+                  </div>
 
-                    <TabsContent value="overview" className="space-y-4">
+                  {activeBehaviorTab === 'overview' && (
+                    <div className="space-y-4">
                       {behaviorStats ? (
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -731,9 +819,11 @@ export default function Settings() {
                           统计信息加载中...
                         </div>
                       )}
-                    </TabsContent>
+                    </div>
+                  )}
 
-                    <TabsContent value="strategies" className="space-y-4">
+                  {activeBehaviorTab === 'strategies' && (
+                    <div className="space-y-4">
                       {behaviorStats && behaviorStats.strategy_statistics ? (
                         Object.entries(behaviorStats.strategy_statistics).map(([strategy, stats]: [string, any]) => (
                           <div key={strategy} className="flex items-center justify-between p-3 border border-border-default rounded-xl">
@@ -752,9 +842,11 @@ export default function Settings() {
                           策略统计数据加载中...
                         </div>
                       )}
-                    </TabsContent>
+                    </div>
+                  )}
 
-                    <TabsContent value="engines" className="space-y-4">
+                  {activeBehaviorTab === 'engines' && (
+                    <div className="space-y-4">
                       {behaviorStatus ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="p-4 border border-border-default rounded-xl space-y-2">
@@ -801,8 +893,8 @@ export default function Settings() {
                           引擎状态数据加载中...
                         </div>
                       )}
-                    </TabsContent>
-                  </Tabs>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -824,5 +916,5 @@ export default function Settings() {
         </Card>
       </div>
     </div>
-  );
+  )
 }

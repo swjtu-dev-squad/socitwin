@@ -1,0 +1,42 @@
+name: Frontend Check
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  frontend-style-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # Prettier (硬性失败 - 阻断 CI)
+      - name: Run Prettier check
+        run: pnpm run format:check
+        # ❌ 失败会阻断 CI - 格式问题现在会阻止 PR 合并
+
+      # Build (硬性失败 - 阻断 CI)
+      - name: Build frontend
+        run: pnpm run build
+        # ❌ Build 失败会阻断 CI

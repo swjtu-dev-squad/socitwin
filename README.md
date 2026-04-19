@@ -162,6 +162,104 @@ curl -X POST http://localhost:8000/api/sim/step \
 
 ---
 
+## 🎨 Code Formatting & Linting
+
+本项目使用自动化代码风格检查来确保代码质量。在提交 PR 之前，请确保你的代码通过所有的格式化和 linting 检查。
+
+### Backend Code Style
+
+**工具:**
+- **Pyright** - TypeScript 风格的类型检查
+- **Ruff** - 快速的 Python linter 和 formatter
+
+**手动格式化:**
+```bash
+cd backend
+
+# 激活虚拟环境
+source .venv/bin/activate  # Linux/Mac
+# 或
+.venv\Scripts\activate     # Windows
+
+# 检查代码风格问题
+ruff check . --ignore=E501
+
+# 自动修复可修复的问题
+ruff check . --ignore=E501 --fix
+
+# 运行类型检查
+pyright app/
+```
+
+**Ruff 规则:**
+- 导入排序和格式化
+- 未使用的导入和变量检测
+- 代码复杂度检查
+- 类型安全检查
+
+### Frontend Code Style
+
+**工具:**
+- **Prettier** - 代码格式化工具
+- **TypeScript** - 类型检查
+
+**手动格式化:**
+```bash
+cd frontend
+
+# 检查代码格式
+pnpm run format:check
+
+# 自动格式化代码
+pnpm run format
+
+# 运行类型检查
+pnpm run build
+```
+
+**Prettier 规则:**
+- 一致的缩进和空格
+- 单引号 vs 双引号
+- 尾随逗号处理
+- 代码行长度限制
+
+### Pre-Commit Workflow
+
+推荐的提交前工作流程：
+
+```bash
+# 1. 格式化后端代码
+cd backend
+source .venv/bin/activate
+ruff check . --ignore=E501 --fix
+pyright app/
+
+# 2. 格式化前端代码
+cd ../frontend
+pnpm run format
+pnpm run build
+
+# 3. 提交代码
+git add .
+git commit -m "你的提交信息"
+```
+
+### CI/CD 检查
+
+GitHub Actions 会自动运行以下检查：
+
+**后端:**
+- ✅ Pyright 类型检查（硬性失败）
+- ✅ Ruff 代码风格检查（硬性失败）
+
+**前端:**
+- ✅ Prettier 格式检查（硬性失败）
+- ✅ TypeScript + Vite 构建（硬性失败）
+
+**注意:** 所有检查都必须通过才能合并 PR。Reviewdog 会在 PR 中添加评论，指出具体的代码问题。
+
+---
+
 
 ## 🧪 Testing
 

@@ -15,14 +15,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List
 
-import requests
 import matplotlib
+import requests
+
 matplotlib.use('Agg')  # Non-interactive backend for server environments
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-
 
 # ============================================================================
 # Configuration
@@ -215,7 +214,7 @@ class SimulationTestRunner:
             if not config_result.get("success"):
                 raise Exception(f"Failed to configure simulation: {config_result.get('message')}")
 
-            self._print(f"✓ Simulation configured successfully", Colors.OKGREEN)
+            self._print("✓ Simulation configured successfully", Colors.OKGREEN)
             self._print(f"  - Simulation ID: {config_result.get('simulation_id')}", Colors.OKCYAN)
             self._print(f"  - Agents created: {config_result.get('agents_created')}", Colors.OKCYAN)
             self._print(f"  - Platform: {platform}", Colors.OKCYAN)
@@ -232,7 +231,7 @@ class SimulationTestRunner:
             if not topic_result.get("success"):
                 raise Exception(f"Failed to activate topic: {topic_result.get('message')}")
 
-            self._print(f"✓ Topic activated successfully", Colors.OKGREEN)
+            self._print("✓ Topic activated successfully", Colors.OKGREEN)
             self._print(f"  - Topic: {topic_result.get('topic_id')}", Colors.OKCYAN)
             self._print(f"  - Initial post created: {topic_result.get('initial_post_created')}", Colors.OKCYAN)
             self._print(f"  - Agents refreshed: {topic_result.get('agents_refreshed')}", Colors.OKCYAN)
@@ -254,7 +253,7 @@ class SimulationTestRunner:
 
             final_status = self.client.get_simulation_status()
 
-            self._print(f"✓ Simulation completed", Colors.OKGREEN)
+            self._print("✓ Simulation completed", Colors.OKGREEN)
             self._print(f"  - Final state: {final_status.get('state')}", Colors.OKCYAN)
             self._print(f"  - Total posts: {final_status.get('total_posts')}", Colors.OKCYAN)
             self._print(f"  - Total interactions: {final_status.get('total_interactions')}", Colors.OKCYAN)
@@ -275,21 +274,21 @@ class SimulationTestRunner:
                 # Print final metrics
                 if final_metrics.get("propagation"):
                     prop = final_metrics["propagation"]
-                    self._print(f"✓ Propagation Metrics:", Colors.OKGREEN)
+                    self._print("✓ Propagation Metrics:", Colors.OKGREEN)
                     self._print(f"  - Scale (users): {prop.get('scale', 0)}", Colors.OKCYAN)
                     self._print(f"  - Depth (levels): {prop.get('depth', 0)}", Colors.OKCYAN)
                     self._print(f"  - Max breadth: {prop.get('max_breadth', 0)}", Colors.OKCYAN)
 
                 if final_metrics.get("herd_effect"):
                     herd = final_metrics["herd_effect"]
-                    self._print(f"✓ Herd Effect Metrics:", Colors.OKGREEN)
+                    self._print("✓ Herd Effect Metrics:", Colors.OKGREEN)
                     self._print(f"  - Conformity index: {herd.get('conformity_index', 0):.3f}", Colors.OKCYAN)
                     self._print(f"  - Average post score: {herd.get('average_post_score', 0):.3f}", Colors.OKCYAN)
                     self._print(f"  - Disagree score: {herd.get('disagree_score', 0):.3f}", Colors.OKCYAN)
 
                 if final_metrics.get("polarization"):
                     pol = final_metrics["polarization"]
-                    self._print(f"✓ Polarization Metrics:", Colors.OKGREEN)
+                    self._print("✓ Polarization Metrics:", Colors.OKGREEN)
                     self._print(f"  - Average magnitude: {pol.get('average_magnitude', 0):.3f}", Colors.OKCYAN)
                     self._print(f"  - Average direction: {pol.get('average_direction', 'N/A')}", Colors.OKCYAN)
                     self._print(f"  - Agents evaluated: {pol.get('total_agents_evaluated', 0)}", Colors.OKCYAN)
@@ -597,7 +596,7 @@ class ResultExporter:
             json.dump(results, f, indent=2, ensure_ascii=False)
 
         # Generate metrics charts
-        chart_files = self._generate_metrics_charts(results, test_output_dir, timestamp)
+        self._generate_metrics_charts(results, test_output_dir, timestamp)
 
         # Return the directory path instead of file path
         return str(test_output_dir)
@@ -1035,7 +1034,7 @@ def main():
 
         # Print summary
         summary = results["summary"]
-        print(f"\nTest Summary:")
+        print("\nTest Summary:")
         print(f"  Steps executed: {summary['total_steps_executed']}")
         print(f"  Successful: {summary['successful_steps']}")
         print(f"  Failed: {summary['failed_steps']}")
@@ -1047,25 +1046,25 @@ def main():
         # Print OASIS metrics summary
         if summary.get("final_oasis_metrics"):
             metrics = summary["final_oasis_metrics"]
-            print(f"\nFinal OASIS Metrics:")
+            print("\nFinal OASIS Metrics:")
 
             if metrics.get("propagation"):
                 prop = metrics["propagation"]
-                print(f"  Information Propagation:")
+                print("  Information Propagation:")
                 print(f"    - Scale: {prop.get('scale', 0)} users")
                 print(f"    - Depth: {prop.get('depth', 0)} levels")
                 print(f"    - Max breadth: {prop.get('max_breadth', 0)} users")
 
             if metrics.get("herd_effect"):
                 herd = metrics["herd_effect"]
-                print(f"  Herd Effect:")
+                print("  Herd Effect:")
                 print(f"    - Conformity index: {herd.get('conformity_index', 0):.3f}")
                 print(f"    - Average post score: {herd.get('average_post_score', 0):.3f}")
                 print(f"    - Disagree score: {herd.get('disagree_score', 0):.3f}")
 
             if metrics.get("polarization"):
                 pol = metrics["polarization"]
-                print(f"  Group Polarization:")
+                print("  Group Polarization:")
                 print(f"    - Average magnitude: {pol.get('average_magnitude', 0):.3f}")
                 print(f"    - Average direction: {pol.get('average_direction', 'N/A')}")
                 print(f"    - Agents evaluated: {pol.get('total_agents_evaluated', 0)}")
@@ -1073,7 +1072,7 @@ def main():
         # Print metrics validation results
         if summary.get("metrics_validation"):
             validation = summary["metrics_validation"]
-            print(f"\nMetrics Validation:")
+            print("\nMetrics Validation:")
 
             for metric_name, results in validation.items():
                 if results.get("checks"):

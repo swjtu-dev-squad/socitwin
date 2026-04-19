@@ -1,9 +1,9 @@
-import React from 'react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
-import type { InferenceTask } from '@/lib/labTypes';
+import React from 'react'
+import { LineChart, Line, ResponsiveContainer } from 'recharts'
+import type { InferenceTask } from '@/lib/labTypes'
 
 interface InferenceMonitorCardProps {
-  task: InferenceTask;
+  task: InferenceTask
 }
 
 export const InferenceMonitorCard: React.FC<InferenceMonitorCardProps> = ({ task }) => {
@@ -24,8 +24,24 @@ export const InferenceMonitorCard: React.FC<InferenceMonitorCardProps> = ({ task
       <div className="h-24 w-full bg-bg-primary/50 rounded-lg p-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={task.stepsTrace}>
-            <Line type="monotone" dataKey="simValue" stroke="#10b981" strokeWidth={2} dot={false} name="模拟" isAnimationActive={false} />
-            <Line type="monotone" dataKey="baseValue" stroke="#71717a" strokeDasharray="3 3" dot={false} name="基准" isAnimationActive={false} />
+            <Line
+              type="monotone"
+              dataKey="simValue"
+              stroke="#10b981"
+              strokeWidth={2}
+              dot={false}
+              name="模拟"
+              isAnimationActive={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="baseValue"
+              stroke="#71717a"
+              strokeDasharray="3 3"
+              dot={false}
+              name="基准"
+              isAnimationActive={false}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -33,14 +49,18 @@ export const InferenceMonitorCard: React.FC<InferenceMonitorCardProps> = ({ task
       <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border-default">
         <div>
           <p className="text-[9px] text-text-muted font-bold uppercase">极化率 (模拟/基准)</p>
-          <p className="font-mono text-sm text-text-secondary">{task.metrics.currentPolarization} / {task.metrics.baselinePolarization}</p>
+          <p className="font-mono text-sm text-text-secondary">
+            {task.metrics.currentPolarization} / {task.metrics.baselinePolarization}
+          </p>
         </div>
         <div className="text-right">
           <p className="text-[9px] text-text-muted font-bold uppercase">预测偏差 (Bias)</p>
-          <p className="font-mono text-sm text-rose-400">{task.metrics.biasValue > 0 ? '+' : ''}{task.metrics.biasValue}%</p>
+          <p className="font-mono text-sm text-rose-400">
+            {task.metrics.biasValue > 0 ? '+' : ''}
+            {task.metrics.biasValue}%
+          </p>
         </div>
       </div>
     </div>
-  );
+  )
 }
-
