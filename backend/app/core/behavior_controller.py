@@ -241,13 +241,20 @@ class BehaviorController:
             logger.error(f"Failed to get behavior for agent {agent_id}: {e}")
             return None
 
-    def get_strategy_stats(self) -> Dict[BehaviorStrategy, Dict[str, Any]]:
+    def get_strategy_stats(self, use_configuration: bool = False) -> Dict[BehaviorStrategy, Dict[str, Any]]:
         """
         Get statistics about strategy usage
+
+        Args:
+            use_configuration: If True, return statistics based on agent configurations
+                              If False, return statistics based on execution counts
 
         Returns:
             Dictionary with strategy statistics
         """
+        if use_configuration:
+            return self._get_config_based_strategy_stats()
+
         total = sum(self.strategy_counts.values())
 
         # If no strategy execution counts yet, fall back to configuration-based statistics

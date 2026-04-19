@@ -467,7 +467,7 @@ async def get_behavior_statistics(
         Dict: 行为控制统计信息
     """
     try:
-        stats = controller.get_strategy_stats()
+        stats = controller.get_strategy_stats(use_configuration=True)
 
         # 添加控制器状态信息
         return {
@@ -675,8 +675,8 @@ async def get_behavior_controller_status(
             ),
         }
 
-        # 获取策略统计
-        strategy_stats = controller.get_strategy_stats()
+        # 获取策略统计（基于配置）
+        strategy_stats = controller.get_strategy_stats(use_configuration=True)
 
         return {
             "available": True,
