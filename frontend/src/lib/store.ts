@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { SimulationStatus, LogEntry, GroupMessage, StatsHistoryEntry } from './types';
+import { normalizeSimulationStatus } from './simulationStatus';
 
 // 清理旧的 LocalStorage 日志数据（一次性清理）
 const OLD_LOGS_STORAGE_KEY = 'socitwin_simulation_logs';
@@ -51,9 +52,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   isStepping: false,
 
   setStatus: (status) => set((state) => {
-    const newEntry = { ...status, timestamp: Date.now() };
+    const normalized = normalizeSimulationStatus(status);
+    const newEntry = { ...normalized, timestamp: Date.now() };
     return {
-      status,
+      status: normalized,
       history: [...state.history, newEntry].slice(-100)
     };
   }),

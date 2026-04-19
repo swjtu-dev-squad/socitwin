@@ -24,6 +24,8 @@
   - 记录迁移范围、阶段顺序、文件级工作流和测试/文档策略。
 - `social-monitor-migration-plan.md`
   - 记录旧仓库社交网络监控页功能迁入新仓库的页面展示目标、后端接口合同、memory debug 对接方式和实施阶段。
+- `e2e-reddit-action-v1-20260418.md`
+  - 记录 `action_v1` 在 Reddit 平台下 20 agents x 30 steps 的真实 E2E 测试结果、动作分布、记忆运行状态、评论行为和后续风险。
 
 ## Editing Rule
 
@@ -36,3 +38,4 @@
 - 新增的可执行阶段步骤，优先补到 `migration-phase-checklists.md`。
 - 实施阶段与文件级任务，优先补到 `migration-workstreams.md`。
 - 前端社交网络监控页迁移和 monitor/detail 接口设计，优先补到 `social-monitor-migration-plan.md`。
+- 真实 E2E 测试记录可单独成文，但需要在本 README 中登记索引。

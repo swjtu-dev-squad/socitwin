@@ -116,6 +116,17 @@ class SimulationAPIClient:
         """Execute a simulation step"""
         return self._request("POST", "/api/sim/step", json={"step_type": step_type})
 
+    def get_step_result(self, task_id: str) -> Dict[str, Any]:
+        """Get background step result"""
+        try:
+            return self._request("GET", f"/api/sim/step/{task_id}")
+        except Exception as exc:
+            # The task endpoint can briefly return 404 before the background
+            # coroutine stores its result. Treat that race as pending.
+            if "404 Client Error" in str(exc):
+                return {"completed": False}
+            raise
+
     def pause_simulation(self) -> Dict[str, Any]:
         """Pause the simulation"""
         return self._request("POST", "/api/sim/pause")
@@ -344,8 +355,10 @@ class SimulationTestRunner:
         # Get status before step
         status_before = self.client.get_simulation_status()
 
-        # Execute step
+        # Execute step. Large agent counts are executed asynchronously by the
+        # backend, so wait for the task before treating this step as complete.
         step_result = self.client.execute_step("auto")
+        step_result = self._wait_for_step_completion(step_result)
 
         execution_time = time.time() - start_time
 
@@ -435,6 +448,47 @@ class SimulationTestRunner:
             self._print_step(step_num, total_steps, f"Step failed: {step_result.get('message')}")
 
         return step_info
+
+    def _wait_for_step_completion(self, step_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Wait for a background step task and return the real StepResult."""
+        task_id = step_result.get("task_id")
+        if not task_id:
+            return step_result
+
+        poll_interval = 2.0
+        deadline = time.time() + self.client.timeout
+        self._print(f"  └─ Background step started: {task_id}", Colors.OKCYAN)
+
+        while time.time() < deadline:
+            task_payload = self.client.get_step_result(task_id)
+            if task_payload.get("completed"):
+                if task_payload.get("error"):
+                    return {
+                        "success": False,
+                        "message": task_payload.get("error", "Background step failed"),
+                        "task_id": task_id,
+                        "step_executed": 0,
+                        "actions_taken": 0,
+                    }
+                result = task_payload.get("result") or {}
+                if isinstance(result, dict):
+                    return result
+                return {
+                    "success": False,
+                    "message": f"Unexpected background result: {result!r}",
+                    "task_id": task_id,
+                    "step_executed": 0,
+                    "actions_taken": 0,
+                }
+            time.sleep(poll_interval)
+
+        return {
+            "success": False,
+            "message": f"Timed out waiting for background step: {task_id}",
+            "task_id": task_id,
+            "step_executed": 0,
+            "actions_taken": 0,
+        }
 
     def _collect_oasis_metrics(self) -> Dict[str, Any]:
         """Collect all three OASIS metrics after a step"""
