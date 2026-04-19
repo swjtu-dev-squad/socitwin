@@ -232,6 +232,6 @@ recall 只应作为 side-context 进入 prompt。
 - 当前实现与入口：
   - [current-architecture.md](./current-architecture.md)
 - 文档迁移计划：
-  - [migration-documentation-plan.md](./migration-documentation-plan.md)
+  - [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
 - 迁移决策与历史边界：
-  - [migration-decisions.md](./migration-decisions.md)
+  - [migration-decisions.md](./archived/migration/migration-decisions.md)

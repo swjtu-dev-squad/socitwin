@@ -236,19 +236,19 @@ uv run python -m app.memory.evaluation_harness \
 
 ## 10. Current Gap
 
-当前测试主链最大的剩余问题不是“没有测试代码”，而是：
+当前测试主链最大的剩余问题已经不再是“没有测试代码”，也不再是“缺正式骨架文档”，而是：
 
-- 还需要继续把正式验收口径写得更清楚；
-- 还需要把常用指标和结果解释进一步沉淀到正式文档，而不只停留在测试输出里；
-- 还需要继续补 `validation-scenarios.md` 和 `audit-and-validation.md`，让测试、审查和结果回写形成闭环。
+- 还需要继续把常用指标、字段含义和结果解释沉淀得更稳定；
+- 还需要随着真实运行结果继续补场景记录和验证证据；
+- 还需要把迁移期测试说明里仍然有价值的经验持续收回正式文档。
 
 也就是说，当前测试主链的剩余工作主要是：
 
-- 文档化
-- 口径化
+- 口径细化
 - 结果沉淀
+- 场景扩充
 
-而不是从零补测试代码。
+而不是从零补测试代码，或继续把测试说明主要堆在迁移文档里。
 
 ## 11. Related Docs
 
@@ -257,6 +257,6 @@ uv run python -m app.memory.evaluation_harness \
 - 模式与边界：
   - [principles-and-modes.md](./principles-and-modes.md)
 - 文档迁移计划：
-  - [migration-documentation-plan.md](./migration-documentation-plan.md)
+  - [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
 - 迁移期测试/配置记录：
-  - [migration-config-and-testing.md](./migration-config-and-testing.md)
+  - [migration-config-and-testing.md](./archived/migration/migration-config-and-testing.md)

@@ -51,21 +51,32 @@
   - [`migration-phase-checklists.md`](./migration-phase-checklists.md)
 - 迁移范围、阶段拆分、文件级工作流：
   - [`migration-workstreams.md`](./migration-workstreams.md)
+- 迁移文档是否已具备归档条件：
+  - [`migration-archive-readiness.md`](./migration-archive-readiness.md)
 - 社交网络监控页功能迁移与 monitor/detail 接口计划：
-  - [`social-monitor-migration-plan.md`](./social-monitor-migration-plan.md)
+  - [`social-monitor-migration-plan.md`](../../social-monitor-migration-plan.md)
 
 ## 4. Current Main Risks
 
-- 旧仓库 `context/llm.py` 的独立模型 runtime 包装尚未以等价形态恢复；
-- 迁移主链已基本闭合，但仍需把“非阻塞遗留项”和“后续增强项”从主线验收中明确剥离，避免继续把迁移收尾和后续评测混在一起。
+当前主风险已经不再是“主链有没有迁回来”，而是：
+
+- 迁移文档里是否还残留正式文档未吸收的关键信息；
+- 迁移收尾与后续增强项是否仍被混写，导致归档判断失真。
+
+像下面这些内容，当前都已经明确为非阻塞边界，而不是迁移主风险：
+
+- 旧仓库 `context/llm.py` 的独立模型 runtime 包装没有原样迁回；
+- monitor/debug 更细的 per-agent drill-down 仍待后续增强；
+- 过大的 facade / agent / config / evaluation harness 仍待后续工程清理；
+- `comparison` 的真实 provider 级长跑仍属于后续按需评测。
 
 ## 5. Current Next Step
 
-当前迁移已经进入收尾验收与剩余缺口盘点阶段。按“后端功能模块迁移”视角，下一轮重点应收口为：
+当前迁移已经进入归档前的最终核对阶段。下一轮重点应收口为：
 
-1. 确认 `context/llm.py` 对应的模型 runtime 包装差异是否需要后续小 helper；
-2. 明确 `topic activation`、monitor/debug drill-down 等已知边界是否继续保持为非阻塞项；
-3. 盘点迁移完成后的结构清理项，例如过大的 facade / agent / config / evaluation harness。
+1. 再核对一轮 `migration-*` 文档，确认没有正式文档尚未吸收的独占关键信息；
+2. 把仍需后续完善的事项明确沉淀到正式文档或正式审查台账；
+3. 在确认主线代码、测试、正式文档都已闭合后，再把 `migration-*` 文档降级归档。
 
 关于社交网络监控：
 

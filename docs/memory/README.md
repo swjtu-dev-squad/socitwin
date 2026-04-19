@@ -24,8 +24,10 @@
 
 如果你是要继续做迁移或整理正式文档，再看：
 
-3. [migration-documentation-plan.md](./migration-documentation-plan.md)
+3. [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
    - 旧仓库记忆文档结构盘点、新仓库正式文档骨架、逐页迁移去向。
+4. [migration-archive-readiness.md](./archived/migration/migration-archive-readiness.md)
+   - 当前迁移文档是否还保留独占信息、哪些可以归档、哪些应继续作为实施记录保留。
 
 ## 正式文档
 
@@ -41,36 +43,44 @@
 - [validation-scenarios.md](./validation-scenarios.md)
 - [audit-and-validation.md](./audit-and-validation.md)
 
-当前计划继续补齐的正式文档：
+当前正式文档主线已经闭合。
 
-- 当前主线正式文档已基本齐备，后续重点转为持续补充场景、审查条目和结果记录。
+后续重点不再是继续补正式骨架，而是：
 
-这些页面会按 [migration-documentation-plan.md](./migration-documentation-plan.md) 里的顺序逐步建立。
+- 持续补充场景、审查条目和结果记录；
+- 把迁移文档里仍有价值但尚未归入正式文档的内容继续收口；
+- 在确认没有关键独占信息后，再把 `migration-*` 文档降级归档。
 
 ## 迁移文档
 
 下面这些文档仍然保留，但它们属于迁移实施记录，不应继续充当正式使用文档主体：
 
-- [migration-plan.md](./migration-plan.md)
+- [migration-plan.md](./archived/migration/migration-plan.md)
   - 迁移实施计划总览与索引。
-- [migration-decisions.md](./migration-decisions.md)
+- [migration-decisions.md](./archived/migration/migration-decisions.md)
   - 已确认的迁移边界和目录设计决定。
-- [migration-architecture-comparison.md](./migration-architecture-comparison.md)
+- [migration-architecture-comparison.md](./archived/migration/migration-architecture-comparison.md)
   - 旧仓库与新仓库的架构对照和插入点判断。
-- [migration-module-mapping.md](./migration-module-mapping.md)
+- [migration-module-mapping.md](./archived/migration/migration-module-mapping.md)
   - 旧 memory 模块到新仓库目录的文件级映射。
-- [migration-config-and-testing.md](./migration-config-and-testing.md)
+- [migration-config-and-testing.md](./archived/migration/migration-config-and-testing.md)
   - 配置面、测试面与验证顺序。
-- [migration-refactor-principles.md](./migration-refactor-principles.md)
+- [migration-refactor-principles.md](./archived/migration/migration-refactor-principles.md)
   - 迁移过程中允许的小幅重构边界。
-- [migration-phase-checklists.md](./migration-phase-checklists.md)
+- [migration-phase-checklists.md](./archived/migration/migration-phase-checklists.md)
   - 可直接执行的分阶段 checklist。
-- [migration-workstreams.md](./migration-workstreams.md)
+- [migration-workstreams.md](./archived/migration/migration-workstreams.md)
   - 迁移范围、阶段顺序、文件级工作流和测试/文档策略。
-- [migration-documentation-plan.md](./migration-documentation-plan.md)
+- [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
   - 旧记忆文档向新正式文档体系迁移的专项计划。
+- [migration-archive-readiness.md](./archived/migration/migration-archive-readiness.md)
+  - 迁移收尾阶段的文档归档判定清单。
 - [social-monitor-migration-plan.md](./social-monitor-migration-plan.md)
   - 监控页相关的后端合同与后续增强计划。
+
+统一归档入口见：
+
+- [archived/README.md](./archived/README.md)
 
 ## 当前 Source Of Truth
 

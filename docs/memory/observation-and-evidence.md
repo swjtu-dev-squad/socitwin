@@ -292,5 +292,5 @@
 - 模式原则：
   - [principles-and-modes.md](./principles-and-modes.md)
 - 迁移期 observation 审查与实现细节：
-  - [migration-workstreams.md](./migration-workstreams.md)
-  - [migration-architecture-comparison.md](./migration-architecture-comparison.md)
+  - [migration-workstreams.md](./archived/migration/migration-workstreams.md)
+  - [migration-architecture-comparison.md](./archived/migration/migration-architecture-comparison.md)

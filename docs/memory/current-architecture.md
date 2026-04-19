@@ -246,6 +246,14 @@
 - last selected recent / compressed / recall
 - recall candidate / selected item summaries
 
+当前这层观测面已经足够支撑：
+
+- 迁移收尾验收
+- 基本调试
+- harness 结果解释
+
+但更细的 per-agent drill-down、历史链路追踪和更重的 monitor/debug 展示仍属于后续增强项，不作为本轮迁移收尾阻塞项。
+
 ## 11. Current Accepted Boundaries
 
 当前还需要明确几个已接受的实现边界：
@@ -259,6 +267,13 @@
 - `MemoryRuntimeFacade`
   - 当前仍是轻 facade；
   - 模式语义没有被抽成更重的独立 runtime helper。
+- monitor/debug
+  - 当前聚合输出已足够支撑迁移完成态；
+  - 更细的 per-agent drill-down 继续留作后续增强。
+- memory 工程化清理
+  - `backend/app/memory/__init__.py` 当前 facade 仍偏宽；
+  - `agent.py`、`config.py`、`evaluation_harness.py` 当前仍偏大；
+  - 这些属于迁移后的结构清理项，不阻塞本轮迁移收尾。
 
 这些边界目前不作为迁移阻塞项，但文档里必须写清楚，避免后续误判。
 
@@ -267,6 +282,6 @@
 - 模式原则与硬约束：
   - [principles-and-modes.md](./principles-and-modes.md)
 - 迁移记录与旧仓库映射：
-  - [migration-plan.md](./migration-plan.md)
-  - [migration-module-mapping.md](./migration-module-mapping.md)
-  - [migration-documentation-plan.md](./migration-documentation-plan.md)
+  - [migration-plan.md](./archived/migration/migration-plan.md)
+  - [migration-module-mapping.md](./archived/migration/migration-module-mapping.md)
+  - [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)

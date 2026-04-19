@@ -359,7 +359,7 @@
   - `baseline` 历史讨论
   - 只服务于旧目录结构的旧叙述
 
-## 6. Open Work Items
+## 6. Remaining Non-Blocking Items
 
 - 旧仓库 `context/llm.py` 对应的模型 runtime 包装仍未等价恢复；
 - `topic activation` 已确认会通过 `ManualAction` 绕开普通 action_v1 episode 写入链；
@@ -370,6 +370,8 @@
 
 - `comparison` 的真实 provider 级稳定长跑验证仍属于后续按需重验证项；
 - 但它不再属于当前迁移收尾的 open work item，不应与主链功能迁移验收混在一起。
+- 上述事项当前都已经有正式文档落点或审查台账落点；
+  它们是迁移完成后的延续工作，不再构成“迁移主链未完成”的证据。
 
 ## 6.1 Acceptance-Time Structural Notes
 

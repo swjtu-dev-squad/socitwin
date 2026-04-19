@@ -134,7 +134,40 @@
 - 默认情况下，generation reserve 取自本轮 LLM config 的 `max_tokens`；
 - 如果设置了兼容 env override，则以 override 为准。
 
-## 6. Upstream Runtime Config
+## 6. Current Runtime Packaging Boundary
+
+旧仓库里更完整的模型 runtime 包装，主要集中在：
+
+- `context/llm.py`
+
+当前新仓库没有按一比一方式重建一个独立 `memory/llm.py`。
+
+当前实际语义是分散承载的：
+
+- [oasis_manager.py](/home/grayg/socitwin/backend/app/core/oasis_manager.py)
+  - model 创建
+  - `context_token_limit` / generation 输入接线
+  - long-term backend build
+- [memory/config.py](/home/grayg/socitwin/backend/app/memory/config.py)
+  - mode-aware runtime settings
+  - preset / env override 归一
+- [agent.py](/home/grayg/socitwin/backend/app/memory/agent.py)
+  - upstream / action_v1 agent wiring
+  - token counter fallback 的实际消费
+
+当前应把这件事理解成：
+
+- 旧仓库 `context/llm.py` 的“独立包装形式”没有原样迁回；
+- 但迁移主链所需的 runtime 语义已经基本恢复；
+- 这不属于本轮迁移完成态的阻塞项。
+
+只有在后续真的出现下面这些需求时，才值得再抽一个更小、更明确的 runtime helper：
+
+- pooled/shared runtime 需要统一约束
+- 多 backend 的 runtime 一致性再次变成维护痛点
+- 分散实现开始显著增加调试和配置成本
+
+## 7. Upstream Runtime Config
 
 `upstream` 当前只消费较少的配置面：
 
@@ -152,7 +185,29 @@
 
 但它当前仍会通过项目侧 helper 把 `context_token_limit` 接到 chat history memory 上，所以它不是完全“无配置”的原始隐式路径。
 
-## 7. Action_V1 Runtime Settings
+这里还要明确一个已经修正过的参数语义边界：
+
+- `SimulationConfig.llm_config.max_tokens`
+  - 当前仍应理解为生成输出上限；
+- 它不能被重新解释成 upstream chat history 的上下文上限。
+
+原因是：
+
+- CAMEL backend 在某些路径下会优先读取 model config 里的 `max_tokens`；
+- 如果不额外修正，upstream chat history 的 context creator 会被错误压到这个生成上限上；
+- 当前项目侧已经显式把 upstream chat history memory 的上下文限制接回：
+  - `OASIS_CONTEXT_TOKEN_LIMIT`
+
+因此当前应按下面语义读：
+
+- `max_tokens`
+  - 生成输出预算
+- `OASIS_CONTEXT_TOKEN_LIMIT`
+  - 上下文预算
+
+这不是把 upstream 改造成 `action_v1`，而是防止项目侧参数语义串线。
+
+## 8. Action_V1 Runtime Settings
 
 `action_v1` 当前的完整 runtime settings 由：
 
@@ -182,7 +237,7 @@
 - 拿不到时退回：
   - `HeuristicUnicodeTokenCounter`
 
-## 8. Observation Preset Surface
+## 9. Observation Preset Surface
 
 当前 observation 兼容 env 面包括：
 
@@ -201,7 +256,7 @@
 - [memory/config.py](/home/grayg/socitwin/backend/app/memory/config.py)
   - `apply_observation_env_overrides(...)`
 
-## 9. Working Memory Preset Surface
+## 10. Working Memory Preset Surface
 
 当前 short-term 预算相关 env 包括：
 
@@ -217,7 +272,7 @@
 
 - `apply_working_memory_env_overrides(...)`
 
-## 10. Recall / Summary / Provider Preset Surface
+## 11. Recall / Summary / Provider Preset Surface
 
 当前 recall 相关 env 包括：
 
@@ -253,7 +308,7 @@ provider runtime 相关 env 包括：
 
 - [memory/config.py](/home/grayg/socitwin/backend/app/memory/config.py)
 
-## 11. Long-Term Backend Surface
+## 12. Long-Term Backend Surface
 
 长期记忆后端当前主要由 settings 层控制：
 
@@ -277,7 +332,7 @@ provider runtime 相关 env 包括：
 
 这意味着每个 simulation db 会对应一个独立 collection 名。
 
-## 12. Current `.env` Entry
+## 13. Current `.env` Entry
 
 当前示例配置在：
 
@@ -297,7 +352,7 @@ provider runtime 相关 env 包括：
 - 先让迁移不需要立刻重开一套全新命名；
 - 等正式文档和运行面稳定后，再决定是否继续收敛命名。
 
-## 13. Current Operational Guidance
+## 14. Current Operational Guidance
 
 当前如果只是想把主链跑起来，最关键的配置是：
 
@@ -321,7 +376,7 @@ provider runtime 相关 env 包括：
 - `OASIS_LONGTERM_EMBEDDING_BACKEND=openai_compatible`
 - 配合 Chroma 跑真实 embedding
 
-## 14. Related Docs
+## 15. Related Docs
 
 - 当前整体实现：
   - [current-architecture.md](./current-architecture.md)

@@ -29,33 +29,32 @@
   - 基本已经迁入新仓库。
 - 测试代码主链
   - `unit / integration / evaluation harness` 主体已经恢复；
-  - 但还没有沉淀成新仓库正式的测试说明、验收口径和结果解释文档。
+  - 正式测试说明与评测文档也已经建立；
+  - 当前剩余工作主要是持续补口径、结果和场景。
 - 文档主链
-  - 目前新仓库 `docs/memory/` 仍以 `migration-*` 文档为主；
-  - 这说明迁移过程文档已经很多，但新仓库正式 memory 文档体系还没有建立完成。
+  - 新仓库正式 memory 文档体系已经建立完成；
+  - 当前处在“正式文档已成主线、迁移文档待归档”的收尾阶段。
 
-因此，当前文档迁移的重点不是“再补几篇迁移说明”，而是：
+因此，当前文档迁移的重点已经从“建立正式骨架”转为：
 
-- 建立新仓库正式 memory 文档骨架；
-- 把旧仓库里仍然有效的原则、契约、测试口径和审查台账迁进来；
+- 确认正式文档已经吸收旧仓库中仍然有效的原则、契约、测试口径和审查台账；
+- 确认迁移文档不再独占关键事实；
 - 再把 `migration-*` 降级为实施记录，而不是继续充当主文档。
 
-当前已经完成的第一步是：
+当前已经完成的正式文档主线包括：
 
-- 新仓库正式 memory 文档骨架已经开始建立；
-- 第一批正式文档已落地：
-  - `README.md`
-  - `current-architecture.md`
-  - `principles-and-modes.md`
-  - `observation-and-evidence.md`
-  - `prompt-and-shortterm.md`
-  - `longterm-and-recall.md`
-  - `config-and-runtime.md`
-  - `testing-and-evaluation.md`
-  - `validation-scenarios.md`
-  - `audit-and-validation.md`
+- `README.md`
+- `current-architecture.md`
+- `principles-and-modes.md`
+- `observation-and-evidence.md`
+- `prompt-and-shortterm.md`
+- `longterm-and-recall.md`
+- `config-and-runtime.md`
+- `testing-and-evaluation.md`
+- `validation-scenarios.md`
+- `audit-and-validation.md`
 
-这意味着当前阶段已经从“只有迁移文档”进入了“正式文档与迁移文档并存”的过渡期。
+这意味着当前阶段已经从“正式文档与迁移文档并存的过渡期”进入了“正式文档已闭合、迁移文档待归档”的收尾期。
 
 ## 3. Old Documentation Structure
 
@@ -310,10 +309,12 @@
 
 ## 10. Immediate Next Step
 
-当前第一批正式文档已经起步，下一步按以下顺序继续推进：
+当前正式文档体系已经能独立解释主链。下一步应转为：
 
-1. 等正式文档体系能独立解释主链后，再降级 `migration-*` 为实施记录层。
-2. 后续正式文档的新增工作转为：
+1. 逐份复核 `migration-*` 文档，确认没有正式文档尚未吸收的独占关键信息。
+2. 将归档判断收口到专门的 archive readiness 清单。
+3. 在确认迁移文档只剩实施记录价值后，再整体降级归档。
+4. 后续正式文档的新增工作转为：
    - 持续补具体场景
    - 持续补审查条目
    - 持续补真实运行记录和回归证据
