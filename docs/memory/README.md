@@ -42,6 +42,7 @@
 - [testing-and-evaluation.md](./testing-and-evaluation.md)
 - [validation-scenarios.md](./validation-scenarios.md)
 - [audit-and-validation.md](./audit-and-validation.md)
+- [main-sync-validation-20260419.md](./main-sync-validation-20260419.md)
 
 当前正式文档主线已经闭合。
 
