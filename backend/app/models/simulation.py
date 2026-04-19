@@ -5,14 +5,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from app.memory.config import MemoryMode
-from app.models.metrics import MetricsSummary
 
 # Import behavior models
 from app.models.behavior import (
     AgentBehaviorConfig,
-    BehaviorStrategy,
     create_default_behavior_config,
 )
+from app.models.metrics import MetricsSummary
 
 # ============================================================================
 # 平台和状态枚举

@@ -9,50 +9,58 @@
 // ============================================================================
 
 /** 行为策略类型 */
-export enum BehaviorStrategy {
-  LLM_AUTONOMOUS = 'llm_autonomous',
-  PROBABILISTIC = 'probabilistic',
-  RULE_BASED = 'rule_based',
-  SCHEDULED = 'scheduled',
-  MIXED = 'mixed',
-}
+export const BehaviorStrategy = {
+  LLM_AUTONOMOUS: 'llm_autonomous',
+  PROBABILISTIC: 'probabilistic',
+  RULE_BASED: 'rule_based',
+  SCHEDULED: 'scheduled',
+  MIXED: 'mixed',
+} as const
+
+export type BehaviorStrategy = (typeof BehaviorStrategy)[keyof typeof BehaviorStrategy]
 
 /** 条件运算符 */
-export enum ConditionOperator {
-  EQUALS = 'equals',
-  NOT_EQUALS = 'not_equals',
-  GREATER_THAN = 'greater_than',
-  LESS_THAN = 'less_than',
-  GREATER_THAN_OR_EQUAL = 'greater_than_or_equal',
-  LESS_THAN_OR_EQUAL = 'less_than_or_equal',
-  CONTAINS = 'contains',
-  NOT_CONTAINS = 'not_contains',
-  STARTS_WITH = 'starts_with',
-  ENDS_WITH = 'ends_with',
-  IN = 'in',
-  NOT_IN = 'not_in',
-  EXISTS = 'exists',
-  NOT_EXISTS = 'not_exists',
-}
+export const ConditionOperator = {
+  EQUALS: 'equals',
+  NOT_EQUALS: 'not_equals',
+  GREATER_THAN: 'greater_than',
+  LESS_THAN: 'less_than',
+  GREATER_THAN_OR_EQUAL: 'greater_than_or_equal',
+  LESS_THAN_OR_EQUAL: 'less_than_or_equal',
+  CONTAINS: 'contains',
+  NOT_CONTAINS: 'not_contains',
+  STARTS_WITH: 'starts_with',
+  ENDS_WITH: 'ends_with',
+  IN: 'in',
+  NOT_IN: 'not_in',
+  EXISTS: 'exists',
+  NOT_EXISTS: 'not_exists',
+} as const
+
+export type ConditionOperator = (typeof ConditionOperator)[keyof typeof ConditionOperator]
 
 /** 平台类型 */
-export enum PlatformType {
-  TWITTER = 'twitter',
-  REDDIT = 'reddit',
-}
+export const PlatformType = {
+  TWITTER: 'twitter',
+  REDDIT: 'reddit',
+} as const
+
+export type PlatformType = (typeof PlatformType)[keyof typeof PlatformType]
 
 /** OASIS动作类型 */
-export enum OASISActionType {
-  CREATE_POST = 'CREATE_POST',
-  CREATE_COMMENT = 'CREATE_COMMENT',
-  LIKE_POST = 'LIKE_POST',
-  DISLIKE_POST = 'DISLIKE_POST',
-  REPOST = 'REPOST',
-  QUOTE_POST = 'QUOTE_POST',
-  FOLLOW = 'FOLLOW',
-  REFRESH = 'REFRESH',
-  DO_NOTHING = 'DO_NOTHING',
-}
+export const OASISActionType = {
+  CREATE_POST: 'CREATE_POST',
+  CREATE_COMMENT: 'CREATE_COMMENT',
+  LIKE_POST: 'LIKE_POST',
+  DISLIKE_POST: 'DISLIKE_POST',
+  REPOST: 'REPOST',
+  QUOTE_POST: 'QUOTE_POST',
+  FOLLOW: 'FOLLOW',
+  REFRESH: 'REFRESH',
+  DO_NOTHING: 'DO_NOTHING',
+} as const
+
+export type OASISActionType = (typeof OASISActionType)[keyof typeof OASISActionType]
 
 // ============================================================================
 // 概率分布模型

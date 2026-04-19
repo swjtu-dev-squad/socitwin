@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import {
   Settings as SettingsIcon,
-  Database,
   Cpu,
   Save,
   RefreshCw,
   Trash2,
-  AlertTriangle,
   Plus,
   Edit2,
   X,
@@ -25,9 +23,9 @@ import {
   getBehaviorControllerStatus,
   getBehaviorStatistics,
   applyPresetConfig,
-  getAvailableStrategies,
 } from '@/lib/behaviorApi'
 import type { BehaviorControllerStatus } from '@/lib/behaviorTypes'
+import { PlatformType } from '@/lib/behaviorTypes'
 
 interface ModelConfig {
   id: string
@@ -86,7 +84,7 @@ export default function Settings() {
   const [isLoadingBehavior, setIsLoadingBehavior] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
   const [selectedPreset, setSelectedPreset] = useState('default')
-  const [presetPlatform, setPresetPlatform] = useState<'twitter' | 'reddit'>('twitter')
+  const [presetPlatform, setPresetPlatform] = useState<PlatformType>(PlatformType.TWITTER)
   const [activeBehaviorTab, setActiveBehaviorTab] = useState<'overview' | 'strategies' | 'engines'>(
     'overview'
   )
@@ -746,12 +744,12 @@ export default function Settings() {
                       <select
                         value={presetPlatform}
                         onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                          setPresetPlatform(e.target.value as 'twitter' | 'reddit')
+                          setPresetPlatform(e.target.value as PlatformType)
                         }
                         className="w-full h-11 bg-bg-primary border border-border-default rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
                       >
-                        <option value="twitter">Twitter</option>
-                        <option value="reddit">Reddit</option>
+                        <option value={PlatformType.TWITTER}>Twitter</option>
+                        <option value={PlatformType.REDDIT}>Reddit</option>
                       </select>
                     </div>
                   </div>

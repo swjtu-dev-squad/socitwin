@@ -10,12 +10,12 @@ import type {
   BehaviorControllerStatus,
   EngineStatistics,
   AgentBehaviorConfig,
-  BehaviorStrategy,
   BehaviorProfilesResponse,
   ApplyProfileRequest,
-  PresetConfigOption,
   StrategyDisplayInfo,
 } from './behaviorTypes'
+
+import { BehaviorStrategy, PlatformType, OASISActionType } from './behaviorTypes'
 
 const API_BASE = '/api'
 
@@ -24,12 +24,13 @@ const API_BASE = '/api'
 // ============================================================================
 
 class BehaviorApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number,
-    public response?: any
-  ) {
+  status?: number
+  response?: any
+
+  constructor(message: string, status?: number, response?: any) {
     super(message)
+    this.status = status
+    this.response = response
     this.name = 'BehaviorApiError'
   }
 }
@@ -162,7 +163,7 @@ export async function applyBehaviorProfile(
 export async function applyPresetConfig(
   agentId: number,
   preset: string,
-  platform: string = 'twitter'
+  platform: PlatformType = PlatformType.TWITTER
 ): Promise<BehaviorConfigResponse> {
   const params = new URLSearchParams({
     preset,
@@ -400,31 +401,43 @@ export function createDefaultBehaviorConfig(): AgentBehaviorConfig {
  * 创建概率分布配置
  */
 export function createProbabilisticConfig(
-  platform: 'twitter' | 'reddit' = 'twitter'
+  platform: PlatformType = PlatformType.TWITTER
 ): AgentBehaviorConfig {
   const actions =
-    platform === 'twitter'
+    platform === PlatformType.TWITTER
       ? [
-          { action_type: 'CREATE_POST' as const, probability: 0.2, description: '创建新帖子' },
-          { action_type: 'LIKE_POST' as const, probability: 0.3, description: '点赞帖子' },
-          { action_type: 'CREATE_COMMENT' as const, probability: 0.25, description: '评论帖子' },
-          { action_type: 'REFRESH' as const, probability: 0.15, description: '刷新时间线' },
-          { action_type: 'DO_NOTHING' as const, probability: 0.1, description: '休息观察' },
+          { action_type: OASISActionType.CREATE_POST, probability: 0.2, description: '创建新帖子' },
+          { action_type: OASISActionType.LIKE_POST, probability: 0.3, description: '点赞帖子' },
+          {
+            action_type: OASISActionType.CREATE_COMMENT,
+            probability: 0.25,
+            description: '评论帖子',
+          },
+          { action_type: OASISActionType.REFRESH, probability: 0.15, description: '刷新时间线' },
+          { action_type: OASISActionType.DO_NOTHING, probability: 0.1, description: '休息观察' },
         ]
       : [
-          { action_type: 'CREATE_POST' as const, probability: 0.15, description: '创建新帖子' },
-          { action_type: 'LIKE_POST' as const, probability: 0.35, description: '点赞帖子' },
-          { action_type: 'CREATE_COMMENT' as const, probability: 0.3, description: '评论帖子' },
-          { action_type: 'REFRESH' as const, probability: 0.1, description: '刷新时间线' },
-          { action_type: 'DISLIKE_POST' as const, probability: 0.05, description: '踩帖子' },
-          { action_type: 'DO_NOTHING' as const, probability: 0.05, description: '休息观察' },
+          {
+            action_type: OASISActionType.CREATE_POST,
+            probability: 0.15,
+            description: '创建新帖子',
+          },
+          { action_type: OASISActionType.LIKE_POST, probability: 0.35, description: '点赞帖子' },
+          {
+            action_type: OASISActionType.CREATE_COMMENT,
+            probability: 0.3,
+            description: '评论帖子',
+          },
+          { action_type: OASISActionType.REFRESH, probability: 0.1, description: '刷新时间线' },
+          { action_type: OASISActionType.DISLIKE_POST, probability: 0.05, description: '踩帖子' },
+          { action_type: OASISActionType.DO_NOTHING, probability: 0.05, description: '休息观察' },
         ]
 
   return {
     strategy: BehaviorStrategy.PROBABILISTIC,
     probability_distribution: {
       name: 'balanced',
-      description: `平衡的${platform === 'twitter' ? 'Twitter' : 'Reddit'}行为分布`,
+      description: `平衡的${platform === PlatformType.TWITTER ? 'Twitter' : 'Reddit'}行为分布`,
       actions,
       platform,
     },
