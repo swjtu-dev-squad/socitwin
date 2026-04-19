@@ -526,45 +526,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card className="p-8 bg-bg-secondary border-border-default space-y-8">
-          <div className="flex items-center justify-between border-b border-border-default pb-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Database className="w-5 h-5 text-accent" />
-              数据存储与运维
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button variant="outline" className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default">
-              <Database className="w-5 h-5 text-text-tertiary" />
-              <div className="text-left">
-                <p className="text-sm font-bold">备份 simulation.db</p>
-                <p className="text-[10px] text-text-tertiary">下载当前所有模拟状态</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default">
-              <RefreshCw className="w-5 h-5 text-text-tertiary" />
-              <div className="text-left">
-                <p className="text-sm font-bold">重建索引</p>
-                <p className="text-[10px] text-text-tertiary">优化 SQLite 查询性能</p>
-              </div>
-            </Button>
-          </div>
-
-          <div className="p-6 bg-rose-500/5 border border-rose-500/20 rounded-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-500">
-              <AlertTriangle className="w-5 h-5" />
-              <h4 className="text-sm font-bold uppercase tracking-widest">危险区域</h4>
-            </div>
-            <p className="text-xs text-text-tertiary leading-relaxed">
-              清空数据将永久删除所有 Agent 轨迹、社交网络关系及历史日志。此操作不可撤销。
-            </p>
-            <Button variant="destructive" className="w-full h-12 rounded-xl font-bold gap-2">
-              <Trash2 className="w-4 h-4" />
-              清空当前所有模拟数据
-            </Button>
-          </div>
-        </Card>
+        
 
         <Card className="p-8 bg-bg-secondary border-border-default space-y-8">
           <div className="flex items-center justify-between border-b border-border-default pb-4">
