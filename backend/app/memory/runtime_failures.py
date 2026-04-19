@@ -19,7 +19,7 @@ class NormalizedModelError:
     matcher_source: str = ""
 
 
-class ActionV1RuntimeFailure(RuntimeError):
+class ActionV1RuntimeError(RuntimeError):
     def __init__(
         self,
         *,
@@ -35,7 +35,7 @@ class ActionV1RuntimeFailure(RuntimeError):
         self.details = details or {}
 
 
-class ContextBudgetExhaustedError(ActionV1RuntimeFailure):
+class ContextBudgetExhaustedError(ActionV1RuntimeError):
     def __init__(
         self,
         *,

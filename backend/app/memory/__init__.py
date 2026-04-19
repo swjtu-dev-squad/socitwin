@@ -49,7 +49,7 @@ from .recall_planner import RecallPlanner, RecallPreparation, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy, RetrievalRequest
 from .runtime import MemoryRuntimeFacade, MemoryRuntimeNotImplementedError
 from .runtime_failures import (
-    ActionV1RuntimeFailure,
+    ActionV1RuntimeError,
     ContextBudgetExhaustedError,
     NormalizedModelError,
     normalize_model_error,
@@ -101,7 +101,7 @@ __all__ = [
     "RecallRuntimeState",
     "RecentTurnView",
     "RecentWorkingMemory",
-    "ActionV1RuntimeFailure",
+    "ActionV1RuntimeError",
     "ContextBudgetExhaustedError",
     "NormalizedModelError",
     "RetrievalPolicy",

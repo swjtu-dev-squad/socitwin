@@ -39,7 +39,7 @@ from .prompt_assembler import PromptAssembler, PromptAssemblyResult
 from .recall_planner import RecallPlanner, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy
 from .runtime_failures import (
-    ActionV1RuntimeFailure,
+    ActionV1RuntimeError,
     ContextBudgetExhaustedError,
     normalize_model_error,
 )
@@ -448,7 +448,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                             ) from exc
                         recovery_state = next_state
                         continue
-                    raise ActionV1RuntimeFailure(
+                    raise ActionV1RuntimeError(
                         category=normalized.category,
                         reason=normalized.message,
                         step_id=step_id,
