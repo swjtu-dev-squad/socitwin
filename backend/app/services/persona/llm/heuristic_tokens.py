@@ -73,4 +73,3 @@ class HeuristicUnicodeTokenCounter(BaseTokenCounter):
             or 0x4E00 <= code_point <= 0x9FFF
             or 0xAC00 <= code_point <= 0xD7AF
         )
-

@@ -407,4 +407,3 @@ def generate_relationship_and_network_files(data_dir: Path) -> dict[str, Any]:
     }
     (data_dir / "graph_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return metrics
-

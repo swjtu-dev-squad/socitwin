@@ -23,4 +23,3 @@ def load_backend_env(override: bool = True) -> None:
         load_dotenv(env_path, override=override)
     else:
         load_dotenv(override=override)
-

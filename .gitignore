@@ -45,6 +45,14 @@ backend/data/**/*
 backend/log/
 backend/log/**/*
 
+# Downloaded model/cache directories
+backend/data/huggingface/
+backend/data/huggingface/**/*
+backend/models/
+backend/models/**/*
+/models/
+/models/**/*
+
 # Python testing
 .pytest_cache/
 .coverage
@@ -52,6 +60,7 @@ htmlcov/
 
 # Test results
 backend/test-result/
+backend/test-results/
 
 # uv
 .python-version
@@ -103,6 +112,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.codex
 
 # ==============================================================================
 # Operating Systems

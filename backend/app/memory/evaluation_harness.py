@@ -1,0 +1,1976 @@
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import shutil
+import tempfile
+import time
+import warnings
+from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Iterator
+
+from camel.memories import MemoryRecord
+from camel.messages import BaseMessage
+
+from app.core.config import get_settings
+from app.core.oasis_manager import OASISManager
+from app.models.simulation import AgentSource, MemoryMode, PlatformType, SimulationConfig
+
+from .config import ActionV1RuntimeSettings
+from .episodic_memory import ActionEpisode
+from .longterm import build_chroma_longterm_store, payload_to_episode
+from .observation_shaper import ObservationShaper
+from .recall_planner import RecallPlanner, RecallRuntimeState
+from .retrieval_policy import RetrievalPolicy
+from .tokens import HeuristicUnicodeTokenCounter
+from .working_memory import MemoryState
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "memory-eval"
+DEFAULT_PHASES = ("preflight", "deterministic")
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
+DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
+
+
+@dataclass(slots=True)
+class EvaluationConfig:
+    phases: list[str] = field(default_factory=lambda: list(DEFAULT_PHASES))
+    output_dir: Path = DEFAULT_OUTPUT_DIR
+    run_id: str = ""
+    context_token_limit: int = 16384
+    generation_max_tokens: int = 1024
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL
+    embedding_url: str | None = DEFAULT_EMBEDDING_URL
+    embedding_api_key: str | None = None
+    smoke_steps: int = 1
+    smoke_agent_count: int = 1
+    smoke_timeout_seconds: int = 60
+    scenario_steps: int = 3
+    scenario_agent_count: int = 2
+    scenario_timeout_seconds: int = 120
+    longwindow_steps: int = 8
+    longwindow_agent_count: int = 2
+    longwindow_timeout_seconds: int = 240
+    comparison_steps: int = 5
+    comparison_agent_count: int = 2
+    comparison_timeout_seconds: int = 240
+
+
+@dataclass(slots=True)
+class EvaluationEvent:
+    phase: str
+    name: str
+    status: str
+    metrics: dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+class EvaluationRecorder:
+    def __init__(self, run_dir: Path) -> None:
+        self.run_dir = run_dir
+        self.events: list[EvaluationEvent] = []
+
+    def record(self, event: EvaluationEvent) -> None:
+        self.events.append(event)
+
+    def finalize(self, config: EvaluationConfig) -> dict[str, Any]:
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        (self.run_dir / "config.json").write_text(
+            json.dumps(_jsonable(asdict(config)), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (self.run_dir / "events.jsonl").write_text(
+            "\n".join(
+                json.dumps(event.to_dict(), ensure_ascii=False) for event in self.events
+            ),
+            encoding="utf-8",
+        )
+        summary = self._build_summary(config)
+        (self.run_dir / "summary.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (self.run_dir / "README.md").write_text(
+            self._build_readme(summary),
+            encoding="utf-8",
+        )
+        return {
+            "run_dir": str(self.run_dir),
+            "summary": summary["summary"],
+            "event_count": len(self.events),
+        }
+
+    def _build_summary(self, config: EvaluationConfig) -> dict[str, Any]:
+        by_phase: dict[str, dict[str, int]] = {}
+        for event in self.events:
+            phase_summary = by_phase.setdefault(
+                event.phase,
+                {"pass": 0, "fail": 0, "blocked": 0},
+            )
+            phase_summary[event.status] = phase_summary.get(event.status, 0) + 1
+        success = not any(event.status == "fail" for event in self.events)
+        has_blockers = any(event.status == "blocked" for event in self.events)
+        return {
+            "config": _jsonable(asdict(config)),
+            "summary": {
+                "success": success,
+                "has_blockers": has_blockers,
+                "by_phase": by_phase,
+            },
+            "event_briefs": [
+                {
+                    "phase": event.phase,
+                    "name": event.name,
+                    "status": event.status,
+                    "reason": event.reason,
+                }
+                for event in self.events
+            ],
+        }
+
+    def _build_readme(self, summary: dict[str, Any]) -> str:
+        lines = [
+            "# Memory Evaluation Report",
+            "",
+            "## Summary",
+            "",
+            f"- success: `{summary['summary']['success']}`",
+            f"- has_blockers: `{summary['summary']['has_blockers']}`",
+            "",
+            "## Events",
+            "",
+        ]
+        for event in self.events:
+            lines.append(f"- `{event.phase}` / `{event.name}` / `{event.status}`")
+        return "\n".join(lines)
+
+
+def run_memory_evaluation(config: EvaluationConfig) -> dict[str, Any]:
+    run_id = config.run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = config.output_dir / run_id
+    recorder = EvaluationRecorder(run_dir)
+
+    if "preflight" in config.phases:
+        _run_preflight(config, recorder)
+    if "deterministic" in config.phases:
+        _run_deterministic(config, recorder)
+    if "real-smoke" in config.phases:
+        _run_real_smoke(config, recorder)
+    if "real-scenarios" in config.phases:
+        _run_real_scenarios(config, recorder)
+    if "real-longwindow" in config.phases:
+        _run_real_longwindow(config, recorder)
+    if "comparison" in config.phases:
+        _run_comparison(config, recorder)
+
+    return recorder.finalize(config)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run Socitwin memory evaluation.")
+    parser.add_argument(
+        "--phase",
+        action="append",
+        choices=[
+            "preflight",
+            "deterministic",
+            "real-smoke",
+            "real-scenarios",
+            "real-longwindow",
+            "comparison",
+        ],
+        help="Evaluation phases to run.",
+    )
+    parser.add_argument("--run-id", default="", help="Optional output run id.")
+    parser.add_argument(
+        "--output-dir",
+        default=str(DEFAULT_OUTPUT_DIR),
+        help="Directory for evaluation outputs.",
+    )
+    parser.add_argument(
+        "--embedding-model",
+        default=DEFAULT_EMBEDDING_MODEL,
+        help="OpenAI-compatible embedding model for preflight/real-smoke.",
+    )
+    parser.add_argument(
+        "--embedding-url",
+        default=DEFAULT_EMBEDDING_URL,
+        help="OpenAI-compatible embedding base URL.",
+    )
+    parser.add_argument(
+        "--embedding-api-key",
+        default="",
+        help="Optional embedding API key.",
+    )
+    parser.add_argument(
+        "--smoke-steps",
+        type=int,
+        default=1,
+        help="Number of action_v1 steps for real-smoke.",
+    )
+    parser.add_argument(
+        "--smoke-agent-count",
+        type=int,
+        default=1,
+        help="Number of agents for real-smoke.",
+    )
+    parser.add_argument(
+        "--smoke-timeout-seconds",
+        type=int,
+        default=60,
+        help="Timeout for real-smoke initialize/step flow.",
+    )
+    parser.add_argument(
+        "--scenario-steps",
+        type=int,
+        default=3,
+        help="Number of action_v1 steps for real-scenarios.",
+    )
+    parser.add_argument(
+        "--scenario-agent-count",
+        type=int,
+        default=2,
+        help="Number of agents for real-scenarios.",
+    )
+    parser.add_argument(
+        "--scenario-timeout-seconds",
+        type=int,
+        default=120,
+        help="Timeout for real-scenarios initialize/step flow.",
+    )
+    parser.add_argument(
+        "--longwindow-steps",
+        type=int,
+        default=8,
+        help="Number of action_v1 steps for real-longwindow.",
+    )
+    parser.add_argument(
+        "--longwindow-agent-count",
+        type=int,
+        default=2,
+        help="Number of agents for real-longwindow.",
+    )
+    parser.add_argument(
+        "--longwindow-timeout-seconds",
+        type=int,
+        default=240,
+        help="Timeout for real-longwindow initialize/step flow.",
+    )
+    parser.add_argument(
+        "--comparison-steps",
+        type=int,
+        default=5,
+        help="Number of steps for two-mode comparison.",
+    )
+    parser.add_argument(
+        "--comparison-agent-count",
+        type=int,
+        default=2,
+        help="Number of agents for two-mode comparison.",
+    )
+    parser.add_argument(
+        "--comparison-timeout-seconds",
+        type=int,
+        default=240,
+        help="Timeout for two-mode comparison initialize/step flow.",
+    )
+    return parser
+
+
+def parse_args(args: list[str] | None = None) -> EvaluationConfig:
+    parsed = build_parser().parse_args(args=args)
+    return EvaluationConfig(
+        phases=parsed.phase or list(DEFAULT_PHASES),
+        output_dir=Path(parsed.output_dir),
+        run_id=parsed.run_id,
+        embedding_model=parsed.embedding_model,
+        embedding_url=parsed.embedding_url,
+        embedding_api_key=parsed.embedding_api_key or None,
+        smoke_steps=parsed.smoke_steps,
+        smoke_agent_count=parsed.smoke_agent_count,
+        smoke_timeout_seconds=parsed.smoke_timeout_seconds,
+        scenario_steps=parsed.scenario_steps,
+        scenario_agent_count=parsed.scenario_agent_count,
+        scenario_timeout_seconds=parsed.scenario_timeout_seconds,
+        longwindow_steps=parsed.longwindow_steps,
+        longwindow_agent_count=parsed.longwindow_agent_count,
+        longwindow_timeout_seconds=parsed.longwindow_timeout_seconds,
+        comparison_steps=parsed.comparison_steps,
+        comparison_agent_count=parsed.comparison_agent_count,
+        comparison_timeout_seconds=parsed.comparison_timeout_seconds,
+    )
+
+
+def _run_preflight(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    status = "pass"
+    reason = ""
+    try:
+        import chromadb  # noqa: F401
+    except Exception as exc:
+        status = "blocked"
+        reason = str(exc)
+    recorder.record(
+        EvaluationEvent(
+            phase="preflight",
+            name="chromadb_dependency_available",
+            status=status,
+            reason=reason,
+        )
+    )
+    recorder.record(_preflight_embedding(config))
+
+
+def _run_deterministic(
+    config: EvaluationConfig,
+    recorder: EvaluationRecorder,
+) -> None:
+    runtime_settings = _build_runtime_settings(config)
+    shaper = ObservationShaper(runtime_settings)
+
+    long_text = "AI safety charter " * 120
+    raw_posts = {
+        "success": True,
+        "posts": [
+            {
+                "post_id": 1,
+                "user_id": 11,
+                "content": long_text,
+                "comments": [
+                    {
+                        "comment_id": 101,
+                        "user_id": 12,
+                        "content": "支持这个议题，但需要更具体措施。",
+                    }
+                ],
+            }
+        ],
+    }
+    raw_groups = {
+        "all_groups": {1: "AI Safety"},
+        "joined_groups": [1],
+        "messages": [
+            {
+                "message_id": 201,
+                "group_id": 1,
+                "user_id": 13,
+                "content": "今晚讨论治理框架。",
+            }
+        ],
+    }
+    artifact = shaper.shape(
+        posts_payload=raw_posts,
+        groups_payload=raw_groups,
+        current_agent_id=11,
+    )
+    recorder.record(
+        EvaluationEvent(
+            phase="deterministic",
+            name="VAL-OBS-01 long_text_post_fidelity",
+            status="pass",
+            metrics={
+                "final_shaping_stage": artifact.render_stats.get("final_shaping_stage", ""),
+                "processed_prompt_tokens": artifact.render_stats.get(
+                    "observation_prompt_tokens",
+                    0,
+                ),
+                "truncated_field_count": artifact.render_stats.get(
+                    "truncated_field_count",
+                    0,
+                ),
+            },
+            evidence={
+                "prompt_visible_snapshot": artifact.prompt_visible_snapshot,
+            },
+        )
+    )
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = build_chroma_longterm_store(
+            collection_name="socitwin_memory_eval",
+            embedding_backend="heuristic",
+            client_type="ephemeral",
+            path=tmp,
+            delete_collection_on_close=False,
+        )
+        episode = ActionEpisode(
+            agent_id="agent-1",
+            step_id=7,
+            action_index=0,
+            timestamp=1.0,
+            platform="twitter",
+            action_name="create_post",
+            action_category="post",
+            action_fact="create_post(content=AI safety charter)",
+            target_type="post",
+            target_snapshot={"summary": "AI safety charter"},
+            target_visible_in_prompt=True,
+            target_resolution_status="resolved",
+            execution_status="success",
+            local_context={},
+            authored_content="AI safety charter for multilingual deployment",
+            state_changes=["created_post:1"],
+            outcome="posted charter",
+            topic="ai safety charter",
+            query_source="distilled_topic",
+            action_significance="high",
+        )
+        store.write_episode(payload_to_episode(episode.to_payload()))
+
+        planner = RecallPlanner(
+            runtime_settings=runtime_settings,
+            retrieval_policy=RetrievalPolicy(),
+        )
+        preparation = planner.prepare(
+            agent_id="agent-1",
+            topic="ai safety charter",
+            semantic_anchors=["post:1"],
+            entities=[],
+            snapshot={"posts": {"posts": [{"post_id": 1, "user_id": 11}]}},
+            memory_state=MemoryState(),
+            longterm_store=store,
+            next_step_id=8,
+            runtime_state=RecallRuntimeState(),
+        )
+        recorder.record(
+            EvaluationEvent(
+                phase="deterministic",
+                name="VAL-RCL-02 strong_signal_recall_trigger",
+                status="pass" if preparation.gate_decision and preparation.recalled_count > 0 else "fail",
+                metrics={
+                    "gate_decision": preparation.gate_decision,
+                    "recalled_count": preparation.recalled_count,
+                    "retrieved_step_ids": list(preparation.recalled_step_ids),
+                },
+                evidence={
+                    "gate_reason_flags": dict(preparation.gate_reason_flags),
+                    "query_source": preparation.query_source,
+                    "query_text": preparation.query_text,
+                },
+            )
+        )
+
+
+def _run_real_smoke(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    try:
+        metrics = asyncio.run(_run_action_v1_real_smoke_async(config))
+        recorder.record(
+            EvaluationEvent(
+                phase="real-smoke",
+                name="action_v1_real_smoke",
+                status="pass",
+                metrics=metrics,
+            )
+        )
+    except Exception as exc:
+        recorder.record(
+            EvaluationEvent(
+                phase="real-smoke",
+                name="action_v1_real_smoke",
+                status="blocked",
+                reason=str(exc),
+            )
+        )
+
+
+def _run_real_scenarios(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    try:
+        events = asyncio.run(_run_action_v1_real_scenarios_async(config))
+        for event in events:
+            recorder.record(event)
+    except Exception as exc:
+        recorder.record(
+            EvaluationEvent(
+                phase="real-scenarios",
+                name="VAL-LTM-05 real_self_action_retrievability",
+                status="blocked",
+                reason=str(exc),
+            )
+        )
+
+
+def _run_real_longwindow(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    try:
+        events = asyncio.run(_run_action_v1_real_longwindow_async(config))
+        for event in events:
+            recorder.record(event)
+    except Exception as exc:
+        recorder.record(
+            EvaluationEvent(
+                phase="real-longwindow",
+                name="VAL-RCL-10 real_longwindow_recall_injection",
+                status="blocked",
+                reason=str(exc),
+            )
+        )
+
+
+def _run_comparison(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
+    for mode in (MemoryMode.UPSTREAM, MemoryMode.ACTION_V1):
+        blocker = _comparison_embedding_blocker(config=config, mode=mode)
+        if blocker is not None:
+            recorder.record(blocker)
+            continue
+        try:
+            event = asyncio.run(_run_mode_comparison_async(config=config, mode=mode))
+        except Exception as exc:
+            event = EvaluationEvent(
+                phase="comparison",
+                name=f"{mode.value}_short_comparison",
+                status="blocked",
+                metrics={"memory_mode": mode.value},
+                reason=str(exc),
+            )
+        recorder.record(event)
+
+
+def _comparison_embedding_blocker(
+    *,
+    config: EvaluationConfig,
+    mode: MemoryMode,
+) -> EvaluationEvent | None:
+    if mode != MemoryMode.ACTION_V1:
+        return None
+    embedding_event = _preflight_embedding(config)
+    if embedding_event.status == "pass":
+        return None
+    metrics = {
+        "memory_mode": mode.value,
+        **dict(embedding_event.metrics or {}),
+    }
+    return EvaluationEvent(
+        phase="comparison",
+        name=f"{mode.value}_short_comparison",
+        status="blocked",
+        metrics=metrics,
+        reason=(
+            "comparison for action_v1 requires embedding preflight pass: "
+            f"{embedding_event.reason or 'embedding preflight blocked'}"
+        ),
+    )
+
+
+async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str, Any]:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-smoke-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.smoke_timeout_seconds))
+
+    env_updates = {
+        "OASIS_MEMORY_MODE": MemoryMode.ACTION_V1.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"real_smoke_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            simulation_config = SimulationConfig(
+                platform=PlatformType.REDDIT,
+                agent_count=config.smoke_agent_count,
+                memory_mode=MemoryMode.ACTION_V1,
+                db_path=str(db_path),
+                max_steps=max(1, config.smoke_steps),
+                agent_source=AgentSource(source_type="template"),
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.smoke_timeout_seconds),
+            )
+            for _ in range(max(1, config.smoke_steps)):
+                await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.smoke_timeout_seconds),
+                )
+            debug_info = manager.get_memory_debug_info()
+            agents = list(debug_info.get("agents", []) or [])
+            return {
+                "agent_count": init_result["agent_count"],
+                "step_count": debug_info["current_step"],
+                "memory_mode": debug_info["memory_mode"],
+                "longterm_enabled": debug_info["longterm_enabled"],
+                "agent_memory_supported_count": sum(
+                    1 for item in agents if item.get("memory_supported")
+                ),
+                "recent_retained_step_count_max": max(
+                    (int(item.get("recent_retained_step_count", 0) or 0) for item in agents),
+                    default=0,
+                ),
+                "compressed_retained_step_count_max": max(
+                    (int(item.get("compressed_retained_step_count", 0) or 0) for item in agents),
+                    default=0,
+                ),
+                "recalled_count_max": max(
+                    (int(item.get("last_recalled_count", 0) or 0) for item in agents),
+                    default=0,
+                ),
+                "injected_count_max": max(
+                    (int(item.get("last_injected_count", 0) or 0) for item in agents),
+                    default=0,
+                ),
+            }
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+
+def _preflight_embedding(config: EvaluationConfig) -> EvaluationEvent:
+    if not config.embedding_url:
+        return EvaluationEvent(
+            phase="preflight",
+            name="embedding_openai_compatible",
+            status="blocked",
+            reason="embedding_url is not configured",
+        )
+
+    try:
+        embedding_dim = _infer_openai_compatible_embedding_dim(
+            model=config.embedding_model,
+            base_url=config.embedding_url,
+            api_key=config.embedding_api_key,
+        )
+        return EvaluationEvent(
+            phase="preflight",
+            name="embedding_openai_compatible",
+            status="pass",
+            metrics={
+                "embedding_model": config.embedding_model,
+                "embedding_url": config.embedding_url,
+                "embedding_dim": embedding_dim,
+            },
+        )
+    except Exception as exc:
+        return EvaluationEvent(
+            phase="preflight",
+            name="embedding_openai_compatible",
+            status="blocked",
+            metrics={
+                "embedding_model": config.embedding_model,
+                "embedding_url": config.embedding_url,
+            },
+            reason=str(exc),
+        )
+
+
+def _infer_openai_compatible_embedding_dim(
+    *,
+    model: str,
+    base_url: str,
+    api_key: str | None,
+) -> int:
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url=base_url,
+        api_key=api_key or "EMPTY",
+    )
+    response = client.embeddings.create(
+        model=model,
+        input=["socitwin memory evaluation preflight"],
+    )
+    if not response.data or not response.data[0].embedding:
+        raise RuntimeError("embedding response is empty")
+    return len(response.data[0].embedding)
+
+
+async def _run_action_v1_real_scenarios_async(
+    config: EvaluationConfig,
+) -> list[EvaluationEvent]:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-scenarios-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.scenario_timeout_seconds))
+
+    env_updates = {
+        "OASIS_MEMORY_MODE": MemoryMode.ACTION_V1.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"real_scenarios_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+
+            simulation_config = SimulationConfig(
+                platform=PlatformType.REDDIT,
+                agent_count=config.scenario_agent_count,
+                memory_mode=MemoryMode.ACTION_V1,
+                db_path=str(db_path),
+                max_steps=max(1, config.scenario_steps),
+                agent_source=AgentSource(source_type="template"),
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.scenario_timeout_seconds),
+            )
+            for _ in range(max(1, config.scenario_steps)):
+                await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.scenario_timeout_seconds),
+                )
+
+            return _build_real_scenario_events(
+                manager=manager,
+                init_result=init_result,
+                config=config,
+            )
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+
+async def _run_action_v1_real_longwindow_async(
+    config: EvaluationConfig,
+) -> list[EvaluationEvent]:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-longwindow-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.longwindow_timeout_seconds))
+
+    env_updates = {
+        "OASIS_MEMORY_MODE": MemoryMode.ACTION_V1.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"real_longwindow_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+
+            simulation_config = SimulationConfig(
+                platform=PlatformType.REDDIT,
+                agent_count=config.longwindow_agent_count,
+                memory_mode=MemoryMode.ACTION_V1,
+                db_path=str(db_path),
+                max_steps=max(1, config.longwindow_steps),
+                agent_source=AgentSource(source_type="template"),
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.longwindow_timeout_seconds),
+            )
+            step_snapshots: list[dict[str, Any]] = []
+            for _ in range(max(1, config.longwindow_steps)):
+                step_result = await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.longwindow_timeout_seconds),
+                )
+                step_snapshots.append(
+                    {
+                        "step_result": dict(step_result or {}),
+                        "memory_debug": manager.get_memory_debug_info(),
+                    }
+                )
+
+            return _build_real_longwindow_events(
+                manager=manager,
+                init_result=init_result,
+                config=config,
+                step_snapshots=step_snapshots,
+            )
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+
+async def _run_mode_comparison_async(
+    *,
+    config: EvaluationConfig,
+    mode: MemoryMode,
+) -> EvaluationEvent:
+    manager = OASISManager()
+    db_dir = Path(tempfile.mkdtemp(prefix=f"socitwin-comparison-{mode.value}-"))
+    chroma_dir = db_dir / "chroma"
+    db_path = db_dir / "simulation.db"
+    close_timeout = min(10, max(1, config.comparison_timeout_seconds))
+    longterm_enabled = mode == MemoryMode.ACTION_V1
+    env_updates = {
+        "OASIS_MEMORY_MODE": mode.value,
+        "OASIS_CONTEXT_TOKEN_LIMIT": str(config.context_token_limit),
+        "OASIS_LONGTERM_ENABLED": "true" if longterm_enabled else "false",
+        "OASIS_LONGTERM_CHROMA_PATH": str(chroma_dir),
+        "OASIS_LONGTERM_COLLECTION_PREFIX": f"comparison_{mode.value}_{uuid_suffix()}",
+        "OASIS_LONGTERM_EMBEDDING_BACKEND": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "OASIS_LONGTERM_EMBEDDING_MODEL": config.embedding_model,
+        "OASIS_LONGTERM_EMBEDDING_BASE_URL": config.embedding_url or "",
+        "OASIS_LONGTERM_EMBEDDING_API_KEY": config.embedding_api_key or "",
+    }
+
+    step_snapshots: list[dict[str, Any]] = []
+    step_times_ms: list[float] = []
+    persisted_action_episode_count = 0
+    started_at = time.perf_counter()
+
+    with _temporary_env(env_updates):
+        get_settings.cache_clear()
+        try:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+
+            simulation_config = SimulationConfig(
+                platform=PlatformType.TWITTER,
+                agent_count=config.comparison_agent_count,
+                memory_mode=mode,
+                db_path=str(db_path),
+                max_steps=max(1, config.comparison_steps),
+                agent_source=AgentSource(source_type="template"),
+            )
+            init_result = await asyncio.wait_for(
+                manager.initialize(simulation_config),
+                timeout=max(1, config.comparison_timeout_seconds),
+            )
+            for _ in range(max(1, config.comparison_steps)):
+                step_started = time.perf_counter()
+                step_result = await asyncio.wait_for(
+                    manager.step(),
+                    timeout=max(1, config.comparison_timeout_seconds),
+                )
+                step_times_ms.append((time.perf_counter() - step_started) * 1000.0)
+                step_snapshots.append(
+                    {
+                        "step_result": dict(step_result or {}),
+                        "memory_debug": manager.get_memory_debug_info(),
+                        "chat_history": _collect_manager_chat_history_stats(manager),
+                    }
+                )
+            persisted_action_episode_count = _count_persisted_action_episodes(
+                list(manager.get_all_agents())
+            )
+        except Exception as exc:
+            return EvaluationEvent(
+                phase="comparison",
+                name=f"{mode.value}_short_comparison",
+                status="blocked",
+                metrics={"memory_mode": mode.value},
+                reason=str(exc),
+            )
+        finally:
+            try:
+                await asyncio.wait_for(manager.close(), timeout=close_timeout)
+            except TimeoutError:
+                pass
+            get_settings.cache_clear()
+            shutil.rmtree(db_dir, ignore_errors=True)
+
+    metrics = _summarize_comparison_run(
+        mode=mode,
+        init_result=init_result,
+        manager_step_count=max(
+            (int(snapshot.get("step_result", {}).get("step_executed", 0) or 0) for snapshot in step_snapshots),
+            default=0,
+        ),
+        step_times_ms=step_times_ms,
+        step_snapshots=step_snapshots,
+        duration_ms=(time.perf_counter() - started_at) * 1000.0,
+        persisted_action_episode_count=persisted_action_episode_count,
+    )
+    return EvaluationEvent(
+        phase="comparison",
+        name=f"{mode.value}_short_comparison",
+        status="pass",
+        metrics=metrics,
+        evidence={"step_count": len(step_snapshots)},
+    )
+
+
+def _build_real_scenario_events(
+    *,
+    manager: OASISManager,
+    init_result: dict[str, Any],
+    config: EvaluationConfig,
+) -> list[EvaluationEvent]:
+    agents = list(manager.get_all_agents())
+    store = getattr(manager, "_action_v1_longterm_store", None)
+    candidates = _collect_real_longterm_probe_candidates(store)
+    persisted_count = _count_persisted_action_episodes(agents)
+    base_metrics = {
+        "memory_mode": MemoryMode.ACTION_V1.value,
+        "longterm_backend": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
+        "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
+        "real_probe_candidate_count": len(candidates),
+        "actual_persisted_action_episode_count": persisted_count,
+    }
+    return [
+        _build_real_self_action_retrievability_event(
+            agents=agents,
+            store=store,
+            candidates=candidates,
+            base_metrics=base_metrics,
+        ),
+        _build_real_continuity_recall_probe_event(
+            agents=agents,
+            store=store,
+            candidates=candidates,
+            base_metrics=base_metrics,
+            next_step_id=int(manager.get_state_info().get("current_step", 0) or 0) + 1,
+        ),
+        _build_real_empty_observation_suppression_event(
+            agents=agents,
+            store=store,
+            base_metrics=base_metrics,
+            next_step_id=int(manager.get_state_info().get("current_step", 0) or 0) + 1,
+        ),
+    ]
+
+
+def _build_real_longwindow_events(
+    *,
+    manager: OASISManager,
+    init_result: dict[str, Any],
+    config: EvaluationConfig,
+    step_snapshots: list[dict[str, Any]],
+) -> list[EvaluationEvent]:
+    agents = list(manager.get_all_agents())
+    persisted_count = _count_persisted_action_episodes(agents)
+    longwindow_metrics = _summarize_longwindow_debug_snapshots(step_snapshots)
+    base_metrics = {
+        "memory_mode": MemoryMode.ACTION_V1.value,
+        "longterm_backend": (
+            "openai_compatible" if config.embedding_url else "heuristic"
+        ),
+        "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
+        "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
+        "actual_persisted_action_episode_count": persisted_count,
+        "persisted_action_episode_count": persisted_count,
+        **longwindow_metrics,
+    }
+    status = (
+        "pass"
+        if persisted_count > 0
+        and int(base_metrics.get("recall_injected_count", 0) or 0) > 0
+        and int(base_metrics.get("recall_injected_trace_count", 0) or 0) > 0
+        else "fail"
+    )
+    reason = ""
+    if status != "pass":
+        reason = (
+            "Long-window run did not show recall injection in runtime snapshots "
+            f"(persisted={persisted_count}, injected={base_metrics.get('recall_injected_count', 0)}, "
+            f"trace_hits={base_metrics.get('recall_injected_trace_count', 0)})."
+        )
+    return [
+        EvaluationEvent(
+            phase="real-longwindow",
+            name="VAL-RCL-10 real_longwindow_recall_injection",
+            status=status,
+            metrics=base_metrics,
+            evidence={
+                "trace_examples": _extract_longwindow_trace_examples(step_snapshots),
+                "note": (
+                    "该场景直接读取每步 memory debug snapshot 中的 recall 注入痕迹，"
+                    "用于确认 recall 不只停留在 gate + retrieval。"
+                ),
+            },
+            reason=reason,
+        )
+    ]
+
+
+def _build_real_self_action_retrievability_event(
+    *,
+    agents: list[Any],
+    store: Any,
+    candidates: list[dict[str, Any]],
+    base_metrics: dict[str, Any],
+) -> EvaluationEvent:
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-LTM-05 real_self_action_retrievability",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for real scenario probe.",
+        )
+    if not candidates:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-LTM-05 real_self_action_retrievability",
+            status="fail",
+            metrics=base_metrics,
+            reason="No real action episode candidates were retrievable from Chroma.",
+        )
+
+    per_query: list[dict[str, Any]] = []
+    for candidate in candidates[:5]:
+        query_text = _query_from_real_episode(candidate)
+        if not query_text:
+            continue
+        expected_agent_id = str(candidate.get("agent_id", "") or "")
+        retrieved = store.retrieve_relevant(
+            query_text,
+            limit=3,
+            agent_id=expected_agent_id or None,
+        )
+        per_query.append(
+            _score_real_episode_retrieval_probe(
+                expected=candidate,
+                query_text=query_text,
+                retrieved=list(retrieved),
+            )
+        )
+
+    if not per_query:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-LTM-05 real_self_action_retrievability",
+            status="fail",
+            metrics=base_metrics,
+            reason="Real action episodes existed, but no usable probe query could be built.",
+        )
+
+    metrics = {
+        **base_metrics,
+        **_summarize_real_probe_scores(per_query),
+        "persisted_action_episode_count": _count_persisted_action_episodes(agents),
+    }
+    status = "pass" if metrics["hit_at_3"] >= 0.8 else "fail"
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name="VAL-LTM-05 real_self_action_retrievability",
+        status=status,
+        metrics=metrics,
+        evidence={
+            "readable_summary": _real_probe_readable_rows(per_query),
+            "per_query": per_query,
+        },
+        reason=(
+            ""
+            if status == "pass"
+            else (
+                "real action episode hit@3 below threshold "
+                f"(hit_at_3={metrics['hit_at_3']}, threshold=0.8)."
+            )
+        ),
+    )
+
+
+def _build_real_continuity_recall_probe_event(
+    *,
+    agents: list[Any],
+    store: Any,
+    candidates: list[dict[str, Any]],
+    base_metrics: dict[str, Any],
+    next_step_id: int,
+) -> EvaluationEvent:
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for continuity recall probe.",
+        )
+    if not candidates:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No real action episode candidate was available for continuity recall probe.",
+        )
+
+    target = candidates[0]
+    agent = _context_agent_for_episode(agents, target) or _first_context_agent(agents)
+    if agent is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-08 real_continuity_recall_probe",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No ContextSocialAgent was available for recall probe.",
+        )
+
+    snapshot = _related_snapshot_from_episode(target)
+    query_text = _query_from_real_episode(target)
+    perception = agent._observation_policy.build_perception_envelope(  # noqa: SLF001
+        prompt_visible_snapshot=snapshot,
+        observation_prompt=query_text,
+    )
+    preparation = agent._recall_planner.prepare(  # noqa: SLF001
+        agent_id=target.get("agent_id"),
+        topic=perception.topic,
+        semantic_anchors=perception.semantic_anchors,
+        entities=perception.entities,
+        snapshot=perception.snapshot,
+        memory_state=agent._memory_state,  # noqa: SLF001
+        longterm_store=store,
+        next_step_id=next_step_id,
+        runtime_state=RecallRuntimeState(),
+    )
+    scored = _score_real_episode_retrieval_probe(
+        expected=target,
+        query_text=preparation.query_text,
+        retrieved=preparation.candidates,
+    )
+    metrics = {
+        **base_metrics,
+        "probe_scope": "retrieve_only",
+        "gate_decision": bool(preparation.gate_decision),
+        "retrieval_attempted": bool(preparation.retrieval_attempted),
+        "query_text": preparation.query_text,
+        "recalled_count": preparation.recalled_count,
+        "injected_count": 0,
+        "retrieved_step_ids": preparation.recalled_step_ids,
+        "first_hit_rank": scored["first_hit_rank"],
+        "hit_at_3": scored["hit_at_3"],
+    }
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name="VAL-RCL-08 real_continuity_recall_probe",
+        status=(
+            "pass"
+            if preparation.gate_decision and scored["hit_at_3"]
+            else "fail"
+        ),
+        metrics=metrics,
+        evidence={
+            "target_episode": _real_episode_debug_view(target),
+            "gate_reason_flags": preparation.gate_reason_flags,
+            "retrieved": [
+                _real_episode_debug_view(item)
+                for item in preparation.candidates[:3]
+            ],
+            "note": (
+                "这是 retrieve-only probe：只走 gate + prepare + retrieval，"
+                "不执行 prompt assemble，因此 injected_count 固定为 0。"
+            ),
+        },
+    )
+
+
+def _build_real_empty_observation_suppression_event(
+    *,
+    agents: list[Any],
+    store: Any,
+    base_metrics: dict[str, Any],
+    next_step_id: int,
+) -> EvaluationEvent:
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-09 real_empty_observation_recall_suppression",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for suppression recall probe.",
+        )
+
+    agent = _first_context_agent(agents)
+    if agent is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name="VAL-RCL-09 real_empty_observation_recall_suppression",
+            status="blocked",
+            metrics=base_metrics,
+            reason="No ContextSocialAgent was available for recall suppression probe.",
+        )
+
+    empty_snapshot = {
+        "posts": {"success": True, "posts": []},
+        "groups": {
+            "success": True,
+            "all_groups": [],
+            "joined_group_ids": [],
+            "messages": [],
+            "degraded_groups": False,
+            "degraded_messages": False,
+            "message_count": 0,
+        },
+    }
+    perception = agent._observation_policy.build_perception_envelope(  # noqa: SLF001
+        prompt_visible_snapshot=empty_snapshot,
+        observation_prompt="No new relevant social content is visible.",
+    )
+    preparation = agent._recall_planner.prepare(  # noqa: SLF001
+        agent_id=getattr(agent, "agent_id", None),
+        topic=perception.topic,
+        semantic_anchors=perception.semantic_anchors,
+        entities=perception.entities,
+        snapshot=perception.snapshot,
+        memory_state=agent._memory_state,  # noqa: SLF001
+        longterm_store=store,
+        next_step_id=next_step_id,
+        runtime_state=RecallRuntimeState(),
+    )
+    metrics = {
+        **base_metrics,
+        "probe_scope": "retrieve_only",
+        "gate_decision": bool(preparation.gate_decision),
+        "retrieval_attempted": bool(preparation.retrieval_attempted),
+        "recalled_count": preparation.recalled_count,
+        "injected_count": 0,
+    }
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name="VAL-RCL-09 real_empty_observation_recall_suppression",
+        status=(
+            "pass"
+            if not preparation.gate_decision
+            and not preparation.retrieval_attempted
+            and preparation.recalled_count == 0
+            else "fail"
+        ),
+        metrics=metrics,
+        evidence={
+            "gate_reason_flags": preparation.gate_reason_flags,
+            "note": (
+                "这是 retrieve-only probe：只验证空/无强信号 observation 下 gate / retrieval 是否被抑制；"
+                "不执行 prompt assemble，因此 injected_count 固定为 0。"
+            ),
+        },
+    )
+
+
+def _collect_real_longterm_probe_candidates(store: Any) -> list[dict[str, Any]]:
+    if store is None:
+        return []
+    queries = [
+        "create_post create_comment authored content state changes",
+        "created_post created_comment followed_user sent_group_message",
+        "discussion post comment follow group message",
+    ]
+    by_key: dict[tuple[str, int | None, int | None], dict[str, Any]] = {}
+    for query in queries:
+        try:
+            retrieved = store.retrieve_relevant(query, limit=10)
+        except Exception:
+            continue
+        for item in retrieved:
+            if str(item.get("memory_kind", "") or "") != "action_episode":
+                continue
+            key = _real_episode_key(item)
+            if key[1] is None or key[2] is None:
+                continue
+            by_key[key] = dict(item)
+    return sorted(
+        by_key.values(),
+        key=lambda item: (
+            bool(str(item.get("authored_content", "") or "").strip()),
+            str(item.get("action_significance", "") or "") == "high",
+            int(item.get("step_id", 0) or 0),
+        ),
+        reverse=True,
+    )
+
+
+def _count_persisted_action_episodes(agents: list[Any]) -> int:
+    total = 0
+    for agent in agents:
+        persisted = getattr(agent, "_persisted_action_episode_ids", None)
+        if persisted is not None:
+            total += len(persisted)
+    return total
+
+
+def _query_from_real_episode(episode: dict[str, Any]) -> str:
+    for key in ("authored_content", "summary_text", "topic", "action_fact"):
+        value = str(episode.get(key, "") or "").strip()
+        if value:
+            return value[:240]
+    target_snapshot = episode.get("target_snapshot", {}) or {}
+    if isinstance(target_snapshot, dict):
+        for key in ("summary", "content", "group_name"):
+            value = str(target_snapshot.get(key, "") or "").strip()
+            if value:
+                return value[:240]
+    return ""
+
+
+def _score_real_episode_retrieval_probe(
+    *,
+    expected: dict[str, Any],
+    query_text: str,
+    retrieved: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected_key = _real_episode_key(expected)
+    retrieved_keys = [_real_episode_key(item) for item in retrieved]
+    first_hit_rank = 0
+    for index, key in enumerate(retrieved_keys, start=1):
+        if key == expected_key:
+            first_hit_rank = index
+            break
+    return {
+        "query_text": query_text,
+        "expected_key": expected_key,
+        "expected_label": _real_episode_label(expected),
+        "retrieved_keys": retrieved_keys,
+        "retrieved_labels": [_real_episode_label(item) for item in retrieved],
+        "retrieved_same_agent_flags": [
+            key[0] == expected_key[0] for key in retrieved_keys
+        ],
+        "cross_agent_retrieved_count": sum(
+            1 for key in retrieved_keys[:3] if key[0] != expected_key[0]
+        ),
+        "first_hit_rank": first_hit_rank,
+        "hit_at_1": first_hit_rank == 1,
+        "hit_at_3": 0 < first_hit_rank <= 3,
+        "recall_at_3": 1.0 if 0 < first_hit_rank <= 3 else 0.0,
+        "mrr": round(1 / first_hit_rank, 4) if first_hit_rank else 0.0,
+    }
+
+
+def _summarize_real_probe_scores(per_query: list[dict[str, Any]]) -> dict[str, Any]:
+    query_count = len(per_query)
+    return {
+        "query_count": query_count,
+        "hit_at_1": _mean_bool(item["hit_at_1"] for item in per_query),
+        "hit_at_3": _mean_bool(item["hit_at_3"] for item in per_query),
+        "recall_at_3": round(
+            sum(float(item["recall_at_3"]) for item in per_query)
+            / max(1, query_count),
+            4,
+        ),
+        "mrr": round(
+            sum(float(item["mrr"]) for item in per_query) / max(1, query_count),
+            4,
+        ),
+        "cross_agent_top3_count": sum(
+            int(item.get("cross_agent_retrieved_count", 0) or 0)
+            for item in per_query
+        ),
+    }
+
+
+def _real_probe_readable_rows(per_query: list[dict[str, Any]]) -> list[str]:
+    return [
+        (
+            f"{item['expected_label']}: top={item['retrieved_labels']} "
+            f"expected={item['expected_key']} rank={item['first_hit_rank']}"
+        )
+        for item in per_query
+    ]
+
+
+def _real_episode_key(episode: dict[str, Any]) -> tuple[str, int | None, int | None]:
+    agent_id = str(episode.get("agent_id", "") or "")
+    step_id = episode.get("step_id")
+    action_index = episode.get("action_index")
+    return (
+        agent_id,
+        int(step_id) if step_id is not None else None,
+        int(action_index) if action_index is not None else None,
+    )
+
+
+def _real_episode_label(episode: dict[str, Any]) -> str:
+    return (
+        f"agent={episode.get('agent_id')} "
+        f"step={episode.get('step_id')} "
+        f"action={episode.get('action_name')}"
+    )
+
+
+def _real_episode_debug_view(episode: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "agent_id": episode.get("agent_id"),
+        "step_id": episode.get("step_id"),
+        "action_index": episode.get("action_index"),
+        "action_name": episode.get("action_name"),
+        "action_fact": episode.get("action_fact"),
+        "topic": episode.get("topic"),
+        "query_source": episode.get("query_source"),
+        "target_snapshot": episode.get("target_snapshot"),
+    }
+
+
+def _first_context_agent(agents: list[Any]) -> Any | None:
+    for agent in agents:
+        if hasattr(agent, "_recall_planner") and hasattr(agent, "_memory_state"):
+            return agent
+    return None
+
+
+def _context_agent_for_episode(
+    agents: list[Any],
+    episode: dict[str, Any],
+) -> Any | None:
+    expected_agent_id = str(episode.get("agent_id", "") or "")
+    if not expected_agent_id:
+        return None
+    for agent in agents:
+        if str(getattr(agent, "agent_id", "") or "") == expected_agent_id:
+            return agent
+    return None
+
+
+def _related_snapshot_from_episode(episode: dict[str, Any]) -> dict[str, Any]:
+    summary = _query_from_real_episode(episode) or "related remembered social content"
+    target_snapshot = episode.get("target_snapshot", {}) or {}
+    target_id = episode.get("target_id")
+    if isinstance(target_snapshot, dict):
+        target_id = target_snapshot.get("post_id", target_id)
+    post_id = target_id if target_id is not None else 900001
+    return {
+        "posts": {
+            "success": True,
+            "posts": [
+                {
+                    "object_kind": "post",
+                    "post_id": post_id,
+                    "user_id": 900001,
+                    "relation_anchor": "unknown",
+                    "self_authored": False,
+                    "summary": summary[:120],
+                    "evidence_quality": "normal",
+                    "degraded_evidence": False,
+                    "comments_omitted_count": 0,
+                    "comments": [],
+                }
+            ],
+        },
+        "groups": {
+            "success": True,
+            "all_groups": [],
+            "joined_group_ids": [],
+            "messages": [],
+            "degraded_groups": False,
+            "degraded_messages": False,
+            "message_count": 0,
+        },
+    }
+
+
+def _mean_bool(values: Any) -> float:
+    collected = list(values)
+    if not collected:
+        return 0.0
+    return round(sum(1.0 if item else 0.0 for item in collected) / len(collected), 4)
+
+
+def _count_string_values(values: list[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized:
+            continue
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return counts
+
+
+def _summarize_longwindow_debug_snapshots(
+    step_snapshots: list[dict[str, Any]],
+) -> dict[str, Any]:
+    agent_rows: list[dict[str, Any]] = []
+    used_recall_step_ids: set[int] = set()
+    observation_compression_trigger_count = 0
+    for step_snapshot in step_snapshots:
+        debug = step_snapshot.get("memory_debug", {}) or {}
+        for agent in list(debug.get("agents", []) or []):
+            agent_rows.append(agent)
+            stage = str(agent.get("last_observation_stage", "") or "")
+            if stage in {"long_text_capped", "interaction_reduced", "physical_fallback"}:
+                observation_compression_trigger_count += 1
+            for step_id in list(agent.get("last_injected_step_ids", []) or []):
+                try:
+                    used_recall_step_ids.add(int(step_id))
+                except Exception:
+                    continue
+
+    prompt_tokens = [
+        int(agent.get("last_prompt_tokens", 0) or 0)
+        for agent in agent_rows
+        if int(agent.get("last_prompt_tokens", 0) or 0) > 0
+    ]
+    return {
+        "recall_gate_true_count": sum(
+            1 for agent in agent_rows if bool(agent.get("last_recall_gate"))
+        ),
+        "recall_recalled_trace_count": sum(
+            1 for agent in agent_rows if int(agent.get("last_recalled_count", 0) or 0) > 0
+        ),
+        "recall_recalled_not_injected_trace_count": sum(
+            1
+            for agent in agent_rows
+            if int(agent.get("last_recalled_count", 0) or 0) > 0
+            and int(agent.get("last_injected_count", 0) or 0) <= 0
+        ),
+        "recall_injected_count": sum(
+            int(agent.get("last_injected_count", 0) or 0) for agent in agent_rows
+        ),
+        "recall_injected_trace_count": sum(
+            1 for agent in agent_rows if int(agent.get("last_injected_count", 0) or 0) > 0
+        ),
+        "recall_overlap_filtered_count": sum(
+            int(agent.get("last_recall_overlap_filtered_count", 0) or 0)
+            for agent in agent_rows
+        ),
+        "recall_selection_stop_reason_counts": _count_string_values(
+            [
+                str(agent.get("last_recall_selection_stop_reason", "") or "")
+                for agent in agent_rows
+            ]
+        ),
+        "used_recall_step_ids": sorted(used_recall_step_ids),
+        "avg_prompt_tokens": (
+            round(sum(prompt_tokens) / len(prompt_tokens), 2) if prompt_tokens else 0.0
+        ),
+        "max_prompt_tokens": max(prompt_tokens, default=0),
+        "observation_compression_trigger_count": observation_compression_trigger_count,
+        "shortterm_recent_retained_step_count": max(
+            (int(agent.get("recent_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+        "shortterm_compressed_retained_step_count": max(
+            (int(agent.get("compressed_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+        "shortterm_total_retained_step_count": max(
+            (int(agent.get("total_retained_step_count", 0) or 0) for agent in agent_rows),
+            default=0,
+        ),
+    }
+
+
+def _extract_longwindow_trace_examples(
+    step_snapshots: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for step_snapshot in step_snapshots:
+        step_result = dict(step_snapshot.get("step_result", {}) or {})
+        step_id = int(step_result.get("step_executed", 0) or 0)
+        debug = step_snapshot.get("memory_debug", {}) or {}
+        for agent in list(debug.get("agents", []) or []):
+            injected_count = int(agent.get("last_injected_count", 0) or 0)
+            recalled_count = int(agent.get("last_recalled_count", 0) or 0)
+            if injected_count <= 0 and recalled_count <= 0:
+                continue
+            rows.append(
+                {
+                    "step_id": step_id,
+                    "agent_id": agent.get("agent_id"),
+                    "user_name": agent.get("user_name"),
+                    "last_recall_gate": agent.get("last_recall_gate"),
+                    "last_recall_query_text": agent.get("last_recall_query_text"),
+                    "last_recalled_count": recalled_count,
+                    "last_injected_count": injected_count,
+                    "last_recall_overlap_filtered_count": int(
+                        agent.get("last_recall_overlap_filtered_count", 0) or 0
+                    ),
+                    "last_recall_selection_stop_reason": str(
+                        agent.get("last_recall_selection_stop_reason", "") or ""
+                    ),
+                    "last_recalled_step_ids": list(agent.get("last_recalled_step_ids", []) or []),
+                    "last_injected_step_ids": list(agent.get("last_injected_step_ids", []) or []),
+                    "last_prompt_tokens": int(agent.get("last_prompt_tokens", 0) or 0),
+                    "last_observation_stage": agent.get("last_observation_stage"),
+                }
+            )
+    return rows[:5]
+
+
+def _collect_manager_chat_history_stats(manager: OASISManager) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for agent in manager.get_all_agents():
+        stats = _extract_agent_chat_history_stats(agent)
+        if stats:
+            rows.append(stats)
+    return rows
+
+
+def _extract_agent_chat_history_stats(agent: Any) -> dict[str, Any]:
+    memory = getattr(agent, "memory", None)
+    if memory is None:
+        return {}
+
+    stats: dict[str, Any] = {
+        "memory_class": memory.__class__.__name__,
+        "context_creator_class": "",
+        "context_token_limit": 0,
+        "window_size": None,
+        "stored_record_count": 0,
+        "retrieved_record_count": 0,
+        "selected_context_message_count": 0,
+        "stored_raw_tokens": 0,
+        "selected_context_tokens": 0,
+        "window_dropped_record_count": 0,
+        "token_selection_dropped_record_count": 0,
+        "stored_observation_round_count": 0,
+        "selected_observation_round_count": 0,
+        "dropped_observation_round_count": 0,
+        "window_drop_active": False,
+        "token_truncation_active": False,
+    }
+
+    context_creator = None
+    try:
+        context_creator = memory.get_context_creator()
+    except Exception:
+        context_creator = None
+    if context_creator is not None:
+        stats["context_creator_class"] = context_creator.__class__.__name__
+        token_limit = getattr(context_creator, "token_limit", None)
+        if isinstance(token_limit, int):
+            stats["context_token_limit"] = token_limit
+
+    window_size = getattr(memory, "window_size", getattr(memory, "_window_size", None))
+    if isinstance(window_size, int):
+        stats["window_size"] = window_size
+
+    raw_memory_records: list[MemoryRecord] = []
+    storage = getattr(getattr(memory, "_chat_history_block", None), "storage", None)
+    load = getattr(storage, "load", None)
+    if callable(load):
+        try:
+            raw_records = load()
+        except Exception:
+            raw_records = []
+        if isinstance(raw_records, list):
+            stats["stored_record_count"] = len(raw_records)
+            try:
+                raw_memory_records = [
+                    MemoryRecord.from_dict(record)
+                    for record in raw_records
+                    if isinstance(record, dict)
+                ]
+            except Exception:
+                raw_memory_records = []
+
+    token_counter = getattr(context_creator, "token_counter", None)
+    if token_counter is not None and raw_memory_records:
+        try:
+            raw_messages = [record.to_openai_message() for record in raw_memory_records]
+            stats["stored_raw_tokens"] = int(
+                token_counter.count_tokens_from_messages(raw_messages)
+            )
+        except Exception:
+            stats["stored_raw_tokens"] = 0
+    if raw_memory_records:
+        stats["stored_observation_round_count"] = sum(
+            1
+            for record in raw_memory_records
+            if _is_observation_prompt_text(
+                (record.to_openai_message() or {}).get("content", "")
+            )
+        )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            retrieved_records = memory.retrieve()
+        except Exception:
+            retrieved_records = []
+        try:
+            selected_messages, selected_tokens = memory.get_context()
+        except Exception:
+            selected_messages, selected_tokens = [], 0
+
+    if isinstance(retrieved_records, list):
+        stats["retrieved_record_count"] = len(retrieved_records)
+    if isinstance(selected_messages, list):
+        stats["selected_context_message_count"] = len(selected_messages)
+    if isinstance(selected_tokens, int):
+        stats["selected_context_tokens"] = selected_tokens
+
+    selected_record_indices = _match_selected_record_indices(
+        retrieved_records=(
+            retrieved_records if isinstance(retrieved_records, list) else []
+        ),
+        selected_messages=selected_messages if isinstance(selected_messages, list) else [],
+    )
+    if selected_record_indices and isinstance(retrieved_records, list):
+        selected_records = [
+            retrieved_records[index]
+            for index in selected_record_indices
+            if 0 <= index < len(retrieved_records)
+        ]
+        stats["selected_observation_round_count"] = sum(
+            1
+            for record in selected_records
+            if getattr(record, "memory_record", None) is not None
+            and _is_observation_prompt_text(
+                (record.memory_record.to_openai_message() or {}).get("content", "")
+            )
+        )
+
+    stats["dropped_observation_round_count"] = max(
+        0,
+        int(stats["stored_observation_round_count"])
+        - int(stats["selected_observation_round_count"]),
+    )
+    stats["window_dropped_record_count"] = max(
+        0,
+        int(stats["stored_record_count"]) - int(stats["retrieved_record_count"]),
+    )
+    stats["token_selection_dropped_record_count"] = max(
+        0,
+        int(stats["retrieved_record_count"])
+        - int(stats["selected_context_message_count"]),
+    )
+    stats["window_drop_active"] = stats["window_dropped_record_count"] > 0
+
+    token_limit = int(stats["context_token_limit"] or 0)
+    raw_tokens = int(stats["stored_raw_tokens"] or 0)
+    stats["token_truncation_active"] = bool(
+        token_limit > 0
+        and (
+            raw_tokens > token_limit
+            or stats["token_selection_dropped_record_count"] > 0
+        )
+    )
+    return stats
+
+
+def _message_match_key(message: Any) -> str:
+    try:
+        return json.dumps(message, sort_keys=True, ensure_ascii=False, default=str)
+    except TypeError:
+        return str(message)
+
+
+def _is_observation_prompt_text(content: Any) -> bool:
+    text = str(content or "")
+    return "After refreshing" in text and "pick one you want to perform action" in text
+
+
+def _match_selected_record_indices(
+    *,
+    retrieved_records: list[Any],
+    selected_messages: list[dict[str, Any]],
+) -> list[int]:
+    retrieved_keys = [
+        _message_match_key(record.memory_record.to_openai_message())
+        for record in retrieved_records
+        if getattr(record, "memory_record", None) is not None
+    ]
+    selected_keys = [_message_match_key(message) for message in selected_messages]
+
+    matched_indices: list[int] = []
+    search_from = 0
+    for selected_key in selected_keys:
+        try:
+            index = retrieved_keys.index(selected_key, search_from)
+        except ValueError:
+            continue
+        matched_indices.append(index)
+        search_from = index + 1
+    return matched_indices
+
+
+def _summarize_comparison_run(
+    *,
+    mode: MemoryMode,
+    init_result: dict[str, Any],
+    manager_step_count: int,
+    step_times_ms: list[float],
+    step_snapshots: list[dict[str, Any]],
+    duration_ms: float,
+    persisted_action_episode_count: int,
+) -> dict[str, Any]:
+    metrics: dict[str, Any] = {
+        "memory_mode": mode.value,
+        "agent_count": int(init_result.get("agent_count", 0) or 0),
+        "step_count": manager_step_count,
+        "step_success_rate": 1.0 if step_snapshots else 0.0,
+        "avg_step_time_ms": (
+            round(sum(step_times_ms) / len(step_times_ms), 3) if step_times_ms else 0.0
+        ),
+        "max_step_time_ms": round(max(step_times_ms), 3) if step_times_ms else 0.0,
+        "duration_ms": round(duration_ms, 3),
+    }
+
+    if mode == MemoryMode.ACTION_V1:
+        debug_snapshots = [
+            {"memory_debug": snapshot.get("memory_debug", {}) or {}}
+            for snapshot in step_snapshots
+        ]
+        longwindow_like = _summarize_longwindow_debug_snapshots(debug_snapshots)
+        metrics.update(
+            {
+                "avg_prompt_tokens": longwindow_like["avg_prompt_tokens"],
+                "max_prompt_tokens": longwindow_like["max_prompt_tokens"],
+                "persisted_action_episode_count": int(persisted_action_episode_count or 0),
+                "recall_gate_true_count": longwindow_like["recall_gate_true_count"],
+                "recall_recalled_trace_count": longwindow_like["recall_recalled_trace_count"],
+                "recall_recalled_not_injected_trace_count": longwindow_like[
+                    "recall_recalled_not_injected_trace_count"
+                ],
+                "recall_injected_count": longwindow_like["recall_injected_count"],
+                "recall_injected_trace_count": longwindow_like["recall_injected_trace_count"],
+                "recall_overlap_filtered_count": longwindow_like["recall_overlap_filtered_count"],
+                "recall_selection_stop_reason_counts": longwindow_like[
+                    "recall_selection_stop_reason_counts"
+                ],
+                "shortterm_recent_retained_step_count": longwindow_like[
+                    "shortterm_recent_retained_step_count"
+                ],
+                "shortterm_compressed_retained_step_count": longwindow_like[
+                    "shortterm_compressed_retained_step_count"
+                ],
+                "shortterm_total_retained_step_count": longwindow_like[
+                    "shortterm_total_retained_step_count"
+                ],
+                "observation_compression_trigger_count": longwindow_like[
+                    "observation_compression_trigger_count"
+                ],
+            }
+        )
+        return metrics
+
+    chat_history_entries: list[dict[str, Any]] = [
+        agent_stats
+        for snapshot in step_snapshots
+        for agent_stats in list(snapshot.get("chat_history", []) or [])
+        if isinstance(agent_stats, dict)
+    ]
+
+    def _max_chat_history_metric(key: str) -> int:
+        values = [int(item.get(key, 0) or 0) for item in chat_history_entries]
+        return max(values) if values else 0
+
+    metrics.update(
+        {
+            "chat_history_token_truncation_active_count": sum(
+                1 for item in chat_history_entries if item.get("token_truncation_active")
+            ),
+            "chat_history_window_drop_active_count": sum(
+                1 for item in chat_history_entries if item.get("window_drop_active")
+            ),
+            "chat_history_context_token_limit": _max_chat_history_metric(
+                "context_token_limit"
+            ),
+            "max_chat_history_stored_raw_tokens": _max_chat_history_metric(
+                "stored_raw_tokens"
+            ),
+            "max_chat_history_selected_context_tokens": _max_chat_history_metric(
+                "selected_context_tokens"
+            ),
+            "max_chat_history_stored_record_count": _max_chat_history_metric(
+                "stored_record_count"
+            ),
+            "max_chat_history_selected_context_message_count": _max_chat_history_metric(
+                "selected_context_message_count"
+            ),
+            "max_chat_history_token_selection_dropped_record_count": _max_chat_history_metric(
+                "token_selection_dropped_record_count"
+            ),
+            "max_chat_history_window_dropped_record_count": _max_chat_history_metric(
+                "window_dropped_record_count"
+            ),
+            "peak_chat_history_stored_observation_round_count": _max_chat_history_metric(
+                "stored_observation_round_count"
+            ),
+            "peak_chat_history_selected_observation_round_count": _max_chat_history_metric(
+                "selected_observation_round_count"
+            ),
+        }
+    )
+    return metrics
+
+
+def uuid_suffix() -> str:
+    return datetime.now().strftime("%Y%m%d%H%M%S%f")
+
+
+def _build_runtime_settings(config: EvaluationConfig) -> ActionV1RuntimeSettings:
+    return ActionV1RuntimeSettings(
+        token_counter=HeuristicUnicodeTokenCounter(),
+        system_message=BaseMessage.make_assistant_message(
+            role_name="system",
+            content="You are a social agent.",
+        ),
+        context_token_limit=config.context_token_limit,
+    )
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+@contextmanager
+def _temporary_env(updates: dict[str, str]) -> Iterator[None]:
+    previous = {key: os.environ.get(key) for key in updates}
+    try:
+        for key, value in updates.items():
+            if value == "":
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def main(args: list[str] | None = None) -> int:
+    config = parse_args(args)
+    result = run_memory_evaluation(config)
+    print(f"memory evaluation run_dir={result['run_dir']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

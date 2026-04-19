@@ -246,8 +246,12 @@ class MetricsManager:
                 herd_effect = await self.herd_service.get_metrics()
                 await self.caches['herd_effect'].set('herd_effect', herd_effect)
 
-            # Get current step from database
-            current_step = await self._get_current_step()
+            # Prefer the simulation-maintained step counter. The old database
+            # approximation used post count as a proxy, which drifts badly in
+            # multi-agent runs and corrupts monitoring/e2e interpretation.
+            current_step = self.current_step
+            if current_step <= 0:
+                current_step = await self._get_current_step()
 
             return MetricsSummary(
                 propagation=propagation,

@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { simulationApi } from '@/lib/api'
+import { normalizeSimulationStatus } from '@/lib/simulationStatus'
 import type {
   SimulationStatus,
   TopicListItem,
@@ -39,28 +40,7 @@ export function useSimulationStatus(pollingInterval: number = 3000) {
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
-        // Transform backend snake_case to frontend camelCase
-        const backendData = response.data as any
-        const transformedData: any = {
-          ...response.data,
-          // Map state enum to running/paused booleans
-          running: backendData.state === 'running',
-          paused: backendData.state === 'paused',
-          // Keep original state for reference
-          originalState: backendData.state,
-          // Map snake_case fields to camelCase
-          currentStep: backendData.current_step,
-          currentRound: backendData.current_round,
-          activeAgents: backendData.active_agents,
-          totalPosts: backendData.total_posts,
-          totalInteractions: backendData.total_interactions,
-          agentCount: backendData.agent_count,
-          totalSteps: backendData.total_steps,
-          platform: backendData.platform,
-          recsys: backendData.recsys,
-          topics: backendData.topics,
-          regions: backendData.regions,
-        }
+        const transformedData = normalizeSimulationStatus(response.data)
 
         setData(transformedData)
         setError(null)
@@ -491,30 +471,8 @@ export function useSimulationStatusLightweight(pollingInterval: number = 2000) {
       const response = await simulationApi.getStatus()
 
       if (isMountedRef.current) {
-        // Transform backend snake_case to frontend camelCase
-        const backendData = response.data as any
-        const transformedData: any = {
-          ...response.data,
-          // Map state enum to running/paused booleans
-          running: backendData.state === 'running',
-          paused: backendData.state === 'paused',
-          // Keep original state for reference
-          originalState: backendData.state,
-          // Map snake_case fields to camelCase
-          currentStep: backendData.current_step,
-          currentRound: backendData.current_round,
-          activeAgents: backendData.active_agents,
-          totalPosts: backendData.total_posts,
-          totalInteractions: backendData.total_interactions,
-          agentCount: backendData.agent_count,
-          totalSteps: backendData.total_steps,
-          platform: backendData.platform,
-          recsys: backendData.recsys,
-          topics: backendData.topics,
-          regions: backendData.regions,
-        }
-
-        const newStep = backendData.current_step || 0
+        const transformedData = normalizeSimulationStatus(response.data)
+        const newStep = transformedData.currentStep || 0
 
         setData(transformedData)
         setCurrentStep(newStep)

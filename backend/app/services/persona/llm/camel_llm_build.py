@@ -112,4 +112,3 @@ def _validate_homogeneous_specs(specs: Iterable[ModelRuntimeSpec]) -> None:
             raise ValueError("All pooled models must use the same model_type.")
         if _resolve_context_token_limit(item) != _resolve_context_token_limit(first):
             raise ValueError("All pooled models must share the same context_token_limit.")
-

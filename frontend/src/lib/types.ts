@@ -44,6 +44,11 @@ export interface SimulationStatus {
   polarization: number
   agents: Agent[]
   platform?: string
+  memoryMode?: 'upstream' | 'action_v1' | string
+  contextTokenLimit?: number | null
+  generationMaxTokens?: number | null
+  modelBackendTokenLimit?: number | null
+  errorMessage?: string | null
   recsys?: string
   topics?: string[]
   regions?: string[]
@@ -258,6 +263,20 @@ export interface TopicSimulationResponse {
   content_count: number
   profiles: TopicProfileSeed[]
   contents: TopicContentSeed[]
+}
+
+export interface ConfigResult {
+  success: boolean
+  message: string
+  simulation_id?: string | null
+  agents_created?: number
+}
+
+export interface StatusResult {
+  success: boolean
+  message: string
+  current_state?: string
+  timestamp?: string
 }
 
 // ========== Metrics Types (matching backend/app/models/metrics.py) ==========
