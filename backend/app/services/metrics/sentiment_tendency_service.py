@@ -6,7 +6,6 @@ from app.models.metrics import SentimentAnalyzedPost, SentimentTendencyMetrics
 from app.services.proxy_service import proxy_service
 from app.utils import metrics_db
 
-
 logger = logging.getLogger(__name__)
 
 

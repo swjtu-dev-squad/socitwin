@@ -14,7 +14,6 @@ from fastapi import HTTPException
 
 from app.models.proxy import ChatCompletionRequest, ChatCompletionResponse
 
-
 logger = logging.getLogger(__name__)
 
 BAIDU_APP_ID = "122858586"
