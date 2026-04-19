@@ -6,7 +6,6 @@ from fastapi import APIRouter
 from app.models.proxy import ChatCompletionRequest, ChatCompletionResponse
 from app.services.proxy_service import proxy_service
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["openai-proxy"])
