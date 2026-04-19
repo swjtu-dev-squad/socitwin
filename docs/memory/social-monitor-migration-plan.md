@@ -1,6 +1,6 @@
 # Social Network Monitor Migration Plan
 
-- Status: in progress
+- Status: backend-first-wave-complete
 - Audience: migration implementers, reviewers, frontend/backend maintainers
 - Scope: migrate useful social network monitor page capabilities from `oasis-dashboard` into `socitwin`
 
@@ -146,6 +146,12 @@ frontend selected agent
   -> GET /api/sim/agents/{agent_id}/monitor
   -> detail render
 ```
+
+当前应把这条线理解为：
+
+- monitor/detail 的后端第一版已经完成；
+- 它已经不再是 memory 主链迁移的阻塞项；
+- 后续剩余工作主要是展示增强、真实长跑验证和非阻塞清理。
 
 ## 3. Migration Position
 
@@ -308,7 +314,7 @@ backend/app/services/agent_monitor_service.py
 | graph follow edges | SQLite follow | status following |
 | graph interaction edges | SQLite like/comment/post | trace fallback |
 | memory status | `OASISManager.get_memory_debug_info()` | empty snapshot |
-| recall item content | future per-agent memory snapshot | step ids only |
+| recall item content | `memory_debug.last_recall_candidate_items / last_selected_recall_items` | future richer per-agent snapshot |
 
 ## 7. Frontend Contract Plan
 
@@ -482,13 +488,13 @@ POST /api/sim/step
 - recent timeline 随 trace 更新；
 - action_v1 memory debug 随 step 更新。
 
-状态：部分完成。当前采用轮询兜底，真实 step 长跑验证待后续进行。
+状态：后端第一版已完成。当前采用 SSE/轮询混合刷新兜底，真实 step 长跑验证待后续进行。
 
 ## 10. Open Questions
 
 当前需要后续实现时边做边核对的问题：
 
-1. 是否需要后端暴露真实 recall item content，而不只是 recalled/injected step ids；
+1. 是否需要后端继续暴露比当前 recall item summaries 更完整的 episode 正文；
 2. `memory.length` 当前在 monitor 中使用 `last_prompt_tokens`，UI 第一版显示为 `Prompt Tokens`；
 3. `contentSource` 第一版仍保持旧类型 `system_prompt | retrieval`，没有扩展 `action_v1`；
 4. `currentViewpoint` 是否保留旧启发式推断，还是暂时删除；
@@ -516,7 +522,7 @@ POST /api/sim/step
 
 当前仍未解决：
 
-- recall item content 仍然是 step id 摘要，不是真实 episode 正文；
+- recall item content 当前已经能显示 candidate/selected recall item summary，但还不是真实 episode 全正文；
 - recent / compressed 当前展示的是 count、ids、keys，不展示完整块正文；
 - `currentViewpoint` 仍是轻量启发式，后续可按需要确认是否保留；
 - `agentDataTransform.ts` 仍保留为兼容残留，后续可清理；

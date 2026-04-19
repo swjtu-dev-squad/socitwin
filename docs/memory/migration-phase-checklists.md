@@ -49,8 +49,11 @@
 
 未完成部分仍包括：
 
-- `comparison` 的更完整真实 provider 级稳定验证
 - 旧仓库 `context/llm.py` 那层更完整的模型 runtime 包装
+
+当前不纳入本轮迁移收尾阻塞项，但仍需单独记录的后续事项：
+
+- `comparison` 的更完整真实 provider 级稳定验证
 
 当前已经完成但需要和“完整实跑”区分开的部分是：
 

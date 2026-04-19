@@ -362,10 +362,14 @@
 ## 6. Open Work Items
 
 - 旧仓库 `context/llm.py` 对应的模型 runtime 包装仍未等价恢复；
-- `comparison` 的真实 provider 级稳定长跑验证仍应作为按需重验证项；
 - `topic activation` 已确认会通过 `ManualAction` 绕开普通 action_v1 episode 写入链；
   当前建议先保持为环境种子，只记录为后续可选 trace hook；
 - memory monitor/debug 是否需要更细的 per-agent drill-down 输出仍待后续设计。
+
+说明：
+
+- `comparison` 的真实 provider 级稳定长跑验证仍属于后续按需重验证项；
+- 但它不再属于当前迁移收尾的 open work item，不应与主链功能迁移验收混在一起。
 
 ## 6.1 Acceptance-Time Structural Notes
 

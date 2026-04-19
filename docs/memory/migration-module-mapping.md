@@ -161,6 +161,23 @@
 - 已记录的剩余迁移差异；
 - 后续需要继续核对是否要补成更接近旧仓库 `llm.py` 的统一 runtime 包装。
 
+截至当前迁移验收阶段，更准确的判断应是：
+
+- 这不是 memory 主链未恢复导致的运行阻塞；
+- 当前新仓库已经具备：
+  - `action_v1` 的 `OASIS_CONTEXT_TOKEN_LIMIT`
+  - `generation max tokens` 的独立输入面
+  - upstream chat history context limit 修正
+  - action_v1 token counter fallback
+  - provider matcher / overflow 配置承载
+- 因此短期内不需要专门为了“迁移完成”再补一个 `memory/llm.py`。
+
+更合理的后续触发条件是：
+
+- 需要重新支持 pooled/shared model runtime；
+- 需要在多 provider / 多 backend 下统一 runtime spec；
+- 当前分散在 `oasis_manager.py` / `agent.py` 的 runtime 语义再次造成明确维护成本或回归风险。
+
 同时当前迁移边界也应明确：
 
 - 不以“把旧 `context/llm.py` 原样补回”为目标；

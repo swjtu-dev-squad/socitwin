@@ -57,15 +57,26 @@
 ## 4. Current Main Risks
 
 - 旧仓库 `context/llm.py` 的独立模型 runtime 包装尚未以等价形态恢复；
-- `comparison` 虽已恢复到两模式代码/单测层，但真实 provider 级长跑验证仍偏重且结论不稳定。
+- 迁移主链已基本闭合，但仍需把“非阻塞遗留项”和“后续增强项”从主线验收中明确剥离，避免继续把迁移收尾和后续评测混在一起。
 
 ## 5. Current Next Step
 
-当前迁移已经进入收尾验收与剩余缺口盘点阶段。下一轮重点不再是继续搬模块，而是：
+当前迁移已经进入收尾验收与剩余缺口盘点阶段。按“后端功能模块迁移”视角，下一轮重点应收口为：
 
 1. 确认 `context/llm.py` 对应的模型 runtime 包装差异是否需要后续小 helper；
-2. 按需运行真实 provider 级 `comparison` 长跑，而不是把它作为高频迁移验证；
+2. 明确 `topic activation`、monitor/debug drill-down 等已知边界是否继续保持为非阻塞项；
 3. 盘点迁移完成后的结构清理项，例如过大的 facade / agent / config / evaluation harness。
-4. 将旧仓库社交网络监控页中已经完成的 monitor/detail、图谱边、行为轨迹和 memory/retrieval 展示能力，按新 FastAPI + memory debug 架构接入新仓库。
+
+关于社交网络监控：
+
+- monitor/detail 后端第一版已经落地；
+- 它不再属于当前 memory 主链迁移的主阻塞项；
+- 后续若继续推进，重点应是展示增强和真实长跑联调，而不是“功能模块是否已迁入”。
+
+关于 `comparison`：
+
+- 两模式代码/单测层已经恢复；
+- 真实 provider 级长跑验证保留为后续按需评测；
+- 当前迁移收尾阶段暂不把它作为阻塞项。
 
 当前这些事项已经拆到独立页面持续维护，后续总览页只保留高层边界与进度。
