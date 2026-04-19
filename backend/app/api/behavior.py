@@ -6,28 +6,26 @@
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.behavior_controller import BehaviorController
+from app.core.dependencies import get_behavior_controller_dependency
 from app.models.behavior import (
-    BehaviorConfigRequest,
-    BehaviorProfileRequest,
-    ApplyProfileRequest,
-    BehaviorConfigResponse,
-    BehaviorProfilesResponse,
     AgentBehaviorConfig,
-    BehaviorProfile,
+    ApplyProfileRequest,
+    BehaviorConfigRequest,
+    BehaviorConfigResponse,
+    BehaviorProfileRequest,
+    BehaviorProfilesResponse,
     BehaviorStrategy,
     create_default_behavior_config,
     create_probabilistic_config,
-    create_scheduled_config,
     create_rule_based_config,
+    create_scheduled_config,
 )
-from app.core.dependencies import get_behavior_controller_dependency
-from app.core.behavior_controller import BehaviorController
-
 
 logger = logging.getLogger(__name__)
 

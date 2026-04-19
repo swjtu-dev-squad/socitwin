@@ -19,11 +19,9 @@ from typing import Any, Dict, Optional, Union
 from oasis import LLMAction, ManualAction, SocialAgent
 
 from app.core.behavior_controller import get_behavior_controller
-
 from app.core.oasis_manager import (
     OASISManager,
 )
-
 from app.models.simulation import (
     ConfigResult,
     LogEntry,

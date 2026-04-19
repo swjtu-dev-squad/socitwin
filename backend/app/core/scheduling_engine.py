@@ -6,21 +6,16 @@ configured timelines, with support for repeating events and schedule looping.
 """
 
 import logging
-import asyncio
-from typing import List, Dict, Any, Optional, Set
-from datetime import datetime, timedelta
 from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction
 
 # Local imports
-from app.models.behavior import (
-    BehaviorSchedule,
-    TimelineEvent,
-    BehaviorContext
-)
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.behavior import BehaviorSchedule, TimelineEvent
+from app.models.simulation import OASISActionType
 
 logger = logging.getLogger(__name__)
 

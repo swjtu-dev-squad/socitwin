@@ -7,21 +7,20 @@ and integrates with the existing LLM autonomous decision system.
 
 import logging
 import random
-from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 # OASIS framework imports
-from oasis import SocialAgent, LLMAction, ManualAction, ActionType
+from oasis import LLMAction, ManualAction, SocialAgent
 
 # Local imports
 from app.core.oasis_manager import OASISManager
 from app.models.behavior import (
     AgentBehaviorConfig,
-    BehaviorStrategy,
     BehaviorContext,
-    create_default_behavior_config
+    BehaviorStrategy,
+    create_default_behavior_config,
 )
-from app.models.simulation import PlatformType, OASISActionType
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +378,7 @@ class BehaviorController:
         agent: SocialAgent,
         config: AgentBehaviorConfig,
         context: BehaviorContext
-    ) -> ManualAction:
+    ) -> Union[LLMAction, ManualAction]:
         """
         Probabilistic decision based on configured distribution
 
@@ -389,7 +388,7 @@ class BehaviorController:
             context: Behavior context
 
         Returns:
-            ManualAction based on probability distribution
+            ManualAction based on probability distribution, or LLMAction as fallback
         """
         try:
             from app.core.probabilistic_engine import ProbabilisticEngine

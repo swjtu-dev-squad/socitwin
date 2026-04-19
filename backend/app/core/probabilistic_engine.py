@@ -8,19 +8,14 @@ and platform-specific action filtering.
 
 import logging
 import random
-from typing import List, Dict, Any, Optional, Tuple
-import math
+from typing import Any, Dict, List, Optional, Tuple
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction, SocialAgent
 
 # Local imports
-from app.models.behavior import (
-    ProbabilityDistribution,
-    ActionProbability,
-    BehaviorContext
-)
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.behavior import BehaviorContext, ProbabilityDistribution
+from app.models.simulation import OASISActionType, PlatformType
 
 logger = logging.getLogger(__name__)
 

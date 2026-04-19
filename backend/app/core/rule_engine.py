@@ -7,22 +7,20 @@ and rule prioritization.
 """
 
 import logging
-import random
-from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction, SocialAgent
 
 # Local imports
 from app.models.behavior import (
+    BehaviorContext,
     BehaviorRule,
-    RuleSet,
-    RuleCondition,
     ConditionOperator,
-    BehaviorContext
+    RuleCondition,
 )
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.simulation import OASISActionType
 
 logger = logging.getLogger(__name__)
 
