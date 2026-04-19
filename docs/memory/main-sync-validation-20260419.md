@@ -97,6 +97,16 @@ pnpm run build
 - 本轮为 PR 准备而做的格式、lint、类型修正没有引入新的阻塞项
 - 当前分支已经满足仓库 CI 的硬门槛
 
+补充说明：
+
+- 当前 `ruff` 通过并不意味着“零例外项”，而是只保留了两处有明确语义理由的 file-level ignore：
+  - `backend/app/models/agent_monitor.py` 的 `N815`
+    - 原因：该文件承担前后端 monitor API 合同，字段名本身就是 camelCase，如 `createdAt`、`currentStep`、`memoryMode`；若为消除命名告警而强改为 snake_case，会直接改变前后端接口契约。
+  - `backend/tests/e2e/e2e_simulation_test.py` 的 `E402`
+    - 原因：该脚本需要在 import `matplotlib` 前先设置 `MPLCONFIGDIR`，这是测试运行前置条件，不是随意的导入顺序问题。
+- 原本为 `backend/app/memory/runtime_failures.py` 保留的 `N818` 例外项，已在 PR 准备收口阶段通过代码修改消除：
+  - `ActionV1RuntimeFailure` 已收紧为 `ActionV1RuntimeError`
+
 ### 3.4 Diff Hygiene
 
 运行：
@@ -108,6 +118,40 @@ git diff --check --cached
 结果：
 
 - 通过
+
+### 3.5 Scope Of PR-Prep Fixes
+
+本轮 PR 准备阶段引入的代码修改，主要是为对齐仓库 CI 门槛而做的收口修正，重点包括：
+
+- 前端格式统一
+- 后端 import / lint 清理
+- memory 主链中的类型边界补全
+- provider matcher typing 收口
+- OpenAI message / token counter typing 对齐
+- monitor status / optional access typing 收口
+- runtime error 命名规范收紧
+
+这些修正的边界应明确为：
+
+- 目标是让当前 main-sync 整合结果满足：
+  - `pyright`
+  - `ruff`
+  - `frontend format:check`
+  - `frontend build`
+- 不重新设计：
+  - `upstream` / `action_v1` 模式边界
+  - observation / short-term / recall 主链
+  - topic activation 语义
+- 不改变已确认的运行 contract，只收紧类型、命名、格式和少量显式空值处理
+
+这也是为什么在完成 PR 准备收口后，又额外复跑了：
+
+- memory tests
+- config endpoint tests
+- official short E2E
+- live UI smoke
+
+以确认这些收口修正没有把 main sync 后的记忆主链改坏。
 
 ## 4. Real API Smoke
 
