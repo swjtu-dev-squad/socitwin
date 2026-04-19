@@ -219,8 +219,12 @@ export default function Settings() {
       if (response.success) {
         toast.success(`预设配置已应用到智能体 ${selectedAgentId}`);
         // 重新加载数据
-        const status = await getBehaviorControllerStatus();
+        const [status, stats] = await Promise.all([
+          getBehaviorControllerStatus(),
+          getBehaviorStatistics()
+        ]);
         setBehaviorStatus(status);
+        setBehaviorStats(stats);
       } else {
         toast.error(`应用预设失败: ${response.error || response.message}`);
       }
@@ -586,38 +590,6 @@ export default function Settings() {
               <Badge variant={behaviorStatus?.available ? "default" : "destructive"} className="text-xs">
                 {behaviorStatus?.available ? "控制器在线" : "控制器离线"}
               </Badge>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button
-              variant="outline"
-              className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default"
-            >
-              <Database className="w-5 h-5 text-text-tertiary" />
-              <div className="text-left">
-                <p className="text-sm font-bold">备份 simulation.db</p>
-                <p className="text-[10px] text-text-tertiary">下载当前所有模拟状态</p>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-14 justify-start px-6 gap-4 rounded-2xl border-border-default"
-            >
-              <RefreshCw className="w-5 h-5 text-text-tertiary" />
-              <div className="text-left">
-                <p className="text-sm font-bold">重建索引</p>
-                <p className="text-[10px] text-text-tertiary">优化 SQLite 查询性能</p>
-              </div>
-            </Button>
-          </div>
-
-          <div className="p-6 bg-rose-500/5 border border-rose-500/20 rounded-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-500">
-              <AlertTriangle className="w-5 h-5" />
-              <h4 className="text-sm font-bold uppercase tracking-widest">危险区域</h4>
-            </div>
-          </div>
             </div>
           </div>
 
