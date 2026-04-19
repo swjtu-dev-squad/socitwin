@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 _simulation_service = None
 _topic_service = None
 _metrics_manager = None
+_behavior_controller = None
 
 
 async def get_simulation_service():
@@ -96,6 +97,51 @@ async def get_simulation_service_dependency():
         yield service
     except Exception as e:
         logger.error(f"Error in simulation service dependency: {e}")
+        raise
+
+
+# ============================================================================
+# Behavior Controller
+# ============================================================================
+
+async def get_behavior_controller():
+    """
+    获取行为控制器单例
+
+    Returns:
+        BehaviorController: 行为控制器实例
+    """
+    from app.core.behavior_controller import get_behavior_controller as get_bc
+
+    global _behavior_controller
+
+    if _behavior_controller is None:
+        _behavior_controller = await get_bc()
+        logger.info("Behavior Controller singleton created")
+
+    return _behavior_controller
+
+
+async def get_behavior_controller_dependency():
+    """
+    行为控制器依赖注入
+
+    Yields:
+        BehaviorController: 行为控制器实例
+
+    Example:
+        @router.post("/behavior/config")
+        async def update_behavior_config(
+            config: BehaviorConfigRequest,
+            controller: BehaviorController = Depends(get_behavior_controller_dependency)
+        ):
+            return await controller.update_agent_behavior(config.agent_id, config.behavior_config)
+    """
+    controller = await get_behavior_controller()
+    try:
+        yield controller
+    except Exception as e:
+        logger.error(f"Error in behavior controller dependency: {e}")
         raise
 
 
@@ -290,6 +336,17 @@ async def shutdown_event():
             logger.error(f"Error cleaning up metrics manager: {e}")
         finally:
             _metrics_manager = None
+
+    # 清理行为控制器
+    global _behavior_controller
+    if _behavior_controller:
+        try:
+            # BehaviorController doesn't have cleanup method
+            logger.info("Behavior Controller reference cleared")
+        except Exception as e:
+            logger.error(f"Error cleaning up behavior controller: {e}")
+        finally:
+            _behavior_controller = None
 
     # 清理 OASIS 管理器
     try:

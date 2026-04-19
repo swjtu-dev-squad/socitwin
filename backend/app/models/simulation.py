@@ -4,6 +4,28 @@ from enum import Enum
 from datetime import datetime
 import uuid
 
+# Import behavior models
+try:
+    from app.models.behavior import (
+        AgentBehaviorConfig,
+        create_default_behavior_config,
+        BehaviorStrategy
+    )
+except ImportError:
+    # Define minimal fallback for import resolution
+    class AgentBehaviorConfig(BaseModel):
+        """Fallback behavior config for import resolution"""
+        strategy: str = "llm_autonomous"
+        enabled: bool = True
+
+    def create_default_behavior_config() -> AgentBehaviorConfig:
+        """Fallback default behavior config"""
+        return AgentBehaviorConfig()
+
+    class BehaviorStrategy(str, Enum):
+        """Fallback behavior strategy"""
+        LLM_AUTONOMOUS = "llm_autonomous"
+
 
 # ============================================================================
 # 平台和状态枚举
@@ -128,6 +150,10 @@ class AgentConfig(BaseModel):
     gender: Optional[str] = None
     mbti: Optional[str] = None
     country: Optional[str] = None
+    behavior_config: AgentBehaviorConfig = Field(
+        default_factory=create_default_behavior_config,
+        description="Behavior control configuration for this agent"
+    )
 
 
 # ============================================================================
@@ -194,6 +220,10 @@ class Agent(BaseModel):
     influence: float = 0.0
     activity: float = 0.0
     interests: List[str] = Field(default_factory=list)
+    behavior_config: Optional[AgentBehaviorConfig] = Field(
+        default=None,
+        description="Behavior control configuration (if available)"
+    )
 
 
 class SimulationStatus(BaseModel):

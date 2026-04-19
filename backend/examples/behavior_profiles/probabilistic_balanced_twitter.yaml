@@ -1,0 +1,66 @@
+# 概率分布行为配置示例 - Twitter平台平衡型
+# 此配置文件展示了如何为Twitter平台的智能体配置平衡的概率分布行为
+
+name: "balanced_twitter_behavior"
+description: "Twitter平台平衡行为配置 - 适度发帖、互动和刷新"
+strategy: "probabilistic"
+enabled: true
+platform_filter: "twitter"
+
+# 概率分布配置
+probability_distribution:
+  name: "twitter_balanced"
+  description: "Twitter平衡概率分布 - 20%发帖，30%点赞，25%评论，15%刷新，10%休息"
+  platform: "twitter"
+  actions:
+    - action_type: "CREATE_POST"
+      probability: 0.20
+      description: "创建新帖子"
+      action_args:
+        content_templates:
+          - "今天天气真好！ #心情"
+          - "分享一个有趣的想法..."
+          - "大家怎么看这个问题？"
+        topic_categories: ["technology", "politics", "entertainment"]
+
+    - action_type: "LIKE_POST"
+      probability: 0.30
+      description: "点赞帖子"
+      action_args:
+        max_likes_per_step: 3
+        preference_topics: ["technology", "science"]
+
+    - action_type: "CREATE_COMMENT"
+      probability: 0.25
+      description: "评论帖子"
+      action_args:
+        comment_templates:
+          - "有意思的观点！"
+          - "我同意这个看法。"
+          - "从另一个角度来说..."
+        min_post_age: 1  # 帖子至少存在1步
+
+    - action_type: "REFRESH"
+      probability: 0.15
+      description: "刷新时间线"
+      action_args:
+        fetch_limit: 20
+
+    - action_type: "DO_NOTHING"
+      probability: 0.10
+      description: "休息观察"
+      action_args:
+        observation_mode: true
+
+# 条件配置
+step_range: [0, 100]  # 在步骤0-100之间有效
+conditions:
+  simulation_phase: "normal"  # 模拟阶段
+  agent_type: "regular"      # 智能体类型
+
+# 元数据
+metadata:
+  created: "2024-01-01T12:00:00Z"
+  author: "Socitwin Admin"
+  tags: ["balanced", "twitter", "probabilistic", "example"]
+  version: "1.0.0"
