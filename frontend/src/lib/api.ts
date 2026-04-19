@@ -17,7 +17,7 @@ import type {
   HerdEffectMetrics,
   AddControlledAgentsRequest,
   AddControlledAgentsResponse,
-  SentimentTendencyMetrics
+  SentimentTendencyMetrics,
 } from './types'
 
 const api = axios.create({
