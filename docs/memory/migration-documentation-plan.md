@@ -40,6 +40,20 @@
 - 把旧仓库里仍然有效的原则、契约、测试口径和审查台账迁进来；
 - 再把 `migration-*` 降级为实施记录，而不是继续充当主文档。
 
+当前已经完成的第一步是：
+
+- 新仓库正式 memory 文档骨架已经开始建立；
+- 第一批正式文档已落地：
+  - `README.md`
+  - `current-architecture.md`
+  - `principles-and-modes.md`
+  - `observation-and-evidence.md`
+  - `prompt-and-shortterm.md`
+  - `longterm-and-recall.md`
+  - `testing-and-evaluation.md`
+
+这意味着当前阶段已经从“只有迁移文档”进入了“正式文档与迁移文档并存”的过渡期。
+
 ## 3. Old Documentation Structure
 
 旧仓库 `docs/memory/` 当前实际分成六层：
@@ -293,9 +307,10 @@
 
 ## 10. Immediate Next Step
 
-本计划确认后，下一步不直接重写全部文档，而是按以下顺序推进：
+当前第一批正式文档已经起步，下一步按以下顺序继续推进：
 
-1. 先把新仓库正式 memory 文档骨架建出来。
-2. 优先完成 `README.md`、`current-architecture.md`、`principles-and-modes.md`。
-3. 再迁 action_v1 主链专题页。
-4. 最后补齐测试与审查文档，并降级迁移文档。
+1. 再补：
+   - `config-and-runtime.md`
+   - `validation-scenarios.md`
+   - `audit-and-validation.md`
+2. 等正式文档体系能独立解释主链后，再降级 `migration-*` 为实施记录层。
