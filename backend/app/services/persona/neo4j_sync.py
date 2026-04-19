@@ -339,4 +339,3 @@ def import_from_data_dir(data_dir: Path, clear: bool = False) -> Dict[str, Any]:
     finally:
         driver.close()
     return {"status": "ok", "counts": {"users": len(user_rows), "topic_nodes": len(topic_rows), "interested_in_edges": len(interest_rows), "follows": len(follows), "friends": len(friends), "other_social": len(other_rels), "user_network_stats": len(stats_rows)}}
-

@@ -1,2 +1,1 @@
 """Persona domain services namespace."""
-

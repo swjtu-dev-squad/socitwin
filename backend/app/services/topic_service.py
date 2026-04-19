@@ -151,7 +151,10 @@ class TopicService:
                 action_args={"content": content},
             )
 
-            result = await self.oasis_manager.step({agent: action})
+            result = await self.oasis_manager.step(
+                {agent: action},
+                count_towards_budget=False,
+            )
             if result["success"]:
                 logger.info(
                     "Initial post created by agent %s: %s...",
@@ -179,7 +182,10 @@ class TopicService:
                 agent: ManualAction(action_type=ActionType.REFRESH, action_args={})
                 for agent in all_agents
             }
-            result = await self.oasis_manager.step(refresh_actions)
+            result = await self.oasis_manager.step(
+                refresh_actions,
+                count_towards_budget=False,
+            )
 
             if result["success"]:
                 logger.info("Refreshed %s agents", len(all_agents))

@@ -1,9 +1,11 @@
 import axios from 'axios'
 import type {
   SimulationStatus,
+  ConfigResult,
   GenerateUsersRequest,
   GenerateUsersResponse,
   LogEntry,
+  StatusResult,
   TopicListResponse,
   TopicDetail,
   TopicActivationResult,
@@ -30,6 +32,9 @@ export const simulationApi = {
     agentCount: number
     maxSteps?: number
     recsysType?: string
+    memoryMode?: 'upstream' | 'action_v1'
+    contextTokenLimit?: number
+    maxTokens?: number
     agentSource?: {
       sourceType: 'template' | 'file' | 'manual'
       templateName?: string
@@ -37,11 +42,14 @@ export const simulationApi = {
       manualConfig?: Record<string, any>[]
     }
   }) =>
-    api.post('/sim/config', {
+    api.post<ConfigResult>('/sim/config', {
       platform: config.platform,
       agent_count: config.agentCount,
       recsys_type: config.recsysType || config.platform,
+      memory_mode: config.memoryMode,
       max_steps: config.maxSteps || 50,
+      context_token_limit: config.contextTokenLimit,
+      llm_config: config.maxTokens ? { max_tokens: config.maxTokens } : undefined,
       ...(config.agentSource
         ? {
             agent_source: {
@@ -62,7 +70,7 @@ export const simulationApi = {
 
   resume: () => api.post<SimulationStatus>('/sim/resume'),
 
-  reset: () => api.post('/sim/reset'),
+  reset: () => api.post<StatusResult>('/sim/reset'),
 
   generateUsers: (params: GenerateUsersRequest) =>
     api.post<GenerateUsersResponse>('/users/generate', params),

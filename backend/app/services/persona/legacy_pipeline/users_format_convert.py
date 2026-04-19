@@ -99,4 +99,3 @@ def convert_users_get_to_users_json() -> dict[str, Any]:
     doc = {"recsys_type": "twitter", "type": "users", "stats": {"count": len(data_out)}, "data": data_out}
     (dd / "users.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return doc
-

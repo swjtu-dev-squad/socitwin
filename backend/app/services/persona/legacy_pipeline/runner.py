@@ -59,4 +59,3 @@ def get_social_graph_bundle() -> Dict[str, Any]:
         "topics": topics or None,
         "metrics": metrics or {},
     }
-
