@@ -152,3 +152,6 @@ skills/
 
 # Keep skills-lock.json for version tracking (use ! to negate ignore pattern)
 # !skills-lock.json
+
+# pnpm local store (should not be committed)
+.pnpm-store/
