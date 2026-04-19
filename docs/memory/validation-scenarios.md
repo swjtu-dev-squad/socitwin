@@ -175,12 +175,15 @@
 - 关联审查项：
   - `AUD-LTM-02`
 - 目标：
-  - 检查一步多个动作时，result 顺序漂移不会污染 `ActionEpisode` 配对。
+  - 检查一步多个动作时，result 顺序漂移不会污染 `ActionEpisode` 配对；
+  - 同时确认当前 step 级 `outcome` 共享机制不会被误判成动作级 outcome 已经正确对齐。
 - 最少检查：
   - `tool_call_id`
   - `decision_records`
   - `action_result_records`
   - `ActionEpisode.state_changes`
+  - `final_outcome_records`
+  - `ActionEpisode.outcome`
 
 ### `VAL-LTM-05` 真实自我行为写入与可检索性
 

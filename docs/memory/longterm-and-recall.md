@@ -120,6 +120,44 @@ adapter 当前负责：
 
 这意味着长期层和 short-term 层当前共享同一条 step contract 事实链，而不是各自发明一套动作摘要模型。
 
+### 6.1 `outcome` 的当前来源与边界
+
+`ActionEpisode.outcome` 当前不是长期层单独生成的“动作级总结”，而是从 `StepSegment` 里抽取出来的 step 级结果字段。
+
+当前优先级是：
+
+1. `FINAL_OUTCOME`
+   - 对应模型在本轮 tool call 之后留下的最终 assistant 文本；
+   - 会先去掉 think block，再作为 `StepRecordKind.FINAL_OUTCOME` 进入 `StepSegment`。
+2. `ACTION_RESULT`
+   - 如果没有最终 assistant 文本，就退回到 tool result 的字符串结果。
+3. `DECISION`
+   - 如果既没有最终 assistant 文本，也没有可用 tool result，就退回动作决策文本本身。
+
+这说明当前 `outcome` 更准确的定义是：
+
+- “本 step 最终留下来的结果性文本”
+
+而不是：
+
+- “每个 action 独立计算出来的严格动作结果摘要”
+
+当前还有一个需要明确记录的实现边界：
+
+- 一步如果包含多个动作，当前多个 `ActionEpisode` 会共享同一个 step 级 `outcome`；
+- 因为 adapter 目前是先对整个 `StepSegment` 抽一次 `outcome`，再分发给本步内每个 `ActionEpisode`。
+
+这在“一步一个动作”的常态下通常够用，但在“一步多动作”场景下会带来两个风险：
+
+- `outcome` 更像该步总结果，而不是某个单动作的专属结果；
+- 如果最终 assistant 文本只解释了其中一个动作，其他 action episode 也会继承同一条 `outcome`。
+
+当前工程判断：
+
+- 该字段可以继续保留，因为它至少提供了一个稳定的结果文本兜底；
+- 但后续审查和优化时，不能把它误认为已经实现了动作级 outcome 对齐；
+- 如果后续出现多动作 step 增多、或 recall 过度依赖 `outcome` 的问题，应优先考虑补“按 action 粒度生成 outcome digest”，而不是继续扩大这个 step 级字段的语义。
+
 ## 7. Current Long-Term Backends
 
 当前长期层的后端重点仍是 Chroma。
