@@ -36,11 +36,11 @@
 - [observation-and-evidence.md](./observation-and-evidence.md)
 - [prompt-and-shortterm.md](./prompt-and-shortterm.md)
 - [longterm-and-recall.md](./longterm-and-recall.md)
+- [config-and-runtime.md](./config-and-runtime.md)
 - [testing-and-evaluation.md](./testing-and-evaluation.md)
 
 当前计划继续补齐的正式文档：
 
-- `config-and-runtime.md`
 - `validation-scenarios.md`
 - `audit-and-validation.md`
 

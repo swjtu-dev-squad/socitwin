@@ -50,6 +50,7 @@
   - `observation-and-evidence.md`
   - `prompt-and-shortterm.md`
   - `longterm-and-recall.md`
+  - `config-and-runtime.md`
   - `testing-and-evaluation.md`
 
 这意味着当前阶段已经从“只有迁移文档”进入了“正式文档与迁移文档并存”的过渡期。
@@ -310,7 +311,6 @@
 当前第一批正式文档已经起步，下一步按以下顺序继续推进：
 
 1. 再补：
-   - `config-and-runtime.md`
    - `validation-scenarios.md`
    - `audit-and-validation.md`
 2. 等正式文档体系能独立解释主链后，再降级 `migration-*` 为实施记录层。
