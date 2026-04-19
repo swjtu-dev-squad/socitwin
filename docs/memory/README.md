@@ -38,11 +38,12 @@
 - [longterm-and-recall.md](./longterm-and-recall.md)
 - [config-and-runtime.md](./config-and-runtime.md)
 - [testing-and-evaluation.md](./testing-and-evaluation.md)
+- [validation-scenarios.md](./validation-scenarios.md)
+- [audit-and-validation.md](./audit-and-validation.md)
 
 当前计划继续补齐的正式文档：
 
-- `validation-scenarios.md`
-- `audit-and-validation.md`
+- 当前主线正式文档已基本齐备，后续重点转为持续补充场景、审查条目和结果记录。
 
 这些页面会按 [migration-documentation-plan.md](./migration-documentation-plan.md) 里的顺序逐步建立。
 
