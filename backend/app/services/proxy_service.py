@@ -153,10 +153,15 @@ class BaiduSentimentService:
         self._result_cache: dict[str, Dict[str, Any]] = {}
 
     def analyze(self, text: str) -> Dict[str, Any]:
-        text_str = str(text or "").strip()
+        text_str = self._normalize_baidu_text(text)
         cached = self._result_cache.get(text_str)
         if cached is not None:
             return cached
+
+        if not text_str:
+            result = self._build_neutral_result("")
+            self._result_cache[text_str] = result
+            return result
 
         payload = self._request_sentiment(text_str)
         items = payload.get("items") or []
@@ -186,6 +191,39 @@ class BaiduSentimentService:
         }
         self._result_cache[text_str] = result
         return result
+
+    def _normalize_baidu_text(self, text: str) -> str:
+        raw_text = str(text or "")
+        sanitized = "".join(
+            ch
+            for ch in raw_text
+            if ch in ("\n", "\r", "\t") or (ord(ch) >= 32 and ord(ch) <= 0xFFFF)
+        )
+        sanitized = re.sub(r"\s+", " ", sanitized).strip()
+        max_length = 512
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length]
+        return sanitized
+
+    def _build_neutral_result(self, text: str) -> Dict[str, Any]:
+        return {
+            "provider": "baidu_nlp",
+            "app_id": BAIDU_APP_ID,
+            "text": text,
+            "final_result": "中性",
+            "analysis": {
+                "prediction": {
+                    "label": "中性",
+                    "confidence": 0.0,
+                    "positive_prob": 0.0,
+                    "negative_prob": 0.0,
+                    "sentiment": 1,
+                },
+                "raw_response": {"text": text, "items": []},
+                "timestamp": int(time.time()),
+                "status": "success",
+            },
+        }
 
     def _request_sentiment(self, text: str) -> Dict[str, Any]:
         for attempt in range(4):
