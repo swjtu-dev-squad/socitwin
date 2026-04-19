@@ -53,6 +53,7 @@ from app.memory import (
     apply_summary_env_overrides,
     apply_working_memory_env_overrides,
     build_chroma_longterm_store,
+    probe_openai_compatible_embedding_backend,
     resolve_memory_runtime_config,
 )
 from app.memory.agent import build_action_v1_social_agent, build_upstream_social_agent
@@ -130,6 +131,7 @@ class OASISManager:
         self._config: Optional[SimulationConfig] = None
         self._platform_type: PlatformType = PlatformType.TWITTER
         self._memory_mode: MemoryMode = MemoryMode.UPSTREAM
+        self._error_message: Optional[str] = None
 
         # 并发控制
         self._operation_lock = asyncio.Lock()
@@ -160,6 +162,19 @@ class OASISManager:
         """检查是否正在运行"""
         return self._state == SimulationState.RUNNING
 
+    def _clear_runtime_state(self, *, clear_error_message: bool = True) -> None:
+        self._env = None
+        self._agent_graph = None
+        self._model = None
+        self._action_v1_longterm_store = None
+        self._state = SimulationState.UNINITIALIZED
+        self._memory_mode = MemoryMode.UPSTREAM
+        self._config = None
+        self._db_path = None
+        self._created_at = None
+        if clear_error_message:
+            self._error_message = None
+
     def get_state_info(self) -> Dict[str, Any]:
         """获取详细状态信息"""
         agent_count = 0
@@ -182,6 +197,7 @@ class OASISManager:
             "context_token_limit": context_token_limit,
             "generation_max_tokens": generation_max_tokens,
             "model_backend_token_limit": model_backend_token_limit,
+            "error_message": self._error_message,
         }
 
     def _resolve_context_token_limit(self) -> Optional[int]:
@@ -316,6 +332,7 @@ class OASISManager:
                 self._platform_type = config.platform
                 self._max_steps = config.max_steps
                 self._current_step = 0
+                self._error_message = None
                 settings = get_settings()
                 runtime_config = resolve_memory_runtime_config(
                     explicit_mode=config.memory_mode,
@@ -336,6 +353,8 @@ class OASISManager:
                 # 清理旧数据库
                 if os.path.exists(self._db_path):
                     os.remove(self._db_path)
+
+                await self._validate_runtime_dependencies(settings=settings)
 
                 runtime = MemoryRuntimeFacade(runtime_config)
                 artifacts = await runtime.build_runtime(
@@ -368,12 +387,64 @@ class OASISManager:
 
             except MemoryRuntimeNotImplementedError as e:
                 logger.error(f"Requested memory runtime is not implemented yet: {e}")
-                await self.close()
+                if self._env:
+                    try:
+                        await self._env.close()
+                    except Exception as close_exc:
+                        logger.error(f"Failed to close environment after init error: {close_exc}")
+                self._clear_runtime_state(clear_error_message=False)
+                self._memory_mode = runtime_config.mode
+                self._error_message = str(e)
+                self._updated_at = datetime.now()
                 raise OASISInitError(str(e))
             except Exception as e:
                 logger.error(f"Failed to initialize OASIS: {e}")
-                await self.close()
+                if self._env:
+                    try:
+                        await self._env.close()
+                    except Exception as close_exc:
+                        logger.error(f"Failed to close environment after init error: {close_exc}")
+                self._clear_runtime_state(clear_error_message=False)
+                self._memory_mode = runtime_config.mode
+                self._error_message = str(e)
+                self._updated_at = datetime.now()
                 raise OASISInitError(f"Initialization failed: {str(e)}")
+
+    async def _validate_runtime_dependencies(self, *, settings) -> None:
+        if self._memory_mode != MemoryMode.ACTION_V1:
+            return
+        if not settings.OASIS_LONGTERM_ENABLED:
+            return
+
+        embedding_backend = str(
+            settings.OASIS_LONGTERM_EMBEDDING_BACKEND or "heuristic"
+        ).strip().lower()
+        if embedding_backend not in {"openai", "openai_compatible", "openai-compatible"}:
+            return
+
+        embedding_model = str(settings.OASIS_LONGTERM_EMBEDDING_MODEL or "").strip()
+        if not embedding_model:
+            raise OASISInitError(
+                "action_v1 requires OASIS_LONGTERM_EMBEDDING_MODEL when "
+                "OASIS_LONGTERM_EMBEDDING_BACKEND=openai_compatible."
+            )
+
+        try:
+            await asyncio.to_thread(
+                probe_openai_compatible_embedding_backend,
+                model=embedding_model,
+                api_key=settings.OASIS_LONGTERM_EMBEDDING_API_KEY,
+                base_url=settings.OASIS_LONGTERM_EMBEDDING_BASE_URL,
+                timeout_seconds=5.0,
+            )
+        except Exception as exc:
+            endpoint = settings.OASIS_LONGTERM_EMBEDDING_BASE_URL or "default endpoint"
+            raise OASISInitError(
+                "action_v1 embedding backend is unavailable. "
+                f"backend={embedding_backend}, model={embedding_model}, endpoint={endpoint}. "
+                "Start the local embedding service, switch the embedding backend to "
+                "'heuristic', or use upstream mode."
+            ) from exc
 
     def _build_runtime_plan(self, config: SimulationConfig):
         from app.memory.runtime import RuntimeBuildPlan
@@ -1038,13 +1109,8 @@ class OASISManager:
                     os.remove(self._db_path)
 
                 # 重置状态
-                self._state = SimulationState.UNINITIALIZED
                 self._current_step = 0
-                self._env = None
-                self._agent_graph = None
-                self._model = None
-                self._action_v1_longterm_store = None
-                self._memory_mode = MemoryMode.UPSTREAM
+                self._clear_runtime_state()
 
                 self._updated_at = datetime.now()
 
@@ -1103,12 +1169,7 @@ class OASISManager:
                     logger.info("OASIS environment closed")
 
                 # 重置状态
-                self._env = None
-                self._agent_graph = None
-                self._model = None
-                self._action_v1_longterm_store = None
-                self._state = SimulationState.UNINITIALIZED
-                self._memory_mode = MemoryMode.UPSTREAM
+                self._clear_runtime_state()
 
             except Exception as e:
                 logger.error(f"Error during close: {e}")

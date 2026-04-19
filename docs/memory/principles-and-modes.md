@@ -193,6 +193,7 @@ recall 只应作为 side-context 进入 prompt。
 - 完整 social graph memory
 - 所有 OASIS 原始动作的同等事件化覆盖
 - 最终版 embedding 路线比较
+- `openai_compatible -> heuristic` 的自动兼容回退
 - 完整 comparison 评测常态化
 - 所有 memory 大文件的彻底工程拆分
 

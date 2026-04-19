@@ -178,6 +178,24 @@ adapter 当前负责：
 - 工程落地主路线仍是：
   - `Chroma + OpenAI-compatible embedding`
 
+这里再补一个当前已经明确的运行判断：
+
+- `HeuristicTextEmbedding` 可以继续作为显式配置存在；
+- 但不再作为 `openai_compatible` 失败后的自动兼容回退；
+- 当前如果 `action_v1` 选择真实 embedding 路线，就应该在启动期先完成 preflight；
+- 若 embedding 服务或指定模型不可用，应直接报错并拒绝启动，而不是静默降级到 heuristic。
+
+这样做是为了保持：
+
+- 同一 simulation 内部的 embedding 空间一致；
+- recall 评测和实验报告可解释；
+- Chroma collection 的语义边界清晰。
+
+后续如果要增强可用性，更合理的方向不是跨到 heuristic，而是：
+
+- 在 `openai_compatible` 后端内部做 embedding 模型候选和启动期回退；
+- 并把本次 simulation 的实际生效模型暴露到状态和测试结果里。
+
 ## 8. Recall Entry
 
 当前 recall 入口在：

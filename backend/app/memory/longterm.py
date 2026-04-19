@@ -338,11 +338,27 @@ def build_longterm_embedding(
     raise ValueError(f"Unsupported long-term embedding backend: {backend}")
 
 
+def probe_openai_compatible_embedding_backend(
+    *,
+    model: str,
+    api_key: str | None,
+    base_url: str | None,
+    timeout_seconds: float = 5.0,
+) -> int:
+    return _infer_openai_compatible_embedding_dim(
+        model=model,
+        api_key=api_key,
+        base_url=base_url,
+        timeout_seconds=timeout_seconds,
+    )
+
+
 def _infer_openai_compatible_embedding_dim(
     *,
     model: str,
     api_key: str | None,
     base_url: str | None,
+    timeout_seconds: float = 5.0,
 ) -> int:
     try:
         from openai import OpenAI
@@ -359,7 +375,7 @@ def _infer_openai_compatible_embedding_dim(
     elif base_url:
         kwargs["api_key"] = "EMPTY"
 
-    client = OpenAI(**kwargs)
+    client = OpenAI(timeout=timeout_seconds, max_retries=0, **kwargs)
     response = client.embeddings.create(
         model=model,
         input=["socitwin longterm embedding dim probe"],

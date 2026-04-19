@@ -490,6 +490,7 @@ class SimulationService:
             active_agents=len(agents),
             agents=agents,
             metrics_summary=metrics_summary,
+            error_message=state_info.get("error_message"),
         )
 
     async def get_memory_debug_status(self) -> MemoryDebugStatus:

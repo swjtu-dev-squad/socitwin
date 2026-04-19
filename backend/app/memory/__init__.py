@@ -40,6 +40,7 @@ from .longterm import (
     build_longterm_embedding,
     episode_to_payload,
     payload_to_episode,
+    probe_openai_compatible_embedding_backend,
 )
 from .memory_rendering import CompressedNoteView, RecentTurnView
 from .observation_shaper import ObservationArtifact, ObservationShaper
@@ -121,5 +122,6 @@ __all__ = [
     "episode_to_payload",
     "normalize_model_error",
     "payload_to_episode",
+    "probe_openai_compatible_embedding_backend",
     "resolve_memory_runtime_config",
 ]

@@ -49,6 +49,14 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SituationalAwarenessChart } from '@/components/SituationalAwarenessChart';
 
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const message =
+    (error as any)?.response?.data?.detail ||
+    (error as any)?.response?.data?.message ||
+    (error as any)?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
 export default function Overview() {
   const { status, setStatus, isStepping, setIsStepping } = useSimulationStore();
   const navigate = useNavigate();
@@ -110,6 +118,8 @@ export default function Overview() {
   const [selectedTopic, setSelectedTopic] = useState<string>('');
   const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>('upstream');
   const [showAlgorithm, setShowAlgorithm] = useState(false);
+  const [isConfiguring, setIsConfiguring] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Update store status when hook data changes
   useEffect(() => {
@@ -505,7 +515,7 @@ export default function Overview() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                 <Button
                   className={cn("h-12 rounded-lg font-bold gap-2 shadow-lg transition-all active:scale-95",
                     // Use state field if available, otherwise fall back to running/paused
@@ -513,6 +523,7 @@ export default function Overview() {
                       "bg-bg-tertiary hover:bg-border-strong text-text-primary" :
                       "bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20"
                   )}
+                  disabled={isConfiguring || isResetting}
                   onClick={async () => {
                     try {
                       // Use state field if available
@@ -526,17 +537,30 @@ export default function Overview() {
                         setStatus(statusRes.data);
                         toast.info('仿真已暂停');
                       } else {
+                        setIsConfiguring(true);
                         // 启动：只配置模拟
-                        await simulationApi.updateConfig({
+                        const configRes = await simulationApi.updateConfig({
                           platform: 'twitter',
                           agentCount: agentCount[0],
                           memoryMode: selectedMemoryMode,
                           maxSteps: 100
                         });
+                        if (!configRes.data?.success) {
+                          const statusRes = await simulationApi.getStatus();
+                          setStatus(statusRes.data);
+                          toast.error(configRes.data?.message || '仿真配置失败');
+                          return;
+                        }
 
                         // 激活话题（如果有选择话题）
                         if (selectedTopic) {
-                          await simulationApi.activateTopic(selectedTopic);
+                          const topicRes = await simulationApi.activateTopic(selectedTopic);
+                          if (!topicRes.data?.success) {
+                            const statusRes = await simulationApi.getStatus();
+                            setStatus(statusRes.data);
+                            toast.error(topicRes.data?.message || '话题激活失败');
+                            return;
+                          }
                         }
 
                         // 重新获取状态
@@ -547,31 +571,33 @@ export default function Overview() {
                       }
                     } catch (e) {
                       console.error('启动/暂停失败:', e);
-                      toast.error('操作失败');
+                      toast.error(getApiErrorMessage(e, '操作失败'));
+                    } finally {
+                      setIsConfiguring(false);
                     }
                   }}
                 >
                   {
                     // Use state field if available, otherwise fall back to running/paused
                     (currentStatus.state ?
-                      (currentStatus.state === 'running' ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                      (currentStatus.state === 'running' ? <Pause className="w-4 h-4 fill-current" /> : <Play className={cn("w-4 h-4 fill-current", isConfiguring && "animate-pulse")} />)
                       :
-                      (currentStatus.running && !currentStatus.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />)
+                      (currentStatus.running && !currentStatus.paused ? <Pause className="w-4 h-4 fill-current" /> : <Play className={cn("w-4 h-4 fill-current", isConfiguring && "animate-pulse")} />)
                     )
                   }
                   {
-                    // Use state field if available, otherwise fall back to running/paused
-                    (currentStatus.state ?
-                      (currentStatus.state === 'running' ? '暂停' : '启动')
-                      :
-                      (currentStatus.running && !currentStatus.paused ? '暂停' : '启动')
-                    )
+                    isConfiguring ? '启动中' :
+                      (currentStatus.state ?
+                        (currentStatus.state === 'running' ? '暂停' : '启动')
+                        :
+                        (currentStatus.running && !currentStatus.paused ? '暂停' : '启动')
+                      )
                   }
                 </Button>
                 <Button
                   variant="secondary"
                   className="h-12 rounded-lg font-bold gap-2 border-accent/30 hover:bg-bg-tertiary transition-all active:scale-95"
-                  disabled={isStepping}
+                  disabled={isStepping || isConfiguring || isResetting || currentStatus.state === 'uninitialized'}
                   onClick={async () => {
                     setIsStepping(true);
                     try {
@@ -593,16 +619,24 @@ export default function Overview() {
                 <Button
                   variant="secondary"
                   className="h-12 rounded-lg font-bold gap-2 border-rose-500/30 hover:bg-rose-500/10 transition-all active:scale-95"
+                  disabled={isConfiguring || isResetting}
                   onClick={async () => {
                     try {
-                      await simulationApi.reset();
+                      setIsResetting(true);
+                      const resetRes = await simulationApi.reset();
+                      if (!resetRes.data?.success) {
+                        toast.error(resetRes.data?.message || '重置失败');
+                        return;
+                      }
                       // 重新获取状态
                       const statusRes = await simulationApi.getStatus();
                       setStatus(statusRes.data);
                       toast.success('仿真已重置');
                     } catch (e) {
                       console.error('重置失败:', e);
-                      toast.error('重置失败');
+                      toast.error(getApiErrorMessage(e, '重置失败'));
+                    } finally {
+                      setIsResetting(false);
                     }
                   }}
                 >
@@ -610,6 +644,17 @@ export default function Overview() {
                   重置
                 </Button>
               </div>
+              {currentStatus.errorMessage && (
+                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertCircle className="w-4 h-4" />
+                    启动失败
+                  </div>
+                  <div className="mt-1 text-xs leading-relaxed text-rose-100/90">
+                    {currentStatus.errorMessage}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Card>

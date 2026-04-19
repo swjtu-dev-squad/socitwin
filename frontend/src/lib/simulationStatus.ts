@@ -19,6 +19,7 @@ export function normalizeSimulationStatus(raw: Partial<SimulationStatus> | any):
     contextTokenLimit: raw?.contextTokenLimit ?? raw?.context_token_limit,
     generationMaxTokens: raw?.generationMaxTokens ?? raw?.generation_max_tokens,
     modelBackendTokenLimit: raw?.modelBackendTokenLimit ?? raw?.model_backend_token_limit,
+    errorMessage: raw?.errorMessage ?? raw?.error_message ?? null,
     agents: raw?.agents ?? [],
     polarization: raw?.polarization ?? 0,
   };

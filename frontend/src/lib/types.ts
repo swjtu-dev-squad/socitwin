@@ -45,6 +45,7 @@ export interface SimulationStatus {
   contextTokenLimit?: number | null;
   generationMaxTokens?: number | null;
   modelBackendTokenLimit?: number | null;
+  errorMessage?: string | null;
   recsys?: string;
   topics?: string[];
   regions?: string[];
@@ -175,6 +176,20 @@ export interface TopicActivationResult {
   agents_refreshed?: number;
   execution_time?: number;
   error?: string;
+}
+
+export interface ConfigResult {
+  success: boolean;
+  message: string;
+  simulation_id?: string | null;
+  agents_created?: number;
+}
+
+export interface StatusResult {
+  success: boolean;
+  message: string;
+  current_state?: string;
+  timestamp?: string;
 }
 
 // ========== Metrics Types (matching backend/app/models/metrics.py) ==========
