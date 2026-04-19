@@ -14,10 +14,10 @@ import type {
   BehaviorProfilesResponse,
   ApplyProfileRequest,
   PresetConfigOption,
-  StrategyDisplayInfo
-} from './behaviorTypes';
+  StrategyDisplayInfo,
+} from './behaviorTypes'
 
-const API_BASE = '/api';
+const API_BASE = '/api'
 
 // ============================================================================
 // 错误处理
@@ -29,27 +29,27 @@ class BehaviorApiError extends Error {
     public status?: number,
     public response?: any
   ) {
-    super(message);
-    this.name = 'BehaviorApiError';
+    super(message)
+    this.name = 'BehaviorApiError'
   }
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    let errorMessage = `API请求失败: ${response.status} ${response.statusText}`;
+    let errorMessage = `API请求失败: ${response.status} ${response.statusText}`
     try {
-      const errorData = await response.json();
-      errorMessage = errorData.detail || errorData.message || errorMessage;
+      const errorData = await response.json()
+      errorMessage = errorData.detail || errorData.message || errorMessage
     } catch {
       // 忽略JSON解析错误
     }
-    throw new BehaviorApiError(errorMessage, response.status);
+    throw new BehaviorApiError(errorMessage, response.status)
   }
 
   try {
-    return await response.json();
+    return await response.json()
   } catch (error) {
-    throw new BehaviorApiError('响应JSON解析失败', response.status);
+    throw new BehaviorApiError('响应JSON解析失败', response.status)
   }
 }
 
@@ -66,8 +66,8 @@ export async function updateAgentBehavior(
 ): Promise<BehaviorConfigResponse> {
   const request: BehaviorConfigRequest = {
     agent_id: agentId,
-    behavior_config: config
-  };
+    behavior_config: config,
+  }
 
   const response = await fetch(`${API_BASE}/behavior/config`, {
     method: 'POST',
@@ -75,9 +75,9 @@ export async function updateAgentBehavior(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse>(response);
+  return handleResponse<BehaviorConfigResponse>(response)
 }
 
 /**
@@ -89,9 +89,9 @@ export async function getAgentBehavior(agentId: number): Promise<AgentBehaviorCo
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<AgentBehaviorConfig>(response);
+  return handleResponse<AgentBehaviorConfig>(response)
 }
 
 /**
@@ -103,9 +103,9 @@ export async function resetAgentBehavior(agentId: number): Promise<BehaviorConfi
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse>(response);
+  return handleResponse<BehaviorConfigResponse>(response)
 }
 
 // ============================================================================
@@ -124,9 +124,9 @@ export async function batchUpdateAgentBehavior(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requests),
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse[]>(response);
+  return handleResponse<BehaviorConfigResponse[]>(response)
 }
 
 /**
@@ -138,8 +138,8 @@ export async function applyBehaviorProfile(
 ): Promise<BehaviorConfigResponse[]> {
   const request: ApplyProfileRequest = {
     profile_id: profileId,
-    agent_ids: agentIds
-  };
+    agent_ids: agentIds,
+  }
 
   const response = await fetch(`${API_BASE}/behavior/config/apply-profile`, {
     method: 'POST',
@@ -147,9 +147,9 @@ export async function applyBehaviorProfile(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(request),
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse[]>(response);
+  return handleResponse<BehaviorConfigResponse[]>(response)
 }
 
 // ============================================================================
@@ -166,17 +166,17 @@ export async function applyPresetConfig(
 ): Promise<BehaviorConfigResponse> {
   const params = new URLSearchParams({
     preset,
-    platform
-  });
+    platform,
+  })
 
   const response = await fetch(`${API_BASE}/behavior/config/preset/${agentId}?${params}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse>(response);
+  return handleResponse<BehaviorConfigResponse>(response)
 }
 
 // ============================================================================
@@ -192,9 +192,9 @@ export async function getBehaviorControllerStatus(): Promise<BehaviorControllerS
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<BehaviorControllerStatus>(response);
+  return handleResponse<BehaviorControllerStatus>(response)
 }
 
 /**
@@ -206,9 +206,9 @@ export async function getBehaviorStatistics(): Promise<any> {
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<any>(response);
+  return handleResponse<any>(response)
 }
 
 /**
@@ -220,9 +220,9 @@ export async function getProbabilisticEngineStats(): Promise<EngineStatistics> {
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<EngineStatistics>(response);
+  return handleResponse<EngineStatistics>(response)
 }
 
 /**
@@ -234,9 +234,9 @@ export async function getRuleEngineStats(): Promise<EngineStatistics> {
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<EngineStatistics>(response);
+  return handleResponse<EngineStatistics>(response)
 }
 
 /**
@@ -248,9 +248,9 @@ export async function getSchedulingEngineStats(): Promise<EngineStatistics> {
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<EngineStatistics>(response);
+  return handleResponse<EngineStatistics>(response)
 }
 
 // ============================================================================
@@ -268,9 +268,9 @@ export async function getAvailableStrategies(): Promise<{
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<{ strategies: StrategyDisplayInfo[] }>(response);
+  return handleResponse<{ strategies: StrategyDisplayInfo[] }>(response)
 }
 
 /**
@@ -282,9 +282,9 @@ export async function listBehaviorProfiles(): Promise<BehaviorProfilesResponse> 
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<BehaviorProfilesResponse>(response);
+  return handleResponse<BehaviorProfilesResponse>(response)
 }
 
 /**
@@ -297,9 +297,9 @@ export async function createBehaviorProfile(profile: any): Promise<BehaviorConfi
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ profile }),
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse>(response);
+  return handleResponse<BehaviorConfigResponse>(response)
 }
 
 /**
@@ -311,9 +311,9 @@ export async function deleteBehaviorProfile(profileId: string): Promise<Behavior
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 
-  return handleResponse<BehaviorConfigResponse>(response);
+  return handleResponse<BehaviorConfigResponse>(response)
 }
 
 // ============================================================================
@@ -330,53 +330,56 @@ export function getStrategyDisplayInfo(strategy: BehaviorStrategy): StrategyDisp
       label: 'LLM 自主决策',
       description: '原始LLM自主决策，智能体完全由AI模型控制',
       color: 'blue',
-      icon: 'brain'
+      icon: 'brain',
     },
     {
       value: BehaviorStrategy.PROBABILISTIC,
       label: '概率分布',
       description: '基于配置的概率分布选择动作',
       color: 'green',
-      icon: 'dice'
+      icon: 'dice',
     },
     {
       value: BehaviorStrategy.RULE_BASED,
       label: '规则引擎',
       description: '基于条件和规则触发动作',
       color: 'orange',
-      icon: 'rules'
+      icon: 'rules',
     },
     {
       value: BehaviorStrategy.SCHEDULED,
       label: '时间调度',
       description: '按预定义时间线执行动作',
       color: 'purple',
-      icon: 'calendar'
+      icon: 'calendar',
     },
     {
       value: BehaviorStrategy.MIXED,
       label: '混合策略',
       description: '结合多种策略按权重分配',
       color: 'pink',
-      icon: 'layers'
-    }
-  ];
+      icon: 'layers',
+    },
+  ]
 
-  return strategies.find(s => s.value === strategy) || strategies[0];
+  return strategies.find(s => s.value === strategy) || strategies[0]
 }
 
 /**
  * 格式化策略使用百分比
  */
 export function formatStrategyPercentage(percentage: number): string {
-  return `${percentage.toFixed(1)}%`;
+  return `${percentage.toFixed(1)}%`
 }
 
 /**
  * 检查引擎是否可用
  */
-export function isEngineAvailable(status: BehaviorControllerStatus, engine: keyof BehaviorControllerStatus['engines']): boolean {
-  return status.engines[engine];
+export function isEngineAvailable(
+  status: BehaviorControllerStatus,
+  engine: keyof BehaviorControllerStatus['engines']
+): boolean {
+  return status.engines[engine]
 }
 
 // ============================================================================
@@ -389,28 +392,33 @@ export function isEngineAvailable(status: BehaviorControllerStatus, engine: keyo
 export function createDefaultBehaviorConfig(): AgentBehaviorConfig {
   return {
     strategy: BehaviorStrategy.LLM_AUTONOMOUS,
-    enabled: true
-  };
+    enabled: true,
+  }
 }
 
 /**
  * 创建概率分布配置
  */
-export function createProbabilisticConfig(platform: 'twitter' | 'reddit' = 'twitter'): AgentBehaviorConfig {
-  const actions = platform === 'twitter' ? [
-    { action_type: 'CREATE_POST' as const, probability: 0.2, description: '创建新帖子' },
-    { action_type: 'LIKE_POST' as const, probability: 0.3, description: '点赞帖子' },
-    { action_type: 'CREATE_COMMENT' as const, probability: 0.25, description: '评论帖子' },
-    { action_type: 'REFRESH' as const, probability: 0.15, description: '刷新时间线' },
-    { action_type: 'DO_NOTHING' as const, probability: 0.1, description: '休息观察' }
-  ] : [
-    { action_type: 'CREATE_POST' as const, probability: 0.15, description: '创建新帖子' },
-    { action_type: 'LIKE_POST' as const, probability: 0.35, description: '点赞帖子' },
-    { action_type: 'CREATE_COMMENT' as const, probability: 0.3, description: '评论帖子' },
-    { action_type: 'REFRESH' as const, probability: 0.1, description: '刷新时间线' },
-    { action_type: 'DISLIKE_POST' as const, probability: 0.05, description: '踩帖子' },
-    { action_type: 'DO_NOTHING' as const, probability: 0.05, description: '休息观察' }
-  ];
+export function createProbabilisticConfig(
+  platform: 'twitter' | 'reddit' = 'twitter'
+): AgentBehaviorConfig {
+  const actions =
+    platform === 'twitter'
+      ? [
+          { action_type: 'CREATE_POST' as const, probability: 0.2, description: '创建新帖子' },
+          { action_type: 'LIKE_POST' as const, probability: 0.3, description: '点赞帖子' },
+          { action_type: 'CREATE_COMMENT' as const, probability: 0.25, description: '评论帖子' },
+          { action_type: 'REFRESH' as const, probability: 0.15, description: '刷新时间线' },
+          { action_type: 'DO_NOTHING' as const, probability: 0.1, description: '休息观察' },
+        ]
+      : [
+          { action_type: 'CREATE_POST' as const, probability: 0.15, description: '创建新帖子' },
+          { action_type: 'LIKE_POST' as const, probability: 0.35, description: '点赞帖子' },
+          { action_type: 'CREATE_COMMENT' as const, probability: 0.3, description: '评论帖子' },
+          { action_type: 'REFRESH' as const, probability: 0.1, description: '刷新时间线' },
+          { action_type: 'DISLIKE_POST' as const, probability: 0.05, description: '踩帖子' },
+          { action_type: 'DO_NOTHING' as const, probability: 0.05, description: '休息观察' },
+        ]
 
   return {
     strategy: BehaviorStrategy.PROBABILISTIC,
@@ -418,11 +426,11 @@ export function createProbabilisticConfig(platform: 'twitter' | 'reddit' = 'twit
       name: 'balanced',
       description: `平衡的${platform === 'twitter' ? 'Twitter' : 'Reddit'}行为分布`,
       actions,
-      platform
+      platform,
     },
     enabled: true,
-    platform_filter: platform
-  };
+    platform_filter: platform,
+  }
 }
 
 export default {
@@ -445,5 +453,5 @@ export default {
   formatStrategyPercentage,
   isEngineAvailable,
   createDefaultBehaviorConfig,
-  createProbabilisticConfig
-};
+  createProbabilisticConfig,
+}
