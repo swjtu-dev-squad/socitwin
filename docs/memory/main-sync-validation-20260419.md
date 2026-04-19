@@ -6,7 +6,7 @@
 
 ## 1. Purpose
 
-本文档记录 2026-04-19 这轮 `origin/main` 同步后的验证结果。
+本文档记录 2026-04-19 这轮 `origin/main` 同步后的验证结果，以及随后完成的 PR 准备检查收口结果。
 
 重点回答：
 
@@ -19,6 +19,9 @@
 
 - branch: `integration/memory-migration-main-sync`
 - merge commit: `169e5dc`
+- PR-prep commits:
+  - `19b236d` `Prepare branch for PR checks`
+  - `3400031` `Tighten runtime error naming`
 
 ## 3. Automated Checks
 
@@ -71,7 +74,30 @@ pnpm --dir frontend build
 
 - build 仍有大 bundle warning，但这是性能优化项，不是功能阻塞项。
 
-### 3.3 Diff Hygiene
+### 3.3 PR Gate Re-Run
+
+在完成 main sync 之后，又额外按 GitHub Actions 的实际门槛完整复跑了：
+
+```bash
+uv run pyright app/
+uv run ruff check . --ignore=E501
+pnpm run format:check
+pnpm run build
+```
+
+结果：
+
+- 后端 `pyright` 通过
+- 后端 `ruff` 通过
+- 前端 `format:check` 通过
+- 前端 `build` 通过
+
+说明：
+
+- 本轮为 PR 准备而做的格式、lint、类型修正没有引入新的阻塞项
+- 当前分支已经满足仓库 CI 的硬门槛
+
+### 3.4 Diff Hygiene
 
 运行：
 
@@ -215,7 +241,7 @@ http://127.0.0.1:8001
 
 ## 5. Short E2E
 
-### 5.1 Official E2E Script
+### 5.1 Official E2E Script With Missing Dataset
 
 运行：
 
@@ -237,7 +263,7 @@ python backend/tests/e2e/e2e_simulation_test.py \
 失败原因：
 
 - 脚本固定要求先做 `topic activate`
-- 当前本地缺少：
+- 当时本地缺少：
   - `backend/data/datasets/oasis_datasets.db`
 - 因此卡在：
   - `Failed to activate topic: Dataset database not found`
@@ -265,18 +291,94 @@ python backend/tests/e2e/e2e_simulation_test.py \
 - 官方 E2E 当前的失败原因是 dataset 环境阻塞；
 - 非 dataset 的短链路 E2E 已经跑通。
 
+### 5.3 Official E2E Script With Dataset And Real Topic
+
+后续已将 dataset 数据库补到后端默认目录：
+
+- `backend/data/datasets/oasis_datasets.db`
+
+并确认 `/api/topics` 已可正常返回 topic 列表。
+
+随后再次运行官方脚本，但不再使用脚本内过时的默认 topic，而改用数据库中实际存在的 topic：
+
+```bash
+python backend/tests/e2e/e2e_simulation_test.py \
+  --base-url http://127.0.0.1:8001 \
+  --agent-count 2 \
+  --max-steps 1 \
+  --memory-mode action_v1 \
+  --topic 2042552568010936455 \
+  --timeout 120 \
+  --output-dir /tmp/socitwin-e2e-short \
+  --no-verbose
+```
+
+结果：
+
+- 通过
+- `Steps executed: 1`
+- `Successful: 1`
+- `Failed: 0`
+- `Total time: 12.51s`
+- `Posts created: 3`
+- `Interactions: 9`
+
+结果文件中的 memory 指标：
+
+- `memory_mode = action_v1`
+- `agent_count = 2`
+- `context_token_limit = 16384`
+- `generation_max_tokens = 1024`
+- `total_recent_retained = 2`
+- `total_compressed_retained = 0`
+- `total_recall_injected = 0`
+- `max_prompt_tokens = 423`
+- `max_observation_tokens = 423`
+
+这说明：
+
+- dataset 路线本身已经可用；
+- 官方 E2E 脚本的真实阻塞点已经从“缺 dataset”变成“默认 topic 过时”；
+- 在使用真实存在的 topic 时，官方短 E2E 可以正常完成。
+
+### 5.4 Live UI Smoke On Shared 8000 Instance
+
+为确认前端“社交网络监控”页面与当前后端实例的实际联动状态，又直接在用户已启动的 `http://127.0.0.1:8000` 实例上进行了可视化短跑：
+
+- `memory_mode = action_v1`
+- `agent_count = 2`
+- `topic = 2042552568010936455`
+- 计划 10 轮，在第 5 轮前由人工中止
+
+运行过程中确认页面可观测，且后端状态正常推进。中止后再次读取状态：
+
+- `current_step = 5`
+- `total_posts = 6`
+- `total_interactions = 23`
+
+对应 memory 指标：
+
+- `max_recent = 3`
+- `max_compressed = 2`
+- `max_recalled = 3`
+- `max_injected = 0`
+
+这说明：
+
+- 页面监控链与当前后端实例状态是一致的；
+- `recent -> compressed` 的短程流转已经在真实运行里出现；
+- recall 已开始触发统计，但在该短窗口中尚未注入到 prompt。
+
 ## 6. Environment Blockers
 
-当前唯一明确的环境阻塞项是：
+当前已经不存在“dataset 缺失”这一类基础环境阻塞。
 
-- 缺少 dataset 数据库：
-  - `backend/data/datasets/oasis_datasets.db`
+当前剩余的环境/数据层注意事项是：
 
-它影响的是真实 dataset topic 路线，包括：
+- 官方 E2E 脚本默认 topic `climate_change_debate` 与当前 dataset 内容不匹配；
+- 因此在当前数据集上运行官方脚本时，需要显式传入真实存在的 topic id。
 
-- `GET /api/topics?...`
-- `POST /api/topics/{topic_id}/activate`
-- 依赖 dataset topic 的官方 E2E 脚本
+这不是系统功能损坏，而是测试默认值过时。
 
 ## 7. Known Non-Blocking Issues
 
@@ -308,6 +410,19 @@ social.twitter - ERROR - list index out of range
 - 性能优化项；
 - 非功能阻塞项。
 
+### 7.3 Official E2E Default Topic Drift
+
+当前官方 E2E 脚本默认使用：
+
+- `climate_change_debate`
+
+但这不是当前 dataset 中的真实 topic。
+
+当前结论：
+
+- 脚本本身未损坏；
+- 但默认 topic 示例值需要后续更新到 dataset-backed 真实 topic，或补成“先 list topics 再选用第一个可用 topic”的逻辑。
+
 ## 8. Current Conclusion
 
 截至 2026-04-19，这轮 `origin/main` 同步后的整合分支可以做如下判断：
@@ -317,6 +432,10 @@ social.twitter - ERROR - list index out of range
   - 前端类型检查与构建
   - 真实接口联调
   - 短链路 E2E
+- dataset topic 路线也已通过：
+  - `/api/topics` 列表可用
+  - `topic activate` 可用
+  - 官方短 E2E 在真实 topic id 下可跑通
 - 已真实验证通过的能力包括：
   - `upstream`
   - `action_v1`
@@ -327,11 +446,16 @@ social.twitter - ERROR - list index out of range
   - `memory debug`
   - `agent monitor`
   - `SSE /events`
-- 当前未完成真实 E2E 的只剩 dataset topic 路线，而阻塞原因是本地缺数据集库，不是 merge 已知破坏。
+- 当前分支也已经通过仓库 CI 所要求的本地门槛：
+  - `pyright`
+  - `ruff`
+  - `frontend format:check`
+  - `frontend build`
+- 当前没有发现“main sync 或 PR 准备过程改坏记忆主链”的证据。
 
 ## 9. Recommended Next Step
 
 后续建议二选一：
 
-1. 补齐 `oasis_datasets.db`，把 dataset topic 路线和官方 E2E 补跑完整；
-2. 直接进入 PR/合并准备，把本页作为测试结论引用。
+1. 更新官方 E2E 脚本中的默认 topic 示例值，避免未来在新数据集下再次因过时默认值误判；
+2. 直接进入 PR/合并准备，把本页作为 main sync 验证与 PR 准备测试结论引用。
