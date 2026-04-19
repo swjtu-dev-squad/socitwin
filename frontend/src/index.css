@@ -1,21 +1,32 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&family=Poppins:wght@500;600&family=Roboto:wght@400;500;600&family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
+  --font-minimax-display: "Outfit", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-minimax-heading: "Poppins", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-minimax-body: "DM Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-minimax-data: "Roboto", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-bg-primary: #09090b;
-  --color-bg-secondary: #18181b;
-  --color-bg-tertiary: #27272a;
+  --color-bg-primary: #181e25;      /* 主背景 - 深色 */
+  --color-bg-secondary: #27272a;    /* 次背景 - 卡片 */
+  --color-bg-tertiary: #3f3f46;     /* 三级背景 - 输入框 */
 
-  --color-border-default: #27272a;
-  --color-border-strong: #3f3f46;
+  --color-border-default: #3f3f46;  /* 默认边框 */
+  --color-border-strong: #52525b;   /* 强边框 */
 
+  --color-minimax-brand: #1456f0;
+  --color-minimax-primary: #3b82f6;
+  --color-minimax-primary-hover: #2563eb;
+  --color-minimax-pink: #ea5ec1;
+
+  /* 保留原有accent色作为兼容 */
   --color-accent: #10b981;
   --color-accent-hover: #059669;
   --color-accent-subtle: rgba(16, 185, 129, 0.1);
 
+  /* 文本色 */
   --color-text-primary: #fafafa;
   --color-text-secondary: #a1a1aa;
   --color-text-tertiary: #71717a;
@@ -75,3 +86,498 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   @apply bg-border-strong;
 }
+
+/* ============================================ */
+/* 深色主题CSS变量 */
+/* ============================================ */
+
+:root {
+  /* 品牌色 */
+  --minimax-brand-blue: #1456f0;
+  --minimax-primary-500: #3b82f6;
+  --minimax-primary-600: #2563eb;
+  --minimax-primary-light: #60a5fa;
+  --minimax-brand-pink: #ea5ec1;
+
+  /* 文本色 - 深色主题 */
+  --minimax-text-primary: #fafafa;
+  --minimax-text-secondary: #a1a1aa;
+  --minimax-text-muted: #71717a;
+  --minimax-text-dark: #18181b;
+
+  /* 背景色 - 深色主题 */
+  --minimax-bg-primary: #181e25;
+  --minimax-bg-secondary: #27272a;
+  --minimax-bg-tertiary: #3f3f46;
+  --minimax-bg-input: #18181b;
+
+  /* 边框色 */
+  --minimax-border-default: #3f3f46;
+  --minimax-border-strong: #52525b;
+  --minimax-border-light: rgba(255,255,255,0.05);
+
+  /* 语义色 */
+  --minimax-rose: #f43f5e;
+  --minimax-emerald: #10b981;
+  --minimax-amber: #f59e0b;
+  --minimax-blue: #3b82f6;
+
+  /* 阴影 */
+  --minimax-shadow-sm: rgba(0,0,0,0.3) 0px 2px 4px;
+  --minimax-shadow-md: rgba(0,0,0,0.3) 0px 4px 6px;
+  --minimax-shadow-brand: rgba(59,130,246,0.15) 0px 0px 15px;
+  --minimax-shadow-xl: rgba(0,0,0,0.4) 0px 12px 16px -4px;
+
+  /* 圆角 */
+  --minimax-radius-sm: 8px;
+  --minimax-radius-md: 12px;
+  --minimax-radius-lg: 16px;
+  --minimax-radius-xl: 20px;
+  --minimax-radius-2xl: 24px;
+  --minimax-radius-pill: 9999px;
+}
+
+/* ============================================ */
+/* 工具类 */
+/* ============================================ */
+
+/* 字体工具类 */
+.font-minimax-display {
+  font-family: var(--minimax-font-display);
+}
+
+.font-minimax-heading {
+  font-family: var(--minimax-font-heading);
+}
+
+.font-minimax-body {
+  font-family: var(--minimax-font-body);
+}
+
+.font-minimax-data {
+  font-family: var(--minimax-font-data);
+}
+
+/* 卡片样式 */
+.minimax-card {
+  @apply bg-bg-secondary border border-border-default rounded-xl p-6;
+  box-shadow: var(--minimax-shadow-md);
+  transition: all 0.2s ease;
+}
+
+.minimax-card:hover {
+  border-color: var(--minimax-border-strong);
+}
+
+.minimax-card-lg {
+  @apply bg-bg-secondary border border-border-default rounded-2xl p-6;
+  box-shadow: var(--minimax-shadow-brand);
+  transition: all 0.2s ease;
+}
+
+.minimax-card-lg:hover {
+  border-color: var(--minimax-border-strong);
+}
+
+/* 按钮样式 */
+.minimax-pill {
+  @apply rounded-full px-4 py-2;
+  background: rgba(255,255,255,0.05);
+  color: var(--minimax-text-primary);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.minimax-pill:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: var(--minimax-border-strong);
+}
+
+.minimax-pill.active {
+  background: var(--minimax-primary-500);
+  color: white;
+}
+
+.minimax-btn-primary {
+  @apply rounded-lg px-5 py-2.5 font-medium;
+  background: var(--minimax-primary-500);
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.minimax-btn-primary:hover {
+  background: var(--minimax-primary-600);
+}
+
+.minimax-btn-secondary {
+  @apply rounded-lg px-5 py-2.5 font-medium;
+  background: var(--minimax-bg-tertiary);
+  color: var(--minimax-text-primary);
+  transition: all 0.2s ease;
+}
+
+.minimax-btn-secondary:hover {
+  background: var(--minimax-border-strong);
+}
+
+/* 状态指示器 */
+.minimax-status-dot {
+  @apply rounded-full;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.minimax-status-dot.running {
+  background: var(--minimax-emerald);
+}
+
+.minimax-status-dot.paused {
+  background: var(--minimax-amber);
+  animation: none;
+}
+
+.minimax-status-dot.error {
+  background: var(--minimax-rose);
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 指标卡片 */
+.minimax-metric-card {
+  @apply bg-bg-secondary border border-border-default rounded-xl p-4;
+  transition: all 0.2s ease;
+}
+
+.minimax-metric-card:hover {
+  border-color: var(--minimax-primary-500);
+  box-shadow: var(--minimax-shadow-brand);
+}
+
+/* 章节标题 */
+.minimax-section-title {
+  font-family: var(--minimax-font-display);
+  font-size: 1.94rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--minimax-text-primary);
+  margin-bottom: 1rem;
+}
+
+.minimax-section-subtitle {
+  font-family: var(--minimax-font-heading);
+  font-size: 1.13rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--minimax-text-secondary);
+}
+
+/* 语义色徽章 */
+.minimax-badge-rose {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  background: rgba(244, 63, 94, 0.15);
+  color: var(--minimax-rose);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.minimax-badge-emerald {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--minimax-emerald);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.minimax-badge-amber {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--minimax-amber);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.minimax-badge-blue {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--minimax-blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* ============================================ */
+/* 科技风动画效果（Tech Aesthetic） */
+/* ============================================ */
+
+@keyframes scan {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes flicker {
+  0%, 100% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 0.8;
+  }
+  94% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.9;
+  }
+  98% {
+    opacity: 0.8;
+  }
+}
+
+/* ============================================ */
+/* 侧边栏科技风样式 */
+/* ============================================ */
+
+/* 侧边栏导航项悬停效果 */
+.tech-sidebar-nav-item {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tech-sidebar-nav-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.3), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tech-sidebar-nav-item:hover::before {
+  opacity: 1;
+}
+
+/* 侧边栏激活状态发光 */
+.tech-sidebar-nav-item.active {
+  position: relative;
+}
+
+.tech-sidebar-nav-item.active::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(0, 242, 255, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* 用户头像发光效果 */
+.tech-user-avatar {
+  position: relative;
+}
+
+.tech-user-avatar::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(0, 242, 255, 0.4), rgba(0, 242, 255, 0.1));
+  z-index: -1;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 系统状态指示器动画 */
+.tech-status-dot {
+  position: relative;
+}
+
+.tech-status-dot::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: inherit;
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* ============================================ */
+/* 科技风下拉框样式 */
+/* ============================================ */
+
+/* 下拉框选项 - 基础样式 */
+.tech-select-item {
+  transition: all 0.15s;
+}
+
+/* 下拉框选项 hover 状态 - 蓝色 */
+.tech-select-item:hover {
+  background: rgba(0, 242, 255, 0.15) !important;
+  color: #00f2ff !important;
+}
+
+/* 下拉框选项选中状态 - 蓝色 */
+.tech-select-item.selected {
+  background: rgba(0, 242, 255, 0.25) !important;
+  color: #00f2ff !important;
+}
+
+/* 选中状态的 hover */
+.tech-select-item.selected:hover {
+  background: rgba(0, 242, 255, 0.35) !important;
+}
+
+/* 下拉框滚动条 - 科技风 */
+.tech-select-dropdown {
+  /* 确保滚动条样式生效 */
+}
+
+.tech-select-dropdown::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tech-select-dropdown::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.tech-select-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 255, 0.3);
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+
+.tech-select-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 255, 0.5);
+}
+
+/* ============================================ */
+/* 科技风滑动条样式 */
+/* ============================================ */
+
+.tech-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: rgba(0, 242, 255, 0.2);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+/* 轨道背景 - 已滑过区域亮色，未滑过区域暗色 */
+.tech-slider::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(0, 242, 255, 0.6) 0%,
+    rgba(0, 242, 255, 0.6) var(--progress, 50%),
+    rgba(113, 113, 122, 0.3) var(--progress, 50%),
+    rgba(113, 113, 122, 0.3) 100%
+  );
+  border: none;
+  box-shadow: 0 0 8px rgba(0, 242, 255, 0.2);
+}
+
+/* 滑块 - 方块样式 */
+.tech-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #00f2ff;
+  cursor: pointer;
+  border-radius: 0;
+  margin-top: -6px;
+  transition: all 0.2s;
+}
+
+.tech-slider::-webkit-slider-thumb:hover {
+  background: #00f2ff;
+  transform: scale(1.1);
+}
+
+.tech-slider::-moz-range-track {
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    rgba(0, 242, 255, 0.6) 0%,
+    rgba(0, 242, 255, 0.6) var(--progress, 50%),
+    rgba(113, 113, 122, 0.3) var(--progress, 50%),
+    rgba(113, 113, 122, 0.3) 100%
+  );
+  border: none;
+  box-shadow: 0 0 8px rgba(0, 242, 255, 0.2);
+}
+
+.tech-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #00f2ff;
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+  transition: all 0.2s;
+}
+
+.tech-slider::-moz-range-thumb:hover {
+  background: #00f2ff;
+  transform: scale(1.1);
+}
+
+/* 聚焦状态 */
+.tech-slider:focus {
+  outline: none;
+}
+
+.tech-slider:focus::-webkit-slider-thumb {
+  background: #00f2ff;
+}
+
+.tech-slider:focus::-moz-range-thumb {
+  background: #00f2ff;
+}
+
+

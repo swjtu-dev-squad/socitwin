@@ -720,10 +720,11 @@ export function useStepDrivenMetrics(currentStep: number) {
           simulationApi.getLatestMetrics('herd_effect').catch(() => null),
         ])
 
+        // 提取 metric_data 字段（MetricsHistoryEntry.metric_data -> PropagationMetrics）
         setLatestMetrics({
-          propagation: prop?.data || null,
-          polarization: pol?.data || null,
-          herdEffect: herd?.data || null,
+          propagation: prop?.data?.metric_data || null,
+          polarization: pol?.data?.metric_data || null,
+          herdEffect: herd?.data?.metric_data || null,
         })
 
         setLastFetchedStep(currentStep)

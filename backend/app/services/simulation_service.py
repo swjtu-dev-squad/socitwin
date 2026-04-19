@@ -434,13 +434,34 @@ class SimulationService:
                 following=following,
             ))
 
-        # 尝试获取高级指标摘要
+        # 只获取缓存的metrics，不触发重新计算（保持status响应快速）
         metrics_summary = None
         try:
             from app.core.dependencies import get_metrics_manager
             metrics_manager = await get_metrics_manager()
             if metrics_manager:
-                metrics_summary = await metrics_manager.get_metrics_summary()
+                # 只从缓存获取，如果没有缓存就返回None，不触发计算
+                try:
+                    propagation = await metrics_manager.caches['propagation'].get('propagation')
+                    polarization = await metrics_manager.caches['polarization'].get('polarization')
+                    herd_effect = await metrics_manager.caches['herd_effect'].get('herd_effect')
+
+                    # 只有当三个metrics都有缓存时才返回
+                    if propagation and polarization and herd_effect:
+                        from app.models.metrics import MetricsSummary
+                        metrics_summary = MetricsSummary(
+                            propagation=propagation,
+                            polarization=polarization,
+                            herd_effect=herd_effect,
+                            current_step=state_info["current_step"],
+                            timestamp=datetime.now()
+                        )
+                        logger.debug("Using cached metrics for status endpoint")
+                    else:
+                        logger.debug(f"Metrics not all cached: P={bool(propagation)}, Pol={bool(polarization)}, H={bool(herd_effect)}")
+                except Exception as cache_error:
+                    logger.warning(f"Failed to get metrics from cache: {cache_error}")
+
                 # 更新polarization字段以保持兼容性
                 if metrics_summary and metrics_summary.polarization:
                     self.polarization = metrics_summary.polarization.average_magnitude

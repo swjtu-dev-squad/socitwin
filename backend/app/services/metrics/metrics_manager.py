@@ -149,6 +149,73 @@ class MetricsManager:
         else:
             logger.info(f"MetricsManager initialized without db persistence: {db_path}")
 
+        # Flag to track if database metrics have been loaded
+        self._db_metrics_loaded = False
+
+    async def _load_latest_metrics_to_cache(self):
+        """
+        Load latest metrics from database into cache on initialization
+        """
+        try:
+            import asyncio
+            logger.info("Loading latest metrics from database into cache...")
+
+            # Load all three metrics in parallel
+            tasks = [
+                self._load_metric_to_cache('propagation'),
+                self._load_metric_to_cache('polarization'),
+                self._load_metric_to_cache('herd_effect'),
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            loaded_count = 0
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.warning(f"Failed to load {['propagation', 'polarization', 'herd_effect'][i]}: {result}")
+                elif result:
+                    loaded_count += 1
+
+            logger.info(f"Loaded {loaded_count}/3 metrics from database into cache")
+
+        except Exception as e:
+            logger.warning(f"Failed to load metrics from database: {e}")
+
+    async def _load_metric_to_cache(self, metric_type: str):
+        """
+        Load a single metric type from database into cache
+        """
+        try:
+            latest = metrics_db.get_latest_metrics(self.db_path, metric_type)
+            if latest and latest.get('metric_data'):
+                # Parse metric_data based on type
+                metric_data = latest['metric_data']
+
+                # Convert dict to appropriate model
+                if metric_type == 'propagation':
+                    from app.models.metrics import PropagationMetrics
+                    metric_obj = PropagationMetrics(**metric_data)
+                elif metric_type == 'polarization':
+                    from app.models.metrics import PolarizationMetrics
+                    metric_obj = PolarizationMetrics(**metric_data)
+                elif metric_type == 'herd_effect':
+                    from app.models.metrics import HerdEffectMetrics
+                    metric_obj = HerdEffectMetrics(**metric_data)
+                else:
+                    logger.warning(f"Unknown metric type: {metric_type}")
+                    return False
+
+                # Store in cache
+                await self.caches[metric_type].set(metric_type, metric_obj)
+                logger.debug(f"Loaded {metric_type} from step {latest['step_number']} into cache")
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"Failed to load {metric_type} from database: {e}")
+            return False
+
     async def update_all_metrics(
         self,
         current_step: int,
@@ -224,6 +291,12 @@ class MetricsManager:
             MetricsSummary with all three metrics
         """
         try:
+            # Load latest metrics from database on first access
+            if self.enable_db_persistence and not self._db_metrics_loaded:
+                logger.info("First access - loading latest metrics from database into cache")
+                await self._load_latest_metrics_to_cache()
+                self._db_metrics_loaded = True
+
             # Try to get from cache first
             propagation = await self.caches['propagation'].get('propagation')
             polarization = await self.caches['polarization'].get('polarization')
