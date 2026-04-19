@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .episodic_memory import EpisodeQuerySource
 
@@ -20,7 +20,7 @@ class RetrievalPolicy:
         topic: str = "",
         semantic_anchors: list[str] | None = None,
         entities: list[str] | None = None,
-        recent_episodes: list[Mapping[str, Any]] | None = None,
+        recent_episodes: Sequence[Mapping[str, Any]] | None = None,
         limit: int,
     ) -> RetrievalRequest | None:
         normalized_topic = str(topic or "").strip()
@@ -55,7 +55,7 @@ class RetrievalPolicy:
 
     def format_results(
         self,
-        episodes: list[Mapping[str, Any]],
+        episodes: Sequence[Mapping[str, Any]],
         *,
         title: str = "Relevant long-term memory:",
     ) -> str:
@@ -123,7 +123,7 @@ class RetrievalPolicy:
 
     def build_reason_trace(
         self,
-        episodes: list[Mapping[str, Any]],
+        episodes: Sequence[Mapping[str, Any]],
         *,
         max_chars: int = 120,
     ) -> str:
@@ -161,7 +161,7 @@ class RetrievalPolicy:
         topic = str(first.get("topic", "") or "").strip()
         return topic[:limit]
 
-    def _build_recent_episode_query(self, episodes: list[Mapping[str, Any]]) -> str:
+    def _build_recent_episode_query(self, episodes: Sequence[Mapping[str, Any]]) -> str:
         if not episodes:
             return ""
 

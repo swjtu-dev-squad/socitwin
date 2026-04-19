@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-
 AgentStatus = Literal["active", "idle", "thinking"]
 AgentMemoryContentSource = Literal["system_prompt", "retrieval"]
 AgentMemoryRetrievalStatus = Literal["not_configured", "ready", "empty", "error"]

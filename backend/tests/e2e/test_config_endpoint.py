@@ -10,9 +10,10 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.core.dependencies import get_simulation_service_dependency
 from app.models.simulation import ConfigResult
-from fastapi.testclient import TestClient
 from main import app
 
 

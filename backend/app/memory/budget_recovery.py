@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from .config import ActionV1RuntimeSettings, ObservationPresetConfig
 from .observation_shaper import (
@@ -101,7 +101,7 @@ class BudgetRecoveryController:
     def derive_recall_candidates(
         self,
         *,
-        recall_candidates: list[dict[str, Any]],
+        recall_candidates: Sequence[Mapping[str, Any]],
         state: BudgetRecoveryState,
     ) -> list[dict[str, Any]]:
         if not state.include_recall:

@@ -9,6 +9,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.core.simulation_events import simulation_event_bus
 from app.models.simulation import PlatformType
 from app.models.topics import (
     TopicActivationResult,
@@ -18,7 +19,6 @@ from app.models.topics import (
     TopicReloadResult,
     TopicSimulationResponse,
 )
-from app.core.simulation_events import simulation_event_bus
 from app.services.simulation_service import SimulationService
 from app.services.topic_service import TopicService
 

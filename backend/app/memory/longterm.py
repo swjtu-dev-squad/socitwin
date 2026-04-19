@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 import re
-from typing import Any, Mapping, Protocol, TypedDict
+from typing import Any, Literal, Mapping, Protocol, TypedDict
 
 from camel.embeddings.base import BaseEmbedding
 from camel.storages import ChromaStorage
@@ -13,7 +13,6 @@ from camel.storages.vectordb_storages import (
     VectorDBQueryResult,
     VectorRecord,
 )
-
 
 TOKEN_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 SERIALIZED_PAYLOAD_KEY = "episode_payload_json"
@@ -289,7 +288,7 @@ def build_chroma_longterm_store(
     embedding_model: str | None = None,
     embedding_api_key: str | None = None,
     embedding_base_url: str | None = None,
-    client_type: str = "persistent",
+    client_type: Literal["ephemeral", "persistent", "http", "cloud"] = "persistent",
     path: str | None = None,
     delete_collection_on_close: bool = True,
 ) -> ChromaLongtermStore:
@@ -407,13 +406,17 @@ def _normalize_action_episode_payload(payload: Mapping[str, Any]) -> dict[str, A
     query_source = str(payload.get("query_source", "") or "").strip()
     if query_source not in ALLOWED_QUERY_SOURCES:
         raise ValueError(f"Unsupported query_source: {query_source}")
+    step_id = payload.get("step_id")
+    timestamp = payload.get("timestamp")
+    if step_id is None or timestamp is None:
+        raise ValueError("action episode requires non-null step_id and timestamp.")
 
     normalized = {
         "memory_kind": "action_episode",
         "agent_id": str(payload.get("agent_id", "") or ""),
-        "step_id": int(payload.get("step_id")),
+        "step_id": int(step_id),
         "action_index": int(payload.get("action_index", 0)),
-        "timestamp": float(payload.get("timestamp", 0.0)),
+        "timestamp": float(timestamp),
         "platform": str(payload.get("platform", "") or ""),
         "action_name": str(payload.get("action_name", "") or ""),
         "action_category": str(payload.get("action_category", "") or ""),
@@ -531,7 +534,7 @@ def _rerank_retrieved_payloads(
         score = _score_action_episode(payload, normalized_query, query_tokens)
         if score <= 0:
             continue
-        scored.append((score, float(payload["timestamp"]), payload))
+        scored.append((score, float(payload.get("timestamp", 0.0) or 0.0), payload))
     scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [payload for _, _, payload in scored[:limit]]
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 HIGH_SIGNIFICANCE_ACTIONS = {
     "create_post",
     "create_comment",

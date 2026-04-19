@@ -37,6 +37,11 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+"app/models/agent_monitor.py" = ["N815"]
+"app/memory/runtime_failures.py" = ["N818"]
+"tests/e2e/e2e_simulation_test.py" = ["E402"]
+
 [tool.pyright]
 include = ["app"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv"]

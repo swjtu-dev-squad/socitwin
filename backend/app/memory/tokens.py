@@ -3,13 +3,14 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from camel.messages import OpenAIMessage
 from camel.utils import BaseTokenCounter
 
 
 class HeuristicUnicodeTokenCounter(BaseTokenCounter):
     _MESSAGE_OVERHEAD = 4
 
-    def count_tokens_from_messages(self, messages: list[dict[str, Any]]) -> int:
+    def count_tokens_from_messages(self, messages: list[OpenAIMessage]) -> int:
         total = 0
         for message in messages:
             total += self._MESSAGE_OVERHEAD

@@ -266,17 +266,17 @@ export interface TopicSimulationResponse {
 }
 
 export interface ConfigResult {
-  success: boolean;
-  message: string;
-  simulation_id?: string | null;
-  agents_created?: number;
+  success: boolean
+  message: string
+  simulation_id?: string | null
+  agents_created?: number
 }
 
 export interface StatusResult {
-  success: boolean;
-  message: string;
-  current_state?: string;
-  timestamp?: string;
+  success: boolean
+  message: string
+  current_state?: string
+  timestamp?: string
 }
 
 // ========== Metrics Types (matching backend/app/models/metrics.py) ==========

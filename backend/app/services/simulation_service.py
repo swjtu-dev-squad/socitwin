@@ -28,7 +28,6 @@ from app.models.simulation import (
     PlatformType,
     SimulationConfig,
     SimulationStatus,
-    SimulationState,
     StatusResult,
     StepRequest,
     StepResult,

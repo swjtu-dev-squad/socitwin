@@ -2,9 +2,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from app.memory.config import MemoryMode
 from pydantic import BaseModel, Field, field_validator
 
+from app.memory.config import MemoryMode
 from app.models.metrics import MetricsSummary
 
 # ============================================================================

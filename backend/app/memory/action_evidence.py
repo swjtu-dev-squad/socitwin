@@ -6,7 +6,6 @@ from typing import Any
 from .action_capabilities import ActionCapabilityRegistry
 from .action_significance import normalize_execution_status
 
-
 NOT_FOUND_PATTERNS = (
     "not found",
     "no such",

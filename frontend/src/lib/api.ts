@@ -40,7 +40,7 @@ export const simulationApi = {
       templateName?: string
       filePath?: string
       manualConfig?: Record<string, any>[]
-      }
+    }
   }) =>
     api.post<ConfigResult>('/sim/config', {
       platform: config.platform,

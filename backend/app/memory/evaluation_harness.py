@@ -3,33 +3,32 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
 import os
-from pathlib import Path
 import shutil
 import tempfile
-from typing import Any, Iterator
 import time
 import warnings
-
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Iterator
 
 from camel.memories import MemoryRecord
 from camel.messages import BaseMessage
 
 from app.core.config import get_settings
 from app.core.oasis_manager import OASISManager
-from app.models.simulation import MemoryMode, PlatformType, SimulationConfig
+from app.models.simulation import AgentSource, MemoryMode, PlatformType, SimulationConfig
+
 from .config import ActionV1RuntimeSettings
 from .episodic_memory import ActionEpisode
-from .longterm import build_chroma_longterm_store
+from .longterm import build_chroma_longterm_store, payload_to_episode
 from .observation_shaper import ObservationShaper
 from .recall_planner import RecallPlanner, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy
 from .tokens import HeuristicUnicodeTokenCounter
 from .working_memory import MemoryState
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "memory-eval"
@@ -424,7 +423,7 @@ def _run_deterministic(
             query_source="distilled_topic",
             action_significance="high",
         )
-        store.write_episode(episode.to_payload())
+        store.write_episode(payload_to_episode(episode.to_payload()))
 
         planner = RecallPlanner(
             runtime_settings=runtime_settings,
@@ -593,7 +592,7 @@ async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str,
                 memory_mode=MemoryMode.ACTION_V1,
                 db_path=str(db_path),
                 max_steps=max(1, config.smoke_steps),
-                agent_source={"source_type": "template"},
+                agent_source=AgentSource(source_type="template"),
             )
             init_result = await asyncio.wait_for(
                 manager.initialize(simulation_config),
@@ -736,7 +735,7 @@ async def _run_action_v1_real_scenarios_async(
                 memory_mode=MemoryMode.ACTION_V1,
                 db_path=str(db_path),
                 max_steps=max(1, config.scenario_steps),
-                agent_source={"source_type": "template"},
+                agent_source=AgentSource(source_type="template"),
             )
             init_result = await asyncio.wait_for(
                 manager.initialize(simulation_config),
@@ -799,7 +798,7 @@ async def _run_action_v1_real_longwindow_async(
                 memory_mode=MemoryMode.ACTION_V1,
                 db_path=str(db_path),
                 max_steps=max(1, config.longwindow_steps),
-                agent_source={"source_type": "template"},
+                agent_source=AgentSource(source_type="template"),
             )
             init_result = await asyncio.wait_for(
                 manager.initialize(simulation_config),
@@ -877,7 +876,7 @@ async def _run_mode_comparison_async(
                 memory_mode=mode,
                 db_path=str(db_path),
                 max_steps=max(1, config.comparison_steps),
-                agent_source={"source_type": "template"},
+                agent_source=AgentSource(source_type="template"),
             )
             init_result = await asyncio.wait_for(
                 manager.initialize(simulation_config),

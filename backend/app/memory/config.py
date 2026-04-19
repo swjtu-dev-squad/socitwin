@@ -4,7 +4,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping, Protocol, TypedDict
 
 from camel.messages import BaseMessage
 
@@ -33,6 +33,17 @@ class MemoryRuntimeConfig:
 class TokenCounterLike(Protocol):
     def count_tokens_from_messages(self, messages) -> int:
         ...
+
+
+MatcherTuple = tuple[Any, ...]
+MatcherCategoryMap = dict[str, MatcherTuple]
+StructuredMatcherSection = dict[str, MatcherCategoryMap]
+
+
+class ProviderMatcherFamily(TypedDict):
+    structured: StructuredMatcherSection
+    normalized_patterns: MatcherCategoryMap
+    raw_patterns: MatcherCategoryMap
 
 
 @dataclass(slots=True)
@@ -184,7 +195,7 @@ class LongtermSidecarConfig:
 
 @dataclass(slots=True)
 class ProviderRuntimePresetConfig:
-    provider_error_matchers: dict[str, dict[str, Any]] = field(
+    provider_error_matchers: dict[str, ProviderMatcherFamily] = field(
         default_factory=lambda: {
             "openai": {
                 "structured": {
@@ -764,13 +775,13 @@ def _env_tiers(
     return tuple(tiers)
 
 
-def _load_provider_error_matchers(path: str) -> dict[str, dict[str, Any]]:
+def _load_provider_error_matchers(path: str) -> dict[str, ProviderMatcherFamily]:
     with open(path, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
     if not isinstance(payload, Mapping):
         raise ValueError("provider matcher payload must be a mapping.")
 
-    normalized: dict[str, dict[str, Any]] = {}
+    normalized: dict[str, ProviderMatcherFamily] = {}
     for provider, category_map in payload.items():
         if not isinstance(category_map, Mapping):
             raise ValueError("provider matcher categories must be mappings.")
@@ -781,7 +792,7 @@ def _load_provider_error_matchers(path: str) -> dict[str, dict[str, Any]]:
 def _merge_provider_error_matchers(
     base: Mapping[str, Mapping[str, Any]],
     overlay: Mapping[str, Mapping[str, Any]],
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, ProviderMatcherFamily]:
     merged = {
         str(provider): _normalize_provider_matcher_family(category_map)
         for provider, category_map in base.items()
@@ -806,7 +817,7 @@ def _merge_provider_error_matchers(
 
 def _normalize_provider_matcher_family(
     category_map: Mapping[str, Any],
-) -> dict[str, dict[str, tuple[Any, ...]]]:
+) -> ProviderMatcherFamily:
     reserved_keys = {"structured", "normalized_patterns", "raw_patterns"}
     has_new_schema_key = any(key in category_map for key in reserved_keys)
     if not has_new_schema_key:
@@ -869,7 +880,7 @@ def _normalize_matcher_tuple(
     patterns: Any,
     *,
     cast: str,
-) -> tuple[Any, ...]:
+) -> MatcherTuple:
     if not isinstance(patterns, (list, tuple)):
         raise ValueError("provider matcher patterns must be a list.")
     if cast == "int":
@@ -878,9 +889,9 @@ def _normalize_matcher_tuple(
 
 
 def _merge_nested_matcher_section(
-    base: Mapping[str, tuple[Any, ...]],
-    overlay: Mapping[str, tuple[Any, ...]],
-) -> dict[str, tuple[Any, ...]]:
+    base: Mapping[str, MatcherTuple],
+    overlay: Mapping[str, MatcherTuple],
+) -> MatcherCategoryMap:
     merged = {str(category): tuple(values) for category, values in base.items()}
     for category, values in overlay.items():
         merged[str(category)] = tuple(values)
@@ -888,9 +899,9 @@ def _merge_nested_matcher_section(
 
 
 def _merge_structured_matcher_section(
-    base: Mapping[str, Mapping[str, tuple[Any, ...]]],
-    overlay: Mapping[str, Mapping[str, tuple[Any, ...]]],
-) -> dict[str, dict[str, tuple[Any, ...]]]:
+    base: Mapping[str, Mapping[str, MatcherTuple]],
+    overlay: Mapping[str, Mapping[str, MatcherTuple]],
+) -> StructuredMatcherSection:
     merged = {
         str(section): {
             str(category): tuple(values)

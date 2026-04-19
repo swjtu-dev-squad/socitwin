@@ -6,9 +6,10 @@ import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, Iterable, Iterator, List, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 from app.memory.config import MemoryMode
+from app.memory.retrieval_policy import RetrievalPolicy
 from app.models.agent_monitor import (
     AgentActionSummary,
     AgentDetailProfile,
@@ -24,12 +25,11 @@ from app.models.agent_monitor import (
     AgentMonitorSimulation,
     AgentOverview,
     AgentSeenPost,
+    AgentStatus,
     AgentTimelineItem,
 )
 from app.models.simulation import Agent, MemoryDebugAgentStatus, MemoryDebugStatus
-from app.memory.retrieval_policy import RetrievalPolicy
 from app.services.simulation_service import SimulationService
-
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,8 @@ class AgentMonitorService:
         metrics = status.metrics_summary
         propagation = getattr(metrics, "propagation", None) if metrics else None
         herd_effect = getattr(metrics, "herd_effect", None) if metrics else None
+        oasis_config = getattr(self.simulation_service.oasis_manager, "_config", None)
+        recsys_type = getattr(oasis_config, "recsys_type", None) if oasis_config else None
 
         return AgentMonitorResponse(
             simulation=AgentMonitorSimulation(
@@ -98,9 +100,7 @@ class AgentMonitorService:
                 currentStep=status.current_step,
                 currentRound=status.current_step // 10 if status.current_step else None,
                 platform=status.platform.value,
-                recsys=getattr(self.simulation_service.oasis_manager, "_config", None).recsys_type
-                if getattr(self.simulation_service.oasis_manager, "_config", None)
-                else None,
+                recsys=recsys_type,
                 topic=None,
                 polarization=status.polarization,
                 propagationScale=getattr(propagation, "scale", None),
@@ -598,7 +598,8 @@ class AgentMonitorService:
                 if (step_id, action_index) in selected_keys
                 else "recalled"
             )
-            item_id = f"{source}_step_{step_id}_{action_index if action_index is not None else index}"
+            item_id_suffix = action_index if action_index is not None else index
+            item_id = f"{source}_step_{step_id}_{item_id_suffix}"
             items.append(
                 AgentMemoryRetrievalItem(
                     id=item_id,
@@ -731,7 +732,7 @@ class AgentMonitorService:
 
     def _derive_status(
         self, action_count: int, latest_action: Optional[AgentActionSummary]
-    ) -> str:
+    ) -> AgentStatus:
         if action_count <= 0:
             return "idle"
         if latest_action and latest_action.type in {
@@ -839,14 +840,14 @@ class _AgentStats:
         following_count: int = 0,
         interaction_count: int = 0,
         latest_action: Optional[AgentActionSummary] = None,
-        status: str = "idle",
+        status: AgentStatus = "idle",
     ):
-        self.followees = followees or []
-        self.follower_count = follower_count
-        self.following_count = following_count
-        self.interaction_count = interaction_count
-        self.latest_action = latest_action
-        self.status = status
+        self.followees: list[str] = followees or []
+        self.follower_count: int = follower_count
+        self.following_count: int = following_count
+        self.interaction_count: int = interaction_count
+        self.latest_action: Optional[AgentActionSummary] = latest_action
+        self.status: AgentStatus = status
 
 
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:

@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping, Protocol, Sequence
 
 from .config import ActionV1RuntimeSettings
-from .retrieval_policy import RetrievalPolicy
+from .retrieval_policy import RetrievalPolicy, RetrievalRequest
 from .working_memory import MemoryState, recent_action_seed_payloads, recent_action_target_refs
 
 
 class LongtermStoreLike(Protocol):
     def retrieve_relevant(
         self,
-        query_text: str,
+        query: str,
         *,
         limit: int,
         agent_id: str | int | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> Sequence[Mapping[str, Any]]:
         ...
 
 
@@ -36,7 +36,7 @@ class RecallRuntimeState:
 class RecallPreparation:
     query_source: str = ""
     query_text: str = ""
-    candidates: list[dict[str, Any]] = field(default_factory=list)
+    candidates: list[Mapping[str, Any]] = field(default_factory=list)
     recalled_count: int = 0
     recalled_step_ids: list[int] = field(default_factory=list)
     retrieval_attempted: bool = False
@@ -92,6 +92,11 @@ class RecallPlanner:
                 gate_decision=False,
                 gate_reason_flags=gate_reason_flags,
             )
+        if request is None:
+            return RecallPreparation(
+                gate_decision=False,
+                gate_reason_flags=gate_reason_flags,
+            )
 
         episodes = list(
             longterm_store.retrieve_relevant(
@@ -103,7 +108,7 @@ class RecallPlanner:
         return RecallPreparation(
             query_source=request.query_source,
             query_text=request.query_text,
-            candidates=episodes,
+            candidates=list(episodes),
             recalled_count=len(episodes),
             recalled_step_ids=[
                 int(step_id)
@@ -120,7 +125,7 @@ class RecallPlanner:
         *,
         runtime_state: RecallRuntimeState,
         preparation: RecallPreparation,
-        selected_items: list[Mapping[str, Any]],
+        selected_items: Sequence[Mapping[str, Any]],
         step_id: int,
     ) -> None:
         if preparation.clear_anchor:
@@ -166,7 +171,7 @@ class RecallPlanner:
     def _should_retrieve(
         self,
         *,
-        request: Any,
+        request: RetrievalRequest | None,
         topic: str,
         semantic_anchors: list[str],
         entities: list[str],

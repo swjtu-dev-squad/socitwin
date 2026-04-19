@@ -1,9 +1,9 @@
-from functools import lru_cache
 import os
+from functools import lru_cache
 from pathlib import Path
+from typing import Mapping
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_ROOT / ".env"
@@ -52,7 +52,7 @@ def _normalize_runtime_env_value(key: str, value: str) -> str:
     return str(path)
 
 
-def _apply_runtime_env_values(values: dict[str, str | None]) -> None:
+def _apply_runtime_env_values(values: Mapping[str, str | None]) -> None:
     for key in HUGGINGFACE_RUNTIME_ENV_KEYS:
         value = values.get(key)
         if not value:
@@ -73,7 +73,6 @@ def apply_huggingface_runtime_environment() -> None:
             values[key] = os.environ[key]
     _apply_runtime_env_values(values)
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):

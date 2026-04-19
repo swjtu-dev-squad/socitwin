@@ -107,7 +107,7 @@ const CONTEXT_BUDGET_OPTIONS = [
   { value: '32768', label: '32K' },
   { value: '65536', label: '64K' },
   { value: 'custom', label: '自定义' },
-] as const;
+] as const
 
 const OUTPUT_LIMIT_OPTIONS = [
   { value: 'default', label: '默认' },
@@ -116,29 +116,29 @@ const OUTPUT_LIMIT_OPTIONS = [
   { value: '2048', label: '2048' },
   { value: '4096', label: '4096' },
   { value: 'custom', label: '自定义' },
-] as const;
+] as const
 
 function getApiErrorMessage(error: unknown, fallback: string): string {
   const message =
     (error as any)?.response?.data?.detail ||
     (error as any)?.response?.data?.message ||
-    (error as any)?.message;
-  return typeof message === 'string' && message.trim() ? message : fallback;
+    (error as any)?.message
+  return typeof message === 'string' && message.trim() ? message : fallback
 }
 
 function resolveOptionalTokenValue(option: string, customValue: string): number | undefined {
   if (option === 'default') {
-    return undefined;
+    return undefined
   }
-  const rawValue = option === 'custom' ? customValue.trim() : option;
+  const rawValue = option === 'custom' ? customValue.trim() : option
   if (!rawValue) {
-    throw new Error('请输入有效的数值。');
+    throw new Error('请输入有效的数值。')
   }
-  const parsed = Number(rawValue);
+  const parsed = Number(rawValue)
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error('请输入大于 0 的整数。');
+    throw new Error('请输入大于 0 的整数。')
   }
-  return parsed;
+  return parsed
 }
 
 export default function Overview() {
@@ -211,9 +211,7 @@ export default function Overview() {
   // Local state for UI controls
   const [agentCount, setAgentCount] = useState([10]) // 默认10个agents
   const [selectedTopic, setSelectedTopic] = useState<string>(initialFilters?.selectedTopic ?? '')
-  const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>(
-    'upstream'
-  )
+  const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>('upstream')
   const [showAlgorithm, setShowAlgorithm] = useState(false)
   const [showAdvancedParams, setShowAdvancedParams] = useState(false)
   const [contextBudgetOption, setContextBudgetOption] = useState<string>('default')
@@ -815,16 +813,16 @@ export default function Overview() {
                 <select
                   value={selectedTopic}
                   disabled={topicsLoading || isStarting || isResetting}
-                  onChange={(event) => setSelectedTopic(event.target.value)}
+                  onChange={event => setSelectedTopic(event.target.value)}
                   className={cn(
-                    "flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50",
-                    !selectedTopic && "text-text-muted"
+                    'flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50',
+                    !selectedTopic && 'text-text-muted'
                   )}
                 >
                   <option value="" disabled>
                     {topicsLoading ? '加载话题中...' : '选择话题'}
                   </option>
-                  {topics?.map((topic) => (
+                  {topics?.map(topic => (
                     <option key={topic.id} value={topic.id}>
                       {topic.name}
                     </option>
@@ -834,7 +832,7 @@ export default function Overview() {
               <div className="space-y-4">
                 <button
                   type="button"
-                  onClick={() => setShowAdvancedParams((prev) => !prev)}
+                  onClick={() => setShowAdvancedParams(prev => !prev)}
                   className="flex w-full items-center justify-between rounded-xl border border-accent/20 bg-bg-primary px-4 py-3 text-left transition-all hover:border-accent/40 hover:bg-bg-primary/80"
                 >
                   <div>
@@ -846,7 +844,12 @@ export default function Overview() {
                       记忆路线、上下文预算、输出上限
                     </div>
                   </div>
-                  <span className={cn("text-xs text-text-tertiary transition-transform", showAdvancedParams && "rotate-180")}>
+                  <span
+                    className={cn(
+                      'text-xs text-text-tertiary transition-transform',
+                      showAdvancedParams && 'rotate-180'
+                    )}
+                  >
                     ▼
                   </span>
                 </button>
@@ -859,7 +862,9 @@ export default function Overview() {
                       <select
                         value={selectedMemoryMode}
                         disabled={isStarting || isResetting}
-                        onChange={(event) => setSelectedMemoryMode(event.target.value as 'upstream' | 'action_v1')}
+                        onChange={event =>
+                          setSelectedMemoryMode(event.target.value as 'upstream' | 'action_v1')
+                        }
                         className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <option value="upstream">Upstream 原生 OASIS</option>
@@ -874,10 +879,10 @@ export default function Overview() {
                       <select
                         value={contextBudgetOption}
                         disabled={isStarting || isResetting}
-                        onChange={(event) => setContextBudgetOption(event.target.value)}
+                        onChange={event => setContextBudgetOption(event.target.value)}
                         className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {CONTEXT_BUDGET_OPTIONS.map((option) => (
+                        {CONTEXT_BUDGET_OPTIONS.map(option => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
@@ -891,7 +896,7 @@ export default function Overview() {
                           inputMode="numeric"
                           value={customContextBudget}
                           disabled={isStarting || isResetting}
-                          onChange={(event) => setCustomContextBudget(event.target.value)}
+                          onChange={event => setCustomContextBudget(event.target.value)}
                           placeholder="输入上下文预算"
                           className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                         />
@@ -905,10 +910,10 @@ export default function Overview() {
                       <select
                         value={outputLimitOption}
                         disabled={isStarting || isResetting}
-                        onChange={(event) => setOutputLimitOption(event.target.value)}
+                        onChange={event => setOutputLimitOption(event.target.value)}
                         className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {OUTPUT_LIMIT_OPTIONS.map((option) => (
+                        {OUTPUT_LIMIT_OPTIONS.map(option => (
                           <option key={option.value} value={option.value}>
                             {option.label}
                           </option>
@@ -922,7 +927,7 @@ export default function Overview() {
                           inputMode="numeric"
                           value={customOutputLimit}
                           disabled={isStarting || isResetting}
-                          onChange={(event) => setCustomOutputLimit(event.target.value)}
+                          onChange={event => setCustomOutputLimit(event.target.value)}
                           placeholder="输入输出上限"
                           className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                         />
@@ -935,8 +940,14 @@ export default function Overview() {
                 )}
                 <div className="grid grid-cols-3 gap-2 text-[10px]">
                   <RuntimeBadge label="当前路线" value={currentStatus.memoryMode || '未初始化'} />
-                  <RuntimeBadge label="上下文预算" value={formatTokenValue(currentStatus.contextTokenLimit)} />
-                  <RuntimeBadge label="输出上限" value={formatTokenValue(currentStatus.generationMaxTokens)} />
+                  <RuntimeBadge
+                    label="上下文预算"
+                    value={formatTokenValue(currentStatus.contextTokenLimit)}
+                  />
+                  <RuntimeBadge
+                    label="输出上限"
+                    value={formatTokenValue(currentStatus.generationMaxTokens)}
+                  />
                 </div>
               </div>
 
@@ -984,7 +995,7 @@ export default function Overview() {
                 />
               </div>
 
-                <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <Button
                   className={cn(
                     'h-12 rounded-lg font-bold gap-2 shadow-lg transition-all active:scale-95',
@@ -1048,12 +1059,9 @@ export default function Overview() {
                         recsysType: selectedPlatform,
                         contextTokenLimit: resolveOptionalTokenValue(
                           contextBudgetOption,
-                          customContextBudget,
+                          customContextBudget
                         ),
-                        maxTokens: resolveOptionalTokenValue(
-                          outputLimitOption,
-                          customOutputLimit,
-                        ),
+                        maxTokens: resolveOptionalTokenValue(outputLimitOption, customOutputLimit),
                         agentSource: {
                           sourceType: 'manual',
                           manualConfig: manualProfiles.map(profile => profile.agent_config),
@@ -1137,7 +1145,12 @@ export default function Overview() {
                 <Button
                   variant="secondary"
                   className="h-12 rounded-lg font-bold gap-2 border-accent/30 hover:bg-bg-tertiary transition-all active:scale-95"
-                  disabled={isStepping || isStarting || isResetting || currentStatus.state === 'uninitialized'}
+                  disabled={
+                    isStepping ||
+                    isStarting ||
+                    isResetting ||
+                    currentStatus.state === 'uninitialized'
+                  }
                   onClick={async () => {
                     setIsStepping(true)
                     try {

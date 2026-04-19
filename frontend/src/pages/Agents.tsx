@@ -1,169 +1,176 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { ForceGraph } from '@/components/ForceGraph';
-import { AgentBehaviorTable } from '@/components/AgentBehaviorTable';
-import { AgentDeepMonitor } from '@/components/AgentDeepMonitor';
-import { Card, Badge, Input } from '@/components/ui';
-import { Network, List, Search, RefreshCw } from 'lucide-react';
-import { getAgentDetail, getAgentMonitor } from '@/lib/agentMonitorApi';
-import type { AgentDetailResponse, AgentMonitorResponse, AgentOverview } from '@/lib/agentMonitorTypes';
-import { displayPercentageFormatted, displayMetricFormatted } from '@/lib/safeDisplay';
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { ForceGraph } from '@/components/ForceGraph'
+import { AgentBehaviorTable } from '@/components/AgentBehaviorTable'
+import { AgentDeepMonitor } from '@/components/AgentDeepMonitor'
+import { Card, Badge, Input } from '@/components/ui'
+import { Network, List, Search, RefreshCw } from 'lucide-react'
+import { getAgentDetail, getAgentMonitor } from '@/lib/agentMonitorApi'
+import type {
+  AgentDetailResponse,
+  AgentMonitorResponse,
+  AgentOverview,
+} from '@/lib/agentMonitorTypes'
+import { displayPercentageFormatted, displayMetricFormatted } from '@/lib/safeDisplay'
 
 export default function SocialNetworkMonitor() {
-  const [monitor, setMonitor] = useState<AgentMonitorResponse | null>(null);
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedDetail, setSelectedDetail] = useState<AgentDetailResponse | null>(null);
-  const [loadingMonitor, setLoadingMonitor] = useState(false);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [refreshingMonitor, setRefreshingMonitor] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const selectedAgentIdRef = useRef<string | null>(null);
-  const searchRef = useRef('');
-  const monitorRequestId = useRef(0);
-  const detailRequestId = useRef(0);
-  const monitorRef = useRef<AgentMonitorResponse | null>(null);
+  const [monitor, setMonitor] = useState<AgentMonitorResponse | null>(null)
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [selectedDetail, setSelectedDetail] = useState<AgentDetailResponse | null>(null)
+  const [loadingMonitor, setLoadingMonitor] = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [refreshingMonitor, setRefreshingMonitor] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const selectedAgentIdRef = useRef<string | null>(null)
+  const searchRef = useRef('')
+  const monitorRequestId = useRef(0)
+  const detailRequestId = useRef(0)
+  const monitorRef = useRef<AgentMonitorResponse | null>(null)
 
   const filteredAgents = useMemo(() => {
-    return filterAgentsBySearch(monitor?.agents || [], search);
-  }, [monitor?.agents, search]);
+    return filterAgentsBySearch(monitor?.agents || [], search)
+  }, [monitor?.agents, search])
 
-  const graphEdges = useMemo(() => monitor?.graph.edges || [], [monitor?.graph.edges]);
-
-  useEffect(() => {
-    selectedAgentIdRef.current = selectedAgentId;
-  }, [selectedAgentId]);
+  const graphEdges = useMemo(() => monitor?.graph.edges || [], [monitor?.graph.edges])
 
   useEffect(() => {
-    monitorRef.current = monitor;
-  }, [monitor]);
+    selectedAgentIdRef.current = selectedAgentId
+  }, [selectedAgentId])
 
   useEffect(() => {
-    searchRef.current = search;
-  }, [search]);
+    monitorRef.current = monitor
+  }, [monitor])
+
+  useEffect(() => {
+    searchRef.current = search
+  }, [search])
 
   async function loadDetail(agentId: string, options?: { background?: boolean }) {
-    const background = options?.background ?? false;
-    const requestId = ++detailRequestId.current;
+    const background = options?.background ?? false
+    const requestId = ++detailRequestId.current
     if (!background) {
-      setLoadingDetail(true);
-      setError(null);
+      setLoadingDetail(true)
+      setError(null)
     }
     try {
-      const detail = await getAgentDetail(agentId);
-      if (requestId !== detailRequestId.current) return;
-      setSelectedDetail(detail);
+      const detail = await getAgentDetail(agentId)
+      if (requestId !== detailRequestId.current) return
+      setSelectedDetail(detail)
     } catch (err: any) {
-      if (requestId !== detailRequestId.current) return;
+      if (requestId !== detailRequestId.current) return
       if (!background) {
-        setSelectedDetail(null);
-        setError(err?.message || '加载 detail 失败');
+        setSelectedDetail(null)
+        setError(err?.message || '加载 detail 失败')
       }
     } finally {
       if (!background && requestId === detailRequestId.current) {
-        setLoadingDetail(false);
+        setLoadingDetail(false)
       }
     }
   }
 
   async function loadMonitor(options?: { background?: boolean }) {
-    const background = options?.background ?? false;
-    const requestId = ++monitorRequestId.current;
-    const shouldShowPrimaryLoading = !background && monitorRef.current === null;
+    const background = options?.background ?? false
+    const requestId = ++monitorRequestId.current
+    const shouldShowPrimaryLoading = !background && monitorRef.current === null
 
     if (shouldShowPrimaryLoading) {
-      setLoadingMonitor(true);
-      setError(null);
+      setLoadingMonitor(true)
+      setError(null)
     } else if (background) {
-      setRefreshingMonitor(true);
+      setRefreshingMonitor(true)
     }
 
     try {
-      const data = await getAgentMonitor();
-      if (requestId !== monitorRequestId.current) return;
-      setMonitor(data);
-      const currentSelected = selectedAgentIdRef.current;
-      const nextSelected = resolveSelectedAgentId(filterAgentsBySearch(data.agents, searchRef.current), currentSelected);
+      const data = await getAgentMonitor()
+      if (requestId !== monitorRequestId.current) return
+      setMonitor(data)
+      const currentSelected = selectedAgentIdRef.current
+      const nextSelected = resolveSelectedAgentId(
+        filterAgentsBySearch(data.agents, searchRef.current),
+        currentSelected
+      )
       if (nextSelected && nextSelected !== currentSelected) {
-        setSelectedAgentId(nextSelected);
-        setSelectedDetail(null);
-        setLoadingDetail(true);
+        setSelectedAgentId(nextSelected)
+        setSelectedDetail(null)
+        setLoadingDetail(true)
       }
       if (nextSelected) {
         await loadDetail(nextSelected, {
           background: background && nextSelected === currentSelected,
-        });
+        })
       } else {
-        setSelectedDetail(null);
+        setSelectedDetail(null)
       }
     } catch (err: any) {
-      if (requestId !== monitorRequestId.current) return;
+      if (requestId !== monitorRequestId.current) return
       if (!background) {
-        setError(err?.message || '加载 monitor 失败');
-        setMonitor(null);
-        setSelectedDetail(null);
-        setSelectedAgentId(null);
+        setError(err?.message || '加载 monitor 失败')
+        setMonitor(null)
+        setSelectedDetail(null)
+        setSelectedAgentId(null)
       }
     } finally {
       if (shouldShowPrimaryLoading && requestId === monitorRequestId.current) {
-        setLoadingMonitor(false);
+        setLoadingMonitor(false)
       }
       if (background && requestId === monitorRequestId.current) {
-        setRefreshingMonitor(false);
+        setRefreshingMonitor(false)
       }
     }
   }
 
   useEffect(() => {
-    void loadMonitor();
+    void loadMonitor()
 
-    const events = new EventSource('/api/sim/events');
+    const events = new EventSource('/api/sim/events')
     events.addEventListener('simulation_configured', () => {
-      void loadMonitor({ background: true });
-    });
+      void loadMonitor({ background: true })
+    })
     events.addEventListener('simulation_topic_activated', () => {
-      void loadMonitor({ background: true });
-    });
+      void loadMonitor({ background: true })
+    })
     events.addEventListener('simulation_step_completed', () => {
-      void loadMonitor({ background: true });
-    });
+      void loadMonitor({ background: true })
+    })
     events.addEventListener('simulation_state_changed', () => {
-      void loadMonitor({ background: true });
-    });
+      void loadMonitor({ background: true })
+    })
     events.addEventListener('simulation_reset', () => {
-      void loadMonitor({ background: true });
-    });
+      void loadMonitor({ background: true })
+    })
 
-    return () => events.close();
-  }, []);
+    return () => events.close()
+  }, [])
 
   useEffect(() => {
-    const current = selectedAgentIdRef.current;
+    const current = selectedAgentIdRef.current
     if (!monitor || monitor.agents.length === 0 || current === null) {
-      return;
+      return
     }
 
-    const nextSelected = resolveSelectedAgentId(filteredAgents, current);
+    const nextSelected = resolveSelectedAgentId(filteredAgents, current)
     if (nextSelected && nextSelected !== current) {
-      setSelectedAgentId(nextSelected);
-      setSelectedDetail(null);
-      setLoadingDetail(true);
-      void loadDetail(nextSelected);
+      setSelectedAgentId(nextSelected)
+      setSelectedDetail(null)
+      setLoadingDetail(true)
+      void loadDetail(nextSelected)
     }
-  }, [filteredAgents, monitor]);
+  }, [filteredAgents, monitor])
 
   const handleSelectAgent = (agent: AgentOverview) => {
-    setSelectedAgentId(agent.id);
-    setSelectedDetail(null);
-    setLoadingDetail(true);
-    void loadDetail(agent.id);
-  };
+    setSelectedAgentId(agent.id)
+    setSelectedDetail(null)
+    setLoadingDetail(true)
+    void loadDetail(agent.id)
+  }
 
   const handleNodeClick = (agentId: string) => {
-    setSelectedAgentId(agentId);
-    setSelectedDetail(null);
-    setLoadingDetail(true);
-    void loadDetail(agentId);
-  };
+    setSelectedAgentId(agentId)
+    setSelectedDetail(null)
+    setLoadingDetail(true)
+    void loadDetail(agentId)
+  }
 
   return (
     <div className="px-6 py-8 h-full flex flex-col space-y-6 overflow-hidden">
@@ -192,28 +199,56 @@ export default function SocialNetworkMonitor() {
               <div className="w-px h-4 bg-border-default"></div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-text-tertiary uppercase font-bold">监控状态:</span>
-                <Badge className={refreshingMonitor ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}>
+                <Badge
+                  className={
+                    refreshingMonitor
+                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                  }
+                >
                   {refreshingMonitor ? '后台刷新中' : '实时监控中'}
                 </Badge>
               </div>
             </div>
           </div>
         </div>
-        
+
         <div className="flex gap-6 px-6 border-l border-border-default">
-          <StatMini label="群体极化率" value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)} color="text-rose-500" />
+          <StatMini
+            label="群体极化率"
+            value={displayPercentageFormatted((monitor?.simulation.polarization ?? 0) * 100)}
+            color="text-rose-500"
+          />
           <div className="flex gap-3">
-            <StatMini label="传播规模" value={displayMetricFormatted(monitor?.simulation.propagationScale)} color="text-emerald-500" />
-            <StatMini label="传播深度" value={displayMetricFormatted(monitor?.simulation.propagationDepth)} color="text-cyan-500" />
-            <StatMini label="传播广度" value={displayMetricFormatted(monitor?.simulation.propagationBreadth)} color="text-purple-500" />
+            <StatMini
+              label="传播规模"
+              value={displayMetricFormatted(monitor?.simulation.propagationScale)}
+              color="text-emerald-500"
+            />
+            <StatMini
+              label="传播深度"
+              value={displayMetricFormatted(monitor?.simulation.propagationDepth)}
+              color="text-cyan-500"
+            />
+            <StatMini
+              label="传播广度"
+              value={displayMetricFormatted(monitor?.simulation.propagationBreadth)}
+              color="text-purple-500"
+            />
           </div>
-          <StatMini label="从众效应" value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)} color="text-blue-500" />
+          <StatMini
+            label="从众效应"
+            value={displayPercentageFormatted((monitor?.simulation.herdIndex ?? 0) * 100)}
+            color="text-blue-500"
+          />
           <button
             type="button"
             onClick={() => void loadMonitor({ background: true })}
             className="inline-flex items-center gap-2 rounded-xl border border-border-default bg-bg-primary px-3 py-2 text-xs font-bold text-text-secondary transition-colors hover:bg-bg-tertiary"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshingMonitor ? 'animate-spin text-amber-400' : ''}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${refreshingMonitor ? 'animate-spin text-amber-400' : ''}`}
+            />
             {refreshingMonitor ? '刷新中' : '手动刷新'}
           </button>
         </div>
@@ -226,31 +261,35 @@ export default function SocialNetworkMonitor() {
           <Card className="flex-1 min-h-0 bg-bg-secondary border-border-default flex flex-col overflow-hidden relative">
             <div className="p-4 border-b border-border-default flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
-                <Network className="w-4 h-4 text-accent"/>
+                <Network className="w-4 h-4 text-accent" />
                 <span className="text-sm font-bold uppercase tracking-wider">影响力拓扑图</span>
               </div>
               <div className="relative w-64">
-                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-                 <Input 
-                   placeholder="搜索特定 Agent..." 
-                   className="pl-9 h-9 bg-bg-primary" 
-                   value={search}
-                   onChange={(e) => setSearch(e.target.value)}
-                 />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                <Input
+                  placeholder="搜索特定 Agent..."
+                  className="pl-9 h-9 bg-bg-primary"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
               </div>
             </div>
             <div className="flex-1 relative overflow-hidden bg-black/20">
-              <ForceGraph 
+              <ForceGraph
                 nodes={filteredAgents}
-                edges={graphEdges.filter((edge) =>
-                  filteredAgents.some((agent) => agent.id === edge.source) &&
-                  filteredAgents.some((agent) => agent.id === edge.target)
+                edges={graphEdges.filter(
+                  edge =>
+                    filteredAgents.some(agent => agent.id === edge.source) &&
+                    filteredAgents.some(agent => agent.id === edge.target)
                 )}
-                onNodeClick={(agent) => handleNodeClick(agent.id)}
+                onNodeClick={agent => handleNodeClick(agent.id)}
                 focusId={selectedAgentId}
               />
               {loadingMonitor && !monitor ? (
-                <OverlayMessage title="正在加载真实 monitor 数据" description="图谱和列表会在数据返回后自动刷新。" />
+                <OverlayMessage
+                  title="正在加载真实 monitor 数据"
+                  description="图谱和列表会在数据返回后自动刷新。"
+                />
               ) : null}
             </div>
           </Card>
@@ -258,41 +297,50 @@ export default function SocialNetworkMonitor() {
           {/* 行为列表 - 放在下面并带滚动条 */}
           <Card className="flex-1 min-h-0 bg-bg-secondary border-border-default flex flex-col overflow-hidden">
             <div className="p-4 border-b border-border-default flex items-center gap-2 shrink-0">
-              <List className="w-4 h-4 text-blue-400"/>
+              <List className="w-4 h-4 text-blue-400" />
               <span className="text-sm font-bold uppercase tracking-wider">Agent 行为动态列表</span>
             </div>
             <div className="flex-1 min-h-0">
-              <AgentBehaviorTable agents={filteredAgents} onSelect={handleSelectAgent} selectedId={selectedAgentId} />
+              <AgentBehaviorTable
+                agents={filteredAgents}
+                onSelect={handleSelectAgent}
+                selectedId={selectedAgentId}
+              />
             </div>
           </Card>
         </div>
 
         {/* 右侧：选中 Agent 的深度监控 */}
         <Card className="hidden lg:flex col-span-3 bg-bg-secondary border-border-default p-6 flex-col space-y-6 overflow-auto custom-scrollbar">
-          <AgentDeepMonitor detail={selectedDetail} loading={loadingDetail || (loadingMonitor && !selectedDetail)} error={error} />
+          <AgentDeepMonitor
+            detail={selectedDetail}
+            loading={loadingDetail || (loadingMonitor && !selectedDetail)}
+            error={error}
+          />
         </Card>
       </div>
     </div>
-  );
+  )
 }
 
 function resolveSelectedAgentId(agents: AgentOverview[], currentSelected: string | null) {
-  if (currentSelected && agents.some((agent) => agent.id === currentSelected)) {
-    return currentSelected;
+  if (currentSelected && agents.some(agent => agent.id === currentSelected)) {
+    return currentSelected
   }
-  if (agents.length === 0) return null;
-  return [...agents]
-    .sort((a, b) => (b.influence || 0) - (a.influence || 0) || (b.activity || 0) - (a.activity || 0))[0].id;
+  if (agents.length === 0) return null
+  return [...agents].sort(
+    (a, b) => (b.influence || 0) - (a.influence || 0) || (b.activity || 0) - (a.activity || 0)
+  )[0].id
 }
 
 function filterAgentsBySearch(agents: AgentOverview[], search: string) {
-  const query = search.trim().toLowerCase();
-  if (!query) return agents;
-  return agents.filter((agent) =>
+  const query = search.trim().toLowerCase()
+  if (!query) return agents
+  return agents.filter(agent =>
     [agent.id, agent.name, agent.roleLabel, agent.country, agent.city]
       .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query))
-  );
+      .some(value => String(value).toLowerCase().includes(query))
+  )
 }
 
 function OverlayMessage({ title, description }: { title: string; description: string }) {
@@ -303,7 +351,7 @@ function OverlayMessage({ title, description }: { title: string; description: st
         <p className="mt-1 text-xs text-text-tertiary">{description}</p>
       </div>
     </div>
-  );
+  )
 }
 
 function StatMini({ label, value, color }: any) {
@@ -312,5 +360,5 @@ function StatMini({ label, value, color }: any) {
       <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-tighter">{label}</p>
       <p className={`text-xl font-mono font-bold ${color}`}>{value}</p>
     </div>
-  );
+  )
 }

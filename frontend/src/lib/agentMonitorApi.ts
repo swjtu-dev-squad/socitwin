@@ -1,12 +1,12 @@
-import type { AgentDetailResponse, AgentMonitorResponse } from './agentMonitorTypes';
+import type { AgentDetailResponse, AgentMonitorResponse } from './agentMonitorTypes'
 
 async function readJson<T>(response: Response): Promise<T> {
-  const payload = await response.json().catch(() => null);
+  const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    const message = payload?.message || payload?.error || 'Request failed';
-    throw new Error(message);
+    const message = payload?.message || payload?.error || 'Request failed'
+    throw new Error(message)
   }
-  return payload as T;
+  return payload as T
 }
 
 export async function getAgentMonitor(): Promise<AgentMonitorResponse> {
@@ -14,10 +14,10 @@ export async function getAgentMonitor(): Promise<AgentMonitorResponse> {
     method: 'GET',
     cache: 'no-store',
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
     },
-  });
-  return readJson<AgentMonitorResponse>(response);
+  })
+  return readJson<AgentMonitorResponse>(response)
 }
 
 export async function getAgentDetail(agentId: string): Promise<AgentDetailResponse> {
@@ -25,8 +25,8 @@ export async function getAgentDetail(agentId: string): Promise<AgentDetailRespon
     method: 'GET',
     cache: 'no-store',
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
     },
-  });
-  return readJson<AgentDetailResponse>(response);
+  })
+  return readJson<AgentDetailResponse>(response)
 }

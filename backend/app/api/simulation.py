@@ -4,10 +4,10 @@ OASIS 模拟 API 端点
 提供完整的 REST API 来控制和管理 OASIS 多智能体社交网络模拟。
 """
 
+import json
 import logging
 import os
-import json
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -19,9 +19,7 @@ from app.models.simulation import (
     ConfigResult,
     LogFilters,
     LogResult,
-    ManualActionRequest,
     MemoryDebugStatus,
-    OASISActionType,
     SimulationConfig,
     SimulationStatus,
     StatusResult,

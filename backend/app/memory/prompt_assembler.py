@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
-from camel.messages import BaseMessage
+from camel.messages import BaseMessage, OpenAIMessage
 from camel.types import OpenAIBackendRole
 
 from .config import ActionV1RuntimeSettings
@@ -27,7 +27,7 @@ from .working_memory import (
 
 @dataclass(slots=True)
 class PromptAssemblyResult:
-    openai_messages: list[dict[str, Any]]
+    openai_messages: list[OpenAIMessage]
     current_observation_message: BaseMessage
     total_tokens: int
     selected_recent_step_ids: list[int] = field(default_factory=list)
@@ -63,7 +63,7 @@ class PromptAssembler:
         system_message: BaseMessage,
         current_observation_prompt: str,
         memory_state: MemoryState,
-        recall_candidates: list[Mapping[str, Any]],
+        recall_candidates: Sequence[Mapping[str, Any]],
         effective_prompt_budget: int | None = None,
     ) -> PromptAssemblyResult:
         current_observation_message = BaseMessage.make_user_message(
@@ -302,7 +302,7 @@ class PromptAssembler:
     def _filter_recall_candidates(
         self,
         *,
-        recall_candidates: list[Mapping[str, Any]],
+        recall_candidates: Sequence[Mapping[str, Any]],
         overlap_state: RecallOverlapState,
     ) -> list[Mapping[str, Any]]:
         return filter_recall_candidates_by_overlap(recall_candidates, overlap_state)
@@ -310,7 +310,7 @@ class PromptAssembler:
     def _explain_recall_candidate_filtering(
         self,
         *,
-        recall_candidates: list[Mapping[str, Any]],
+        recall_candidates: Sequence[Mapping[str, Any]],
         overlap_state: RecallOverlapState,
     ) -> list[RecallOverlapFilterDecision]:
         return explain_recall_candidates_by_overlap(recall_candidates, overlap_state)
@@ -323,8 +323,8 @@ class PromptAssembler:
         compressed_notes: list[CompressedNoteView],
         recent_turns: list[RecentTurnView],
         recall_note: str,
-    ) -> list[dict[str, Any]]:
-        messages: list[dict[str, Any]] = [
+    ) -> list[OpenAIMessage]:
+        messages: list[OpenAIMessage] = [
             system_message.to_openai_message(OpenAIBackendRole.SYSTEM)
         ]
         for note in compressed_notes:
@@ -336,7 +336,7 @@ class PromptAssembler:
         messages.append(current_observation_message.to_openai_message(OpenAIBackendRole.USER))
         return messages
 
-    def _recent_turn_messages(self, view: RecentTurnView) -> list[dict[str, Any]]:
+    def _recent_turn_messages(self, view: RecentTurnView) -> list[OpenAIMessage]:
         return [
             BaseMessage.make_user_message(
                 role_name="User",
@@ -348,13 +348,13 @@ class PromptAssembler:
             ).to_openai_message(OpenAIBackendRole.ASSISTANT),
         ]
 
-    def _assistant_message(self, content: str) -> dict[str, Any]:
+    def _assistant_message(self, content: str) -> OpenAIMessage:
         return BaseMessage.make_assistant_message(
             role_name="assistant",
             content=content,
         ).to_openai_message(OpenAIBackendRole.ASSISTANT)
 
-    def _count_tokens(self, messages: list[dict[str, Any]]) -> int:
+    def _count_tokens(self, messages: list[OpenAIMessage]) -> int:
         return self.runtime_settings.token_counter.count_tokens_from_messages(messages)
 
     def _is_action_episode(self, payload: Mapping[str, Any]) -> bool:

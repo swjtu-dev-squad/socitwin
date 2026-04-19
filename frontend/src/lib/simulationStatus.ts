@@ -1,7 +1,7 @@
-import type { SimulationStatus } from './types';
+import type { SimulationStatus } from './types'
 
 export function normalizeSimulationStatus(raw: Partial<SimulationStatus> | any): SimulationStatus {
-  const state = raw?.state;
+  const state = raw?.state
   return {
     ...raw,
     state,
@@ -22,5 +22,5 @@ export function normalizeSimulationStatus(raw: Partial<SimulationStatus> | any):
     errorMessage: raw?.errorMessage ?? raw?.error_message ?? null,
     agents: raw?.agents ?? [],
     polarization: raw?.polarization ?? 0,
-  };
+  }
 }

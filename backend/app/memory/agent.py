@@ -5,10 +5,10 @@ import inspect
 import re
 import time
 from types import MethodType
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Protocol, Union, cast
 
 from camel.memories import MemoryRecord
-from camel.messages import BaseMessage, FunctionCallingMessage
+from camel.messages import BaseMessage, FunctionCallingMessage, OpenAIMessage
 from camel.models import BaseModelBackend, ModelManager
 from camel.responses import ChatAgentResponse
 from camel.toolkits import FunctionTool
@@ -24,16 +24,26 @@ from .budget_recovery import BudgetRecoveryController
 from .config import ActionV1RuntimeSettings
 from .consolidator import Consolidator
 from .environment import ActionV1SocialEnvironment
-from .episodic_memory import ActionEpisode, HeartbeatRange, StepRecord, StepRecordKind, StepSegment, build_platform_memory_adapter
+from .episodic_memory import (
+    ActionEpisode,
+    HeartbeatRange,
+    StepRecord,
+    StepRecordKind,
+    StepSegment,
+    build_platform_memory_adapter,
+)
 from .memory import build_chat_history_memory
 from .observation_policy import DefaultObservationPolicy
 from .observation_semantics import build_prompt_visible_snapshot
-from .prompt_assembler import PromptAssemblyResult, PromptAssembler
+from .prompt_assembler import PromptAssembler, PromptAssemblyResult
 from .recall_planner import RecallPlanner, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy
-from .runtime_failures import ActionV1RuntimeFailure, ContextBudgetExhaustedError, normalize_model_error
+from .runtime_failures import (
+    ActionV1RuntimeFailure,
+    ContextBudgetExhaustedError,
+    normalize_model_error,
+)
 from .working_memory import CompressedWorkingMemory, MemoryState, RecentWorkingMemory
-
 
 THINK_BLOCK_RE = re.compile(r"<think>.*?(?:</think>|$)\s*", re.DOTALL)
 STEP_ID_EXTRA_KEY = "oasis_step_id"
@@ -45,6 +55,15 @@ ACTION_V1_OUTCOME_ALIGNMENT_NOTE = (
     "type (post, comment, user, or group), and do not claim you performed an "
     "action that is not available in the current tool list."
 )
+
+
+class _BoundedChatHistoryRuntime(Protocol):
+    memory: Any
+    system_message: BaseMessage | None
+    agent_id: int
+    _bounded_token_counter: Any
+    _bounded_context_token_limit: int
+    _sanitize_assistant_think_blocks: bool
 
 
 def _record_first_output_message(self, output_messages):
@@ -71,7 +90,7 @@ class _BoundedChatHistoryAgentMixin:
     _sanitize_assistant_think_blocks: bool
 
     def update_memory(self, *args, **kwargs):
-        parent_method = super().update_memory
+        parent_method = cast(Any, super()).update_memory
         try:
             bound = inspect.signature(parent_method).bind_partial(*args, **kwargs)
         except TypeError:
@@ -98,13 +117,14 @@ class _BoundedChatHistoryAgentMixin:
                     delegated_kwargs[key] = timestamp
             return parent_method(**delegated_kwargs)
 
-        self.memory.write_record(
+        agent_self = cast("_BoundedChatHistoryRuntime", self)
+        agent_self.memory.write_record(
             MemoryRecord(
                 message=message,
                 role_at_backend=role,
                 extra_info=self._build_memory_extra_info(role),
                 timestamp=timestamp if timestamp is not None else time.time_ns() / 1_000_000_000,
-                agent_id=self.agent_id,
+                agent_id=str(agent_self.agent_id),
             )
         )
         return None
@@ -114,22 +134,26 @@ class _BoundedChatHistoryAgentMixin:
         message: BaseMessage,
         role: OpenAIBackendRole,
     ) -> bool:
-        messages = []
-        if self.system_message is not None and role != OpenAIBackendRole.SYSTEM:
-            messages.append(self.system_message.to_openai_message(OpenAIBackendRole.SYSTEM))
+        agent_self = cast("_BoundedChatHistoryRuntime", self)
+        messages: list[OpenAIMessage] = []
+        if agent_self.system_message is not None and role != OpenAIBackendRole.SYSTEM:
+            messages.append(
+                agent_self.system_message.to_openai_message(OpenAIBackendRole.SYSTEM)
+            )
         messages.append(message.to_openai_message(role))
         try:
-            tokens = self._bounded_token_counter.count_tokens_from_messages(messages)
+            tokens = agent_self._bounded_token_counter.count_tokens_from_messages(messages)
         except Exception:
             return False
-        return tokens <= self._bounded_context_token_limit
+        return tokens <= agent_self._bounded_context_token_limit
 
     def _sanitize_message_for_memory(
         self,
         message: BaseMessage,
         role: OpenAIBackendRole,
     ) -> BaseMessage:
-        if not getattr(self, "_sanitize_assistant_think_blocks", True):
+        agent_self = cast("_BoundedChatHistoryRuntime", self)
+        if not getattr(agent_self, "_sanitize_assistant_think_blocks", True):
             return message
         if role != OpenAIBackendRole.ASSISTANT:
             return message
@@ -142,20 +166,21 @@ class _BoundedChatHistoryAgentMixin:
         return message.create_new_instance(sanitized_content)
 
     def _ensure_system_message_in_memory(self) -> None:
-        records = self.memory.retrieve()
+        agent_self = cast("_BoundedChatHistoryRuntime", self)
+        records = agent_self.memory.retrieve()
         if any(
             record.memory_record.role_at_backend == OpenAIBackendRole.SYSTEM
             for record in records
         ):
             return
-        if self.system_message is None:
+        if agent_self.system_message is None:
             return
-        self.memory.write_record(
+        agent_self.memory.write_record(
             MemoryRecord(
-                message=self.system_message,
+                message=agent_self.system_message,
                 role_at_backend=OpenAIBackendRole.SYSTEM,
                 timestamp=time.time_ns() / 1_000_000_000,
-                agent_id=self.agent_id,
+                agent_id=str(agent_self.agent_id),
             )
         )
 
@@ -172,7 +197,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
         user_info_template=None,
         channel: Channel | None = None,
         model: Optional[Union[BaseModelBackend, list[BaseModelBackend], ModelManager]] = None,
-        agent_graph=None,
+        agent_graph: AgentGraph | None = None,
         available_actions: list[ActionType] | None = None,
         tools: Optional[list[Union[FunctionTool, Any]]] = None,
         max_iteration: int = 1,
@@ -247,8 +272,8 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
             user_info_template=user_info_template,
             channel=channel,
             model=model,
-            agent_graph=agent_graph,
-            available_actions=available_actions,
+            agent_graph=cast(AgentGraph, agent_graph),
+            available_actions=cast(list[ActionType], available_actions),
             tools=tools,
             max_iteration=max_iteration,
             interview_record=interview_record,
@@ -281,7 +306,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
         return await self._perform_action_by_llm_action_v1()
 
     async def _perform_action_by_llm_action_v1(self):
-        observation_prompt = await self.env.to_text_prompt()
+        await self.env.to_text_prompt()
         step_timestamp = time.time()
         step_id = self._step_counter + 1
         base_artifact = copy.deepcopy(getattr(self.env, "last_observation_artifact", None))
@@ -334,8 +359,12 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
                         dict(item) for item in recall_preparation.candidates
                     ],
                 }
+                system_message = self.system_message
+                if system_message is None:
+                    raise RuntimeError("action_v1 system message is missing")
+
                 assembly = self._prompt_assembler.assemble(
-                    system_message=self.system_message,
+                    system_message=system_message,
                     current_observation_prompt=artifact.observation_prompt,
                     memory_state=derived_memory_state,
                     recall_candidates=self._budget_recovery_controller.derive_recall_candidates(
@@ -738,7 +767,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
         step_token_usage = self._create_token_usage_tracker()
         iteration_count = 0
         prev_num_openai_messages = 0
-        runtime_messages = list(assembly.openai_messages)
+        runtime_messages: list[OpenAIMessage] = list(assembly.openai_messages)
 
         while True:
             num_tokens = self.context_settings.token_counter.count_tokens_from_messages(
@@ -812,7 +841,7 @@ class ContextSocialAgent(_BoundedChatHistoryAgentMixin, SocialAgent):
             step_token_usage["total_tokens"],
         )
 
-    def _tool_record_to_openai_messages(self, tool_record: Any) -> list[dict[str, Any]]:
+    def _tool_record_to_openai_messages(self, tool_record: Any) -> list[OpenAIMessage]:
         tool_call_id = str(getattr(tool_record, "tool_call_id", "") or "")
         assist_msg = FunctionCallingMessage(
             role_name=self.role_name,

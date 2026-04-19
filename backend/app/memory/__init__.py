@@ -20,6 +20,7 @@ from .config import (
     resolve_memory_runtime_config,
 )
 from .consolidator import ConsolidationOutcome, Consolidator
+from .environment import ActionV1SocialEnvironment
 from .episodic_memory import (
     ActionEpisode,
     EpisodeRecord,
@@ -30,7 +31,6 @@ from .episodic_memory import (
     StepSegment,
     build_platform_memory_adapter,
 )
-from .environment import ActionV1SocialEnvironment
 from .longterm import (
     ChromaLongtermStore,
     HeuristicTextEmbedding,
@@ -47,6 +47,7 @@ from .observation_shaper import ObservationArtifact, ObservationShaper
 from .prompt_assembler import PromptAssembler, PromptAssemblyResult
 from .recall_planner import RecallPlanner, RecallPreparation, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy, RetrievalRequest
+from .runtime import MemoryRuntimeFacade, MemoryRuntimeNotImplementedError
 from .runtime_failures import (
     ActionV1RuntimeFailure,
     ContextBudgetExhaustedError,
@@ -60,7 +61,6 @@ from .working_memory import (
     MemoryState,
     RecentWorkingMemory,
 )
-from .runtime import MemoryRuntimeFacade, MemoryRuntimeNotImplementedError
 
 __all__ = [
     "ActionCapability",
