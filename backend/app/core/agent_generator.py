@@ -5,17 +5,24 @@
 遵循工厂模式，确保智能体生成的可配置性和可扩展性。
 """
 
-import random
 import logging
-from typing import Dict, List, Any, Optional
+import random
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from app.core.agent_profiles import (
-    AGE_GROUPS, GENDERS, COUNTRIES, REGIONS,
-    INTERESTS, ALL_INTERESTS, MBTI_TYPES,
-    PROFESSIONS, BIO_TEMPLATES, HOBBIES,
-    POLITICAL_LEANINGS, TOPIC_PREFERENCES,
-    ACTIVITY_LEVELS, get_interests_by_category
+    ACTIVITY_LEVELS,
+    AGE_GROUPS,
+    ALL_INTERESTS,
+    BIO_TEMPLATES,
+    COUNTRIES,
+    GENDERS,
+    HOBBIES,
+    INTERESTS,
+    MBTI_TYPES,
+    POLITICAL_LEANINGS,
+    PROFESSIONS,
+    TOPIC_PREFERENCES,
 )
 
 logger = logging.getLogger(__name__)
@@ -200,7 +207,7 @@ class AgentGenerator:
         return f"{first_name} {last_name}"
 
     def _generate_bio(self, profession: str, interests: List[str],
-                     country: str, mbti: str, political_leaning: str = None) -> str:
+                     country: str, mbti: str, political_leaning: Optional[str] = None) -> str:
         """
         生成个人简介
 

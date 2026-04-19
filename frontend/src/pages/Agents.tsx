@@ -246,7 +246,7 @@ export default function SocialNetworkMonitor() {
                   filteredAgents.some((agent) => agent.id === edge.source) &&
                   filteredAgents.some((agent) => agent.id === edge.target)
                 )}
-                onNodeClick={handleNodeClick}
+                onNodeClick={(agent) => handleNodeClick(agent.id)}
                 focusId={selectedAgentId}
               />
               {loadingMonitor && !monitor ? (

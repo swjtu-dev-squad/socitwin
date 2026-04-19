@@ -1,7 +1,7 @@
-import NavigationBar from '@/components/landing/NavigationBar';
-import FooterLinks from '@/components/landing/FooterLinks';
-import ContentColumn from '@/components/landing/ContentColumn';
-import VisualColumn from '@/components/landing/VisualColumn';
+import NavigationBar from '@/components/landing/NavigationBar'
+import FooterLinks from '@/components/landing/FooterLinks'
+import ContentColumn from '@/components/landing/ContentColumn'
+import VisualColumn from '@/components/landing/VisualColumn'
 
 export default function Home() {
   return (
@@ -23,5 +23,5 @@ export default function Home() {
       {/* 底部链接 */}
       <FooterLinks />
     </div>
-  );
+  )
 }

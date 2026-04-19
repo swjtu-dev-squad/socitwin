@@ -83,48 +83,62 @@ export function useSimulationStatus(pollingInterval: number = 3000) {
  *
  * @returns Topics list with loading and error states
  */
-export function useTopics() {
-  const [data, setData] = useState<TopicListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+export function useTopics(platform: string = 'twitter') {
+  const [data, setData] = useState<TopicListItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = true
+    setIsLoading(true)
+
+    const normalizedPlatform = platform === 'twitter' || platform === 'reddit' ? platform : null
 
     const fetchTopics = async () => {
+      if (!normalizedPlatform) {
+        if (isMounted) {
+          setData([])
+          setError(null)
+          setIsLoading(false)
+        }
+        return
+      }
+
       try {
-        const response = await simulationApi.getTopics();
+        const response = await simulationApi.getTopics({ platform: normalizedPlatform })
 
         if (isMounted) {
           if (response.data.success) {
-            setData(response.data.topics);
-            setError(null);
+            setData(response.data.topics)
+            setError(null)
           } else {
-            throw new Error((response.data as any)?.message || 'Failed to fetch topics');
+            throw new Error((response.data as any)?.message || 'Failed to fetch topics')
           }
         }
       } catch (err: any) {
         if (isMounted) {
-          const error = err instanceof Error ? err : new Error(err?.message || 'Failed to fetch topics');
-          setError(error);
-          toast.error('加载话题列表失败');
-          console.error('Failed to fetch topics:', error);
+          const error =
+            err instanceof Error ? err : new Error(err?.message || 'Failed to fetch topics')
+          setError(error)
+          setData([])
+          toast.error('加载话题列表失败')
+          console.error('Failed to fetch topics:', error)
         }
       } finally {
         if (isMounted) {
-          setIsLoading(false);
+          setIsLoading(false)
         }
       }
-    };
+    }
 
-    fetchTopics();
+    fetchTopics()
 
     return () => {
-      isMounted = false;
-    };
-  }, []);
+      isMounted = false
+    }
+  }, [platform])
 
-  return { data, isLoading, error };
+  return { data, isLoading, error }
 }
 
 /**

@@ -1,19 +1,23 @@
-import { useState } from 'react';
-import { Play, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
-import { runExperiment, type ExperimentFormState, type ExperimentRunResult } from '../lib/experimentApi';
+import { useState } from 'react'
+import { Play, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  runExperiment,
+  type ExperimentFormState,
+  type ExperimentRunResult,
+} from '../lib/experimentApi'
 
 const RECOMMENDERS = [
   { id: 'tiktok', label: 'TikTok', desc: '短期兴趣 + 完播率' },
   { id: 'xiaohongshu', label: '小红书', desc: '内容质量 + 社交亲密度' },
   { id: 'pinterest', label: 'Pinterest', desc: '长期兴趣 + 画板相似度' },
-];
+]
 
-const PLATFORMS = ['REDDIT', 'X', 'FACEBOOK', 'TIKTOK', 'INSTAGRAM'] as const;
+const PLATFORMS = ['REDDIT', 'X', 'FACEBOOK', 'TIKTOK', 'INSTAGRAM'] as const
 const DATASETS = [
   { id: 'demo', label: 'Demo Reddit 数据集' },
   { id: 'dataset_demo_reddit', label: 'Reddit 演示数据集' },
   { id: 'dataset_demo_csv', label: 'CSV 演示数据集' },
-];
+]
 
 const DEFAULT_FORM: ExperimentFormState = {
   name: '',
@@ -23,16 +27,16 @@ const DEFAULT_FORM: ExperimentFormState = {
   steps: 15,
   seed: 42,
   agentCount: 10,
-};
+}
 
-type RunStatus = 'idle' | 'running' | 'success' | 'error';
+type RunStatus = 'idle' | 'running' | 'success' | 'error'
 
 export default function ExperimentRunnerPanel() {
-  const [form, setForm] = useState<ExperimentFormState>(DEFAULT_FORM);
-  const [status, setStatus] = useState<RunStatus>('idle');
-  const [result, setResult] = useState<ExperimentRunResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [showDetails, setShowDetails] = useState(false);
+  const [form, setForm] = useState<ExperimentFormState>(DEFAULT_FORM)
+  const [status, setStatus] = useState<RunStatus>('idle')
+  const [result, setResult] = useState<ExperimentRunResult | null>(null)
+  const [errorMsg, setErrorMsg] = useState('')
+  const [showDetails, setShowDetails] = useState(false)
 
   const toggleRecommender = (id: string) => {
     setForm(prev => ({
@@ -40,28 +44,28 @@ export default function ExperimentRunnerPanel() {
       recommenders: prev.recommenders.includes(id)
         ? prev.recommenders.filter(r => r !== id)
         : [...prev.recommenders, id],
-    }));
-  };
+    }))
+  }
 
   const handleRun = async () => {
     if (form.recommenders.length < 1) {
-      setErrorMsg('请至少选择一个推荐器');
-      setStatus('error');
-      return;
+      setErrorMsg('请至少选择一个推荐器')
+      setStatus('error')
+      return
     }
-    setStatus('running');
-    setErrorMsg('');
-    setResult(null);
+    setStatus('running')
+    setErrorMsg('')
+    setResult(null)
     try {
-      const expName = form.name.trim() || `exp_${Date.now()}`;
-      const res = await runExperiment({ ...form, name: expName });
-      setResult(res);
-      setStatus('success');
-    } catch (e: any) {
-      setErrorMsg(e.message || '实验运行失败');
-      setStatus('error');
+      const expName = form.name.trim() || `exp_${Date.now()}`
+      const res = await runExperiment({ ...form, name: expName })
+      setResult(res)
+      setStatus('success')
+    } catch (e: unknown) {
+      setErrorMsg(e instanceof Error ? e.message : '实验运行失败')
+      setStatus('error')
     }
-  };
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -93,7 +97,9 @@ export default function ExperimentRunnerPanel() {
             className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none focus:border-blue-500"
           >
             {DATASETS.map(d => (
-              <option key={d.id} value={d.id}>{d.label}</option>
+              <option key={d.id} value={d.id}>
+                {d.label}
+              </option>
             ))}
           </select>
         </div>
@@ -130,7 +136,11 @@ export default function ExperimentRunnerPanel() {
             onChange={e => setForm(p => ({ ...p, platform: e.target.value as any }))}
             className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none focus:border-blue-500"
           >
-            {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
+            {PLATFORMS.map(p => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -140,7 +150,8 @@ export default function ExperimentRunnerPanel() {
             <label className="block text-xs text-gray-400 mb-1">Steps</label>
             <input
               type="number"
-              min={1} max={100}
+              min={1}
+              max={100}
               value={form.steps}
               onChange={e => setForm(p => ({ ...p, steps: parseInt(e.target.value) || 15 }))}
               className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none focus:border-blue-500"
@@ -159,7 +170,8 @@ export default function ExperimentRunnerPanel() {
             <label className="block text-xs text-gray-400 mb-1">Agents</label>
             <input
               type="number"
-              min={1} max={100}
+              min={1}
+              max={100}
               value={form.agentCount}
               onChange={e => setForm(p => ({ ...p, agentCount: parseInt(e.target.value) || 10 }))}
               className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 text-sm border border-gray-600 focus:outline-none focus:border-blue-500"
@@ -174,9 +186,13 @@ export default function ExperimentRunnerPanel() {
           className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 font-medium transition-colors"
         >
           {status === 'running' ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> 运行中...</>
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> 运行中...
+            </>
           ) : (
-            <><Play className="w-4 h-4" /> 运行实验</>
+            <>
+              <Play className="w-4 h-4" /> 运行实验
+            </>
           )}
         </button>
 
@@ -256,7 +272,11 @@ export default function ExperimentRunnerPanel() {
               onClick={() => setShowDetails(!showDetails)}
               className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors"
             >
-              {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {showDetails ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
               {showDetails ? '收起' : '查看'} 原始 JSON
             </button>
             {showDetails && (
@@ -268,7 +288,7 @@ export default function ExperimentRunnerPanel() {
         )}
       </div>
     </div>
-  );
+  )
 }
 
 function MetricCard({ label, value }: { label: string; value?: string }) {
@@ -277,5 +297,5 @@ function MetricCard({ label, value }: { label: string; value?: string }) {
       <p className="text-xs text-gray-400">{label}</p>
       <p className="text-sm text-white font-mono">{value ?? '—'}</p>
     </div>
-  );
+  )
 }

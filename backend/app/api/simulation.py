@@ -7,32 +7,30 @@ OASIS 模拟 API 端点
 import logging
 import os
 import json
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from app.core.dependencies import get_simulation_service_dependency
+from app.core.simulation_events import simulation_event_bus
+from app.models.agent_monitor import AgentDetailResponse, AgentMonitorResponse
 from app.models.simulation import (
-    SimulationStatus,
-    MemoryDebugStatus,
-    SimulationConfig,
-    SimulationState,
-    StepRequest,
-    StepType,
     ConfigResult,
-    StepResult,
-    StatusResult,
     LogFilters,
     LogResult,
     ManualActionRequest,
+    MemoryDebugStatus,
     OASISActionType,
+    SimulationConfig,
+    SimulationStatus,
+    StatusResult,
+    StepRequest,
+    StepResult,
+    StepType,
 )
-from app.models.agent_monitor import AgentMonitorResponse, AgentDetailResponse
-from app.services.simulation_service import SimulationService
 from app.services.agent_monitor_service import AgentMonitorService
-from app.core.dependencies import get_simulation_service_dependency
-from app.core.simulation_events import simulation_event_bus
-
+from app.services.simulation_service import SimulationService
 
 logger = logging.getLogger(__name__)
 
@@ -645,9 +643,8 @@ async def get_agent_detail(
         }
     """
     try:
-        import sqlite3
         import json
-        from datetime import datetime
+        import sqlite3
 
         # 获取基本档案信息
         status = await service.get_status()
@@ -727,7 +724,7 @@ async def get_agent_detail(
                         info_dict = json.loads(info) if info else {}
                         content = info_dict.get("content", "")
                         reason = info_dict.get("reason", "")
-                    except:
+                    except json.JSONDecodeError:
                         content = ""
                         reason = ""
 

@@ -73,6 +73,8 @@ def apply_huggingface_runtime_environment() -> None:
             values[key] = os.environ[key]
     _apply_runtime_env_values(values)
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -119,12 +121,18 @@ class Settings(BaseSettings):
     HF_HOME: str | None = None
     SENTENCE_TRANSFORMERS_HOME: str | None = None
 
+    # Persona LLM（须在 Settings 声明，Pydantic 才会从 .env 加载；避免仅读 os.environ 时误用默认模型名）
+    OASIS_MODEL_PLATFORM: str | None = None
+    OASIS_MODEL_TYPE: str | None = None
+    OASIS_MODEL_URL: str | None = None
+    OASIS_MODEL_URLS: str | None = None
+
     # OpenAI Settings (optional - for alternative LLM support)
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str | None = None
 
     # DeepSeek Settings (required for OASIS)
-    DEEPSEEK_API_KEY: str
+    DEEPSEEK_API_KEY: str = ""
 
     # Metrics Settings
     METRICS_CACHE_TTL: int = 0  # Cache disabled for development (set to 0)
@@ -145,7 +153,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),
         case_sensitive=True,
-        env_prefix=""
+        env_prefix="",
+        extra="ignore",
     )
 
     def apply_runtime_environment(self) -> None:

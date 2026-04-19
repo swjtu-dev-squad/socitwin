@@ -8,12 +8,11 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
 from app.models.topics import Topic, TopicConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +37,13 @@ class TopicLoader:
 
     _instance: Optional['TopicLoader'] = None
 
-    def __new__(cls, config_path: str = None):
+    def __new__(cls, config_path: Optional[str] = None):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: Optional[str] = None):
         if self._initialized:
             return
 
@@ -118,7 +117,7 @@ class TopicLoader:
             logger.error(f"Failed to load topics config: {e}")
             raise TopicLoadError(f"Configuration loading failed: {str(e)}")
 
-    def reload(self) -> Dict[str, any]:
+    def reload(self) -> Dict[str, Any]:
         """
         Reload configuration from disk
 
@@ -236,7 +235,7 @@ class TopicLoader:
 _topic_loader: Optional[TopicLoader] = None
 
 
-def get_topic_loader(config_path: str = None) -> TopicLoader:
+def get_topic_loader(config_path: Optional[str] = None) -> TopicLoader:
     """
     Get the TopicLoader singleton instance
 

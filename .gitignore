@@ -39,11 +39,9 @@ env/
 *.db-shm
 *.db-wal
 
-# Simulation data directories
-backend/data/simulations/
-backend/data/simulations/**/*
-backend/data/memory/
-backend/data/memory/**/*
+# Data directories
+backend/data/
+backend/data/**/*
 backend/log/
 backend/log/**/*
 
