@@ -87,6 +87,12 @@ jobs:
             echo "🚀 E2E Test on AutoDL"
             echo "========================================="
 
+            # 检查项目是否存在，不存在则克隆
+            if [ ! -d "$PROJECT_PATH" ]; then
+              echo "📥 Project not found, cloning..."
+              git clone https://github.com/swjtu-dev-squad/socitwin.git "$PROJECT_PATH"
+            fi
+
             cd "$PROJECT_PATH"
             echo "📂 Working directory: $(pwd)"
 
