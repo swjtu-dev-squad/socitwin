@@ -21,6 +21,10 @@
 
 本轮目标不是重写 harness，而是在现有事件基础上补 summary 级指标。
 
+测试可靠性原则见：
+
+- [dataset-and-reliability.md](./dataset-and-reliability.md)
+
 ## 2. Phase 1: Summary KPI Aggregation
 
 ### Task 1: Add `memory_kpis`
@@ -126,6 +130,8 @@ else:
 
 该阶段不依赖真实主模型，主要用于 embedding / rerank 回归。
 
+第一版 controlled benchmark 的职责是提供确定性回归底座，不替代真实 simulation。它应覆盖 retrieval、rerank、agent filter、negative probe 等可控边界。
+
 ## 5. Phase 4: Behavioral Scenarios
 
 行为级 benchmark 放到第二阶段之后。
@@ -137,6 +143,8 @@ else:
 - controlled benchmark 可复现；
 - 已有足够真实运行日志用于设计判定规则。
 
+行为级场景必须按随机实验处理。不能只跑一次就把结果解释成长期记忆能力结论；至少应记录 run count、均值、波动和失败样本。
+
 ## 6. Acceptance Criteria For Phase 1
 
 Phase 1 完成时应满足：
@@ -145,6 +153,7 @@ Phase 1 完成时应满足：
 - 默认 summary 中存在 `memory_kpis`；
 - 未运行 phase 的指标不会被错误写成 `0`；
 - README 报告能解释指标含义；
+- real-run replay 结果能报告 usable probe count 和 skipped reason；
 - 文档与实际字段名一致。
 
 ## 7. Open Decisions
@@ -153,6 +162,7 @@ Phase 1 完成时应满足：
 
 - controlled benchmark 是否进入 CI，还是只作为手动评测入口；
 - 行为级 benchmark 是否需要人工判读或 LLM-as-judge。
+- 同一行为级场景至少跑几次才适合用于趋势汇报。
 
 已确认：
 

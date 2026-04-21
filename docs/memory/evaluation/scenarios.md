@@ -6,7 +6,11 @@
 
 ## 1. Data Construction
 
-当前建议保留两类数据来源。
+当前建议保留三类数据来源。
+
+更完整的数据集和可靠性设计见：
+
+- [dataset-and-reliability.md](./dataset-and-reliability.md)
 
 ### 1.1 Real-Run Episode Replay
 
@@ -50,6 +54,20 @@
 - 必须使用当前真实 `ActionEpisode` payload 结构；
 - 不能引入当前系统不存在的理想字段；
 - 不能替代真实 simulation，只能作为稳定回归补充。
+
+### 1.3 Behavioral Scenario Runs
+
+流程：
+
+1. 固定 topic、agent config、step count 和 memory mode。
+2. 同一场景重复运行多次。
+3. 记录 recall 是否注入、行为是否连续、是否出现矛盾或自我记忆错乱。
+4. 报告均值、波动和失败样本。
+
+约束：
+
+- 不应把单次行为结果作为长期记忆能力结论；
+- 第一阶段只做观察和后续设计，不作为硬门槛。
 
 ## 2. Existing High-Priority Scenarios
 

@@ -51,7 +51,9 @@
    - 指标定义、当前代码字段映射、哪些指标可直接算、哪些还需要补聚合。
 3. [scenarios.md](./scenarios.md)
    - 真实运行回查、受控 episode benchmark、行为级场景的设计。
-4. [implementation-plan.md](./implementation-plan.md)
+4. [dataset-and-reliability.md](./dataset-and-reliability.md)
+   - 测评数据集、ground truth、随机性控制和结果可靠性口径。
+5. [implementation-plan.md](./implementation-plan.md)
    - 后续实际修改 `evaluation_harness.py` 和测试输出的实施顺序。
 
 ## 5. First-Phase Position
@@ -64,6 +66,7 @@
 - 把 cross-agent contamination 作为 agent 过滤回归防线保留到 summary；
 - 把 `real-longwindow` 的 recalled -> injected 统计整理成可读指标；
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
+- 明确区分确定性组件测试、真实运行 episode 回放和随机行为级场景，避免把一次真实模拟结果当成最终结论。
 
 这能先回答组会最关心的问题：
 
