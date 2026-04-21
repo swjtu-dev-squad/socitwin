@@ -41,14 +41,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} >> ~/.ssh/known_hosts
 
       - name: Check AutoDL connectivity
         id: check_connectivity
         run: |
           echo "🔍 Checking if AutoDL server is online..."
 
-          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
+          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} root@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
             echo "✅ AutoDL is online - proceeding with E2E test"
             echo "autodl_online=true" >> $GITHUB_OUTPUT
           else
@@ -73,13 +73,14 @@ jobs:
         if: steps.check_connectivity.outputs.autodl_online == 'true'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: "root"
           PROJECT_PATH: "/root/socitwin"
           TEST_MODE: ${{ github.event.inputs.test_mode || 'quick' }}
           PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
         run: |
-          ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
             set -e
 
             echo "========================================="

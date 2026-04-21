@@ -108,19 +108,24 @@ cat ~/.ssh/github_actions_e2e.pub
 
 #### 2.2 获取服务器信息
 
-在AutoDL控制台找到：
-- **服务器IP地址**：例如 `123.45.67.89`
-- **SSH端口**：通常是 `22` 或自定义端口
-- **用户名**：通常是 `root`
+在AutoDL控制台找到SSH连接信息，通常显示为：
+```
+ssh -p 42946 root@connect.westb.seetacloud.com
+```
+
+你需要记录：
+- **主机地址**：`connect.westb.seetacloud.com`
+- **SSH端口**：`42946`（不是默认的22）
+- **用户名**：`root`
+- **密码**：控制台显示的密码
 
 #### 2.3 连接到AutoDL
 
 ```bash
 # 使用AutoDL提供的密码连接
-ssh root@<你的AutoDL-IP>
+ssh -p 42946 root@connect.westb.seetacloud.com
 
-# 或使用密钥（如果AutoDL配置了密钥认证）
-ssh -i ~/.ssh/autodl_key root@<你的AutoDL-IP>
+# 输入AutoDL控制台显示的密码
 ```
 
 #### 2.4 添加GitHub Actions公钥到AutoDL
@@ -173,7 +178,7 @@ uv run uvicorn main:app --host 0.0.0.0 --port 8000
 回到**本地机器**，测试SSH连接：
 
 ```bash
-ssh -i ~/.ssh/github_actions_e2e root@<你的AutoDL-IP>
+ssh -i ~/.ssh/github_actions_e2e -p 42946 root@connect.westb.seetacloud.com
 ```
 
 如果连接成功，你应该能看到AutoDL的shell提示符。输入 `exit` 退出。
@@ -189,18 +194,20 @@ ssh -i ~/.ssh/github_actions_e2e root@<你的AutoDL-IP>
 3. 左侧菜单找到 **Secrets and variables** → **Actions**
 4. 点击 **New repository secret**
 
-#### 3.2 添加以下2个Secrets
+#### 3.2 添加以下3个Secrets
 
 点击 **New repository secret**，逐个添加：
 
 | Name | Secret | 说明 |
 |------|--------|------|
 | `SSH_PRIVATE_KEY` | 私钥完整内容 | 步骤1中 `cat ~/.ssh/github_actions_e2e` 的输出 |
-| `SSH_HOST` | 你的AutoDL IP | 例如：`123.45.67.89` |
+| `SSH_HOST` | AutoDL主机地址 | 例如：`connect.westb.seetacloud.com` |
+| `SSH_PORT` | SSH端口号 | 例如：`42946` |
 
 **重要提示**：
 - `SSH_PRIVATE_KEY` 必须包含完整的密钥内容（包括BEGIN/END行）
-- `SSH_HOST` 填写AutoDL的公网IP地址
+- `SSH_HOST` 填写AutoDL提供的主机地址（不是IP）
+- `SSH_PORT` 填写SSH端口号（在AutoDL控制台显示）
 
 **注意**：以下值已硬编码在workflow中，无需配置：
 - `SSH_USER`: `root`
@@ -210,6 +217,7 @@ ssh -i ~/.ssh/github_actions_e2e root@<你的AutoDL-IP>
 ```
 ✓ SSH_PRIVATE_KEY
 ✓ SSH_HOST
+✓ SSH_PORT
 ```
 
 ---
@@ -361,10 +369,10 @@ uv sync --dev --reinstall
 - [ ] 本地生成SSH密钥对
 - [ ] 私钥已保存（用于GitHub配置）
 - [ ] 公钥已添加到AutoDL的 `~/.ssh/authorized_keys`
-- [ ] 从本地能SSH连接到AutoDL
+- [ ] 从本地能SSH连接到AutoDL（使用正确的端口）
 - [ ] AutoDL上已克隆项目到 `/root/socitwin`
 - [ ] AutoDL上已安装依赖（`uv sync --dev`）
-- [ ] GitHub配置了2个Secrets（`SSH_PRIVATE_KEY`、`SSH_HOST`）
+- [ ] GitHub配置了3个Secrets（`SSH_PRIVATE_KEY`、`SSH_HOST`、`SSH_PORT`）
 - [ ] Workflow文件已提交到GitHub
 - [ ] 成功触发第一次测试
 - [ ] 测试结果验证通过
