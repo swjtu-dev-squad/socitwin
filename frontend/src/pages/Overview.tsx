@@ -236,8 +236,13 @@ export default function Overview() {
 
     setIsAddingAgents(true)
     try {
+      // 过滤 interests 中的空字符串
+      const cleanedAgents = controlledAgents.map(agent => ({
+        ...agent,
+        interests: agent.interests ? agent.interests.filter(interest => interest.trim() !== '') : [],
+      }))
       const request = {
-        agents: controlledAgents,
+        agents: cleanedAgents,
         check_polarization: checkPolarization,
         polarization_threshold: checkPolarization ? polarizationThreshold : undefined,
       }
@@ -1057,87 +1062,115 @@ export default function Overview() {
                 </Button>
               </div>
 
-              {controlledAgents.map((agent, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-text-tertiary uppercase">
-                      Agent #{index + 1}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200"
-                      onClick={() => removeAgentRow(index)}
-                      title="删除此行"
+              {/* 滑动链条查看多个Agent配置 */}
+              <div className="relative">
+                <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-accent/30 scrollbar-track-bg-primary scrollbar-thumb-rounded-full"
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,242,255,0.3) #18181b' }}>
+                  {controlledAgents.map((agent, index) => (
+                    <div
+                      key={index}
+                      className="flex-shrink-0 w-80 p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-3"
                     >
-                      <Trash2 className="w-5 h-5" />
-                    </Button>
-                  </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-text-tertiary uppercase">
+                          Agent #{index + 1}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200"
+                          onClick={() => removeAgentRow(index)}
+                          title="删除此Agent"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-text-tertiary uppercase">
-                        用户名 *
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                        value={agent.user_name}
-                        onChange={e => updateAgentRow(index, 'user_name', e.target.value)}
-                        placeholder="official_responder"
-                      />
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-text-tertiary uppercase">
+                            用户名 *
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                            value={agent.user_name}
+                            onChange={e => updateAgentRow(index, 'user_name', e.target.value)}
+                            placeholder="official_responder"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-text-tertiary uppercase">
+                            显示名称 *
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                            value={agent.name}
+                            onChange={e => updateAgentRow(index, 'name', e.target.value)}
+                            placeholder="极化警察"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-text-tertiary uppercase">
+                            描述 *
+                          </label>
+                          <textarea
+                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent min-h-[60px]"
+                            value={agent.description}
+                            onChange={e => updateAgentRow(index, 'description', e.target.value)}
+                            placeholder="应急响应极化事件"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-text-tertiary uppercase">
+                            兴趣标签 (逗号分隔)
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                            value={agent.interests?.join(', ') || ''}
+                            onChange={e =>
+                              updateAgentRow(
+                                index,
+                                'interests',
+                                e.target.value
+                                  .split(',')
+                                  .map(s => s.trim())
+                              )
+                            }
+                            placeholder="emergency, safety, government"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-text-tertiary uppercase">
-                        显示名称 *
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                        value={agent.name}
-                        onChange={e => updateAgentRow(index, 'name', e.target.value)}
-                        placeholder="极化警察"
-                      />
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <label className="text-xs font-bold text-text-tertiary uppercase">
-                        描述 *
-                      </label>
-                      <textarea
-                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent min-h-[60px]"
-                        value={agent.description}
-                        onChange={e => updateAgentRow(index, 'description', e.target.value)}
-                        placeholder="应急响应极化事件"
-                      />
-                    </div>
-                    <div className="md:col-span-2 space-y-2">
-                      <label className="text-xs font-bold text-text-tertiary uppercase">
-                        兴趣标签 (逗号分隔)
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                        value={agent.interests?.join(', ') || ''}
-                        onChange={e =>
-                          updateAgentRow(
-                            index,
-                            'interests',
-                            e.target.value
-                              .split(',')
-                              .map(s => s.trim())
-                              .filter(Boolean)
-                          )
-                        }
-                        placeholder="emergency, safety, government"
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+
+                {/* 滑动指示器 */}
+                {controlledAgents.length > 1 && (
+                  <div className="flex justify-center space-x-2 mt-4">
+                    {controlledAgents.map((_, index) => (
+                      <button
+                        key={index}
+                        className="w-2 h-2 rounded-full bg-accent/30 hover:bg-accent/50 transition-colors"
+                        aria-label={`跳转到Agent ${index + 1}`}
+                        onClick={() => {
+                          const container = document.querySelector('.overflow-x-auto');
+                          if (container) {
+                            const cardWidth = 320; // w-80 = 320px
+                            container.scrollTo({
+                              left: index * cardWidth,
+                              behavior: 'smooth'
+                            });
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Options */}
