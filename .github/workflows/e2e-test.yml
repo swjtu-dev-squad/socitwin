@@ -48,7 +48,7 @@ jobs:
         run: |
           echo "🔍 Checking if AutoDL server is online..."
 
-          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
+          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
             echo "✅ AutoDL is online - proceeding with E2E test"
             echo "autodl_online=true" >> $GITHUB_OUTPUT
           else
@@ -73,8 +73,8 @@ jobs:
         if: steps.check_connectivity.outputs.autodl_online == 'true'
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          PROJECT_PATH: ${{ secrets.PROJECT_PATH }}
+          SSH_USER: "root"
+          PROJECT_PATH: "/root/socitwin"
           TEST_MODE: ${{ github.event.inputs.test_mode || 'quick' }}
           PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}

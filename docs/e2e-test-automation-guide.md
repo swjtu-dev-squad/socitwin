@@ -189,7 +189,7 @@ ssh -i ~/.ssh/github_actions_e2e root@<你的AutoDL-IP>
 3. 左侧菜单找到 **Secrets and variables** → **Actions**
 4. 点击 **New repository secret**
 
-#### 3.2 添加以下4个Secrets
+#### 3.2 添加以下2个Secrets
 
 点击 **New repository secret**，逐个添加：
 
@@ -197,19 +197,19 @@ ssh -i ~/.ssh/github_actions_e2e root@<你的AutoDL-IP>
 |------|--------|------|
 | `SSH_PRIVATE_KEY` | 私钥完整内容 | 步骤1中 `cat ~/.ssh/github_actions_e2e` 的输出 |
 | `SSH_HOST` | 你的AutoDL IP | 例如：`123.45.67.89` |
-| `SSH_USER` | SSH用户名 | 通常是 `root` |
-| `PROJECT_PATH` | 项目路径 | 通常是 `/root/socitwin` |
 
 **重要提示**：
 - `SSH_PRIVATE_KEY` 必须包含完整的密钥内容（包括BEGIN/END行）
-- 其他值直接填写字符串即可
+- `SSH_HOST` 填写AutoDL的公网IP地址
+
+**注意**：以下值已硬编码在workflow中，无需配置：
+- `SSH_USER`: `root`
+- `PROJECT_PATH`: `/root/socitwin`
 
 添加完成后，Secrets列表应该显示：
 ```
 ✓ SSH_PRIVATE_KEY
 ✓ SSH_HOST
-✓ SSH_USER
-✓ PROJECT_PATH
 ```
 
 ---
@@ -362,9 +362,9 @@ uv sync --dev --reinstall
 - [ ] 私钥已保存（用于GitHub配置）
 - [ ] 公钥已添加到AutoDL的 `~/.ssh/authorized_keys`
 - [ ] 从本地能SSH连接到AutoDL
-- [ ] AutoDL上已克隆项目
+- [ ] AutoDL上已克隆项目到 `/root/socitwin`
 - [ ] AutoDL上已安装依赖（`uv sync --dev`）
-- [ ] GitHub配置了4个Secrets
+- [ ] GitHub配置了2个Secrets（`SSH_PRIVATE_KEY`、`SSH_HOST`）
 - [ ] Workflow文件已提交到GitHub
 - [ ] 成功触发第一次测试
 - [ ] 测试结果验证通过
