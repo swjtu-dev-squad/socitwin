@@ -286,7 +286,9 @@ export default function Overview() {
       // 过滤 interests 中的空字符串
       const cleanedAgents = controlledAgents.map(agent => ({
         ...agent,
-        interests: agent.interests ? agent.interests.filter(interest => interest.trim() !== '') : [],
+        interests: agent.interests
+          ? agent.interests.filter(interest => interest.trim() !== '')
+          : [],
       }))
       const request = {
         agents: cleanedAgents,
@@ -1250,8 +1252,10 @@ export default function Overview() {
 
               {/* 滑动链条查看多个Agent配置 */}
               <div className="relative">
-                <div className="flex space-x-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-accent/30 scrollbar-track-bg-primary scrollbar-thumb-rounded-full"
-                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,242,255,0.3) #18181b' }}>
+                <div
+                  className="flex space-x-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-accent/30 scrollbar-track-bg-primary scrollbar-thumb-rounded-full"
+                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,242,255,0.3) #18181b' }}
+                >
                   {controlledAgents.map((agent, index) => (
                     <div
                       key={index}
@@ -1321,9 +1325,7 @@ export default function Overview() {
                               updateAgentRow(
                                 index,
                                 'interests',
-                                e.target.value
-                                  .split(',')
-                                  .map(s => s.trim())
+                                e.target.value.split(',').map(s => s.trim())
                               )
                             }
                             placeholder="emergency, safety, government"
@@ -1343,13 +1345,13 @@ export default function Overview() {
                         className="w-2 h-2 rounded-full bg-accent/30 hover:bg-accent/50 transition-colors"
                         aria-label={`跳转到Agent ${index + 1}`}
                         onClick={() => {
-                          const container = document.querySelector('.overflow-x-auto');
+                          const container = document.querySelector('.overflow-x-auto')
                           if (container) {
-                            const cardWidth = 320; // w-80 = 320px
+                            const cardWidth = 320 // w-80 = 320px
                             container.scrollTo({
                               left: index * cardWidth,
-                              behavior: 'smooth'
-                            });
+                              behavior: 'smooth',
+                            })
                           }
                         }}
                       />
