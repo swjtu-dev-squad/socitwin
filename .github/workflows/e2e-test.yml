@@ -1,0 +1,181 @@
+name: E2E Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: '测试模式'
+        required: true
+        default: 'quick'
+        type: choice
+        options:
+          - quick
+          - full
+      platform:
+        description: '社交平台'
+        required: true
+        default: 'twitter'
+        type: choice
+        options:
+          - twitter
+          - reddit
+      agent_count:
+        description: 'Agent数量'
+        required: false
+        default: '5'
+        type: string
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Check AutoDL connectivity
+        id: check_connectivity
+        run: |
+          echo "🔍 Checking if AutoDL server is online..."
+
+          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
+            echo "✅ AutoDL is online - proceeding with E2E test"
+            echo "autodl_online=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ AutoDL is offline - skipping E2E test"
+            echo "autodl_online=false" >> $GITHUB_OUTPUT
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⚠️  AutoDL 服务器未在线"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "📋 E2E 测试已跳过，因为无法连接到 AutoDL 服务器"
+            echo ""
+            echo "🔧 要运行 E2E 测试，请执行以下步骤："
+            echo "   1. 开启 AutoDL 服务器"
+            echo "   2. 访问 GitHub Actions 页面"
+            echo "   3. 手动触发 'E2E Test' workflow"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          fi
+
+      - name: Deploy and run E2E test
+        if: steps.check_connectivity.outputs.autodl_online == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          PROJECT_PATH: ${{ secrets.PROJECT_PATH }}
+          TEST_MODE: ${{ github.event.inputs.test_mode || 'quick' }}
+          PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
+          AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+
+            echo "========================================="
+            echo "🚀 E2E Test on AutoDL"
+            echo "========================================="
+
+            cd "$PROJECT_PATH"
+            echo "📂 Working directory: $(pwd)"
+
+            echo "📥 Pulling latest code from main..."
+            git fetch origin
+            git reset --hard origin/main
+            echo "✅ Code updated"
+
+            cd backend
+
+            echo "🔧 Checking dependencies..."
+            if ! command -v uv &> /dev/null; then
+              pip install uv
+            fi
+            uv sync --dev
+
+            echo "🔍 Checking if backend server is running..."
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "✅ Backend server is already running"
+            else
+              echo "🚀 Starting backend server..."
+              nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/server.log 2>&1 &
+              SERVER_PID=$!
+
+              echo "⏳ Waiting for server to start..."
+              for i in {1..30}; do
+                if curl -s http://localhost:8000/health > /dev/null; then
+                  echo "✅ Server started successfully (PID: $SERVER_PID)"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "❌ Server failed to start"
+                  echo "=== Server log ==="
+                  cat /tmp/server.log
+                  exit 1
+                fi
+                sleep 2
+              done
+            fi
+
+            echo ""
+            echo "========================================="
+            echo "🧪 Running E2E Tests"
+            echo "========================================="
+            echo "Test Mode: $TEST_MODE"
+            echo "Platform: $PLATFORM"
+            echo "Agent Count: $AGENT_COUNT"
+            echo ""
+
+            cd tests/e2e
+            chmod +x run_tests.sh
+
+            if [ "$TEST_MODE" = "quick" ]; then
+              echo "Running QUICK test..."
+              ./run_tests.sh --quick --platform "$PLATFORM" --agent-count "${AGENT_COUNT:-3}"
+            else
+              echo "Running FULL test..."
+              ./run_tests.sh --full --platform "$PLATFORM" --agent-count "${AGENT_COUNT:-10}"
+            fi
+
+            TEST_EXIT_CODE=$?
+
+            echo ""
+            echo "========================================="
+            if [ $TEST_EXIT_CODE -eq 0 ]; then
+              echo "✅ All tests passed!"
+            else
+              echo "❌ Tests failed with exit code: $TEST_EXIT_CODE"
+            fi
+            echo "========================================="
+
+            exit $TEST_EXIT_CODE
+          ENDSSH
+
+      - name: Test result
+        if: always() && steps.check_connectivity.outputs.autodl_online == 'true'
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ E2E tests completed successfully!"
+          else
+            echo "❌ E2E tests failed!"
+            exit 1
+          fi
+
+      - name: AutoDL offline notice
+        if: steps.check_connectivity.outputs.autodl_online == 'false'
+        run: |
+          echo "⏭️  Workflow skipped - AutoDL server is offline"
+          echo ""
+          echo "To run E2E tests:"
+          echo "  1. Start your AutoDL instance"
+          echo "  2. Go to: https://github.com/swjtu-dev-squad/socitwin/actions"
+          echo "  3. Click 'E2E Test' → 'Run workflow'"
