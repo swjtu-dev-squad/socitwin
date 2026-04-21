@@ -54,7 +54,7 @@
 - 迁移文档是否已具备归档条件：
   - [`migration-archive-readiness.md`](./migration-archive-readiness.md)
 - 社交网络监控页功能迁移与 monitor/detail 接口计划：
-  - [`social-monitor-migration-plan.md`](../../social-monitor-migration-plan.md)
+  - [`social-monitor-migration-plan.md`](../post-migration/social-monitor-migration-plan.md)
 
 ## 4. Current Main Risks
 

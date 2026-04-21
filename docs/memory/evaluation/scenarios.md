@@ -1,0 +1,147 @@
+# Long-Term Memory Evaluation Scenarios
+
+- Status: draft scenario plan
+- Audience: implementers, evaluators
+- Doc role: define data construction and scenario groups for long-term memory evaluation
+
+## 1. Data Construction
+
+当前建议保留两类数据来源。
+
+### 1.1 Real-Run Episode Replay
+
+流程：
+
+1. 真实运行一段 `action_v1` simulation。
+2. 从 long-term store 中抽取真实 `ActionEpisode`。
+3. 为 episode 构造 probe query / probe snapshot。
+4. 回查当前 recall / retrieval 路径。
+5. 统计 exact episode hit、MRR、cross-agent contamination。
+
+优点：
+
+- 最接近真实系统；
+- 能覆盖真实 episode 构造质量；
+- 可复用现有 `real-scenarios`。
+
+缺点：
+
+- 受主模型随机性影响；
+- episode 分布不可完全控制；
+- 不适合作为唯一回归集。
+
+### 1.2 Controlled Episode Benchmark
+
+流程：
+
+1. 人工构造 20 到 50 个 `ActionEpisode` payload。
+2. 覆盖 post、comment、follow、group message 等核心动作。
+3. 每个 episode 配 1 到 3 个 probe query。
+4. 直接写入 long-term store 后执行 retrieval benchmark。
+
+优点：
+
+- 可复现；
+- 适合比较 embedding / rerank 调整；
+- 适合 CI 或轻量回归。
+
+约束：
+
+- 必须使用当前真实 `ActionEpisode` payload 结构；
+- 不能引入当前系统不存在的理想字段；
+- 不能替代真实 simulation，只能作为稳定回归补充。
+
+## 2. Existing High-Priority Scenarios
+
+第一阶段优先复用这些已有场景：
+
+| Scenario | Purpose | First-phase use |
+| --- | --- | --- |
+| `VAL-LTM-01` | persistable / non-persistable 边界 | 检查无效 episode 不污染长期层 |
+| `VAL-LTM-05` | 真实自我行为写入与可检索性 | 主 retrieval KPI 来源 |
+| `VAL-RCL-08` | 真实行为连续性 recall probe | 检查 gate + retrieval |
+| `VAL-RCL-09` | 空 observation recall suppression | 检查 false trigger |
+| `VAL-RCL-10` | 长窗口真实 recall 注入 | 检查 injected trace |
+
+## 3. New Scenario Candidates
+
+下面这些适合后续补充，不建议第一轮全部实现。
+
+### 3.1 Self-Authored Continuity
+
+验证 agent 是否能延续“我之前发过/评论过”的历史事实。
+
+关注：
+
+- self-memory consistency；
+- exact episode hit；
+- injection；
+- 行为是否避免把自己的内容当成陌生人的内容。
+
+### 3.2 Target Continuity
+
+验证 agent 后续再次遇到同一 post / comment thread 时，是否能正确关联历史目标对象。
+
+关注：
+
+- target resolution continuity；
+- contradiction rate；
+- target episode injection。
+
+### 3.3 Group Context Continuity
+
+验证加入群组、群消息、群组语境是否能形成连续记忆。
+
+关注：
+
+- group-context continuity；
+- group message retrieval；
+- cross-agent contamination。
+
+### 3.4 Invalid Action Pollution
+
+验证 invalid target、hallucinated action、失败 tool result 不会污染长期层。
+
+关注：
+
+- invalid persist rate；
+- false recall trigger；
+- contradiction rate。
+
+### 3.5 Multi-Action Step Pairing
+
+当前 `ActionEpisode.outcome` 仍可能带有 step-level 语义。
+
+该场景用于检查一步多动作时：
+
+- action result 是否与 episode 正确配对；
+- recall 是否把 step-level outcome 误当成单动作 outcome；
+- 多动作场景下的 ground truth 是否仍能准确定位。
+
+### 3.6 Cross-Agent Similar Topic
+
+多个 agent 在同主题下发表相似内容，检查检索是否把别人的历史召回成自己的历史。
+
+关注：
+
+- cross-agent contamination rate；
+- same-agent top-k ratio；
+- exact episode hit。
+
+## 4. Scenario Priority
+
+第一阶段优先级：
+
+1. 真实 episode exact hit。
+2. cross-agent contamination。
+3. 空 observation false trigger。
+4. 长窗口 injected trace。
+5. persistable / invalid persist 边界。
+
+第二阶段再补：
+
+- controlled episode benchmark；
+- self-authored continuity；
+- target continuity；
+- group continuity。
+

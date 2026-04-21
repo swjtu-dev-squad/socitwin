@@ -30,6 +30,22 @@
 - [migration-plan.md](./migration/migration-plan.md)
 - [migration-archive-readiness.md](./migration/migration-archive-readiness.md)
 
+### post-migration/
+
+这批文档记录了 memory 主链迁入新仓库后、继续同步 main 和验证联调时形成的阶段性记录。
+
+它们不再承担当前架构说明职责，但保留用于追溯：
+
+- 单次真实 E2E 运行记录；
+- main sync 与 PR 准备验证记录；
+- social monitor 迁移与 monitor/detail 接口计划。
+
+入口见：
+
+- [e2e-reddit-action-v1-20260418.md](./post-migration/e2e-reddit-action-v1-20260418.md)
+- [main-sync-validation-20260419.md](./post-migration/main-sync-validation-20260419.md)
+- [social-monitor-migration-plan.md](./post-migration/social-monitor-migration-plan.md)
+
 ## 使用规则
 
 - 要看当前正式 memory 文档：

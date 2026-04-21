@@ -256,6 +256,8 @@ uv run python -m app.memory.evaluation_harness \
   - [current-architecture.md](./current-architecture.md)
 - 模式与边界：
   - [principles-and-modes.md](./principles-and-modes.md)
+- 长期记忆测评方案：
+  - [evaluation/README.md](./evaluation/README.md)
 - 文档迁移计划：
   - [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
 - 迁移期测试/配置记录：

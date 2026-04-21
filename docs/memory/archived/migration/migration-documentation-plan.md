@@ -276,7 +276,7 @@
 - `migration-architecture-comparison.md`
 - `migration-decisions.md`
 - `migration-refactor-principles.md`
-- `social-monitor-migration-plan.md`
+- `archived/post-migration/social-monitor-migration-plan.md`
 
 处理方式不是立即删除，而是：
 

@@ -38,17 +38,18 @@
 - [observation-and-evidence.md](./observation-and-evidence.md)
 - [prompt-and-shortterm.md](./prompt-and-shortterm.md)
 - [longterm-and-recall.md](./longterm-and-recall.md)
+- [evaluation/README.md](./evaluation/README.md)
 - [config-and-runtime.md](./config-and-runtime.md)
 - [testing-and-evaluation.md](./testing-and-evaluation.md)
 - [validation-scenarios.md](./validation-scenarios.md)
 - [audit-and-validation.md](./audit-and-validation.md)
-- [main-sync-validation-20260419.md](./main-sync-validation-20260419.md)
 
 当前正式文档主线已经闭合。
 
 后续重点不再是继续补正式骨架，而是：
 
 - 持续补充场景、审查条目和结果记录；
+- 持续完善 `evaluation/` 下的长期记忆测评指标、场景和实施方案；
 - 把迁移文档里仍有价值但尚未归入正式文档的内容继续收口；
 - 在确认没有关键独占信息后，再把 `migration-*` 文档降级归档。
 
@@ -76,8 +77,6 @@
   - 旧记忆文档向新正式文档体系迁移的专项计划。
 - [migration-archive-readiness.md](./archived/migration/migration-archive-readiness.md)
   - 迁移收尾阶段的文档归档判定清单。
-- [social-monitor-migration-plan.md](./social-monitor-migration-plan.md)
-  - 监控页相关的后端合同与后续增强计划。
 
 统一归档入口见：
 

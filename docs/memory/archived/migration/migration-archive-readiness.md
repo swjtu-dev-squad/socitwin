@@ -63,8 +63,8 @@
 | `migration-phase-checklists.md` | 分阶段执行清单 | `no` | 可归档为执行记录 |
 | `migration-workstreams.md` | 范围、阶段、工作流拆分 | `no` | 可归档为工作流记录 |
 | `migration-documentation-plan.md` | 文档迁移计划和映射 | `no` | 可归档为文档迁移记录 |
-| `social-monitor-migration-plan.md` | monitor 页功能迁移记录 | `no` | 不属于 memory 正式主线，可单独保留或后续单独归档 |
-| `e2e-reddit-action-v1-20260418.md` | 单次真实运行测试记录 | `no` | 作为历史测试记录保留，不纳入正式主文档 |
+| `post-migration/social-monitor-migration-plan.md` | monitor 页功能迁移记录 | `no` | 已归档为 post-migration 专项记录 |
+| `post-migration/e2e-reddit-action-v1-20260418.md` | 单次真实运行测试记录 | `no` | 已归档为 post-migration 历史测试记录 |
 
 ## 5. Remaining Pre-Archive Work
 
@@ -74,8 +74,8 @@
    - 正式文档
    - 迁移文档
    - 当前代码事实
-2. 确认是否要把 `migration-*` 统一移入单独的 `archived/` 或 `migration/` 子目录；
-3. 确认像 `social-monitor-migration-plan.md`、`e2e-reddit-action-v1-20260418.md` 这类“专项实施/历史记录”是否与主迁移文档一起归档，还是继续平放保留。
+2. `migration-*` 已统一位于 `archived/migration/`；
+3. `social-monitor-migration-plan.md`、`e2e-reddit-action-v1-20260418.md`、`main-sync-validation-20260419.md` 已统一归档到 `archived/post-migration/`。
 
 ## 6. Current Judgment
 

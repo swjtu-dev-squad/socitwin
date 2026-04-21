@@ -366,5 +366,7 @@
 
 - 系统级运行入口和结果读取：
   - [testing-and-evaluation.md](./testing-and-evaluation.md)
+- 长期记忆测评指标与场景：
+  - [evaluation/README.md](./evaluation/README.md)
 - 当前审查台账：
   - [audit-and-validation.md](./audit-and-validation.md)
