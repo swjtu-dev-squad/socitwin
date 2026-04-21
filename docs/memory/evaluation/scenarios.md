@@ -122,6 +122,8 @@
 
 多个 agent 在同主题下发表相似内容，检查检索是否把别人的历史召回成自己的历史。
 
+当前正常 recall 路径已经按 `agent_id` 过滤长期记忆，因此这个场景主要用于验证过滤边界不会回归，而不是验证常态 rerank 质量。
+
 关注：
 
 - cross-agent contamination rate；
@@ -133,7 +135,7 @@
 第一阶段优先级：
 
 1. 真实 episode exact hit。
-2. cross-agent contamination。
+2. agent filter guardrail / cross-agent contamination regression。
 3. 空 observation false trigger。
 4. 长窗口 injected trace。
 5. persistable / invalid persist 边界。
@@ -144,4 +146,3 @@
 - self-authored continuity；
 - target continuity；
 - group continuity。
-

@@ -30,7 +30,7 @@
 
 - 可以准确判断是否检到了目标 `ActionEpisode`；
 - 可以发现同主题但非目标事件的混淆；
-- 可以发现把别人的历史错当成自己的 cross-agent contamination。
+- 可以验证按 agent 过滤后的检索边界是否仍然可靠。
 
 ## 3. Evaluation Layers
 
@@ -47,8 +47,9 @@
 核心输出：
 
 - exact episode Hit@3 / Recall@3 口径；
+- exact episode Hit@1；
 - MRR；
-- cross-agent contamination。
+- cross-agent contamination guardrail。
 
 注意：
 
@@ -93,25 +94,31 @@
 
 ## 4. First-Phase KPI Set
 
-第一阶段建议正式汇报下面三个核心指标：
+第一阶段建议正式汇报下面这组核心指标：
 
-- `LTM Exact Hit@3`
+- `LTM Retrieval Recall@3 (Exact Episode Hit@3)`
+- `LTM Exact Hit@1`
+- `LTM MRR`
 - `Cross-Agent Contamination Rate`
 - `Recall Injection Trace Rate`
 
-这三个指标分别回答：
+这些指标分别回答：
 
 - 检不检得到目标历史；
-- 会不会串 agent；
+- 正确历史是否已经排第一；
+- 平均排序位置是否足够靠前；
+- agent 过滤是否仍然可靠；
 - 长期记忆有没有进入 prompt。
 
 如果需要对外使用“召回率”这个词，建议写成：
 
 ```text
-LTM Retrieval Recall@3 / Exact Episode Hit@3
+LTM Retrieval Recall@3 (Exact Episode Hit@3)
 ```
 
 并明确说明它是单目标 episode top-3 命中率，不是传统多相关文档 Recall@K。
+
+`@3` 作为主 KPI 的原因是：当前 recall 默认检索 top-3 候选，后续 prompt assembly 也是基于候选集合继续做 overlap 和 budget 裁决；因此 `@3` 更接近“目标历史是否进入可用候选集”。`@1` 更严格，适合衡量排序尖锐度，所以作为正式辅助 KPI 保留。
 
 ## 5. First-Phase Non-Goals
 
@@ -129,7 +136,7 @@ LTM Retrieval Recall@3 / Exact Episode Hit@3
 
 - 当前 `socitwin` 的长期记忆以 `ActionEpisode` 为结构化持久化单元。
 - recall 主链被拆成 gate、retrieval、injection 三个可观测阶段。
-- 第一阶段核心指标是 exact episode Hit@3 / Recall@3、MRR、cross-agent contamination 和 injection trace rate。
+- 第一阶段核心指标是 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`、Hit@1、MRR、agent 过滤回归防线和 injection trace rate。
 - 行为级连续性测试会作为第二阶段增强，不直接替代检索和注入指标。
 
 避免汇报口径：
@@ -137,4 +144,3 @@ LTM Retrieval Recall@3 / Exact Episode Hit@3
 - “召回率高，所以 agent 行为已经稳定。”
 - “embedding 命中率高，所以长期记忆系统没有问题。”
 - “recalled_count 增加，所以模型真实使用了长期记忆。”
-

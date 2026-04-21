@@ -46,6 +46,18 @@
 - [main-sync-validation-20260419.md](./post-migration/main-sync-validation-20260419.md)
 - [social-monitor-migration-plan.md](./post-migration/social-monitor-migration-plan.md)
 
+### evaluation/
+
+这批文档记录 memory evaluation 方案形成过程中的讨论材料。
+
+它们不再承担正式指标合同职责；当前正式评测方案入口见：
+
+- [../evaluation/README.md](../evaluation/README.md)
+
+保留的讨论材料包括：
+
+- [socitwin-memory-metrics-brief.md](./evaluation/socitwin-memory-metrics-brief.md)
+
 ## 使用规则
 
 - 要看当前正式 memory 文档：

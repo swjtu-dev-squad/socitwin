@@ -37,6 +37,7 @@
 - 长期记忆持久化单元是 `ActionEpisode`，不是完整 chat history。
 - 检索路径是 `Chroma + embedding + field-aware rerank`，不是纯 embedding RAG。
 - recall 需要先经过 `RecallPlanner` gate，不是“库里有内容就查”。
+- 正常 recall 路径会按当前 `agent_id` 过滤长期记忆；跨 agent 命中应视为过滤失效或回归风险，而不是预期常态。
 - 检到的 candidate 还会经过 overlap suppression、recall budget 和 prompt budget，检到不等于注入。
 - 行为效果最重要，但最难自动判读，应放在检索/gate/注入指标稳定之后。
 
@@ -60,13 +61,12 @@
 当前最有价值的落地点是：
 
 - 把 `real-scenarios` 已有的 exact episode hit 指标正式汇总到 `summary.json`；
-- 把 cross-agent contamination 从事件级 count 提升成 summary 级 rate；
+- 把 cross-agent contamination 作为 agent 过滤回归防线保留到 summary；
 - 把 `real-longwindow` 的 recalled -> injected 统计整理成可读指标；
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
 
 这能先回答组会最关心的问题：
 
 - 正确历史事件能否被检到；
-- 是否串 agent；
+- agent 过滤是否仍然可靠；
 - 检到后是否真的进入 prompt。
-

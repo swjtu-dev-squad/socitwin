@@ -30,6 +30,7 @@
 ```json
 {
   "memory_kpis": {
+    "ltm_exact_hit_at_1": null,
     "ltm_exact_hit_at_3": null,
     "ltm_mrr": null,
     "cross_agent_contamination_rate": null,
@@ -50,6 +51,7 @@
 
 从 `VAL-LTM-05 real_self_action_retrievability` 聚合：
 
+- `hit_at_1` -> `ltm_exact_hit_at_1`
 - `hit_at_3` -> `ltm_exact_hit_at_3`
 - `mrr` -> `ltm_mrr`
 - `cross_agent_top3_count` + top3 slot count -> `cross_agent_contamination_rate`
@@ -57,6 +59,8 @@
 如果当前 event 缺 top3 slot count，需要在 per-query score 中补：
 
 - `retrieved_top3_count`
+
+`cross_agent_contamination_rate` 是 agent filter 回归防线。正常 recall 路径已经按当前 `agent_id` 过滤长期记忆；如果该指标明显大于 0，应优先排查过滤参数传递或向量库 where filter，而不是把它解释成普通排序噪声。
 
 ### Task 3: Aggregate Gate Metrics
 
@@ -80,14 +84,18 @@
 第一版指标：
 
 ```text
-recall_injection_trace_rate =
-  recall_injected_trace_count / max(1, recall_recalled_trace_count)
+if recall_recalled_trace_count > 0:
+  recall_injection_trace_rate =
+    recall_injected_trace_count / recall_recalled_trace_count
+else:
+  recall_injection_trace_rate = null
 ```
 
 注意：
 
 - 这是 trace 级指标；
 - 不是严格 target episode injection success。
+- 如果没有 recalled trace 样本，应输出 `null` 并写入不可用原因，不要输出 `0`。
 
 ## 3. Phase 2: Readable Report
 
@@ -143,8 +151,13 @@ Phase 1 完成时应满足：
 
 需要后续确认：
 
-- 对外汇报时主名使用 `LTM Retrieval Recall@3` 还是 `Exact Episode Hit@3`；
-- `cross_agent_contamination_rate` 分母使用实际 top-k slot 还是固定 `query_count * k`；
 - controlled benchmark 是否进入 CI，还是只作为手动评测入口；
 - 行为级 benchmark 是否需要人工判读或 LLM-as-judge。
 
+已确认：
+
+- 内部字段使用 `ltm_exact_hit_at_3`；
+- 文档展示名使用 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`；
+- `@1` 作为正式辅助 KPI；
+- `cross_agent_contamination_rate` 使用实际返回 top-k slot 作为分母；
+- phase 未运行或样本不足时，summary 字段使用 `null` 并写入不可用原因。

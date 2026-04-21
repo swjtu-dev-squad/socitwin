@@ -23,16 +23,56 @@
 | Metric | Stage | Definition | Current source | Status |
 | --- | --- | --- | --- | --- |
 | `ltm_exact_hit_at_3` | retrieval | 目标 `(agent_id, step_id, action_index)` 出现在 top-3 candidate 的比例 | `real-scenarios` event metrics `hit_at_3` | `v1` |
+| `ltm_exact_hit_at_1` | retrieval ranking | 目标 episode 是否排在 top-1 | `real-scenarios` event metrics `hit_at_1` | `v1` |
 | `ltm_mrr` | retrieval | 目标 episode first hit rank 的倒数均值 | `real-scenarios` event metrics `mrr` | `v1` |
-| `cross_agent_contamination_rate` | retrieval safety | top-k candidate 中错误 `agent_id` 的比例 | 当前已有 `cross_agent_retrieved_count` / `cross_agent_top3_count`，还需 summary rate | `v1.1` |
+| `cross_agent_contamination_rate` | retrieval safety | top-k candidate 中错误 `agent_id` 的比例；正常路径应接近或等于 0 | 当前已有 `cross_agent_retrieved_count` / `cross_agent_top3_count`，还需 summary rate | `v1.1 guardrail` |
 | `recall_gate_success_rate` | gate | 需要 recall 的正例 probe 中 gate 打开的比例 | `gate_decision` / `last_recall_gate` | `v1.1` |
 | `false_recall_trigger_rate` | gate | 不需要 recall 的负例 probe 中 gate 被错误打开的比例 | `VAL-RCL-09` / empty observation probe | `v1.1` |
 | `recall_injection_trace_rate` | injection | 真实长窗口中出现 injected recall trace 的 agent/trace 比例 | `real-longwindow` metrics `recall_injected_trace_count` | `v1` |
 | `target_episode_injection_success_rate` | injection | retrieval 命中目标 episode 后，该目标 episode 最终进入 prompt 的比例 | 需要关联 target episode 与 injected step ids | `future` |
 
-## 3. Naming Notes
+## 3. Common Retrieval Metrics In This Project
 
-### 3.1 `Recall@3` 与 `Hit@3`
+### 3.1 `Hit@K`
+
+通用含义是：正确目标是否出现在前 K 个结果中。
+
+映射到 `socitwin` 时，正确目标不是普通文本块，而是一个目标 `ActionEpisode`：
+
+```text
+(agent_id, step_id, action_index)
+```
+
+所以 `Hit@3` 的实际含义是：目标历史动作事件是否进入 top-3 candidates。
+
+### 3.2 `Recall@K`
+
+通用含义是：所有相关项中有多少被前 K 个结果覆盖。
+
+当前第一阶段 probe 通常是单目标 episode，因此 `Recall@K` 与 `Hit@K` 在数值上非常接近。为了避免概念误用，内部字段使用 `ltm_exact_hit_at_k`，文档展示名使用 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`。
+
+### 3.3 `Precision@K`
+
+通用含义是：前 K 个结果中有多少是真正相关的。
+
+当前第一阶段不把它设为主指标，原因是当前更关心：
+
+- 目标历史事件是否被找回；
+- 目标是否排得足够靠前；
+- agent 过滤是否可靠；
+- 检到后是否进入 prompt。
+
+如果后续 controlled benchmark 引入多相关 episode，可以再补 `Precision@K` 或 nDCG。
+
+### 3.4 `MRR`
+
+`MRR` 衡量目标 episode 平均排得有多靠前。
+
+它补足 `Hit@3` 的盲点：如果目标总是排第 3，`Hit@3` 仍然很好看，但排序质量仍有明显优化空间。
+
+## 4. Naming Notes
+
+### 4.1 `Recall@3` 与 `Hit@3`
 
 当前 harness 的 `hit_at_3` 更准确地说是：
 
@@ -53,10 +93,20 @@ ltm_exact_hit_at_3
 报告中可写：
 
 ```text
-LTM Retrieval Recall@3 / Exact Episode Hit@3
+LTM Retrieval Recall@3 (Exact Episode Hit@3)
 ```
 
-### 3.2 Cross-Agent Contamination
+`@3` 是第一阶段主 KPI，因为当前 recall 默认取 top-3 候选，后续 prompt assembly 会继续在候选集上执行 overlap suppression 和 budget 裁决。`@1` 是正式辅助 KPI，用于判断排序是否已经足够尖锐。
+
+### 4.2 Cross-Agent Contamination
+
+正常 recall 路径会按当前 `agent_id` 过滤长期记忆：
+
+- `RecallPlanner.prepare()` 调用 `longterm_store.retrieve_relevant(..., agent_id=agent_id)`；
+- `ChromaLongtermStore.retrieve_relevant()` 会传入 `where: agent_id == current agent`；
+- 单测已经覆盖 recall planner 和 Chroma store 的 agent filter。
+
+因此 cross-agent contamination 不应被理解成“预期会经常出现的质量指标”，而应被理解成过滤边界的回归防线。
 
 当前代码已经统计了 top-3 中跨 agent 的数量，但还没有统一 rate。
 
@@ -69,7 +119,9 @@ cross_agent_contamination_rate =
 
 其中 `top3_candidate_slot_count` 应按实际返回 candidate 数累计，而不是简单使用 `query_count * 3`，避免候选不足时低估污染率。
 
-### 3.3 Injection Success
+正常情况下该指标应接近或等于 0。一旦明显大于 0，应优先排查 agent filter 是否失效，而不是把它当成普通 rerank 质量问题。
+
+### 4.3 Injection Success
 
 当前可稳定拿到的是 trace 级注入信息：
 
@@ -94,7 +146,7 @@ target_episode_injection_success_rate
 
 留到后续补事件关联。
 
-## 4. Diagnostic Metrics
+## 5. Diagnostic Metrics
 
 | Metric | Meaning | Useful for |
 | --- | --- | --- |
@@ -105,16 +157,17 @@ target_episode_injection_success_rate
 | `prompt_budget_block_rate` | 因总 prompt budget 不能注入的比例 | 判断上下文预算压力 |
 | `recall_budget_block_rate` | 因 recall budget 不能注入的比例 | 判断 recall 局部预算是否过紧 |
 
-## 5. Minimum Summary Output
+## 6. Minimum Summary Output
 
 第一阶段建议在 `summary.json` 增加：
 
 ```json
 {
   "memory_kpis": {
+    "ltm_exact_hit_at_1": 0.62,
     "ltm_exact_hit_at_3": 0.84,
     "ltm_mrr": 0.71,
-    "cross_agent_contamination_rate": 0.08,
+    "cross_agent_contamination_rate": 0.0,
     "recall_gate_success_rate": 0.88,
     "false_recall_trigger_rate": 0.06,
     "recall_injection_trace_rate": 0.73
@@ -123,4 +176,3 @@ target_episode_injection_success_rate
 ```
 
 如果某个 phase 没跑，对应字段应使用 `null` 或放入 `unavailable_metrics` 说明，不要用 `0` 冒充真实结果。
-
