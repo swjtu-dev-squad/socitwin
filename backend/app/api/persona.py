@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 import uuid
@@ -13,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from app.services.dataset_service import DatasetService
+from app.services.dataset_service import DatasetService, DatasetServiceError
 from app.services.persona import sqlite_seed as seed
 from app.services.persona.legacy_pipeline.runner import persist_topics_users_get
 from app.services.persona.llm.runners import run_persona_llm_only, run_topics_users_llm
@@ -32,6 +33,9 @@ class TopicSeedBody(BaseModel):
     topic_keys: List[str] = Field(..., min_length=1)
     seed_user_count: int = Field(100, ge=1, le=2000)
     include_ids: bool = False
+    platform: str = Field(
+        "twitter", min_length=1, max_length=48, description="与 SQLite 中 platform 列一致，如 twitter、reddit"
+    )
 
 
 class SqlitePersonasLlmBody(BaseModel):
@@ -51,6 +55,9 @@ class SqlitePersonasLlmBody(BaseModel):
     )
     llm_kol_normal_ratio: Optional[str] = Field(
         None, validation_alias=AliasChoices("llm_kol_normal_ratio", "llmKolNormalRatio")
+    )
+    platform: str = Field(
+        "twitter", min_length=1, max_length=48, description="与 SQLite 中 platform 列一致，如 twitter、reddit"
     )
 
 
@@ -87,6 +94,9 @@ class SqliteTopicsPersonasLlmBody(BaseModel):
     llm_kol_normal_ratio: Optional[str] = Field(
         None, validation_alias=AliasChoices("llm_kol_normal_ratio", "llmKolNormalRatio")
     )
+    platform: str = Field(
+        "twitter", min_length=1, max_length=48, description="与 SQLite 中 platform 列一致，如 twitter、reddit"
+    )
 
 
 @router.get("/twitter/sqlite-topics")
@@ -94,6 +104,7 @@ async def sqlite_topics(
     format: str = Query("", alias="format"),
     recent_pool: int = Query(500, ge=1, le=5000),
     min_topics: int = Query(30, ge=1, le=200),
+    platform: str = Query("twitter", min_length=1, max_length=48),
 ):
     """与旧版 GET /api/persona/twitter/sqlite-topics 对齐。"""
     path = _db_path()
@@ -103,9 +114,9 @@ async def sqlite_topics(
     conn = seed.open_readonly(path)
     try:
         if fmt == "list":
-            topics = seed.list_recent_topics_ordered(conn, recent_pool)
+            topics = seed.list_recent_topics_ordered(conn, recent_pool, platform=platform)
             return {"status": "ok", "topics": topics, "total": len(topics), "format": "list"}
-        topics = seed.list_recent_topics_ordered(conn, recent_pool)
+        topics = seed.list_recent_topics_ordered(conn, recent_pool, platform=platform)
         _shuffle = list(topics)
         random.shuffle(_shuffle)
         picked = _shuffle[: min(min_topics, len(_shuffle))]
@@ -121,7 +132,9 @@ async def sqlite_topic_seed_post(body: TopicSeedBody):
         raise HTTPException(status_code=404, detail=f"SQLite 不存在: {path}")
     conn = seed.open_readonly(path)
     try:
-        result = seed.compute_multi_topic_seed_sample(conn, body.topic_keys, body.seed_user_count)
+        result = seed.compute_multi_topic_seed_sample(
+            conn, body.topic_keys, body.seed_user_count, platform=body.platform
+        )
     finally:
         conn.close()
     out: Dict[str, Any] = {
@@ -145,6 +158,7 @@ async def sqlite_topic_seed_get(
     topic_keys: Optional[List[str]] = Query(None),
     user_limit: int = Query(100, ge=1, le=2000),
     include_ids: bool = Query(False),
+    platform: str = Query("twitter", min_length=1, max_length=48),
 ):
     keys: List[str] = []
     if topic_keys:
@@ -154,7 +168,11 @@ async def sqlite_topic_seed_get(
     keys = list(dict.fromkeys(keys))
     if not keys:
         raise HTTPException(status_code=400, detail="缺少 topic_key 或 topic_keys")
-    return await sqlite_topic_seed_post(TopicSeedBody(topic_keys=keys, seed_user_count=user_limit, include_ids=include_ids))
+    return await sqlite_topic_seed_post(
+        TopicSeedBody(
+            topic_keys=keys, seed_user_count=user_limit, include_ids=include_ids, platform=platform
+        )
+    )
 
 
 @router.post("/twitter/sqlite-personas-llm")
@@ -164,8 +182,12 @@ async def sqlite_personas_llm(body: SqlitePersonasLlmBody):
         raise HTTPException(status_code=404, detail=f"SQLite 不存在: {path}")
     conn = seed.open_readonly(path)
     try:
-        sample = seed.compute_multi_topic_seed_sample(conn, body.topic_keys, body.seed_user_count)
-        seeds = seed.build_seed_users_for_llm_from_sqlite(conn, sample["external_user_ids"])
+        sample = seed.compute_multi_topic_seed_sample(
+            conn, body.topic_keys, body.seed_user_count, platform=body.platform
+        )
+        seeds = seed.build_seed_users_for_llm_from_sqlite(
+            conn, sample["external_user_ids"], platform=body.platform
+        )
     finally:
         conn.close()
     if not seeds:
@@ -180,11 +202,12 @@ async def sqlite_personas_llm(body: SqlitePersonasLlmBody):
         else len(seeds)
     )
     dataset_id = f"sqlite_{uuid.uuid4().hex[:20]}"
+    rtype = str(body.platform or "twitter").strip().lower() or "twitter"
     payload = {
         "seed_users": seeds,
         "target_count": target,
         "dataset_id": dataset_id,
-        "recsys_type": "twitter",
+        "recsys_type": rtype,
         "batch_size": int(body.llm_batch_size or 4),
         "seed_sample": int(body.llm_seed_sample or 12),
         "max_retries": int(body.llm_max_retries or 2),
@@ -218,9 +241,13 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
         raise HTTPException(status_code=404, detail=f"SQLite 不存在: {path}")
     conn = seed.open_readonly(path)
     try:
-        selected = seed.get_topic_labels_for_keys(conn, body.topic_keys)
-        sample = seed.compute_multi_topic_seed_sample(conn, body.topic_keys, body.seed_user_count)
-        seeds = seed.build_seed_users_for_llm_from_sqlite(conn, sample["external_user_ids"])
+        selected = seed.get_topic_labels_for_keys(conn, body.topic_keys, platform=body.platform)
+        sample = seed.compute_multi_topic_seed_sample(
+            conn, body.topic_keys, body.seed_user_count, platform=body.platform
+        )
+        seeds = seed.build_seed_users_for_llm_from_sqlite(
+            conn, sample["external_user_ids"], platform=body.platform
+        )
     finally:
         conn.close()
     if not seeds:
@@ -229,13 +256,14 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
             detail="未从 SQLite 组装到任何种子用户（请确认话题下有帖子且作者存在于 users 表）",
         )
     dataset_id = f"sqlite_{uuid.uuid4().hex[:20]}"
+    rtype = str(body.platform or "twitter").strip().lower() or "twitter"
     payload = {
         "selected_topics": selected,
         "synthetic_topic_count": body.synthetic_topic_count,
         "seed_users": seeds,
         "user_target_count": body.user_target_count,
         "dataset_id": dataset_id,
-        "recsys_type": "twitter",
+        "recsys_type": rtype,
         "batch_size": int(body.llm_batch_size or 4),
         "seed_sample": int(body.llm_seed_sample or 12),
         "max_retries": int(body.llm_max_retries or 2),
@@ -293,12 +321,26 @@ async def sqlite_social_graph_bundle(body: SqliteSocialGraphBody):
 
 @router.get("/datasets", summary="List Datasets")
 async def list_datasets():
-    return {"datasets": []}
+    """从 oasis_datasets.db 按 platform 字段汇总：每个平台一条（sqlite:<platform>）。"""
+    try:
+        items = await asyncio.to_thread(DatasetService().list_persona_dataset_summaries)
+        return {"datasets": items}
+    except DatasetServiceError:
+        return {"datasets": []}
 
 
 @router.get("/datasets/{dataset_id}", summary="Get Dataset")
 async def get_dataset(dataset_id: str):
-    raise HTTPException(status_code=404, detail="Mongo 数据集已移除；请使用 Twitter + SQLite 流程")
+    try:
+        row = await asyncio.to_thread(DatasetService().get_persona_dataset_summary, dataset_id)
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail="数据集不存在或未在 SQLite 中找到（确认 oasis_datasets.db 路径与平台字段）",
+            )
+        return {"dataset": row}
+    except DatasetServiceError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/datasets/{dataset_id}/generate", summary="Generate Dataset")

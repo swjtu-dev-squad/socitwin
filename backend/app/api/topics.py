@@ -18,6 +18,7 @@ from app.models.topics import (
     TopicProfilesResponse,
     TopicReloadResult,
     TopicSimulationResponse,
+    TwitterTrendingTopicsResponse,
 )
 from app.services.simulation_service import SimulationService
 from app.services.topic_service import TopicService
@@ -60,6 +61,48 @@ async def list_topics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list topics: {exc}",
+        ) from exc
+
+
+@router.get(
+    "/twitter/trending-topics",
+    response_model=TwitterTrendingTopicsResponse,
+    summary="实时获取 X 当前热点话题",
+)
+async def get_twitter_trending_topics(
+    max_per_axis: int = Query(
+        10,
+        ge=1,
+        le=100,
+        description=(
+            "每轴（政治/经济/社会）的 max_results，等同 fetch_twitter_data 的 --max-trends"
+        ),
+    ),
+    max_age_hours: int = Query(
+        168,
+        ge=1,
+        le=720,
+        description="News 的 max_age_hours（1–720），与采集脚本一致",
+    ),
+    service: TopicService = Depends(get_topic_service),
+):
+    """
+    从 X API 拉取热点新闻标题列表，**不写入** `oasis_datasets.db`。
+
+    需在 `backend/.env` 配置 `TWITTER_BEARER_TOKEN`（与 `fetch_twitter_data.py` 相同）。
+    """
+    try:
+        return await service.fetch_live_twitter_trending_topics(
+            max_per_axis=max_per_axis,
+            max_age_hours=max_age_hours,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to fetch Twitter trending topics: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
         ) from exc
 
 

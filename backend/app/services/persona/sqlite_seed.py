@@ -8,9 +8,14 @@ from __future__ import annotations
 import random
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, Iterable, List, Optional, Set
 
-PLATFORM = "twitter"
+DEFAULT_PLATFORM = "twitter"
+
+
+def _pf(platform: Optional[str]) -> str:
+    p = (platform or DEFAULT_PLATFORM).strip().lower()
+    return p if p else DEFAULT_PLATFORM
 
 
 def _shuffle_in_place(arr: List[Any]) -> None:
@@ -27,16 +32,17 @@ def _random_sample(arr: List[str], n: int) -> List[str]:
     return copy[: min(n, len(copy))]
 
 
-def load_user_types(conn: sqlite3.Connection, ids: List[str]) -> Dict[str, str]:
+def load_user_types(conn: sqlite3.Connection, ids: List[str], *, platform: Optional[str] = None) -> Dict[str, str]:
     if not ids:
         return {}
+    pf = _pf(platform)
     ph = ",".join("?" * len(ids))
     cur = conn.execute(
         f"""SELECT external_user_id AS id,
                    lower(trim(COALESCE(user_type, 'normal'))) AS ut
             FROM users
             WHERE platform = ? AND external_user_id IN ({ph})""",
-        (PLATFORM, *ids),
+        (pf, *ids),
     )
     out: Dict[str, str] = {}
     for row in cur.fetchall():
@@ -72,8 +78,9 @@ def relax_kol_normal_in_set(chosen: List[str], types: Dict[str, str], pool: List
     return cur
 
 
-def list_recent_topics_ordered(conn: sqlite3.Connection, recent_pool: int) -> List[Dict[str, Any]]:
+def list_recent_topics_ordered(conn: sqlite3.Connection, recent_pool: int, *, platform: Optional[str] = None) -> List[Dict[str, Any]]:
     n = max(1, min(5000, int(recent_pool)))
+    pf = _pf(platform)
     cur = conn.execute(
         """
         SELECT topic_key, topic_label, last_seen_at, post_count, reply_count
@@ -82,12 +89,15 @@ def list_recent_topics_ordered(conn: sqlite3.Connection, recent_pool: int) -> Li
         ORDER BY COALESCE(last_seen_at, first_seen_at, '') DESC
         LIMIT ?
         """,
-        (PLATFORM, n),
+        (pf, n),
     )
     return [dict(row) for row in cur.fetchall()]
 
 
-def compute_multi_topic_seed_sample(conn: sqlite3.Connection, topic_keys_in: List[str], user_limit: int) -> Dict[str, Any]:
+def compute_multi_topic_seed_sample(
+    conn: sqlite3.Connection, topic_keys_in: List[str], user_limit: int, *, platform: Optional[str] = None
+) -> Dict[str, Any]:
+    pf = _pf(platform)
     n = max(1, min(2000, int(user_limit)))
     topic_keys = list(dict.fromkeys(str(k).strip() for k in topic_keys_in if str(k).strip()))
     if not topic_keys:
@@ -107,7 +117,7 @@ def compute_multi_topic_seed_sample(conn: sqlite3.Connection, topic_keys_in: Lis
           AND c.author_external_user_id IS NOT NULL
           AND TRIM(c.author_external_user_id) != ''
         """,
-        (PLATFORM, *topic_keys),
+        (pf, *topic_keys),
     ).fetchall()
 
     post_ids = list({str(r["pid"]) for r in post_rows if r["pid"]})
@@ -124,7 +134,7 @@ def compute_multi_topic_seed_sample(conn: sqlite3.Connection, topic_keys_in: Lis
     reply_author_set: Set[str] = set()
     if post_ids:
         p_ph = ",".join("?" * len(post_ids))
-        params = (PLATFORM, *post_ids, *post_ids)
+        params = (pf, *post_ids, *post_ids)
         rc = conn.execute(
             f"""
             SELECT COUNT(*) AS c
@@ -163,7 +173,7 @@ def compute_multi_topic_seed_sample(conn: sqlite3.Connection, topic_keys_in: Lis
     reply_only_authors = [a for a in reply_author_set if a not in post_author_set]
 
     candidate_pool = list(dict.fromkeys([*post_author_list, *reply_only_authors]))
-    types = load_user_types(conn, candidate_pool)
+    types = load_user_types(conn, candidate_pool, platform=pf)
     p_list = [x for x in post_author_list if x in types]
     r_list = [x for x in reply_only_authors if x in types]
 
@@ -197,7 +207,16 @@ def compute_multi_topic_seed_sample(conn: sqlite3.Connection, topic_keys_in: Lis
     }
 
 
-def fetch_content_fallback_for_author(conn: sqlite3.Connection, author_id: str, max_posts: int, max_replies: int, max_total_chars: int) -> str:
+def fetch_content_fallback_for_author(
+    conn: sqlite3.Connection,
+    author_id: str,
+    max_posts: int,
+    max_replies: int,
+    max_total_chars: int,
+    *,
+    platform: Optional[str] = None,
+) -> str:
+    pf = _pf(platform)
     post_rows = conn.execute(
         """
         SELECT COALESCE(text, '') AS t
@@ -207,7 +226,7 @@ def fetch_content_fallback_for_author(conn: sqlite3.Connection, author_id: str, 
         ORDER BY datetime(COALESCE(created_at, '')) DESC
         LIMIT ?
         """,
-        (PLATFORM, author_id, max_posts),
+        (pf, author_id, max_posts),
     ).fetchall()
     reply_rows = conn.execute(
         """
@@ -218,7 +237,7 @@ def fetch_content_fallback_for_author(conn: sqlite3.Connection, author_id: str, 
         ORDER BY datetime(COALESCE(created_at, '')) DESC
         LIMIT ?
         """,
-        (PLATFORM, author_id, max_replies),
+        (pf, author_id, max_replies),
     ).fetchall()
     parts: List[str] = []
     post_texts = [str(r["t"] or "").strip() for r in post_rows if str(r["t"] or "").strip()]
@@ -232,17 +251,24 @@ def fetch_content_fallback_for_author(conn: sqlite3.Connection, author_id: str, 
     return "\n".join(parts).strip()[:max_total_chars]
 
 
-def get_topic_labels_for_keys(conn: sqlite3.Connection, topic_keys: List[str]) -> List[Dict[str, str]]:
+def get_topic_labels_for_keys(conn: sqlite3.Connection, topic_keys: List[str], *, platform: Optional[str] = None) -> List[Dict[str, str]]:
     keys = list(dict.fromkeys(str(k).strip() for k in topic_keys if str(k).strip()))
     if not keys:
         return []
+    pf = _pf(platform)
     ph = ",".join("?" * len(keys))
-    rows = conn.execute(f"SELECT topic_key, topic_label FROM topics WHERE platform = ? AND topic_key IN ({ph})", (PLATFORM, *keys)).fetchall()
+    rows = conn.execute(
+        f"SELECT topic_key, topic_label FROM topics WHERE platform = ? AND topic_key IN ({ph})",
+        (pf, *keys),
+    ).fetchall()
     by_key = {str(r["topic_key"]): str(r["topic_label"] or r["topic_key"]) for r in rows}
     return [{"topic_key": k, "topic_label": by_key.get(k, k)} for k in keys]
 
 
-def build_seed_users_for_llm_from_sqlite(conn: sqlite3.Connection, external_user_ids: List[str]) -> List[Dict[str, Any]]:
+def build_seed_users_for_llm_from_sqlite(
+    conn: sqlite3.Connection, external_user_ids: List[str], *, platform: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    pf = _pf(platform)
     ids = list(dict.fromkeys(str(x).strip() for x in external_user_ids if str(x).strip()))
     if not ids:
         return []
@@ -254,7 +280,7 @@ def build_seed_users_for_llm_from_sqlite(conn: sqlite3.Connection, external_user
         FROM users
         WHERE platform = ? AND external_user_id IN ({ph})
         """,
-        (PLATFORM, *ids),
+        (pf, *ids),
     ).fetchall()
     seeds: List[Dict[str, Any]] = []
     for row in rows:
@@ -262,7 +288,9 @@ def build_seed_users_for_llm_from_sqlite(conn: sqlite3.Connection, external_user
         uname = str(row["username"] or "").strip() or f"user_{row['external_user_id']}"
         display = str(row["display_name"] or "").strip() or uname
         ut = "kol" if str(row["ut"] or "").strip() == "kol" else "normal"
-        description = bio or fetch_content_fallback_for_author(conn, str(row["external_user_id"]), 8, 8, 2400)
+        description = bio or fetch_content_fallback_for_author(
+            conn, str(row["external_user_id"]), 8, 8, 2400, platform=pf
+        )
         seeds.append(
             {
                 "twitter_user_id": row["external_user_id"],
