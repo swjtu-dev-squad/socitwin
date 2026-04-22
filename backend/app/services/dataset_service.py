@@ -11,8 +11,9 @@ import logging
 import math
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from app.models.simulation import AgentConfig, PlatformType
 from app.models.topics import (
@@ -439,3 +440,231 @@ class DatasetService:
         ]
 
         return topic, contents
+
+    def _utc_iso_now(self) -> str:
+        return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    @staticmethod
+    def _parse_persona_sqlite_dataset_id(dataset_id: str) -> Optional[str]:
+        """`sqlite:twitter` / `sqlite:reddit`；兼容旧版 `sqlite:reddit:日期`（只取平台名）。"""
+        if not dataset_id.startswith("sqlite:"):
+            return None
+        rest = dataset_id[len("sqlite:") :].strip()
+        if not rest:
+            return None
+        platform = rest.split(":", 1)[0].strip().lower()
+        return platform or None
+
+    def _build_persona_dataset_summary(
+        self,
+        *,
+        dataset_id: str,
+        platform: str,
+        created_at: str,
+        updated_at: str,
+        posts: int,
+        replies: int,
+        distinct_authors: int,
+        topic_count: int,
+        total_users_table: int,
+    ) -> Dict[str, Any]:
+        """Shape aligned with frontend PersonaDatasetSummary."""
+        users = max(distinct_authors, total_users_table, 0)
+        relationships = 0
+        networks = 0
+
+        def av(ok: bool) -> str:
+            return "collected" if ok else "not_collected"
+
+        counts = {
+            "users": users,
+            "posts": posts,
+            "replies": replies,
+            "relationships": relationships,
+            "networks": networks,
+            "topics": topic_count,
+        }
+        availability = {
+            "users": av(users > 0),
+            "posts": av(posts > 0),
+            "replies": av(replies > 0),
+            "relationships": av(relationships > 0),
+            "networks": av(networks > 0),
+            "topics": av(topic_count > 0),
+        }
+        status_val = "ready" if posts + replies > 0 or users > 0 else "partial"
+        return {
+            "dataset_id": dataset_id,
+            "label": f"{platform}（SQLite）",
+            "recsys_type": platform,
+            "source": "sqlite",
+            "status": status_val,
+            "ingest_status": "imported",
+            "counts": counts,
+            "availability": availability,
+            "latest_generation_id": None,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "meta": {"platform": platform},
+        }
+
+    def list_persona_dataset_summaries(self) -> List[Dict[str, Any]]:
+        """按各表中的 platform 字段汇聚：每个平台一条，`dataset_id` = sqlite:<platform>。"""
+        if not self.db_path.exists():
+            return []
+
+        out: List[Dict[str, Any]] = []
+        with self._connect() as conn:
+            plat_rows = conn.execute(
+                """
+                SELECT DISTINCT lower(trim(platform)) AS p FROM contents
+                WHERE platform IS NOT NULL AND trim(platform) != ''
+                UNION
+                SELECT DISTINCT lower(trim(platform)) FROM users
+                WHERE platform IS NOT NULL AND trim(platform) != ''
+                UNION
+                SELECT DISTINCT lower(trim(platform)) FROM topics
+                WHERE platform IS NOT NULL AND trim(platform) != ''
+                """
+            ).fetchall()
+            platforms = sorted({str(r[0]) for r in plat_rows if r[0]})
+
+            for platform in platforms:
+                topic_count = int(
+                    conn.execute(
+                        "SELECT COUNT(*) AS c FROM topics WHERE lower(trim(platform)) = ?",
+                        (platform,),
+                    ).fetchone()["c"]
+                )
+                users_table = int(
+                    conn.execute(
+                        "SELECT COUNT(*) AS c FROM users WHERE lower(trim(platform)) = ?",
+                        (platform,),
+                    ).fetchone()["c"]
+                )
+
+                agg = conn.execute(
+                    """
+                    SELECT
+                        MAX(created_at) AS last_c,
+                        SUM(CASE WHEN content_type = 'post' THEN 1 ELSE 0 END) AS posts,
+                        SUM(CASE WHEN content_type = 'reply' THEN 1 ELSE 0 END) AS replies
+                    FROM contents
+                    WHERE lower(trim(platform)) = ?
+                    """,
+                    (platform,),
+                ).fetchone()
+
+                posts = int(agg["posts"] or 0) if agg else 0
+                replies = int(agg["replies"] or 0) if agg else 0
+                last_c = agg["last_c"] if agg else None
+
+                authors_row = conn.execute(
+                    """
+                    SELECT COUNT(DISTINCT author_external_user_id) AS c
+                    FROM contents
+                    WHERE lower(trim(platform)) = ?
+                      AND author_external_user_id IS NOT NULL
+                      AND trim(author_external_user_id) != ''
+                    """,
+                    (platform,),
+                ).fetchone()
+                distinct_authors = int(authors_row["c"] if authors_row else 0)
+
+                if posts == 0 and replies == 0 and users_table == 0 and topic_count == 0:
+                    continue
+
+                ds_id = f"sqlite:{platform}"
+                ts = (
+                    str(last_c).strip()
+                    if last_c and str(last_c).strip()
+                    else self._utc_iso_now()
+                )
+                out.append(
+                    self._build_persona_dataset_summary(
+                        dataset_id=ds_id,
+                        platform=platform,
+                        created_at=ts,
+                        updated_at=ts,
+                        posts=posts,
+                        replies=replies,
+                        distinct_authors=distinct_authors,
+                        topic_count=topic_count,
+                        total_users_table=users_table,
+                    )
+                )
+
+        out.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
+        return out
+
+    def get_persona_dataset_summary(self, dataset_id: str) -> Optional[Dict[str, Any]]:
+        """GET /persona/datasets/{id}，id 为 sqlite:<platform>（与 list 一致）。"""
+        platform = self._parse_persona_sqlite_dataset_id(dataset_id)
+        if not platform:
+            return None
+        canonical_id = f"sqlite:{platform}"
+
+        if not self.db_path.exists():
+            return None
+
+        with self._connect() as conn:
+            topic_count = int(
+                conn.execute(
+                    "SELECT COUNT(*) AS c FROM topics WHERE lower(trim(platform)) = ?",
+                    (platform,),
+                ).fetchone()["c"]
+            )
+            users_table = int(
+                conn.execute(
+                    "SELECT COUNT(*) AS c FROM users WHERE lower(trim(platform)) = ?",
+                    (platform,),
+                ).fetchone()["c"]
+            )
+
+            agg = conn.execute(
+                """
+                SELECT
+                    MAX(created_at) AS last_c,
+                    SUM(CASE WHEN content_type = 'post' THEN 1 ELSE 0 END) AS posts,
+                    SUM(CASE WHEN content_type = 'reply' THEN 1 ELSE 0 END) AS replies
+                FROM contents
+                WHERE lower(trim(platform)) = ?
+                """,
+                (platform,),
+            ).fetchone()
+
+            posts = int(agg["posts"] or 0) if agg else 0
+            replies = int(agg["replies"] or 0) if agg else 0
+            last_c = agg["last_c"] if agg else None
+
+            if posts == 0 and replies == 0 and users_table == 0 and topic_count == 0:
+                return None
+
+            authors_row = conn.execute(
+                """
+                SELECT COUNT(DISTINCT author_external_user_id) AS c
+                FROM contents
+                WHERE lower(trim(platform)) = ?
+                  AND author_external_user_id IS NOT NULL
+                  AND trim(author_external_user_id) != ''
+                """,
+                (platform,),
+            ).fetchone()
+            distinct_authors = int(authors_row["c"] if authors_row else 0)
+
+            ts = (
+                str(last_c).strip()
+                if last_c and str(last_c).strip()
+                else self._utc_iso_now()
+            )
+            return self._build_persona_dataset_summary(
+                dataset_id=canonical_id,
+                platform=platform,
+                created_at=ts,
+                updated_at=ts,
+                posts=posts,
+                replies=replies,
+                distinct_authors=distinct_authors,
+                topic_count=topic_count,
+                total_users_table=users_table,
+            )
