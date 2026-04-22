@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Database,
   Network,
@@ -196,6 +196,7 @@ export default function Profiles() {
   const [subscriptionLoadingPlatform, setSubscriptionLoadingPlatform] = useState<string | null>(
     null
   )
+  const platformToggleAbortRef = useRef<AbortController | null>(null)
   const [liveSubscriptions, setLiveSubscriptions] = useState<Record<string, boolean>>({
     twitter: false,
     reddit: false,
@@ -377,7 +378,9 @@ export default function Profiles() {
 
   const loadDatasets = async (preferredDatasetId?: string) => {
     try {
-      const { datasets: items } = await listPersonaDatasets()
+      const { datasets: items } = await listPersonaDatasets({
+        signal: platformToggleAbortRef.current?.signal,
+      })
       setDatasets(items)
 
       if (preferredDatasetId) {
@@ -633,6 +636,9 @@ export default function Profiles() {
       return
     }
 
+    platformToggleAbortRef.current?.abort()
+    platformToggleAbortRef.current = new AbortController()
+
     setSubscriptionLoadingPlatform(platformId)
     try {
       setSelectedPlatform(platformId)
@@ -641,6 +647,7 @@ export default function Profiles() {
       setGeneratedGraph(null)
       setCurrentGenerationId(null)
       const items = await loadDatasets()
+      if (platformToggleAbortRef.current.signal.aborted) return
       const subscribedDatasets = items
         .filter(dataset => datasetMatchesPlatform(dataset, platformId))
         .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left))
@@ -665,7 +672,9 @@ export default function Profiles() {
         const topicRes = await getTwitterSqliteTopicsList({
           recentPool: 2000,
           platform: platformId,
+          signal: platformToggleAbortRef.current?.signal,
         })
+        if (platformToggleAbortRef.current.signal.aborted) return
         const n = topicRes.topics.length
         if (subscribedDatasets[0]?.dataset_id) {
           toast.success(
@@ -679,10 +688,12 @@ export default function Profiles() {
           )
         }
       } catch (e) {
+        if ((e as Error)?.name === 'AbortError') return
         console.error('SQLite topics (toast):', e)
         toast.error((e as Error).message || '读取本地话题失败')
       }
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return
       console.error('Load platform datasets error:', error)
       setLiveSubscriptions({
         twitter: false,
@@ -694,7 +705,9 @@ export default function Profiles() {
       setSelectedPlatform('')
       toast.error((error as Error).message || '载入数据集失败')
     } finally {
-      setSubscriptionLoadingPlatform(null)
+      if (!platformToggleAbortRef.current?.signal.aborted) {
+        setSubscriptionLoadingPlatform(null)
+      }
     }
   }
 
@@ -925,8 +938,7 @@ export default function Profiles() {
                     <p className="p-4 text-xs text-text-muted">话题加载中…</p>
                   ) : sqliteTopicRows.length === 0 ? (
                     <p className="p-4 text-xs leading-relaxed text-text-muted">
-                      暂无话题。请确认 backend/data/datasets/oasis_datasets.db 中该平台的 topics
-                      表是否有数据（platform 字段需与当前平台一致，如 twitter、reddit）。
+                      暂无话题。
                     </p>
                   ) : (
                     <ul className="divide-y divide-border-default">

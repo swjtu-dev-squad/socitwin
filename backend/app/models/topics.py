@@ -214,3 +214,30 @@ class TopicSimulationResponse(BaseModel):
     content_count: int
     profiles: List[TopicProfileItem]
     contents: List[TopicContentItem]
+
+
+# ============================================================================
+# Live trending (X News search, not persisted)
+# ============================================================================
+
+
+class TwitterTrendingTopicItem(BaseModel):
+    """单条热点新闻（与 fetch_twitter_data.fetch_trending_news_topic_rows 字段对齐）。"""
+
+    news_id: str
+    name: str
+    axis: str = Field(description="politics | economy | society 检索轴")
+    search_query: str
+    trend_rank: int
+    summary: Optional[str] = None
+    category: Optional[str] = None
+
+
+class TwitterTrendingTopicsResponse(BaseModel):
+    """GET /api/topics/twitter/trending-topics 响应。"""
+
+    success: bool
+    source: str = Field(default="x_news_search", description="数据来源：X API v2 /news/search")
+    collected_at: str
+    count: int
+    topics: List[TwitterTrendingTopicItem]

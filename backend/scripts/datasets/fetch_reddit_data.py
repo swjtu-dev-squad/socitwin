@@ -56,7 +56,17 @@ if _ENV_FILE.is_file():
     load_dotenv(_ENV_FILE, override=True)
 
 # 与 fetch_twitter_data 写入同一文件；DDL 默认值/迁移逻辑需与其保持一致
-DEFAULT_SQLITE_PATH = _PROJECT_ROOT / "data" / "datasets" / "oasis_datasets.db"
+_DEFAULT_SQLITE_PATH_FALLBACK = _PROJECT_ROOT / "data" / "datasets" / "oasis_datasets.db"
+_DEFAULT_SQLITE_PATH_ENV_KEYS = ("OASIS_DATASETS_DB", "SOCITWIN_DATASETS_DB", "SOCITWIN_SQLITE_PATH")
+_DEFAULT_SQLITE_PATH_ENV_RAW = next(
+    (str(os.environ[k]).strip() for k in _DEFAULT_SQLITE_PATH_ENV_KEYS if str(os.environ.get(k) or "").strip()),
+    "",
+)
+DEFAULT_SQLITE_PATH = (
+    Path(_DEFAULT_SQLITE_PATH_ENV_RAW).expanduser().resolve()
+    if _DEFAULT_SQLITE_PATH_ENV_RAW
+    else _DEFAULT_SQLITE_PATH_FALLBACK
+)
 _SQLITE_LEGACY_ROW_TYPE = "twitter"
 
 
@@ -1515,7 +1525,10 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--db-path",
         default=str(DEFAULT_SQLITE_PATH),
-        help=f"SQLite 数据库路径，默认 {DEFAULT_SQLITE_PATH}",
+        help=(
+            f"SQLite 数据库路径，默认 {DEFAULT_SQLITE_PATH}。也可通过环境变量覆盖："
+            + ", ".join(_DEFAULT_SQLITE_PATH_ENV_KEYS)
+        ),
     )
     return p
 
@@ -1715,6 +1728,8 @@ def _run_cli(argv: List[str]) -> int:
             fetch_options=fetch_opts,
         )
         db_path = Path(args.db_path).expanduser().resolve()
+        if db_path.exists() and db_path.is_dir():
+            raise RuntimeError(f"--db-path 指向目录而非文件: {db_path}")
         result = import_reddit_payload_to_sqlite(sqlite_payload, fetch_opts, db_path)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return 0

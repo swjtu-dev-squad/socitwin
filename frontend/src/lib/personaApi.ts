@@ -49,8 +49,10 @@ async function parseJson<T>(response: Response): Promise<T> {
   return payload as T
 }
 
-export async function listPersonaDatasets(): Promise<{ datasets: PersonaDatasetSummary[] }> {
-  const response = await fetch('/api/persona/datasets')
+export async function listPersonaDatasets(opts?: {
+  signal?: AbortSignal
+}): Promise<{ datasets: PersonaDatasetSummary[] }> {
+  const response = await fetch('/api/persona/datasets', { signal: opts?.signal })
   return parseJson(response)
 }
 
@@ -215,11 +217,14 @@ export async function getTwitterSqliteTopics(params?: { minTopics?: number; rece
 export async function getTwitterSqliteTopicsList(params?: {
   recentPool?: number
   platform?: string
+  signal?: AbortSignal
 }) {
   const query = new URLSearchParams({ format: 'list' })
   if (params?.recentPool != null) query.set('recent_pool', String(params.recentPool))
   if (params?.platform?.trim()) query.set('platform', params.platform.trim())
-  const response = await fetch(`/api/persona/twitter/sqlite-topics?${query.toString()}`)
+  const response = await fetch(`/api/persona/twitter/sqlite-topics?${query.toString()}`, {
+    signal: params?.signal,
+  })
   return parseJson<{
     status: string
     topics: TwitterSqliteTopicOption[]
