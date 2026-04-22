@@ -1,0 +1,58 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      review_level:
+        description: 'Review intensity: standard or strict'
+        required: false
+        default: 'standard'
+      llm_provider:
+        description: 'LLM provider: anthropic, openai, deepseek'
+        required: false
+        default: 'deepseek'
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    # Skip draft PRs and dependabot
+    if: ${{ !github.event.pull_request.draft && github.actor != 'dependabot[bot]' }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: .github/scripts
+        run: uv sync
+
+      - name: Run AI Review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider || 'anthropic' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          REVIEW_LEVEL: ${{ github.event.inputs.review_level || 'standard' }}
+          MAX_DIFF_LINES: '4000'
+        working-directory: .github/scripts
+        run: uv run ai_review.py

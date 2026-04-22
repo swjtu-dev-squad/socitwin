@@ -162,3 +162,7 @@ skills/
 
 # Keep skills-lock.json for version tracking (use ! to negate ignore pattern)
 # !skills-lock.json
+
+# AI review script
+.github/scripts/.venv/
+.github/scripts/uv.lock
