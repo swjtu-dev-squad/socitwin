@@ -112,7 +112,25 @@ else:
 
 目标是让人类和 AI 都能快速读懂测试结果。
 
-## 4. Phase 3: Controlled Benchmark
+## 4. Phase 3: B-Level v0 Reliability Upgrade
+
+在进入 controlled benchmark 和完整 scenario pack 之前，先把当前 `real-scenarios / real-longwindow` 收口成可解释的 `B-level v0`。
+
+建议补充：
+
+- 固定输入来源：
+  - 优先改为 `file` 或 `manual` agent profiles；
+- 固定 topic / 初始环境；
+- usable probe count；
+- skipped episode count；
+- skipped reasons；
+- action type distribution；
+- agent distribution；
+- usable probe validity gate。
+
+这一步的目标不是把 B 级做成完整 benchmark 平台，而是避免它继续停留在“随机 run 一次看看”。
+
+## 5. Phase 4: Controlled Benchmark
 
 新增小型受控 benchmark 前，需要先决定 fixture 放置位置。
 
@@ -132,7 +150,28 @@ else:
 
 第一版 controlled benchmark 的职责是提供确定性回归底座，不替代真实 simulation。它应覆盖 retrieval、rerank、agent filter、negative probe 等可控边界。
 
-## 5. Phase 4: Behavioral Scenarios
+其中应优先加入：
+
+- same-agent near-duplicate hard negatives；
+- cross-agent guardrail cases；
+- invalid persist boundary；
+- negative probes。
+
+## 6. Phase 5: B-Level v1 Scenario Packs
+
+在 `B-level v0` 和 controlled benchmark 稳定之后，再补固定 scenario packs：
+
+- `S1 stable single-topic pack`
+- `S2 similar-topic interference pack`
+- `S3 group / multi-context pack`
+
+这一阶段再考虑：
+
+- run-level / pack-level / overall 三层聚合；
+- pack 级多次运行；
+- 正式 benchmark 结果汇总。
+
+## 7. Phase 6: Behavioral Scenarios
 
 行为级 benchmark 放到第二阶段之后。
 
@@ -145,7 +184,7 @@ else:
 
 行为级场景必须按随机实验处理。不能只跑一次就把结果解释成长期记忆能力结论；至少应记录 run count、均值、波动和失败样本。
 
-## 6. Acceptance Criteria For Phase 1
+## 8. Acceptance Criteria For Phase 1
 
 Phase 1 完成时应满足：
 
@@ -156,13 +195,14 @@ Phase 1 完成时应满足：
 - real-run replay 结果能报告 usable probe count 和 skipped reason；
 - 文档与实际字段名一致。
 
-## 7. Open Decisions
+## 9. Open Decisions
 
 需要后续确认：
 
 - controlled benchmark 是否进入 CI，还是只作为手动评测入口；
 - 行为级 benchmark 是否需要人工判读或 LLM-as-judge。
 - 同一行为级场景至少跑几次才适合用于趋势汇报。
+- `B-level v0` 使用 `file` 还是 `manual` 作为固定 agent source。
 
 已确认：
 

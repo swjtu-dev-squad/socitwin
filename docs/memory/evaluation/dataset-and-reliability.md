@@ -19,9 +19,17 @@
 
 因此评测体系必须把测试分成不同稳定性层级，而不是把所有东西都当成同一种 E2E 测试。
 
-## 2. Three Evaluation Classes
+## 2. Three Evaluation Levels
 
-当前建议把长期记忆评测分成三类。
+当前建议把长期记忆评测分成三个稳定性层级。
+
+这里的 `A / B / C` 更准确地应理解为：
+
+- `A-level deterministic benchmark`
+- `B-level real-run replay benchmark`
+- `C-level stochastic behavioral benchmark`
+
+它们不是互斥类别，而是服务于不同稳定性和解释性需求的评测层。
 
 ### 2.1 Class A: Deterministic Component Benchmark
 
@@ -66,6 +74,12 @@
 
 这类测试最适合当前第一阶段主 KPI。
 
+但需要特别强调：
+
+- B 级不是开放世界随机 simulation 的一次性跑分；
+- 更合理的定位是半受控的真实 replay benchmark；
+- 它应使用真实主链，但尽量固定输入分布。
+
 ### 2.3 Class C: Stochastic Behavioral Scenario
 
 这类测试真正关心 agent 后续行为是否更连续、更一致。
@@ -92,6 +106,28 @@
 
 ## 3. Dataset Design
 
+## 3.0 Current Fact vs Target Design
+
+当前代码事实与目标设计需要分开理解。
+
+当前 `evaluation_harness.py` 中的 `real-scenarios / real-longwindow`：
+
+- 仍使用 `template` agent source；
+- 只有 agent count、step count、timeout 等粗参数；
+- 还没有固定 scenario pack；
+- 还没有 pack 级多次运行聚合；
+- 还没有 usable probe validity gate。
+
+因此：
+
+- 当前代码里已经有 B 级雏形；
+- 但文档中提到的“固定 pack、固定输入、run/pack/overall 聚合”仍属于目标设计。
+
+后续建议把 B 级拆成两步：
+
+- `B-level v0`：在现有 harness 上补固定输入、样本质量统计和有效性门槛；
+- `B-level v1`：再引入固定 scenario packs 和多次运行聚合。
+
 ## 3.1 Controlled Episode Dataset
 
 第一阶段应补一套小型 controlled dataset。
@@ -112,6 +148,13 @@
 - same-agent near-duplicate episodes；
 - cross-agent similar topic episodes；
 - invalid / non-persistable action boundary。
+
+其中需要特别强调两类 hard negatives：
+
+- same-agent near-duplicate episodes；
+- cross-agent similar topic episodes。
+
+前者更适合测试 retrieval ambiguity 与 rerank；后者更适合作为 agent filter guardrail。
 
 每条样本至少需要标注：
 
@@ -158,6 +201,61 @@
 - agent distribution。
 
 否则如果某次指标很低，很难判断是系统差，还是这次真实运行没有产生足够可测样本。
+
+### 3.2.1 B-Level Input Control
+
+B 级应尽量满足：
+
+- observation 真实；
+- `ActionEpisode` 写入实时发生；
+- retrieval / gate / prompt assembly 走真实主链；
+- 但输入分布固定设计，而不是完全开放随机。
+
+第一阶段更稳妥的选择是：
+
+- 固定 manual/file agent profiles；
+- 固定 topic seed；
+- 固定初始环境设置；
+- 固定 step count；
+- 固定 memory mode、embedding backend 和模型配置。
+
+不建议第一阶段把开放随机 template agent generation 作为 B 级正式 benchmark 入口。
+
+### 3.2.2 B-Level Scenario Packs
+
+第一阶段不必一步到位做完整 pack 系统，但目标设计应明确为少量固定 pack，而不是一个开放随机 run。
+
+推荐后续演进为三个 pack：
+
+- `S1 stable single-topic pack`
+  - 基础 exact hit / Hit@1 / MRR；
+- `S2 similar-topic interference pack`
+  - same-agent hard negatives + cross-agent guardrail；
+- `S3 group / multi-context pack`
+  - group message、thread、local context continuity。
+
+其中 `S2` 不能只做跨 agent 相似内容，还必须包含同 agent 的近似历史；否则只是在测 agent filter，而没有真正测 retrieval 歧义。
+
+### 3.2.3 B-Level Validity Gate
+
+B 级结果不能只报命中率，还必须加样本有效性门槛。
+
+每次 run 至少应记录：
+
+- persisted episode count；
+- usable probe count；
+- skipped episode count；
+- skipped reasons；
+- action type distribution；
+- agent distribution。
+
+如果 usable probe 数低于预设下限，该 run 应标记为：
+
+- `blocked`
+  或
+- `invalid_for_reporting`
+
+避免把“没有产生足够可测样本”误解释成“memory retrieval 差”。
 
 ## 3.3 Behavioral Scenario Dataset
 
@@ -299,6 +397,18 @@ negative probe 的成功条件是 gate 不打开，或不产生 retrieval。
 
 对于 Class A 和 Class B，可以使用单次结果作为回归信号，但仍应记录样本数。
 
+对于 B 级正式汇报，更推荐：
+
+- 每个固定 pack 至少跑 3 次；
+- 若波动明显，再补到 5 次；
+- 第一阶段不建议直接上 10 次以上重跑。
+
+并采用三层聚合：
+
+- run-level
+- pack-level
+- overall B-level summary
+
 ## 6. Failure Attribution
 
 当指标失败时，不应直接归因于“长期记忆差”。
@@ -326,6 +436,12 @@ negative probe 的成功条件是 gate 不打开，或不产生 retrieval。
 - Class B 的 real-run episode replay 作为真实系统主 KPI 来源；
 - Class C 的 behavioral scenario 暂时只作为观察和后续设计，不作为硬门槛。
 
+更具体地说：
+
+- 第一阶段先实现 `B-level v0`，而不是直接做完整 `B-level v1` pack 平台；
+- `B-level v0` 的重点是固定输入、补样本质量统计、补 validity gate；
+- pack 设计和多次运行聚合作为后续增强。
+
 第一阶段最小落地顺序：
 
 1. 先完成 `summary.json` 的 `memory_kpis` 聚合。
@@ -342,3 +458,24 @@ negative probe 的成功条件是 gate 不打开，或不产生 retrieval。
 - 第一版 controlled dataset 是手写 JSON，还是用 Python factory 生成；
 - 行为级场景是否采用人工判读，还是后续接入 LLM-as-judge；
 - 同一行为场景至少跑几次才足够汇报趋势。
+
+## 9. External Benchmark References
+
+外部 benchmark 更适合作为方法论来源，而不是直接照抄的数据集。
+
+当前最有价值的借鉴点是：
+
+- `LoCoMo / LongMemEval`
+  - 提醒长期记忆应按能力维度拆分，而不是只做 fact lookup；
+- `MemoryArena`
+  - 强调记忆与后续行动耦合，提醒 B 级 exact hit 不是最终价值证明；
+- `CRAG / BRIGHT / MIRAGE`
+  - 提供 retrieval 难度设计、hard negatives、组件拆分的思路；
+- `LongBench / RULER`
+  - 提供后续长窗口和高压压力测试的思路。
+
+不应直接照搬的部分是：
+
+- 通用 QA-RAG 的数据集格式；
+- 以 assistant 对话为中心的任务定义；
+- 把 long-context benchmark 直接当作 long-term memory benchmark。

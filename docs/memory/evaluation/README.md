@@ -67,6 +67,7 @@
 - 把 `real-longwindow` 的 recalled -> injected 统计整理成可读指标；
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
 - 明确区分确定性组件测试、真实运行 episode 回放和随机行为级场景，避免把一次真实模拟结果当成最终结论。
+- 先把当前真实 replay 收口成 `B-level v0`，再演进到固定 scenario packs 的 `B-level v1`。
 
 这能先回答组会最关心的问题：
 

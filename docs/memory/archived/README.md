@@ -56,6 +56,8 @@
 
 保留的讨论材料包括：
 
+- [b-level-real-run-replay-design.md](./evaluation/b-level-real-run-replay-design.md)
+- [external-benchmark-survey-for-memory-eval.md](./evaluation/external-benchmark-survey-for-memory-eval.md)
 - [socitwin-memory-metrics-brief.md](./evaluation/socitwin-memory-metrics-brief.md)
 
 ## 使用规则

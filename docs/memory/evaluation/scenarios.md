@@ -34,6 +34,8 @@
 - episode 分布不可完全控制；
 - 不适合作为唯一回归集。
 
+当前代码里的 `real-scenarios` 属于这一层的雏形，但还不是完整的固定 scenario pack benchmark。
+
 ### 1.2 Controlled Episode Benchmark
 
 流程：
@@ -54,6 +56,13 @@
 - 必须使用当前真实 `ActionEpisode` payload 结构；
 - 不能引入当前系统不存在的理想字段；
 - 不能替代真实 simulation，只能作为稳定回归补充。
+
+这里应优先包含：
+
+- same-agent near-duplicate hard negatives；
+- cross-agent similar-topic guardrail cases；
+- negative probes；
+- invalid / non-persistable 边界。
 
 ### 1.3 Behavioral Scenario Runs
 
@@ -80,6 +89,18 @@
 | `VAL-RCL-08` | 真实行为连续性 recall probe | 检查 gate + retrieval |
 | `VAL-RCL-09` | 空 observation recall suppression | 检查 false trigger |
 | `VAL-RCL-10` | 长窗口真实 recall 注入 | 检查 injected trace |
+
+这些是当前代码里已经存在的事实场景，不等于 B 级目标设计已经实现为固定 scenario packs。
+
+## 2.1 B-Level Evolution
+
+当前更稳妥的路线是：
+
+- `B-level v0`
+  - 继续复用现有 `real-scenarios / real-longwindow`；
+  - 补固定输入、usable probe 统计、validity gate。
+- `B-level v1`
+  - 再引入固定 scenario packs 和多次运行聚合。
 
 ## 3. New Scenario Candidates
 
@@ -148,6 +169,8 @@
 - same-agent top-k ratio；
 - exact episode hit。
 
+同时需要补 same-agent near-duplicate cases；否则无法充分测试“候选能否区分相似但不同的历史事件”。
+
 ## 4. Scenario Priority
 
 第一阶段优先级：
@@ -157,6 +180,12 @@
 3. 空 observation false trigger。
 4. 长窗口 injected trace。
 5. persistable / invalid persist 边界。
+
+如果进入 B 级 v1，建议按下面三个 pack 扩展：
+
+- `S1 stable single-topic pack`
+- `S2 similar-topic interference pack`
+- `S3 group / multi-context pack`
 
 第二阶段再补：
 
