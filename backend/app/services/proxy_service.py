@@ -270,6 +270,7 @@ class BaiduSentimentService:
         if self._access_token and now < self._token_expires_at:
             return self._access_token
 
+        response_text = ""
         try:
             response = await self._client.get(
                 BAIDU_TOKEN_URL,
@@ -280,11 +281,12 @@ class BaiduSentimentService:
                 },
                 headers={"Accept": "application/json"},
             )
+            response_text = response.text
             token_result = response.json()
         except httpx.RequestError as exc:
             raise HTTPException(status_code=502, detail=f"Baidu token request failed: {exc}") from exc
         except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=502, detail=f"Invalid Baidu token response: {response.text}") from exc
+            raise HTTPException(status_code=502, detail=f"Invalid Baidu token response: {response_text}") from exc
 
         access_token = token_result.get("access_token")
         if not access_token:
