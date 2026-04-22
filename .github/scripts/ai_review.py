@@ -29,7 +29,7 @@ PROVIDERS = {
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-reasoner",
     },
     "deepseek-v3": {
         "api_key_env": "DEEPSEEK_API_KEY",
