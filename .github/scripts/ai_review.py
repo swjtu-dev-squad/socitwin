@@ -32,7 +32,7 @@ PROVIDERS = {
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-reasoner",
+        "model": "deepseek-chat",  # 使用 deepseek-chat 而非 deepseek-reasoner，前者支持 JSON 模式
     },
     "deepseek-v3": {
         "api_key_env": "DEEPSEEK_API_KEY",
@@ -307,27 +307,32 @@ def _call_anthropic(api_key: str, prompt: str) -> dict:
 def _call_openai_compatible(api_key: str, prompt: str) -> dict:
     global last_llm_response
     cfg = PROVIDERS[LLM_PROVIDER]
+    payload = {
+        "model": cfg["model"],
+        "max_tokens": 4096,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+    }
+    # 使用 JSON 模式强制输出有效 JSON（DeepSeek 和 OpenAI 都支持）
+    if LLM_PROVIDER in ("deepseek", "deepseek-v3", "openai"):
+        payload["response_format"] = {"type": "json_object"}
+
     r = httpx.post(
         f"{cfg['base_url']}/chat/completions",
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
-        json={
-            "model": cfg["model"],
-            "max_tokens": 4096,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-        },
+        json=payload,
         timeout=120,
     )
     r.raise_for_status()
     text = r.json()["choices"][0]["message"]["content"]
     last_llm_response = text
     try:
-        return _parse_llm_json(text)
+        return json.loads(text)  # JSON 模式保证输出纯 JSON，无需额外解析
     except json.JSONDecodeError as e:
         print(f"JSON 解析失败，原始响应:", file=sys.stderr)
         print(text[:1000] + ("..." if len(text) > 1000 else ""), file=sys.stderr)
