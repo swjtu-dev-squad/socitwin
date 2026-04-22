@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       review_level:
-        description: 'Review intensity: standard or strict'
+        description: '审查强度: standard（标准）或 strict（严格）'
         required: false
         default: 'standard'
       llm_provider:
-        description: 'LLM provider: anthropic, openai, deepseek'
+        description: 'LLM 提供商: anthropic, openai, deepseek, deepseek-v3'
         required: false
         default: 'deepseek'
 

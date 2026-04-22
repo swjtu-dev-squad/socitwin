@@ -31,6 +31,11 @@ PROVIDERS = {
         "base_url": "https://api.deepseek.com/v1",
         "model": "deepseek-chat",
     },
+    "deepseek-v3": {
+        "api_key_env": "DEEPSEEK_API_KEY",
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-v3",
+    },
 }
 
 
@@ -84,7 +89,7 @@ def post_review(body: str, comments: list[dict]):
         # Fallback: post as a single PR comment
         fallback = body
         if comments:
-            fallback += "\n\n---\n### Inline Comments\n"
+            fallback += "\n\n---\n### 行内评论\n"
             for c in comments:
                 fallback += f"\n**`{c['path']}:{c.get('line', '?')}`** — {c['body']}\n"
         GH.post(
@@ -97,65 +102,65 @@ def post_review(body: str, comments: list[dict]):
 # ── LLM helpers ────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """\
-You are a senior code reviewer for the socitwin project — a social media simulation platform
-with a Python/FastAPI backend (async, Pydantic, SQLite, CAMEL-AI/OASIS for LLM integration)
-and a React/TypeScript frontend (Vite, Tailwind, D3.js, Zustand, Socket.io).
+你是 socitwin 项目的高级代码审查员 — 这是一个社交媒体模拟平台
+后端采用 Python/FastAPI (async, Pydantic, SQLite, CAMEL-AI/OASIS 用于 LLM 集成)
+前端采用 React/TypeScript (Vite, Tailwind, D3.js, Zustand, Socket.io)。
 
-Review the PR diff below. Respond with a JSON object having exactly these keys:
+审查以下 PR diff。请返回一个 JSON 对象，格式如下：
 
 {
-  "summary": "1-3 sentence overall assessment",
+  "summary": "1-3 句话的总体评价",
   "comments": [
     {
       "path": "relative/file/path.py",
       "line": 42,
       "side": "RIGHT",
-      "body": "markdown comment body"
+      "body": "markdown 格式的评论内容"
     }
   ]
 }
 
-## Review severity levels
+## 审查严重级别
 
-Each comment must start with one of these markers:
-- 🔴 **Critical** — Security holes, data loss, crashes, injection, hardcoded secrets
-- ⚠️ **Warning** — Logic errors, resource leaks, missing validation, race conditions
-- 💡 **Suggestion** — Naming, readability, testability, documentation, minor improvements
-- ✅ **Looks Good** — Notable good patterns worth highlighting
+每条评论必须以以下标记之一开头：
+- 🔴 **Critical** — 安全漏洞、数据丢失、崩溃、注入攻击、硬编码密钥
+- ⚠️ **Warning** — 逻辑错误、资源泄漏、缺失校验、竞态条件
+- 💡 **Suggestion** — 命名规范、可读性、可测试性、文档建议、小改进
+- ✅ **Looks Good** — 值得肯定的良好实践
 
-## Project-specific checks
+## 项目专项检查
 
-Backend (Python/FastAPI):
-- Route functions must have error handling
-- Database operations must use parameterized queries / ORM
-- LLM API calls must have timeout + retry
-- Pydantic schemas must validate input
-- Async functions must not mix blocking I/O
+后端 (Python/FastAPI)：
+- 路由函数必须有异常处理
+- 数据库操作必须使用参数化查询 / ORM
+- LLM API 调用必须有超时和重试机制
+- Pydantic schema 必须校验输入
+- 异步函数不能混用阻塞 I/O
 
-Frontend (React/TypeScript):
-- API calls need error boundary handling
-- Watch for memory leaks (unsubscribed listeners, dangling intervals)
-- No hardcoded secrets or console.log with sensitive data
-- Proper TypeScript typing (avoid `any`)
+前端 (React/TypeScript)：
+- API 调用需要错误边界处理
+- 注意内存泄漏（未清理的监听器、定时器）
+- 不能硬编码密钥或用 console.log 输出敏感数据
+- 正确的 TypeScript 类型（避免使用 `any`）
 
-General:
-- New code should include tests
-- Config files (.env, lock files) should not be changed without reason
-- PR should reference related issues
+通用：
+- 新增代码应包含测试
+- 配置文件（.env, lock 文件）不应无故修改
+- PR 应关联相关 issue
 
-## Rules
-- Be concise. Each comment: max 6 lines.
-- Only comment on lines present in the diff. Use RIGHT side line numbers.
-- Skip generated files, lock files, and vendored code.
-- If the diff is clean, return an empty comments array and a positive summary.
-- Output ONLY the JSON object, nothing else.
+## 规则
+- 简洁明了。每条评论最多 6 行。
+- 只评论 diff 中出现的行。使用 RIGHT 侧行号。
+- 跳过生成文件、lock 文件和第三方代码。
+- 如果 diff 很干净，返回空的 comments 数组和正面评价的 summary。
+- 只输出 JSON 对象，不要输出其他内容。
 """
 
 
 def build_prompt(diff: str, extra_context: str) -> str:
-    level_hint = "Be thorough and strict — flag even minor issues." if REVIEW_LEVEL == "strict" else "Focus on significant issues. Skip nitpicks."
+    level_hint = "严格模式 — 标记所有问题，包括小问题。" if REVIEW_LEVEL == "strict" else "标准模式 — 重点关注显著问题，忽略吹毛求疵。"
     return f"""\
-Review level: {REVIEW_LEVEL}. {level_hint}
+审查强度: {REVIEW_LEVEL}。{level_hint}
 
 ## PR Diff
 ```diff
@@ -192,12 +197,12 @@ def _get_api_key(provider: str) -> str:
 
 def call_llm(prompt: str) -> dict:
     if LLM_PROVIDER not in PROVIDERS:
-        return {"summary": f"⚠️ Unknown LLM_PROVIDER `{LLM_PROVIDER}`. Choose from: {', '.join(PROVIDERS)}", "comments": []}
+        return {"summary": f"⚠️ 未知的 LLM_PROVIDER `{LLM_PROVIDER}`。可选: {', '.join(PROVIDERS)}", "comments": []}
 
     api_key = _get_api_key(LLM_PROVIDER)
     if not api_key:
         env_name = PROVIDERS[LLM_PROVIDER]["api_key_env"]
-        return {"summary": f"⚠️ {env_name} not configured. Skipping AI review.", "comments": []}
+        return {"summary": f"⚠️ 未配置 {env_name}。跳过 AI 审查。", "comments": []}
 
     if LLM_PROVIDER == "anthropic":
         return _call_anthropic(api_key, prompt)
@@ -251,11 +256,11 @@ def _call_openai_compatible(api_key: str, prompt: str) -> dict:
 # ── Main flow ──────────────────────────────────────────────────
 
 def main():
-    print(f"Reviewing PR #{PR_NUMBER} in {REPO} (provider: {LLM_PROVIDER}, level: {REVIEW_LEVEL})")
+    print(f"正在审查 PR #{PR_NUMBER} in {REPO} (provider: {LLM_PROVIDER}, level: {REVIEW_LEVEL})")
 
     diff = get_pr_diff()
     if not diff.strip():
-        print("Empty diff, nothing to review.")
+        print("Diff 为空，无需审查。")
         return
 
     # Build extra context from changed files
@@ -271,32 +276,32 @@ def main():
         and "vendor" not in f["filename"]
     ]
     if reviewable:
-        ext_context = "## Changed files\n"
+        ext_context = "## 变更文件\n"
         for f in reviewable:
             ext_context += f"- `{f['filename']}` (+{f['additions']} -{f['deletions']})\n"
 
-    print(f"Diff: {len(diff.splitlines())} lines, {len(reviewable)} reviewable files")
+    print(f"Diff: {len(diff.splitlines())} 行, {len(reviewable)} 个可审查文件")
 
     chunks = chunk_diff(diff)
     all_comments: list[dict] = []
     summary_parts: list[str] = []
 
     for i, chunk in enumerate(chunks):
-        print(f"Reviewing chunk {i + 1}/{len(chunks)}...")
+        print(f"正在审查第 {i + 1}/{len(chunks)} 块...")
         ctx = ext_context if i == 0 else ""
         prompt = build_prompt(chunk, ctx)
         try:
             result = call_llm(prompt)
         except Exception as e:
-            print(f"LLM call failed for chunk {i + 1}: {e}", file=sys.stderr)
-            summary_parts.append(f"⚠️ Chunk {i + 1} review failed: {e}")
+            print(f"第 {i + 1} 块 LLM 调用失败: {e}", file=sys.stderr)
+            summary_parts.append(f"⚠️ 第 {i + 1} 块审查失败: {e}")
             continue
 
         summary_parts.append(result.get("summary", ""))
         all_comments.extend(result.get("comments", []))
 
     if not all_comments and not summary_parts:
-        print("No review output.")
+        print("无审查输出。")
         return
 
     # Validate comment positions against changed files
@@ -307,14 +312,14 @@ def main():
     ]
     skipped = len(all_comments) - len(valid_comments)
     if skipped:
-        print(f"Skipped {skipped} comments with invalid file paths")
+        print(f"跳过 {skipped} 条文件路径无效的评论")
 
     summary = "\n\n".join(s for s in summary_parts if s)
     # Prepend metadata header
-    header = f"## 🤖 AI Code Review (`{LLM_PROVIDER}` · `{REVIEW_LEVEL}`)\n\n"
+    header = f"## 🤖 AI 代码审查 (`{LLM_PROVIDER}` · `{REVIEW_LEVEL}`)\n\n"
     body = header + summary
     if chunks:
-        body += f"\n\n_Reviewed in {len(chunks)} chunk(s). {len(valid_comments)} finding(s)._"
+        body += f"\n\n_分 {len(chunks)} 个块审查。共 {len(valid_comments)} 条发现。_"
 
     post_review(body, valid_comments)
 
