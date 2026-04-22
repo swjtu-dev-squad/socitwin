@@ -88,7 +88,7 @@ jobs:
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
           MAX_STEPS: ${{ github.event.inputs.max_steps || '10' }}
         run: |
-          ssh -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST << ENDSSH
             set -e
 
             echo "========================================="
