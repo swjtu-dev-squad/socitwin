@@ -49,7 +49,7 @@ def _gh_client() -> httpx.Client:
             "Authorization": f"Bearer {TOKEN}",
             "Accept": "application/vnd.github.v3+json",
         },
-        timeout=30,
+        timeout=60,  # 增加到 60 秒，避免获取大 diff 时超时
     )
 
 
@@ -338,11 +338,14 @@ def _call_openai_compatible(api_key: str, prompt: str) -> dict:
 
 def main():
     print(f"正在审查 PR #{PR_NUMBER} in {REPO} (provider: {LLM_PROVIDER}, level: {REVIEW_LEVEL})")
+    print("正在获取 PR diff...", flush=True)
 
     diff = get_pr_diff()
     if not diff.strip():
         print("Diff 为空，无需审查。")
         return
+
+    print(f"Diff 获取成功，共 {len(diff.splitlines())} 行", flush=True)
 
     # Build extra context from changed files
     changed = get_changed_files()
