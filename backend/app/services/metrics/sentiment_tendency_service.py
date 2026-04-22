@@ -70,7 +70,7 @@ class SentimentTendencyService:
             positive_count=positive_count,
             negative_count=negative_count,
             neutral_count=neutral_count,
-            analyzed_post_count=len(posts),
+            analyzed_post_count=len(analyzed_posts),
             non_neutral_count=non_neutral_count,
             last_post_id=last_post_id,
             posts=analyzed_posts,

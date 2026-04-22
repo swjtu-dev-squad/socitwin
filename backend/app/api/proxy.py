@@ -19,7 +19,7 @@ async def list_models():
 
 @router.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(request: ChatCompletionRequest):
-    """Proxy chat completions to Ollama and fall back to local sentiment analysis."""
+    """Handle OpenAI-compatible chat completions via the configured proxy service."""
     logger.info("Received proxy request for model: %s", request.model)
     return await proxy_service.chat_completions(request)
 

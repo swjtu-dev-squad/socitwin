@@ -164,11 +164,12 @@ class MetricsManager:
             import asyncio
             logger.info("Loading latest metrics from database into cache...")
 
-            # Load all three metrics in parallel
+            # Load all persisted metrics in parallel
             tasks = [
                 self._load_metric_to_cache('propagation'),
                 self._load_metric_to_cache('polarization'),
                 self._load_metric_to_cache('herd_effect'),
+                self._load_metric_to_cache('sentiment_tendency'),
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -176,11 +177,13 @@ class MetricsManager:
             loaded_count = 0
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    logger.warning(f"Failed to load {['propagation', 'polarization', 'herd_effect'][i]}: {result}")
+                    logger.warning(
+                        f"Failed to load {['propagation', 'polarization', 'herd_effect', 'sentiment_tendency'][i]}: {result}"
+                    )
                 elif result:
                     loaded_count += 1
 
-            logger.info(f"Loaded {loaded_count}/3 metrics from database into cache")
+            logger.info(f"Loaded {loaded_count}/4 metrics from database into cache")
 
         except Exception as e:
             logger.warning(f"Failed to load metrics from database: {e}")
@@ -205,6 +208,9 @@ class MetricsManager:
                 elif metric_type == 'herd_effect':
                     from app.models.metrics import HerdEffectMetrics
                     metric_obj = HerdEffectMetrics(**metric_data)
+                elif metric_type == 'sentiment_tendency':
+                    from app.models.metrics import SentimentTendencyMetrics
+                    metric_obj = SentimentTendencyMetrics(**metric_data)
                 else:
                     logger.warning(f"Unknown metric type: {metric_type}")
                     return False
