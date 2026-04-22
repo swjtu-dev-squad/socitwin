@@ -85,7 +85,7 @@ def post_review(body: str, comments: list[dict]):
     if r.status_code in (200, 201):
         print(f"Review posted ({len(comments)} inline comments)")
     else:
-        print(f"Failed to post review: {r.status_code} {r.text}", file=sys.stderr)
+        print(f"Failed to post review: HTTP {r.status_code}", file=sys.stderr)
         # Fallback: post as a single PR comment
         fallback = body
         if comments:
@@ -293,8 +293,11 @@ def main():
         try:
             result = call_llm(prompt)
         except Exception as e:
-            print(f"第 {i + 1} 块 LLM 调用失败: {e}", file=sys.stderr)
-            summary_parts.append(f"⚠️ 第 {i + 1} 块审查失败: {e}")
+            exc_name = type(e).__name__
+            http_status = getattr(getattr(e, 'response', None), 'status_code', None)
+            status_str = f" HTTP {http_status}" if http_status else ""
+            print(f"第 {i + 1} 块 LLM 调用失败: {exc_name}{status_str}", file=sys.stderr)
+            summary_parts.append(f"⚠️ 第 {i + 1} 块审查失败: {exc_name}{status_str}")
             continue
 
         summary_parts.append(result.get("summary", ""))
