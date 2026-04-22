@@ -937,9 +937,7 @@ export default function Profiles() {
                   {sqliteTopicsLoading ? (
                     <p className="p-4 text-xs text-text-muted">话题加载中…</p>
                   ) : sqliteTopicRows.length === 0 ? (
-                    <p className="p-4 text-xs leading-relaxed text-text-muted">
-                      暂无话题。
-                    </p>
+                    <p className="p-4 text-xs leading-relaxed text-text-muted">暂无话题。</p>
                   ) : (
                     <ul className="divide-y divide-border-default">
                       {sqliteTopicRows.map(row => {

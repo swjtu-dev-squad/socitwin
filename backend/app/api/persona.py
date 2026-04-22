@@ -5,12 +5,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 import uuid
 from typing import Any, Dict, List, Optional
 
-import anyio
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
@@ -323,7 +323,7 @@ async def sqlite_social_graph_bundle(body: SqliteSocialGraphBody):
 async def list_datasets():
     """从 oasis_datasets.db 按 platform 字段汇总：每个平台一条（sqlite:<platform>）。"""
     try:
-        items = await anyio.to_thread.run_sync(DatasetService().list_persona_dataset_summaries)
+        items = await asyncio.to_thread(DatasetService().list_persona_dataset_summaries)
         return {"datasets": items}
     except DatasetServiceError:
         return {"datasets": []}
@@ -332,7 +332,7 @@ async def list_datasets():
 @router.get("/datasets/{dataset_id}", summary="Get Dataset")
 async def get_dataset(dataset_id: str):
     try:
-        row = await anyio.to_thread.run_sync(DatasetService().get_persona_dataset_summary, dataset_id)
+        row = await asyncio.to_thread(DatasetService().get_persona_dataset_summary, dataset_id)
         if not row:
             raise HTTPException(
                 status_code=404,
