@@ -238,4 +238,3 @@ def build_social_graph_bundle(
     }
     _write_bundle_json_files(bundle)
     return bundle
-

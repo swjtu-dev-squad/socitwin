@@ -9,6 +9,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.core.simulation_events import simulation_event_bus
 from app.models.simulation import PlatformType
 from app.models.topics import (
     TopicActivationResult,
@@ -165,7 +166,18 @@ async def activate_topic(
                 error="SIMULATION_NOT_READY",
             )
 
-        return await topic_service.activate_topic(topic_id, platform=platform)
+        result = await topic_service.activate_topic(topic_id, platform=platform)
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_topic_activated",
+                {
+                    "topic_id": result.topic_id,
+                    "initial_post_created": result.initial_post_created,
+                    "agents_refreshed": result.agents_refreshed,
+                },
+            )
+        return result
+
     except Exception as exc:
         logger.error("Failed to activate topic '%s': %s", topic_id, exc)
         return TopicActivationResult(

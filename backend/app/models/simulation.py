@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.memory.config import MemoryMode
 from app.models.metrics import MetricsSummary
 
 # ============================================================================
@@ -139,7 +140,9 @@ class SimulationConfig(BaseModel):
     """模拟配置"""
     platform: PlatformType = PlatformType.TWITTER
     agent_count: int = Field(default=5, ge=1, le=1000, description="智能体数量，必须在1-1000之间")
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
     llm_config: ModelConfig = Field(default_factory=ModelConfig)
+    context_token_limit: Optional[int] = Field(default=None, ge=1, le=512000)
     recsys_type: str = "twitter"
     agent_source: AgentSource = Field(default_factory=AgentSource)
 
@@ -158,6 +161,13 @@ class SimulationConfig(BaseModel):
     def normalize_platform(cls, v):
         if isinstance(v, str):
             return PlatformType(v.lower())
+        return v
+
+    @field_validator("memory_mode", mode="before")
+    @classmethod
+    def normalize_memory_mode(cls, v):
+        if isinstance(v, str):
+            return MemoryMode(v.lower())
         return v
 
 
@@ -205,6 +215,10 @@ class SimulationStatus(BaseModel):
     total_steps: int
     agent_count: int
     platform: PlatformType
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
+    context_token_limit: Optional[int] = None
+    generation_max_tokens: Optional[int] = None
+    model_backend_token_limit: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     background_task_id: Optional[str] = None
@@ -223,6 +237,60 @@ class SimulationStatus(BaseModel):
 
     # 错误信息
     error_message: Optional[str] = None
+
+
+class MemoryDebugAgentStatus(BaseModel):
+    """单个智能体的 memory 调试摘要。"""
+
+    agent_id: int
+    user_name: str
+    name: str
+    memory_runtime: str
+    memory_supported: bool = False
+    recent_retained_step_count: int = 0
+    recent_retained_step_ids: List[int] = Field(default_factory=list)
+    compressed_action_block_count: int = 0
+    compressed_heartbeat_count: int = 0
+    compressed_retained_step_count: int = 0
+    total_retained_step_count: int = 0
+    last_observation_stage: str = ""
+    last_observation_prompt_tokens: int = 0
+    last_prompt_tokens: int = 0
+    last_recall_gate: Optional[bool] = None
+    last_recall_gate_reason_flags: Dict[str, bool] = Field(default_factory=dict)
+    last_recall_query_source: str = ""
+    last_recall_query_text: str = ""
+    last_recalled_count: int = 0
+    last_injected_count: int = 0
+    last_recalled_step_ids: List[int] = Field(default_factory=list)
+    last_injected_step_ids: List[int] = Field(default_factory=list)
+    last_recall_reason_trace: str = ""
+    last_recall_overlap_filtered_count: int = 0
+    last_recall_overlap_filtered_step_ids: List[int] = Field(default_factory=list)
+    last_recall_selection_stop_reason: str = ""
+    last_runtime_failure_category: str = ""
+    last_runtime_failure_stage: str = ""
+    last_prompt_budget_status: str = ""
+    last_selected_recent_step_ids: List[int] = Field(default_factory=list)
+    last_selected_compressed_keys: List[str] = Field(default_factory=list)
+    last_selected_recall_step_ids: List[int] = Field(default_factory=list)
+    last_recall_candidate_items: List[Dict[str, Any]] = Field(default_factory=list)
+    last_selected_recall_items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class MemoryDebugStatus(BaseModel):
+    """memory monitor/debug 接口响应。"""
+
+    state: SimulationState
+    memory_mode: MemoryMode = MemoryMode.UPSTREAM
+    current_step: int = 0
+    total_steps: int = 0
+    agent_count: int = 0
+    platform: PlatformType
+    context_token_limit: Optional[int] = None
+    generation_max_tokens: Optional[int] = None
+    longterm_enabled: bool = False
+    agents: List[MemoryDebugAgentStatus] = Field(default_factory=list)
 
 
 class ConfigResult(BaseModel):
@@ -324,4 +392,3 @@ try:
 except ImportError:
     # Metrics module not imported yet, will be resolved when metrics is imported
     pass
-

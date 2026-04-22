@@ -4,18 +4,22 @@ OASIS 模拟 API 端点
 提供完整的 REST API 来控制和管理 OASIS 多智能体社交网络模拟。
 """
 
+import json
 import logging
 import os
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.core.dependencies import get_simulation_service_dependency
+from app.core.simulation_events import simulation_event_bus
+from app.models.agent_monitor import AgentDetailResponse, AgentMonitorResponse
 from app.models.simulation import (
     ConfigResult,
     LogFilters,
     LogResult,
+    MemoryDebugStatus,
     SimulationConfig,
     SimulationStatus,
     StatusResult,
@@ -23,6 +27,7 @@ from app.models.simulation import (
     StepResult,
     StepType,
 )
+from app.services.agent_monitor_service import AgentMonitorService
 from app.services.simulation_service import SimulationService
 
 logger = logging.getLogger(__name__)
@@ -65,6 +70,46 @@ async def get_status(
     except Exception as e:
         logger.error(f"Failed to get status: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+
+@router.get("/memory", response_model=MemoryDebugStatus)
+async def get_memory_debug_status(
+    service: SimulationService = Depends(get_simulation_service_dependency)
+):
+    """
+    获取独立的 memory monitor/debug 摘要。
+
+    Returns:
+        MemoryDebugStatus: 当前 memory 运行摘要
+    """
+    try:
+        return await service.get_memory_debug_status()
+    except Exception as e:
+        logger.error(f"Failed to get memory debug status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get memory debug status: {str(e)}",
+        )
+
+
+@router.get("/events")
+async def stream_simulation_events():
+    """Stream coarse simulation lifecycle events for monitor refreshes."""
+
+    async def event_stream():
+        async for event in simulation_event_bus.subscribe():
+            event_type = event.get("type", "simulation_changed")
+            yield f"event: {event_type}\n"
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/health")
@@ -131,7 +176,18 @@ async def update_config(
     """
     try:
         logger.info(f"Updating simulation config: {config.platform.value}, {config.agent_count} agents")
-        return await service.configure(config)
+        result = await service.configure(config)
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_configured",
+                {
+                    "simulation_id": result.simulation_id,
+                    "agent_count": result.agents_created,
+                    "platform": config.platform.value,
+                    "memory_mode": config.memory_mode.value,
+                },
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to update config: {e}")
         return ConfigResult(
@@ -205,7 +261,16 @@ async def execute_step(
             )
         else:
             # 同步执行
-            return await service.step(request)
+            result = await service.step(request)
+            if result.success:
+                await simulation_event_bus.publish(
+                    "simulation_step_completed",
+                    {
+                        "step_executed": result.step_executed,
+                        "actions_taken": result.actions_taken,
+                    },
+                )
+            return result
 
     except Exception as e:
         logger.error(f"Failed to execute step: {e}")
@@ -261,7 +326,13 @@ async def pause_simulation(
         }
     """
     try:
-        return await service.pause()
+        result = await service.pause()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_state_changed",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to pause simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to pause: {str(e)}")
@@ -289,7 +360,13 @@ async def resume_simulation(
         }
     """
     try:
-        return await service.resume()
+        result = await service.resume()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_state_changed",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to resume simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to resume: {str(e)}")
@@ -317,7 +394,13 @@ async def reset_simulation(
         }
     """
     try:
-        return await service.reset()
+        result = await service.reset()
+        if result.success:
+            await simulation_event_bus.publish(
+                "simulation_reset",
+                {"state": result.current_state.value},
+            )
+        return result
     except Exception as e:
         logger.error(f"Failed to reset simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to reset: {str(e)}")
@@ -461,6 +544,48 @@ async def get_agents(
     except Exception as e:
         logger.error(f"Failed to get agents: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get agents: {str(e)}")
+
+
+@router.get("/agents/monitor", response_model=AgentMonitorResponse)
+async def get_agent_monitor(
+    service: SimulationService = Depends(get_simulation_service_dependency)
+):
+    """
+    获取社交网络监控页首屏数据。
+
+    该接口按新仓库 FastAPI 架构聚合 simulation status、SQLite 行为数据和
+    memory debug 摘要，避免前端继续从 /status 中推断页面字段。
+    """
+    try:
+        monitor_service = AgentMonitorService(service)
+        return await monitor_service.get_monitor()
+    except Exception as e:
+        logger.error(f"Failed to get agent monitor: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent monitor: {str(e)}",
+        )
+
+
+@router.get("/agents/{agent_id}/monitor", response_model=AgentDetailResponse)
+async def get_agent_monitor_detail(
+    agent_id: int,
+    service: SimulationService = Depends(get_simulation_service_dependency),
+):
+    """
+    获取社交网络监控页右侧详情数据。
+    """
+    try:
+        monitor_service = AgentMonitorService(service)
+        return await monitor_service.get_detail(agent_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    except Exception as e:
+        logger.error(f"Failed to get agent monitor detail: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get agent monitor detail: {str(e)}",
+        )
 
 
 @router.get("/agents/{agent_id}")

@@ -309,4 +309,3 @@ def open_readonly(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30.0)
     conn.row_factory = sqlite3.Row
     return conn
-

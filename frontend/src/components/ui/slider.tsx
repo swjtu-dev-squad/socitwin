@@ -16,6 +16,9 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
       onValueChange?.(newValue)
     }
 
+    // 计算进度百分比
+    const progress = ((value[0] - min) / (max - min)) * 100
+
     return (
       <input
         type="range"
@@ -24,8 +27,13 @@ export const Slider = React.forwardRef<HTMLInputElement, SliderProps>(
         step={step}
         value={value[0]}
         onChange={handleChange}
-        className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500 ${className}`}
+        className={`tech-slider ${className}`}
         ref={ref}
+        style={
+          {
+            '--progress': `${progress}%`,
+          } as React.CSSProperties
+        }
         {...props}
       />
     )
