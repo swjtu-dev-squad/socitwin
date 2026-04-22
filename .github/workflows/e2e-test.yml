@@ -2,17 +2,9 @@ name: E2E Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, deploy/autoDL]
   workflow_dispatch:
     inputs:
-      test_mode:
-        description: '测试模式'
-        required: true
-        default: 'quick'
-        type: choice
-        options:
-          - quick
-          - full
       platform:
         description: '社交平台'
         required: true
@@ -21,10 +13,27 @@ on:
         options:
           - twitter
           - reddit
+      topic:
+        description: '测试话题 (climate_change_debate, tech_ai_regulation, remote_work_debate, crypto_discussion, space_exploration, middleeast_conflict)'
+        required: true
+        default: 'climate_change_debate'
+        type: choice
+        options:
+          - climate_change_debate
+          - tech_ai_regulation
+          - remote_work_debate
+          - crypto_discussion
+          - space_exploration
+          - middleeast_conflict
       agent_count:
         description: 'Agent数量'
         required: false
         default: '5'
+        type: string
+      max_steps:
+        description: '最大步数'
+        required: false
+        default: '10'
         type: string
 
 jobs:
@@ -76,9 +85,10 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: "root"
           PROJECT_PATH: "/root/socitwin"
-          TEST_MODE: ${{ github.event.inputs.test_mode || 'quick' }}
           PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
+          TOPIC: ${{ github.event.inputs.topic || 'climate_change_debate' }}
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
+          MAX_STEPS: ${{ github.event.inputs.max_steps || '10' }}
         run: |
           ssh -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
             set -e
@@ -137,21 +147,17 @@ jobs:
             echo "========================================="
             echo "🧪 Running E2E Tests"
             echo "========================================="
-            echo "Test Mode: $TEST_MODE"
             echo "Platform: $PLATFORM"
+            echo "Topic: $TOPIC"
             echo "Agent Count: $AGENT_COUNT"
+            echo "Max Steps: $MAX_STEPS"
             echo ""
 
             cd tests/e2e
             chmod +x run_tests.sh
 
-            if [ "$TEST_MODE" = "quick" ]; then
-              echo "Running QUICK test..."
-              ./run_tests.sh --quick --platform "$PLATFORM" --agent-count "${AGENT_COUNT:-3}"
-            else
-              echo "Running FULL test..."
-              ./run_tests.sh --full --platform "$PLATFORM" --agent-count "${AGENT_COUNT:-10}"
-            fi
+            echo "Running test with custom parameters..."
+            ./run_tests.sh --platform "$PLATFORM" --topic "$TOPIC" --agent-count "${AGENT_COUNT:-5}" --max-steps "${MAX_STEPS:-10}"
 
             TEST_EXIT_CODE=$?
 
@@ -167,15 +173,63 @@ jobs:
             exit $TEST_EXIT_CODE
           ENDSSH
 
-      - name: Test result
+      - name: Download test results from AutoDL
+        if: always() && steps.check_connectivity.outputs.autodl_online == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: "root"
+          PROJECT_PATH: "/root/socitwin"
+        run: |
+          echo "📥 Downloading test results from AutoDL..."
+
+          # Create local directory for results
+          mkdir -p test-results
+
+          # Copy results from AutoDL using scp
+          scp -r -P $SSH_PORT -o StrictHostKeyChecking=no \
+            $SSH_USER@$SSH_HOST:$PROJECT_PATH/backend/test-results/e2e/ \
+            test-results/ || echo "⚠️ No test results found or copy failed"
+
+          # List downloaded files
+          if [ -d "test-results/e2e" ]; then
+            echo "✅ Test results downloaded successfully!"
+            echo "📁 Downloaded contents:"
+            find test-results -type f -name "*.json" -o -name "*.png" | head -20 || true
+          else
+            echo "⚠️ No test results directory found"
+          fi
+
+      - name: Upload test results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Test result summary
         if: always() && steps.check_connectivity.outputs.autodl_online == 'true'
         run: |
-          if [ $? -eq 0 ]; then
-            echo "✅ E2E tests completed successfully!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 E2E Test Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          # Check if tests passed
+          if [ ${{ job.status }} == "success" ]; then
+            echo "✅ Status: PASSED"
           else
-            echo "❌ E2E tests failed!"
-            exit 1
+            echo "❌ Status: FAILED"
           fi
+
+          echo ""
+          echo "📦 Results artifact: e2e-test-results-${{ github.run_id }}"
+          echo "🔗 Download: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo ""
+          echo "⏰ Run ID: ${{ github.run_id }}"
+          echo "📅 Run time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: AutoDL offline notice
         if: steps.check_connectivity.outputs.autodl_online == 'false'
