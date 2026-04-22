@@ -16,6 +16,9 @@ MAX_DIFF_LINES = int(os.environ.get("MAX_DIFF_LINES", "4000"))
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "deepseek").lower()
 
+# Store last LLM response for debugging
+last_llm_response: str = ""
+
 PROVIDERS = {
     "anthropic": {
         "api_key_env": "ANTHROPIC_API_KEY",
@@ -153,7 +156,16 @@ SYSTEM_PROMPT = """\
 - 只评论 diff 中出现的行。使用 RIGHT 侧行号。
 - 跳过生成文件、lock 文件和第三方代码。
 - 如果 diff 很干净，返回空的 comments 数组和正面评价的 summary。
-- 只输出 JSON 对象，不要输出其他内容。
+
+## ⚠️ 输出格式要求（严格遵守）
+- **只输出纯 JSON 对象**，不要有任何其他文字、解释或代码围栏标记
+- 不要用 ```json 或 ``` 包裹
+- 不要输出 "以下是审查结果" 等前缀
+- 直接以 { 开始，以 } 结束
+- 即使是推理型模型，也不要在输出中包含推理过程
+
+正确示例：
+{"summary": "...", "comments": []}
 """
 
 
@@ -182,12 +194,67 @@ def chunk_diff(diff: str, max_lines: int = MAX_DIFF_LINES) -> list[str]:
 
 
 def _parse_llm_json(text: str) -> dict:
-    """Extract JSON from LLM response, stripping code fences if present."""
+    """Extract JSON from LLM response, with robust handling of various formats.
+
+    Handles:
+    - Standard code fences: ```json ... ```
+    - DeepSeek Reasoner: <reasoning>...</reasoning> tags
+    - Mixed content: text before/after JSON
+    - Multiple code blocks (extracts the first valid JSON)
+    """
+    text = text.strip()
+
+    # 1. Remove DeepSeek Reasoner's <reasoning> tags
+    if "<reasoning>" in text:
+        # Keep content after </reasoning>
+        parts = text.split("</reasoning>", 1)
+        text = parts[1] if len(parts) > 1 else text
+
+    # 2. Extract content from code fences
+    if "```" in text:
+        # Find all code blocks and try to parse each
+        lines = text.split("\n")
+        in_code_block = False
+        code_blocks = []
+        current_block = []
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                in_code_block = not in_code_block
+                if not in_code_block and current_block:
+                    code_blocks.append("\n".join(current_block))
+                    current_block = []
+                continue
+            if in_code_block:
+                current_block.append(line)
+
+        # Try each code block until we find valid JSON
+        for block in code_blocks:
+            try:
+                return json.loads(block.strip())
+            except json.JSONDecodeError:
+                continue
+
+    # 3. Fallback: simple fence removal (original logic)
     text = text.strip()
     if text.startswith("```"):
-        text = text.split("\n", 1)[1]
+        text = text.split("\n", 1)[1] if "\n" in text else text
         text = text.rsplit("```", 1)[0]
-    return json.loads(text.strip())
+
+    # 4. Last resort: try to find JSON object boundaries
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        # Try to extract JSON by finding { and }
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            try:
+                return json.loads(text[start_idx:end_idx + 1])
+            except json.JSONDecodeError:
+                pass
+        raise
 
 
 def _get_api_key(provider: str) -> str:
@@ -210,6 +277,7 @@ def call_llm(prompt: str) -> dict:
 
 
 def _call_anthropic(api_key: str, prompt: str) -> dict:
+    global last_llm_response
     r = httpx.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -227,10 +295,17 @@ def _call_anthropic(api_key: str, prompt: str) -> dict:
     )
     r.raise_for_status()
     text = r.json()["content"][0]["text"]
-    return _parse_llm_json(text)
+    last_llm_response = text
+    try:
+        return _parse_llm_json(text)
+    except json.JSONDecodeError as e:
+        print(f"JSON 解析失败，原始响应:", file=sys.stderr)
+        print(text[:1000] + ("..." if len(text) > 1000 else ""), file=sys.stderr)
+        raise
 
 
 def _call_openai_compatible(api_key: str, prompt: str) -> dict:
+    global last_llm_response
     cfg = PROVIDERS[LLM_PROVIDER]
     r = httpx.post(
         f"{cfg['base_url']}/chat/completions",
@@ -250,7 +325,13 @@ def _call_openai_compatible(api_key: str, prompt: str) -> dict:
     )
     r.raise_for_status()
     text = r.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text)
+    last_llm_response = text
+    try:
+        return _parse_llm_json(text)
+    except json.JSONDecodeError as e:
+        print(f"JSON 解析失败，原始响应:", file=sys.stderr)
+        print(text[:1000] + ("..." if len(text) > 1000 else ""), file=sys.stderr)
+        raise
 
 
 # ── Main flow ──────────────────────────────────────────────────
@@ -292,6 +373,33 @@ def main():
         prompt = build_prompt(chunk, ctx)
         try:
             result = call_llm(prompt)
+        except json.JSONDecodeError as e:
+            # Provide helpful debugging info
+            exc_name = type(e).__name__
+            print(f"第 {i + 1} 块 JSON 解析失败: {exc_name}", file=sys.stderr)
+
+            # Show snippet of raw response in the review
+            response_preview = last_llm_response[:500] + "..." if len(last_llm_response) > 500 else last_llm_response
+            error_msg = f"""⚠️ **第 {i + 1} 块审查失败: {exc_name}**
+
+LLM 返回了无法解析的 JSON 格式。原始响应预览：
+
+```
+{response_preview}
+```
+
+**可能的原因：**
+- LLM 添加了代码围栏 (\\`\\`\\`) 或额外文字
+- DeepSeek Reasoner 输出了推理过程
+- JSON 格式不完整
+
+**建议：**
+- 检查 GitHub Actions 日志查看完整响应
+- 尝试使用 `deepseek-v3` 替代 `deepseek-reasoner`
+- 或者手动审查此块变更
+"""
+            summary_parts.append(error_msg)
+            continue
         except Exception as e:
             exc_name = type(e).__name__
             http_status = getattr(getattr(e, 'response', None), 'status_code', None)
