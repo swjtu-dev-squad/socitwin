@@ -133,6 +133,9 @@ class Settings(BaseSettings):
     # DeepSeek Settings (required for OASIS)
     DEEPSEEK_API_KEY: str = ""
 
+    # Apify Settings (for dataset collection)
+    APIFY_KEY: str | None = None
+
     # Metrics Settings
     METRICS_CACHE_TTL: int = 0  # Cache disabled for development (set to 0)
     METRICS_MAX_CACHE_SIZE: int = 1000  # Maximum cache entries

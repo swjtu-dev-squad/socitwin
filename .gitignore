@@ -45,6 +45,10 @@ backend/data/**/*
 backend/log/
 backend/log/**/*
 
+# Exception: keep oasis_datasets.db (necessary runtime database, not sensitive)
+!backend/data/datasets/
+!backend/data/datasets/oasis_datasets.db
+
 # Downloaded model/cache directories
 backend/data/huggingface/
 backend/data/huggingface/**/*
@@ -151,6 +155,7 @@ backend/log/**/*
 .agents/
 .claude/
 skills/
+CLAUDE.md
 
 # Ignore globally installed skills (user-local only)
 ~/.agents/

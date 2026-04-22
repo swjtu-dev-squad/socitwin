@@ -12,9 +12,12 @@ from app.models.metrics import MetricsSummary
 # ============================================================================
 
 class PlatformType(str, Enum):
-    """社交媒体平台类型"""
+    """社交媒体平台类型 - 固定支持5个平台"""
     TWITTER = "twitter"
     REDDIT = "reddit"
+    INSTAGRAM = "instagram"
+    XIAOHONGSHU = "xiaohongshu"
+    FACEBOOK = "facebook"
 
 
 class SimulationState(str, Enum):
