@@ -15,7 +15,6 @@ from fastapi import HTTPException
 from app.core.config import get_settings
 from app.models.proxy import ChatCompletionRequest, ChatCompletionResponse
 
-
 logger = logging.getLogger(__name__)
 
 BAIDU_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
