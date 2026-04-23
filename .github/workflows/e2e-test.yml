@@ -12,17 +12,10 @@ on:
           - twitter
           - reddit
       topic:
-        description: '测试话题 (climate_change_debate, tech_ai_regulation, remote_work_debate, crypto_discussion, space_exploration, middleeast_conflict)'
+        description: '测试话题 ID (使用数据库中的 Twitter 话题 ID)'
         required: true
-        default: 'climate_change_debate'
-        type: choice
-        options:
-          - climate_change_debate
-          - tech_ai_regulation
-          - remote_work_debate
-          - crypto_discussion
-          - space_exploration
-          - middleeast_conflict
+        default: '2042552568010936455'
+        type: string
       agent_count:
         description: 'Agent数量'
         required: false
@@ -84,7 +77,7 @@ jobs:
           SSH_USER: "root"
           PROJECT_PATH: "/root/socitwin"
           PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
-          TOPIC: ${{ github.event.inputs.topic || 'climate_change_debate' }}
+          TOPIC: ${{ github.event.inputs.topic || '2042552568010936455' }}
           AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
           MAX_STEPS: ${{ github.event.inputs.max_steps || '10' }}
         run: |

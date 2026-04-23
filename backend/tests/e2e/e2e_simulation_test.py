@@ -42,7 +42,7 @@ DEFAULT_MODEL_TYPE = "DEEPSEEK_CHAT"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_MEMORY_MODE = "action_v1"
-DEFAULT_TOPIC = "climate_change_debate"
+DEFAULT_TOPIC = "2042552568010936455"  # Singapore's elite leader path vs UK's political rise
 DEFAULT_TIMEOUT = 120  # seconds
 DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "e2e"
 

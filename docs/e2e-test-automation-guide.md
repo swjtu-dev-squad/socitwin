@@ -362,6 +362,21 @@ uv sync --dev --reinstall
 - 预计耗时：15-30分钟
 - 适用场景：发布前验证、重要功能测试
 
+### 查看可用话题
+
+E2E 测试使用数据库 `oasis_datasets.db` 中的实际话题。要查看可用的话题：
+
+```bash
+# 查看数据库中的前10个话题
+sqlite3 backend/data/datasets/oasis_datasets.db \
+  "SELECT news_external_id, topic_key, post_count FROM topics LIMIT 10;"
+
+# 或通过 API 查看
+curl http://localhost:8000/api/topics | jq
+```
+
+使用 `news_external_id` 作为 topic_id 参数。
+
 ---
 
 ## ✅ 配置完成检查清单
