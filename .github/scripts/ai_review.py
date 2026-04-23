@@ -23,21 +23,25 @@ PROVIDERS = {
     "anthropic": {
         "api_key_env": "ANTHROPIC_API_KEY",
         "model": "claude-sonnet-4-20250514",
+        "max_tokens": 8192,  # Claude 最大 8192
     },
     "openai": {
         "api_key_env": "OPENAI_API_KEY",
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o",
+        "max_tokens": 4096,  # GPT-4o 最大 4096
     },
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",  # 使用 deepseek-chat 而非 deepseek-reasoner，前者支持 JSON 模式
+        "model": "deepseek-chat",
+        "max_tokens": 8192,  # DeepSeek 最大 8192
     },
     "deepseek-v3": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
         "model": "deepseek-v3",
+        "max_tokens": 8192,
     },
 }
 
@@ -78,7 +82,8 @@ def get_file_content(path: str, ref: str) -> str | None:
     return base64.b64decode(r.json()["content"]).decode("utf-8", errors="replace")
 
 
-def post_review(body: str, comments: list[dict]):
+def post_review(body: str, comments: list[dict], file_patches: dict[str, str]):
+    """Post review with inline comments. Falls back to issue comment with code snippets."""
     payload = {
         "body": body,
         "event": "COMMENT",
@@ -89,17 +94,53 @@ def post_review(body: str, comments: list[dict]):
         print(f"Review posted ({len(comments)} inline comments)")
     else:
         print(f"Failed to post review: HTTP {r.status_code}", file=sys.stderr)
-        # Fallback: post as a single PR comment
+        # Fallback: post as a single PR comment with code snippets
         fallback = body
         if comments:
-            fallback += "\n\n---\n### 行内评论\n"
+            fallback += "\n\n---\n### 行内评论\n\n"
             for c in comments:
-                fallback += f"\n**`{c['path']}:{c.get('line', '?')}`** — {c['body']}\n"
+                path = c['path']
+                line = c.get('line', '?')
+                comment_body = c['body']
+                fallback += f"**`{path}:{line}`**\n\n{comment_body}\n\n"
+                # Try to include code snippet if available
+                if path in file_patches and line != '?':
+                    code_line = _extract_line_from_patch(file_patches[path], line)
+                    if code_line:
+                        fallback += f"```diff\n{code_line}\n```\n\n"
         GH.post(
             f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
             json={"body": fallback},
         )
         print("Posted as fallback issue comment.")
+
+
+def _extract_line_from_patch(patch: str, target_line: int) -> str | None:
+    """Extract a specific line from unified diff patch."""
+    if not patch:
+        return None
+    current_line = 0
+    for line in patch.splitlines():
+        if line.startswith('@@'):
+            # Parse line number: @@ -start,count +start,count @@
+            parts = line.split()
+            if len(parts) >= 3:
+                hunk = parts[2]  # e.g., +123,45
+                if hunk.startswith('+'):
+                    hunk = hunk[1:]
+                    if ',' in hunk:
+                        current_line = int(hunk.split(',')[0])
+                    else:
+                        current_line = int(hunk)
+                else:
+                    current_line = int(hunk[1:]) if hunk.startswith('+') else 0
+        elif line.startswith('+') and not line.startswith('+++'):
+            current_line += 1
+            if current_line == target_line:
+                return line
+        elif line.startswith(' ') or line.startswith('-'):
+            current_line += 1
+    return None
 
 
 # ── LLM helpers ────────────────────────────────────────────────
@@ -163,6 +204,8 @@ SYSTEM_PROMPT = """\
 - 不要输出 "以下是审查结果" 等前缀
 - 直接以 { 开始，以 } 结束
 - 即使是推理型模型，也不要在输出中包含推理过程
+- **确保输出完整的 JSON，不要因长度限制而截断**
+- 如果评论内容太长，减少评论数量或缩短每条评论，但必须输出完整可解析的 JSON
 
 正确示例：
 {"summary": "...", "comments": []}
@@ -201,6 +244,7 @@ def _parse_llm_json(text: str) -> dict:
     - DeepSeek Reasoner: <reasoning>...</reasoning> tags
     - Mixed content: text before/after JSON
     - Multiple code blocks (extracts the first valid JSON)
+    - Truncated JSON (attempts to fix)
     """
     text = text.strip()
 
@@ -242,19 +286,151 @@ def _parse_llm_json(text: str) -> dict:
         text = text.split("\n", 1)[1] if "\n" in text else text
         text = text.rsplit("```", 1)[0]
 
-    # 4. Last resort: try to find JSON object boundaries
+    # 4. Try direct parsing
     try:
         return json.loads(text.strip())
     except json.JSONDecodeError:
-        # Try to extract JSON by finding { and }
-        start_idx = text.find("{")
-        end_idx = text.rfind("}")
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            try:
-                return json.loads(text[start_idx:end_idx + 1])
-            except json.JSONDecodeError:
-                pass
-        raise
+        # 5. Attempt to fix truncated JSON
+        try:
+            return _fix_truncated_json(text)
+        except Exception:
+            # 6. Last resort: try to find JSON object boundaries
+            start_idx = text.find("{")
+            end_idx = text.rfind("}")
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                try:
+                    extracted = text[start_idx:end_idx + 1]
+                    return _fix_truncated_json(extracted)
+                except Exception:
+                    pass
+            raise
+
+
+def _fix_unescaped_quotes(text: str) -> str:
+    """Fix unescaped quotes inside JSON string values.
+
+    Uses a state machine to track whether we're inside a string value.
+    Quotes inside string values that aren't escaped will be escaped.
+    """
+    result = []
+    i = 0
+    in_string = False
+    escape_next = False
+
+    while i < len(text):
+        char = text[i]
+
+        if not in_string:
+            # Not in a string, looking for string start
+            if char == '"':
+                in_string = True
+                result.append(char)
+            elif char == '\\':
+                # Might be escaping something outside string (unusual but possible)
+                result.append(char)
+                escape_next = True
+            else:
+                result.append(char)
+        else:
+            # Inside a string
+            if escape_next:
+                # Previous char was backslash, this char is escaped
+                result.append(char)
+                escape_next = False
+            elif char == '\\':
+                # This is an escape character
+                result.append(char)
+                escape_next = True
+            elif char == '"':
+                # End of string or unescaped quote inside string
+                # Look ahead to determine
+                # Skip whitespace
+                j = i + 1
+                while j < len(text) and text[j].isspace():
+                    j += 1
+
+                if j < len(text):
+                    next_non_ws = text[j]
+                    # If followed by :, ,, }, ], the string ended
+                    if next_non_ws in (':', ',', '}', ']'):
+                        in_string = False
+                        result.append(char)
+                    elif next_non_ws == '"':
+                        # Two quotes in a row - likely a structural pattern
+                        in_string = False
+                        result.append(char)
+                    else:
+                        # Still inside the string, escape this quote
+                        result.append('\\"')
+                else:
+                    # End of text, string should end
+                    in_string = False
+                    result.append(char)
+            else:
+                result.append(char)
+
+        i += 1
+
+    return ''.join(result)
+
+
+def _fix_truncated_json(text: str) -> dict:
+    """Attempt to fix truncated JSON by completing incomplete structures.
+
+    Common truncation patterns:
+    - "comments": [    →    "comments": []
+    - "body": "text... →  "body": "text [truncated]"
+    - Missing closing braces/brackets
+    - Unescaped quotes in string values
+    """
+    text = text.strip()
+
+    # First, try to fix unescaped quotes in string values
+    try:
+        text = _fix_unescaped_quotes(text)
+    except Exception:
+        pass  # If fixing fails, continue with original text
+
+    # Fix truncated comments array
+    if '"comments": [' in text and not '"comments": []' in text:
+        # Check if comments array is incomplete
+        comments_idx = text.find('"comments": [')
+        if comments_idx != -1:
+            after_comments = text[comments_idx + 13:]
+            # If array doesn't close properly or has incomplete object
+            if not any(after_comments.strip().startswith(s) for s in (']', '}', '{')):
+                # Try to close the array
+                if after_comments.strip() and after_comments.strip()[0] in ('{', '['):
+                    # Has content but not closed, close what we can
+                    text = text[:comments_idx + 13] + '[]'
+                else:
+                    # Empty or incomplete, replace with empty array
+                    text = text[:comments_idx + 13] + '[]'
+
+    # Fix truncated string values (common with "...")
+    # Use Unicode escape sequence for ellipsis character
+    ellipsis = chr(0x2026)  # Unicode ellipsis character (…)
+    if '"..."' in text or ellipsis in text or '...' in text:
+        # Replace truncated strings with placeholder
+        import re
+        text = re.sub(r'"[^"]*\.\.\.\'"', '"[内容被截断]', text)
+        # Match strings ending with Unicode ellipsis or ASCII ellipsis
+        text = re.sub(r'"[^"]*[' + ellipsis + r']"', '"[内容被截断]', text)
+
+    # Balance braces/brackets
+    open_braces = text.count('{')
+    close_braces = text.count('}')
+    open_brackets = text.count('[')
+    close_brackets = text.count(']')
+
+    # Add missing closing brackets/braces
+    text += '}' * max(0, open_braces - close_braces)
+    text += ']' * max(0, open_brackets - close_brackets)
+
+    # Remove trailing comma before closing brackets/braces
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+
+    return json.loads(text)
 
 
 def _get_api_key(provider: str) -> str:
@@ -287,7 +463,7 @@ def _call_anthropic(api_key: str, prompt: str) -> dict:
         },
         json={
             "model": PROVIDERS["anthropic"]["model"],
-            "max_tokens": 4096,
+            "max_tokens": PROVIDERS["anthropic"].get("max_tokens", 8192),
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": prompt}],
         },
@@ -309,7 +485,7 @@ def _call_openai_compatible(api_key: str, prompt: str) -> dict:
     cfg = PROVIDERS[LLM_PROVIDER]
     payload = {
         "model": cfg["model"],
-        "max_tokens": 4096,
+        "max_tokens": cfg.get("max_tokens", 8192),  # 使用各模型的最大输出限制
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -354,6 +530,11 @@ def main():
 
     # Build extra context from changed files
     changed = get_changed_files()
+    # Build a map of file path -> patch for code snippet extraction
+    file_patches: dict[str, str] = {}
+    for f in changed:
+        if f.get("patch"):
+            file_patches[f["filename"]] = f["patch"]
     ext_context = ""
     reviewable = [
         f for f in changed
@@ -384,22 +565,34 @@ def main():
         except json.JSONDecodeError as e:
             # Provide helpful debugging info
             exc_name = type(e).__name__
-            print(f"第 {i + 1} 块 JSON 解析失败: {exc_name}", file=sys.stderr)
+            print(f"第 {i + 1} 块 JSON 解析失败: {exc_name} - {e}", file=sys.stderr)
 
-            # Show snippet of raw response in the review
-            response_preview = last_llm_response[:500] + "..." if len(last_llm_response) > 500 else last_llm_response
+            # Show more detailed debugging info
+            response_len = len(last_llm_response)
+            response_start = last_llm_response[:800] if response_len > 800 else last_llm_response
+            response_end = last_llm_response[-500:] if response_len > 500 else ""
+
             error_msg = f"""⚠️ **第 {i + 1} 块审查失败: {exc_name}**
 
-LLM 返回了无法解析的 JSON 格式。原始响应预览：
+**错误信息:** `{e}`
 
+**响应长度:** {response_len} 字符
+
+**响应开头:**
 ```
-{response_preview}
+{response_start}
+```
+
+**响应结尾:**
+```
+{response_end}
 ```
 
 **可能的原因：**
 - LLM 添加了代码围栏 (\\`\\`\\`) 或额外文字
 - DeepSeek Reasoner 输出了推理过程
-- JSON 格式不完整
+- JSON 格式不完整或被截断
+- 字符串中包含未转义的特殊字符
 
 **建议：**
 - 检查 GitHub Actions 日志查看完整响应
@@ -440,7 +633,7 @@ LLM 返回了无法解析的 JSON 格式。原始响应预览：
     if chunks:
         body += f"\n\n_分 {len(chunks)} 个块审查。共 {len(valid_comments)} 条发现。_"
 
-    post_review(body, valid_comments)
+    post_review(body, valid_comments, file_patches)
 
 
 if __name__ == "__main__":

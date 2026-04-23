@@ -11,9 +11,11 @@ NC='\033[0m' # No Color
 PLATFORM="twitter"
 AGENT_COUNT=5
 MAX_STEPS=10
-TOPIC="2042552568010936455"  # Singapore's elite leader path vs UK's political rise
+TOPIC=""  # Empty means use Python script's default (from .env)
 MEMORY_MODE="action_v1"
 MAX_TOKENS=1024
+MODEL_PLATFORM=""  # Empty means use Python script's default (from .env)
+MODEL_TYPE=""  # Empty means use Python script's default (from .env)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments
@@ -43,6 +45,14 @@ while [[ $# -gt 0 ]]; do
             MAX_TOKENS="$2"
             shift 2
             ;;
+        --model-platform)
+            MODEL_PLATFORM="$2"
+            shift 2
+            ;;
+        --model-type)
+            MODEL_TYPE="$2"
+            shift 2
+            ;;
         --quick)
             MAX_STEPS=3
             AGENT_COUNT=3
@@ -60,17 +70,24 @@ while [[ $# -gt 0 ]]; do
             echo "  --platform PLATFORM       Platform (twitter/reddit) [default: twitter]"
             echo "  --agent-count COUNT       Number of agents [default: 5]"
             echo "  --max-steps STEPS         Number of steps [default: 10]"
-            echo "  --topic TOPIC             Topic ID [default: climate_change_debate]"
+            echo "  --topic TOPIC             Topic ID [default: from .env]"
             echo "  --memory-mode MODE        Memory route (upstream/action_v1) [default: action_v1]"
             echo "  --max-tokens TOKENS       LLM generation max tokens [default: 1024]"
+            echo "  --model-platform PLATFORM LLM model platform [default: from .env]"
+            echo "  --model-type TYPE         LLM model type [default: from .env]"
             echo "  --quick                   Quick test (3 steps, 3 agents)"
             echo "  --full                    Full test (50 steps, 10 agents)"
             echo "  -h, --help                Show this help message"
             echo ""
+            echo "Notes:"
+            echo "  - If --topic, --model-platform, or --model-type are not specified,"
+            echo "    the script will use values from backend/.env file."
+            echo ""
             echo "Examples:"
             echo "  ./run_tests.sh --quick"
-            echo "  ./run_tests.sh --agent-count 10 --max-steps 20 --topic tech_ai_regulation"
-            echo "  ./run_tests.sh --platform reddit --topic crypto_discussion"
+            echo "  ./run_tests.sh --agent-count 10 --max-steps 20"
+            echo "  ./run_tests.sh --model-platform openai --model-type gpt-4o-mini"
+            echo "  ./run_tests.sh --platform reddit --topic 2042552568010936455"
             exit 0
             ;;
         *)
@@ -100,17 +117,36 @@ echo -e "${YELLOW}Running e2e test with:${NC}"
 echo "  Platform: $PLATFORM"
 echo "  Agent Count: $AGENT_COUNT"
 echo "  Max Steps: $MAX_STEPS"
-echo "  Topic: $TOPIC"
+echo "  Topic: ${TOPIC:-<from .env>}"
 echo "  Memory Mode: $MEMORY_MODE"
 echo "  Max Tokens: $MAX_TOKENS"
+echo "  Model Platform: ${MODEL_PLATFORM:-<from .env>}"
+echo "  Model Type: ${MODEL_TYPE:-<from .env>}"
 echo ""
 
-python "$SCRIPT_DIR/e2e_simulation_test.py" \
-    --platform "$PLATFORM" \
-    --agent-count "$AGENT_COUNT" \
-    --max-steps "$MAX_STEPS" \
-    --topic "$TOPIC" \
-    --memory-mode "$MEMORY_MODE" \
+# Build command arguments
+ARGS=(
+    --platform "$PLATFORM"
+    --agent-count "$AGENT_COUNT"
+    --max-steps "$MAX_STEPS"
+    --memory-mode "$MEMORY_MODE"
     --max-tokens "$MAX_TOKENS"
+)
+
+# Only add topic if specified (otherwise Python script uses .env)
+if [ -n "$TOPIC" ]; then
+    ARGS+=(--topic "$TOPIC")
+fi
+
+# Only add model params if specified (otherwise Python script uses .env)
+if [ -n "$MODEL_PLATFORM" ]; then
+    ARGS+=(--model-platform "$MODEL_PLATFORM")
+fi
+
+if [ -n "$MODEL_TYPE" ]; then
+    ARGS+=(--model-type "$MODEL_TYPE")
+fi
+
+python "$SCRIPT_DIR/e2e_simulation_test.py" "${ARGS[@]}"
 
 exit $?
