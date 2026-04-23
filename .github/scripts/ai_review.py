@@ -301,7 +301,7 @@ def _fix_truncated_json(text: str) -> dict:
     if '"..."' in text or ellipsis in text or '...' in text:
         # Replace truncated strings with placeholder
         import re
-        text = re.sub(r'"[^"]*\.\.\.'"', '"[内容被截断]', text)
+        text = re.sub(r'"[^"]*\.\.\.\'"', '"[内容被截断]', text)
         # Match strings ending with Unicode ellipsis or ASCII ellipsis
         text = re.sub(r'"[^"]*[' + ellipsis + r']"', '"[内容被截断]', text)
 
