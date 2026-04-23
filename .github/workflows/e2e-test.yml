@@ -102,6 +102,8 @@ jobs:
                   --trust-remote-code \
                   --gpu-memory-utilization 0.85 \
                   --max-model-len 32768 \
+                  --enable-auto-tool-choice \
+                  --tool-call-parser qwen3_xml \
                   --port $VLLM_PORT > /tmp/vllm.log 2>&1"
 
               echo "⏳ vLLM starting in background (tmux session: vllm)"
@@ -151,8 +153,8 @@ jobs:
             else
               echo "🚀 Starting backend server..."
 
-              # 设置环境变量指向本地 vLLM（使用 OpenAI 兼容模式）
-              export OASIS_MODEL_PLATFORM=openai
+              # 设置环境变量指向本地 vLLM
+              export OASIS_MODEL_PLATFORM=vllm
               export OASIS_MODEL_TYPE=qwen-35b
               export OPENAI_API_KEY=vllm
               export OPENAI_BASE_URL=http://127.0.0.1:6006/v1
@@ -234,7 +236,7 @@ jobs:
             echo "  Topic: $TOPIC"
             echo "  Agent Count: $AGENT_COUNT"
             echo "  Max Steps: $MAX_STEPS"
-            echo "  Model: OpenAI-compatible (qwen-35b via vLLM)"
+            echo "  Model: qwen-35b via vLLM"
             echo ""
 
             echo "Running test..."
