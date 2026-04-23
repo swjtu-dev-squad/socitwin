@@ -23,21 +23,25 @@ PROVIDERS = {
     "anthropic": {
         "api_key_env": "ANTHROPIC_API_KEY",
         "model": "claude-sonnet-4-20250514",
+        "max_tokens": 8192,  # Claude 最大 8192
     },
     "openai": {
         "api_key_env": "OPENAI_API_KEY",
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o",
+        "max_tokens": 4096,  # GPT-4o 最大 4096
     },
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",  # 使用 deepseek-chat 而非 deepseek-reasoner，前者支持 JSON 模式
+        "model": "deepseek-chat",
+        "max_tokens": 8192,  # DeepSeek 最大 8192
     },
     "deepseek-v3": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
         "model": "deepseek-v3",
+        "max_tokens": 8192,
     },
 }
 
@@ -163,6 +167,8 @@ SYSTEM_PROMPT = """\
 - 不要输出 "以下是审查结果" 等前缀
 - 直接以 { 开始，以 } 结束
 - 即使是推理型模型，也不要在输出中包含推理过程
+- **确保输出完整的 JSON，不要因长度限制而截断**
+- 如果评论内容太长，减少评论数量或缩短每条评论，但必须输出完整可解析的 JSON
 
 正确示例：
 {"summary": "...", "comments": []}
@@ -201,6 +207,7 @@ def _parse_llm_json(text: str) -> dict:
     - DeepSeek Reasoner: <reasoning>...</reasoning> tags
     - Mixed content: text before/after JSON
     - Multiple code blocks (extracts the first valid JSON)
+    - Truncated JSON (attempts to fix)
     """
     text = text.strip()
 
@@ -242,19 +249,73 @@ def _parse_llm_json(text: str) -> dict:
         text = text.split("\n", 1)[1] if "\n" in text else text
         text = text.rsplit("```", 1)[0]
 
-    # 4. Last resort: try to find JSON object boundaries
+    # 4. Try direct parsing
     try:
         return json.loads(text.strip())
     except json.JSONDecodeError:
-        # Try to extract JSON by finding { and }
-        start_idx = text.find("{")
-        end_idx = text.rfind("}")
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            try:
-                return json.loads(text[start_idx:end_idx + 1])
-            except json.JSONDecodeError:
-                pass
-        raise
+        # 5. Attempt to fix truncated JSON
+        try:
+            return _fix_truncated_json(text)
+        except Exception:
+            # 6. Last resort: try to find JSON object boundaries
+            start_idx = text.find("{")
+            end_idx = text.rfind("}")
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                try:
+                    extracted = text[start_idx:end_idx + 1]
+                    return _fix_truncated_json(extracted)
+                except Exception:
+                    pass
+            raise
+
+
+def _fix_truncated_json(text: str) -> dict:
+    """Attempt to fix truncated JSON by completing incomplete structures.
+
+    Common truncation patterns:
+    - "comments": [    →    "comments": []
+    - "body": "text... →  "body": "text [truncated]"
+    - Missing closing braces/brackets
+    """
+    text = text.strip()
+
+    # Fix truncated comments array
+    if '"comments": [' in text and not '"comments": []' in text:
+        # Check if comments array is incomplete
+        comments_idx = text.find('"comments": [')
+        if comments_idx != -1:
+            after_comments = text[comments_idx + 13:]
+            # If array doesn't close properly or has incomplete object
+            if not any(after_comments.strip().startswith(s) for s in (']', '}', '{')):
+                # Try to close the array
+                if after_comments.strip() and after_comments.strip()[0] in ('{', '['):
+                    # Has content but not closed, close what we can
+                    text = text[:comments_idx + 13] + '[]'
+                else:
+                    # Empty or incomplete, replace with empty array
+                    text = text[:comments_idx + 13] + '[]'
+
+    # Fix truncated string values (common with "...")
+    if '"..."' in text or '"…" in text or '…" in text or '...' in text:
+        # Replace truncated strings with placeholder
+        import re
+        text = re.sub(r'"[^"]*\.\.\.'"', '"[内容被截断]', text)
+        text = re.sub(r'"[^"]*…"', '"[内容被截断]', text)
+
+    # Balance braces/brackets
+    open_braces = text.count('{')
+    close_braces = text.count('}')
+    open_brackets = text.count('[')
+    close_brackets = text.count(']')
+
+    # Add missing closing brackets/braces
+    text += '}' * max(0, open_braces - close_braces)
+    text += ']' * max(0, open_brackets - close_brackets)
+
+    # Remove trailing comma before closing brackets/braces
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+
+    return json.loads(text)
 
 
 def _get_api_key(provider: str) -> str:
@@ -287,7 +348,7 @@ def _call_anthropic(api_key: str, prompt: str) -> dict:
         },
         json={
             "model": PROVIDERS["anthropic"]["model"],
-            "max_tokens": 4096,
+            "max_tokens": PROVIDERS["anthropic"].get("max_tokens", 8192),
             "system": SYSTEM_PROMPT,
             "messages": [{"role": "user", "content": prompt}],
         },
@@ -309,7 +370,7 @@ def _call_openai_compatible(api_key: str, prompt: str) -> dict:
     cfg = PROVIDERS[LLM_PROVIDER]
     payload = {
         "model": cfg["model"],
-        "max_tokens": 4096,
+        "max_tokens": cfg.get("max_tokens", 8192),  # 使用各模型的最大输出限制
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
