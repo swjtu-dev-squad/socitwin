@@ -82,7 +82,8 @@ def get_file_content(path: str, ref: str) -> str | None:
     return base64.b64decode(r.json()["content"]).decode("utf-8", errors="replace")
 
 
-def post_review(body: str, comments: list[dict]):
+def post_review(body: str, comments: list[dict], file_patches: dict[str, str]):
+    """Post review with inline comments. Falls back to issue comment with code snippets."""
     payload = {
         "body": body,
         "event": "COMMENT",
@@ -93,17 +94,53 @@ def post_review(body: str, comments: list[dict]):
         print(f"Review posted ({len(comments)} inline comments)")
     else:
         print(f"Failed to post review: HTTP {r.status_code}", file=sys.stderr)
-        # Fallback: post as a single PR comment
+        # Fallback: post as a single PR comment with code snippets
         fallback = body
         if comments:
-            fallback += "\n\n---\n### 行内评论\n"
+            fallback += "\n\n---\n### 行内评论\n\n"
             for c in comments:
-                fallback += f"\n**`{c['path']}:{c.get('line', '?')}`** — {c['body']}\n"
+                path = c['path']
+                line = c.get('line', '?')
+                comment_body = c['body']
+                fallback += f"**`{path}:{line}`**\n\n{comment_body}\n\n"
+                # Try to include code snippet if available
+                if path in file_patches and line != '?':
+                    code_line = _extract_line_from_patch(file_patches[path], line)
+                    if code_line:
+                        fallback += f"```diff\n{code_line}\n```\n\n"
         GH.post(
             f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
             json={"body": fallback},
         )
         print("Posted as fallback issue comment.")
+
+
+def _extract_line_from_patch(patch: str, target_line: int) -> str | None:
+    """Extract a specific line from unified diff patch."""
+    if not patch:
+        return None
+    current_line = 0
+    for line in patch.splitlines():
+        if line.startswith('@@'):
+            # Parse line number: @@ -start,count +start,count @@
+            parts = line.split()
+            if len(parts) >= 3:
+                hunk = parts[2]  # e.g., +123,45
+                if hunk.startswith('+'):
+                    hunk = hunk[1:]
+                    if ',' in hunk:
+                        current_line = int(hunk.split(',')[0])
+                    else:
+                        current_line = int(hunk)
+                else:
+                    current_line = int(hunk[1:]) if hunk.startswith('+') else 0
+        elif line.startswith('+') and not line.startswith('+++'):
+            current_line += 1
+            if current_line == target_line:
+                return line
+        elif line.startswith(' ') or line.startswith('-'):
+            current_line += 1
+    return None
 
 
 # ── LLM helpers ────────────────────────────────────────────────
@@ -418,6 +455,11 @@ def main():
 
     # Build extra context from changed files
     changed = get_changed_files()
+    # Build a map of file path -> patch for code snippet extraction
+    file_patches: dict[str, str] = {}
+    for f in changed:
+        if f.get("patch"):
+            file_patches[f["filename"]] = f["patch"]
     ext_context = ""
     reviewable = [
         f for f in changed
@@ -504,7 +546,7 @@ LLM 返回了无法解析的 JSON 格式。原始响应预览：
     if chunks:
         body += f"\n\n_分 {len(chunks)} 个块审查。共 {len(valid_comments)} 条发现。_"
 
-    post_review(body, valid_comments)
+    post_review(body, valid_comments, file_patches)
 
 
 if __name__ == "__main__":
