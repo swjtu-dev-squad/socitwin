@@ -17,6 +17,7 @@ import type {
   HerdEffectMetrics,
   AddControlledAgentsRequest,
   AddControlledAgentsResponse,
+  SentimentTendencyMetrics,
 } from './types'
 
 const api = axios.create({
@@ -122,6 +123,9 @@ export const simulationApi = {
     api.get<HerdEffectMetrics>('/metrics/herd-effect', {
       params: timeWindowSeconds ? { time_window_seconds: timeWindowSeconds } : {},
     }),
+
+  getSentimentTendencyMetrics: () =>
+    api.get<SentimentTendencyMetrics>('/metrics/sentiment-tendency'),
 
   getMetricsHistory: (params?: {
     metric_type?: string
