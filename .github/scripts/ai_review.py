@@ -296,11 +296,14 @@ def _fix_truncated_json(text: str) -> dict:
                     text = text[:comments_idx + 13] + '[]'
 
     # Fix truncated string values (common with "...")
-    if '"..."' in text or '"…" in text or '…" in text or '...' in text:
+    # Use Unicode escape for ellipsis character
+    ellipsis = '…'  # Unicode ellipsis character '…'
+    if '"..."' in text or ellipsis in text or '...' in text:
         # Replace truncated strings with placeholder
         import re
         text = re.sub(r'"[^"]*\.\.\.'"', '"[内容被截断]', text)
-        text = re.sub(r'"[^"]*…"', '"[内容被截断]', text)
+        # Match strings ending with Unicode ellipsis or ASCII ellipsis
+        text = re.sub(r'"[^"]*[' + ellipsis + r']"', '"[内容被截断]', text)
 
     # Balance braces/brackets
     open_braces = text.count('{')
