@@ -296,8 +296,8 @@ def _fix_truncated_json(text: str) -> dict:
                     text = text[:comments_idx + 13] + '[]'
 
     # Fix truncated string values (common with "...")
-    # Use Unicode escape for ellipsis character
-    ellipsis = '…'  # Unicode ellipsis character '…'
+    # Use Unicode escape sequence for ellipsis character
+    ellipsis = chr(0x2026)  # Unicode ellipsis character (…)
     if '"..."' in text or ellipsis in text or '...' in text:
         # Replace truncated strings with placeholder
         import re
