@@ -490,22 +490,34 @@ def main():
         except json.JSONDecodeError as e:
             # Provide helpful debugging info
             exc_name = type(e).__name__
-            print(f"第 {i + 1} 块 JSON 解析失败: {exc_name}", file=sys.stderr)
+            print(f"第 {i + 1} 块 JSON 解析失败: {exc_name} - {e}", file=sys.stderr)
 
-            # Show snippet of raw response in the review
-            response_preview = last_llm_response[:500] + "..." if len(last_llm_response) > 500 else last_llm_response
+            # Show more detailed debugging info
+            response_len = len(last_llm_response)
+            response_start = last_llm_response[:800] if response_len > 800 else last_llm_response
+            response_end = last_llm_response[-500:] if response_len > 500 else ""
+
             error_msg = f"""⚠️ **第 {i + 1} 块审查失败: {exc_name}**
 
-LLM 返回了无法解析的 JSON 格式。原始响应预览：
+**错误信息:** `{e}`
 
+**响应长度:** {response_len} 字符
+
+**响应开头:**
 ```
-{response_preview}
+{response_start}
+```
+
+**响应结尾:**
+```
+{response_end}
 ```
 
 **可能的原因：**
 - LLM 添加了代码围栏 (\\`\\`\\`) 或额外文字
 - DeepSeek Reasoner 输出了推理过程
-- JSON 格式不完整
+- JSON 格式不完整或被截断
+- 字符串中包含未转义的特殊字符
 
 **建议：**
 - 检查 GitHub Actions 日志查看完整响应
