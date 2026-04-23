@@ -306,6 +306,74 @@ def _parse_llm_json(text: str) -> dict:
             raise
 
 
+def _fix_unescaped_quotes(text: str) -> str:
+    """Fix unescaped quotes inside JSON string values.
+
+    Uses a state machine to track whether we're inside a string value.
+    Quotes inside string values that aren't escaped will be escaped.
+    """
+    result = []
+    i = 0
+    in_string = False
+    escape_next = False
+
+    while i < len(text):
+        char = text[i]
+
+        if not in_string:
+            # Not in a string, looking for string start
+            if char == '"':
+                in_string = True
+                result.append(char)
+            elif char == '\\':
+                # Might be escaping something outside string (unusual but possible)
+                result.append(char)
+                escape_next = True
+            else:
+                result.append(char)
+        else:
+            # Inside a string
+            if escape_next:
+                # Previous char was backslash, this char is escaped
+                result.append(char)
+                escape_next = False
+            elif char == '\\':
+                # This is an escape character
+                result.append(char)
+                escape_next = True
+            elif char == '"':
+                # End of string or unescaped quote inside string
+                # Look ahead to determine
+                # Skip whitespace
+                j = i + 1
+                while j < len(text) and text[j].isspace():
+                    j += 1
+
+                if j < len(text):
+                    next_non_ws = text[j]
+                    # If followed by :, ,, }, ], the string ended
+                    if next_non_ws in (':', ',', '}', ']'):
+                        in_string = False
+                        result.append(char)
+                    elif next_non_ws == '"':
+                        # Two quotes in a row - likely a structural pattern
+                        in_string = False
+                        result.append(char)
+                    else:
+                        # Still inside the string, escape this quote
+                        result.append('\\"')
+                else:
+                    # End of text, string should end
+                    in_string = False
+                    result.append(char)
+            else:
+                result.append(char)
+
+        i += 1
+
+    return ''.join(result)
+
+
 def _fix_truncated_json(text: str) -> dict:
     """Attempt to fix truncated JSON by completing incomplete structures.
 
@@ -313,8 +381,15 @@ def _fix_truncated_json(text: str) -> dict:
     - "comments": [    →    "comments": []
     - "body": "text... →  "body": "text [truncated]"
     - Missing closing braces/brackets
+    - Unescaped quotes in string values
     """
     text = text.strip()
+
+    # First, try to fix unescaped quotes in string values
+    try:
+        text = _fix_unescaped_quotes(text)
+    except Exception:
+        pass  # If fixing fails, continue with original text
 
     # Fix truncated comments array
     if '"comments": [' in text and not '"comments": []' in text:
