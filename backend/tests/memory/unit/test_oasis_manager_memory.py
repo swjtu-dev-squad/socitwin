@@ -83,6 +83,10 @@ class _FakeActionV1Agent:
         }
 
 
+async def _skip_runtime_dependency_validation(*, settings) -> None:
+    return None
+
+
 def test_action_v1_file_source_builds_twitter_agents_from_csv(tmp_path: Path, monkeypatch) -> None:
     manager = OASISManager()
     manager._memory_mode = MemoryMode.ACTION_V1
@@ -351,6 +355,11 @@ def test_initialize_and_step_action_v1_manual_mode(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(manager, "_create_model", _fake_create_model)
     monkeypatch.setattr(
         manager,
+        "_validate_runtime_dependencies",
+        _skip_runtime_dependency_validation,
+    )
+    monkeypatch.setattr(
+        manager,
         "_create_environment",
         lambda *, agent_graph, config: env,
     )
@@ -411,6 +420,11 @@ def test_initialize_action_v1_template_mode(monkeypatch, tmp_path: Path) -> None
         return model
 
     monkeypatch.setattr(manager, "_create_model", _fake_create_model)
+    monkeypatch.setattr(
+        manager,
+        "_validate_runtime_dependencies",
+        _skip_runtime_dependency_validation,
+    )
     monkeypatch.setattr(
         manager,
         "_create_environment",
