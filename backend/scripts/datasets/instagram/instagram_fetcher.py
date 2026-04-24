@@ -8,23 +8,25 @@ import hashlib
 import json
 import os
 import re
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 # 配置
 PLATFORM = "instagram"
 ACTOR = "apify/instagram-scraper"
+HASHTAG_ACTOR = "apify/instagram-hashtag-scraper"
 ENV_FILE = Path(__file__).parents[3] / ".env"
 KOL_FOLLOWER_THRESHOLD = 20000
 
 def log(msg: str) -> None:
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
 
 def get_apify_key() -> str:
@@ -41,10 +43,10 @@ def get_apify_key() -> str:
     return ""
 
 
-def run_apify_actor(token: str, payload: dict) -> list[dict]:
+def run_apify_actor(token: str, payload: dict, actor: str = ACTOR, timeout: int = 45) -> list[dict]:
     """调用 Apify Actor"""
     query = urllib.parse.urlencode({"token": token, "clean": "true"})
-    actor_id = ACTOR.replace("/", "~")
+    actor_id = actor.replace("/", "~")
     url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items?{query}"
 
     req = urllib.request.Request(
@@ -55,7 +57,7 @@ def run_apify_actor(token: str, payload: dict) -> list[dict]:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode()) or []
     except urllib.error.HTTPError as e:
         log(f"Apify request failed with HTTP {e.code}")
@@ -63,7 +65,14 @@ def run_apify_actor(token: str, payload: dict) -> list[dict]:
 
 
 def clean_str(v: Any) -> str:
-    return str(v).strip() if v else ""
+    return "" if v is None else str(v).strip()
+
+
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
 
 
 def to_int(v: Any) -> int | None:
@@ -79,6 +88,38 @@ def to_int(v: Any) -> int | None:
 
 def to_json(v: Any) -> str | None:
     return json.dumps(v, ensure_ascii=False) if v is not None else None
+
+
+def location_from_profile(raw: dict, owner: dict, user: dict) -> str:
+    direct_location = clean_str(
+        first_present(
+            raw.get("location"),
+            raw.get("businessCityName"),
+            raw.get("cityName"),
+            raw.get("city"),
+            owner.get("location"),
+            user.get("location"),
+        )
+    )
+    if direct_location:
+        return direct_location
+
+    address = raw.get("businessAddressJson") or raw.get("business_address_json")
+    if isinstance(address, str) and address.strip():
+        try:
+            address = json.loads(address)
+        except json.JSONDecodeError:
+            return address.strip()
+    if not isinstance(address, dict):
+        return ""
+
+    parts = [
+        clean_str(address.get("street_address")),
+        clean_str(address.get("city_name") or address.get("city")),
+        clean_str(address.get("zip_code")),
+        clean_str(address.get("country_code")),
+    ]
+    return ", ".join(part for part in parts if part)
 
 
 def stable_id(prefix: str, *parts: Any) -> str:
@@ -113,6 +154,56 @@ def parse_instagram_timestamp(value: Any) -> str | None:
     return None
 
 
+def parse_cutoff_time(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        return None
+
+    raw = value.strip().lower()
+    if not raw:
+        return None
+
+    match = re.fullmatch(r"(\d+)\s+(day|days|week|weeks|month|months|year|years)", raw)
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2)
+        days_by_unit = {
+            "day": 1,
+            "days": 1,
+            "week": 7,
+            "weeks": 7,
+            "month": 30,
+            "months": 30,
+            "year": 365,
+            "years": 365,
+        }
+        return datetime.now(timezone.utc) - timedelta(days=amount * days_by_unit[unit])
+
+    try:
+        dt = datetime.fromisoformat(raw.replace("z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def record_created_at(raw: dict) -> datetime | None:
+    parsed = parse_instagram_timestamp(
+        first_present(raw.get("timestamp"), raw.get("takenAtTimestamp"), raw.get("createdAt"))
+    )
+    if not parsed:
+        return None
+    try:
+        dt = datetime.fromisoformat(parsed.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
 def normalize_topic_key(value: Any) -> str:
     text = clean_str(value).lstrip("#").lower()
     return re.sub(r"\s+", "_", text)
@@ -145,39 +236,30 @@ def media_code_from_record(raw: dict) -> str:
     return ""
 
 
+def is_post_record(raw: dict) -> bool:
+    """过滤掉 Apify hashtag/search 元数据，只保留真实帖子记录。"""
+    if media_code_from_record(raw):
+        return True
+    if clean_str(raw.get("ownerUsername") or raw.get("caption") or raw.get("captionText")):
+        return True
+    if raw.get("timestamp") or raw.get("takenAtTimestamp") or raw.get("createdAt"):
+        return True
+    return False
+
+
 def engagement_score(raw: dict) -> int:
-    likes = to_int(raw.get("likesCount") or raw.get("like_count") or raw.get("likes")) or 0
-    comments = to_int(raw.get("commentsCount") or raw.get("comment_count") or raw.get("comments")) or 0
+    likes = to_int(first_present(raw.get("likesCount"), raw.get("like_count"), raw.get("likes"))) or 0
+    comments = to_int(first_present(raw.get("commentsCount"), raw.get("comment_count"), raw.get("comments"))) or 0
     views = to_int(
-        raw.get("videoViewCount")
-        or raw.get("videoPlayCount")
-        or raw.get("viewsCount")
-        or raw.get("view_count")
-        or raw.get("play_count")
+        first_present(
+            raw.get("videoViewCount"),
+            raw.get("videoPlayCount"),
+            raw.get("viewsCount"),
+            raw.get("view_count"),
+            raw.get("play_count"),
+        )
     ) or 0
     return likes + comments * 3 + views // 100
-
-
-def extract_hashtags(text: str, raw: dict | None = None) -> list[str]:
-    """从文本中提取 hashtag"""
-    tags = set()
-    if text:
-        tags.update(normalize_topic_key(tag) for tag in re.findall(r"#(\w+)", text))
-
-    if raw:
-        for key in ("hashtags", "hashtagsList"):
-            values = raw.get(key)
-            if isinstance(values, list):
-                for item in values:
-                    if isinstance(item, dict):
-                        tag = item.get("name") or item.get("tag") or item.get("hashtag")
-                    else:
-                        tag = item
-                    normalized = normalize_topic_key(tag)
-                    if normalized:
-                        tags.add(normalized)
-
-    return sorted(tag for tag in tags if tag)
 
 
 class InstagramFetcher:
@@ -204,49 +286,64 @@ class InstagramFetcher:
             or user.get("screen_name")
             or ""
         )
-        if not username:
+        instagram_user_id = clean_str(
+            raw.get("ownerId")
+            or raw.get("owner_id")
+            or owner.get("id")
+            or user.get("id")
+            or user.get("pk")
+            or ""
+        )
+        external_user_id = username or (f"instagram_user_{instagram_user_id}" if instagram_user_id else "")
+        if not external_user_id:
             return None
 
         follower_count = to_int(
-            raw.get("followersCount")
-            or raw.get("ownerFollowersCount")
-            or raw.get("ownerFollowers")
-            or raw.get("followers")
-            or raw.get("follower_count")
-            or raw.get("followers_count")
-            or owner.get("followers_count")
-            or owner.get("followers")
-            or user.get("followers_count")
-            or user.get("followers")
+            first_present(
+                raw.get("followersCount"),
+                raw.get("ownerFollowersCount"),
+                raw.get("ownerFollowers"),
+                raw.get("followers"),
+                raw.get("follower_count"),
+                raw.get("followers_count"),
+                owner.get("followers_count"),
+                owner.get("followers"),
+                user.get("followers_count"),
+                user.get("followers"),
+            )
         )
         following_count = to_int(
-            raw.get("followsCount")
-            or raw.get("ownerFollowsCount")
-            or raw.get("following")
-            or raw.get("following_count")
-            or raw.get("followingsCount")
-            or owner.get("following_count")
-            or owner.get("following")
-            or user.get("following_count")
-            or user.get("following")
+            first_present(
+                raw.get("followsCount"),
+                raw.get("ownerFollowsCount"),
+                raw.get("following"),
+                raw.get("following_count"),
+                raw.get("followingsCount"),
+                owner.get("following_count"),
+                owner.get("following"),
+                user.get("following_count"),
+                user.get("following"),
+            )
         )
         post_count = to_int(
-            raw.get("postsCount")
-            or raw.get("ownerPostsCount")
-            or raw.get("posts")
-            or raw.get("media_count")
-            or raw.get("mediaCount")
-            or owner.get("media_count")
-            or owner.get("posts")
-            or user.get("media_count")
-            or user.get("posts")
+            first_present(
+                raw.get("postsCount"),
+                raw.get("ownerPostsCount"),
+                raw.get("posts"),
+                raw.get("media_count"),
+                raw.get("mediaCount"),
+                owner.get("media_count"),
+                owner.get("posts"),
+                user.get("media_count"),
+                user.get("posts"),
+            )
         )
 
         return {
             "platform": PLATFORM,
             "type": PLATFORM,
-            "external_user_id": username,
-            "username": username,
+            "external_user_id": external_user_id,
+            "username": username or external_user_id,
             "display_name": clean_str(
                 raw.get("fullName")
                 or raw.get("ownerFullName")
@@ -255,8 +352,8 @@ class InstagramFetcher:
                 or user.get("full_name")
                 or raw.get("name")
             ),
-            "bio": clean_str(raw.get("biography") or raw.get("bio")),
-            "location": clean_str(raw.get("location") or ""),
+            "bio": clean_str(first_present(raw.get("biography"), raw.get("bio"))),
+            "location": location_from_profile(raw, owner, user),
             "verified": 1 if (
                 raw.get("isVerified")
                 or raw.get("verified")
@@ -273,17 +370,20 @@ class InstagramFetcher:
                 else "normal"
             ),
             "profile_json": to_json({
-                "instagram_user_id": raw.get("id") or raw.get("ownerId") or owner.get("id") or user.get("id") or user.get("pk"),
+                "instagram_user_id": instagram_user_id or raw.get("id"),
                 "profile_pic_url": (
-                    raw.get("profilePicUrl")
-                    or raw.get("profile_pic_url")
-                    or owner.get("profile_pic_url")
-                    or user.get("profile_pic_url")
+                    first_present(
+                        raw.get("profilePicUrl"),
+                        raw.get("profile_pic_url"),
+                        raw.get("profilePicUrlHD"),
+                        owner.get("profile_pic_url"),
+                        user.get("profile_pic_url"),
+                    )
                 ),
-                "external_url": raw.get("externalUrl") or raw.get("external_url"),
-                "business_category": raw.get("businessCategoryName") or raw.get("category"),
-                "is_private": raw.get("private") or raw.get("isPrivate") or owner.get("is_private"),
-                "is_business": raw.get("isBusinessAccount") or raw.get("is_business"),
+                "external_url": first_present(raw.get("externalUrl"), raw.get("external_url")),
+                "business_category": first_present(raw.get("businessCategoryName"), raw.get("category")),
+                "is_private": first_present(raw.get("private"), raw.get("isPrivate"), owner.get("is_private")),
+                "is_business": first_present(raw.get("isBusinessAccount"), raw.get("is_business")),
             }),
             "raw_json": to_json(raw),
         }
@@ -307,17 +407,19 @@ class InstagramFetcher:
             "text": clean_str(raw.get("caption") or raw.get("captionText") or ""),
             "language": None,
             "created_at": parse_instagram_timestamp(
-                raw.get("timestamp") or raw.get("takenAtTimestamp") or raw.get("createdAt")
+                first_present(raw.get("timestamp"), raw.get("takenAtTimestamp"), raw.get("createdAt"))
             ) or now_iso(),
-            "like_count": to_int(raw.get("likesCount") or raw.get("like_count") or raw.get("likes")),
-            "reply_count": to_int(raw.get("commentsCount") or raw.get("comment_count") or raw.get("comments")),
-            "share_count": to_int(raw.get("sharesCount") or raw.get("shares")),
+            "like_count": to_int(first_present(raw.get("likesCount"), raw.get("like_count"), raw.get("likes"))),
+            "reply_count": to_int(first_present(raw.get("commentsCount"), raw.get("comment_count"), raw.get("comments"))),
+            "share_count": to_int(first_present(raw.get("sharesCount"), raw.get("shares"))),
             "view_count": to_int(
-                raw.get("videoViewCount")
-                or raw.get("videoPlayCount")
-                or raw.get("viewsCount")
-                or raw.get("view_count")
-                or raw.get("play_count")
+                first_present(
+                    raw.get("videoViewCount"),
+                    raw.get("videoPlayCount"),
+                    raw.get("viewsCount"),
+                    raw.get("view_count"),
+                    raw.get("play_count"),
+                )
             ),
             "raw_json": to_json(raw),
         }
@@ -326,13 +428,15 @@ class InstagramFetcher:
         """从评论记录中提取评论者的最小用户信息。"""
         owner = raw.get("owner") if isinstance(raw.get("owner"), dict) else {}
         username = clean_str(raw.get("ownerUsername") or owner.get("username"))
-        if not username:
+        owner_id = clean_str(raw.get("ownerId") or owner.get("id"))
+        external_user_id = username or (f"instagram_user_{owner_id}" if owner_id else "")
+        if not external_user_id:
             return None
         return {
             "platform": PLATFORM,
             "type": PLATFORM,
-            "external_user_id": username,
-            "username": username,
+            "external_user_id": external_user_id,
+            "username": username or external_user_id,
             "display_name": clean_str(raw.get("ownerFullName") or owner.get("full_name")),
             "bio": None,
             "location": None,
@@ -351,20 +455,22 @@ class InstagramFetcher:
         comment_id = clean_str(raw.get("id") or raw.get("commentId") or "")
         if not comment_id:
             comment_id = stable_id("ig_comment", parent_content_id, raw.get("text", ""), raw.get("timestamp", ""))
-        author_id = clean_str(raw.get("ownerUsername") or owner.get("username") or raw.get("ownerId") or owner.get("id"))
+        username = clean_str(raw.get("ownerUsername") or owner.get("username"))
+        owner_id = clean_str(raw.get("ownerId") or owner.get("id"))
+        author_id = username or (f"instagram_user_{owner_id}" if owner_id else "")
 
         return {
             "platform": PLATFORM,
             "type": PLATFORM,
             "external_content_id": comment_id,
-            "content_type": "comment",
+            "content_type": "reply",
             "author_external_user_id": author_id,
             "parent_external_content_id": parent_content_id,
             "root_external_content_id": root_content_id,
             "text": clean_str(raw.get("text") or raw.get("comment") or ""),
             "language": None,
-            "created_at": parse_instagram_timestamp(raw.get("timestamp") or raw.get("created_at")) or now_iso(),
-            "like_count": to_int(raw.get("likesCount") or raw.get("likeCount")),
+            "created_at": parse_instagram_timestamp(first_present(raw.get("timestamp"), raw.get("created_at"))) or now_iso(),
+            "like_count": to_int(first_present(raw.get("likesCount"), raw.get("likeCount"))),
             "reply_count": to_int(raw.get("repliesCount")),
             "share_count": None,
             "view_count": None,
@@ -390,113 +496,96 @@ class InstagramFetcher:
         )
         return f"https://www.instagram.com/p/{shortcode}/" if shortcode else ""
 
-    def fetch_topic_posts(self, topic_label: str, limit: int) -> list[dict]:
-        """通过 hashtag 页面 URL 直接爬取 Instagram 公开帖子，按互动分排序。"""
-        log(f"  搜索 topic: {topic_label}")
-        posts = []
-        seen = set()
+    def fetch_topic_posts(
+        self,
+        topic_label: str,
+        limit: int,
+        only_newer_than: str | None = None,
+    ) -> list[dict]:
+        """通过 hashtag 页面抓取公开帖子。"""
+        normalized_topic = clean_str(topic_label).lstrip("#")
+        if not normalized_topic or limit <= 0:
+            return []
 
-        started_at = time.monotonic()
-        try:
-            hashtag_url = f"https://www.instagram.com/explore/tags/{topic_label}/"
-            results = run_apify_actor(self.token, {
-                "directUrls": [hashtag_url],
-                "resultsType": "posts",
-                "resultsLimit": min(50, max(20, limit * 3)),
-                "addParentData": True,
-            })
-            if results:
-                log(f"  [DEBUG] 第一条结果 keys: {sorted(results[0].keys())}")
+        log(f"  搜索 topic: #{normalized_topic}")
+        posts: list[dict] = []
+        seen: set[str] = set()
+        cutoff = parse_cutoff_time(only_newer_than)
+
+        def append_results(results: list[dict]) -> None:
             for item in results:
+                if not is_post_record(item):
+                    continue
+                if cutoff:
+                    created_at = record_created_at(item)
+                    if created_at and created_at < cutoff:
+                        continue
                 post_key = clean_str(
                     item.get("id") or item.get("pk") or media_code_from_record(item)
                 )
                 if post_key and post_key not in seen:
                     seen.add(post_key)
-                    item["_source_topic_label"] = topic_label
+                    item["_source_topic_label"] = normalized_topic
                     posts.append(item)
-        except Exception as e:
-            log(f"  警告: topic 搜索失败 '{topic_label}' - {e}")
-        elapsed = time.monotonic() - started_at
 
+        started_at = time.monotonic()
+        try:
+            payload = {
+                "hashtags": [normalized_topic],
+                "resultsType": "posts",
+                "resultsLimit": min(50, max(1, limit * 2)),
+            }
+            results = run_apify_actor(self.token, payload, actor=HASHTAG_ACTOR, timeout=35)
+            append_results(results)
+        except Exception as e:
+            log(f"  警告: hashtag 帖子抓取失败 '#{normalized_topic}' - {e}")
+
+        elapsed = time.monotonic() - started_at
         posts.sort(key=engagement_score, reverse=True)
         log(f"  topic 返回 {len(posts)} 条公开帖子，耗时 {elapsed:.1f}s")
         return posts[:limit]
 
     def fetch_user_profiles(self, usernames: list[str]) -> dict[str, dict]:
-        """批量获取用户主页详情，用于补齐粉丝数并区分 kol/normal。"""
-        usernames = [name for name in usernames if name]
-        if not usernames:
+        """批量获取已出现作者的主页详情。"""
+        clean_usernames = []
+        seen = set()
+        for username in usernames:
+            normalized = clean_str(username).lstrip("@")
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            clean_usernames.append(normalized)
+
+        if not clean_usernames:
             return {}
+
         try:
-            results = run_apify_actor(self.token, {
-                "directUrls": [f"https://www.instagram.com/{username}/" for username in usernames],
-                "resultsType": "details",
-                "resultsLimit": 1,
-                "addParentData": True,
-            })
+            results = run_apify_actor(
+                self.token,
+                {
+                    "directUrls": [f"https://www.instagram.com/{username}/" for username in clean_usernames],
+                    "resultsType": "details",
+                    "resultsLimit": 1,
+                    "addParentData": True,
+                },
+                timeout=30,
+            )
         except Exception as e:
             log(f"  警告: 批量用户详情爬取失败 - {e}")
             return {}
 
-        profiles = {}
+        profiles: dict[str, dict] = {}
         for item in results:
             username = clean_str(
-                item.get("username")
-                or item.get("ownerUsername")
-                or item.get("userName")
-                or ""
-            )
+                first_present(
+                    item.get("username"),
+                    item.get("ownerUsername"),
+                    item.get("userName"),
+                )
+            ).lstrip("@")
             if username:
                 profiles[username] = item
         return profiles
-
-    def fetch_users_posts(self, usernames: list[str], limit: int) -> dict[str, list[dict]]:
-        """批量爬取多个用户的公开帖子，减少 Apify actor 启动次数。"""
-        usernames = [name for name in usernames if name]
-        if not usernames or limit <= 0:
-            return {}
-
-        payload = {
-            "directUrls": [f"https://www.instagram.com/{username}/" for username in usernames],
-            "resultsType": "posts",
-            "resultsLimit": limit,
-            "addParentData": True,
-        }
-        try:
-            results = run_apify_actor(self.token, payload)
-        except Exception as e:
-            log(f"  警告: 批量爬取用户帖子失败 - {e}")
-            return {}
-
-        grouped: dict[str, list[dict]] = defaultdict(list)
-        fallback_username = usernames[0] if len(usernames) == 1 else ""
-        for item in results:
-            username = clean_str(
-                item.get("ownerUsername")
-                or item.get("username")
-                or item.get("userName")
-                or fallback_username
-            )
-            if username:
-                grouped[username].append(item)
-        return dict(grouped)
-
-    def fetch_user_posts(self, username: str, limit: int, only_newer_than: str | None = None) -> list[dict]:
-        """爬取用户帖子"""
-        payload = {
-            "directUrls": [f"https://www.instagram.com/{username}/"],
-            "resultsType": "posts",
-            "resultsLimit": limit,
-            "addParentData": True,
-        }
-        if only_newer_than:
-            payload["onlyPostsNewerThan"] = only_newer_than
-        try:
-            return run_apify_actor(self.token, payload)
-        except Exception as e:
-            log(f"  警告: @{username} 爬取失败 - {e}")
-            return []
 
     def fetch_posts_comments(self, post_urls: list[str], limit: int) -> dict[str, list[dict]]:
         """批量爬取多个帖子的公开评论，按 Instagram media code 分组。"""
@@ -509,7 +598,7 @@ class InstagramFetcher:
                 "resultsType": "comments",
                 "resultsLimit": min(limit, 50),
                 "addParentData": True,
-            })
+            }, timeout=30)
         except Exception as e:
             log(f"  警告: 批量评论爬取失败 - {e}")
             return {}
@@ -536,7 +625,7 @@ class InstagramFetcher:
                 "directUrls": [post_url],
                 "resultsType": "comments",
                 "resultsLimit": min(limit, 50),
-            })
+            }, timeout=30)
         except Exception as e:
             log(f"  警告: 评论爬取失败 {post_url} - {e}")
             return []
