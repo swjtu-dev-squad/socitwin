@@ -50,6 +50,16 @@ def test_run_memory_evaluation_writes_summary_and_events() -> None:
         assert summary["summary"]["success"] is True
         assert "preflight" in summary["summary"]["by_phase"]
         assert "deterministic" in summary["summary"]["by_phase"]
+        assert summary["memory_kpis"]["ltm_exact_hit_at_3"] is None
+        assert summary["memory_kpis"]["recall_injection_trace_rate"] is None
+        assert any(
+            item["metric"] == "ltm_exact_hit_at_3"
+            for item in summary["unavailable_metrics"]
+        )
+
+        readme = (run_dir / "README.md").read_text(encoding="utf-8")
+        assert "## Memory KPIs" in readme
+        assert "## Unavailable Metrics" in readme
 
         events = [
             json.loads(line)
@@ -61,6 +71,72 @@ def test_run_memory_evaluation_writes_summary_and_events() -> None:
         assert "embedding_openai_compatible" in event_names
         assert "VAL-OBS-01 long_text_post_fidelity" in event_names
         assert "VAL-RCL-02 strong_signal_recall_trigger" in event_names
+
+
+def test_evaluation_recorder_aggregates_memory_kpis() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        recorder = EvaluationRecorder(Path(tmp) / "kpi-test")
+        recorder.record(
+            EvaluationEvent(
+                phase="real-scenarios",
+                name="VAL-LTM-05 real_self_action_retrievability",
+                status="pass",
+                metrics={
+                    "hit_at_1": 0.5,
+                    "hit_at_3": 1.0,
+                    "mrr": 0.75,
+                    "cross_agent_top3_count": 1,
+                    "top3_candidate_slot_count": 4,
+                },
+            )
+        )
+        recorder.record(
+            EvaluationEvent(
+                phase="real-scenarios",
+                name="VAL-RCL-08 real_continuity_recall_probe",
+                status="pass",
+                metrics={"gate_decision": True},
+            )
+        )
+        recorder.record(
+            EvaluationEvent(
+                phase="real-scenarios",
+                name="VAL-RCL-09 real_empty_observation_recall_suppression",
+                status="pass",
+                metrics={
+                    "gate_decision": False,
+                    "retrieval_attempted": False,
+                    "recalled_count": 0,
+                },
+            )
+        )
+        recorder.record(
+            EvaluationEvent(
+                phase="real-longwindow",
+                name="VAL-RCL-10 real_longwindow_recall_injection",
+                status="pass",
+                metrics={
+                    "recall_recalled_trace_count": 4,
+                    "recall_injected_trace_count": 3,
+                },
+            )
+        )
+
+        recorder.finalize(EvaluationConfig(output_dir=Path(tmp), run_id="kpi-test"))
+
+        summary = json.loads(
+            (Path(tmp) / "kpi-test" / "summary.json").read_text(encoding="utf-8")
+        )
+        assert summary["memory_kpis"] == {
+            "ltm_exact_hit_at_1": 0.5,
+            "ltm_exact_hit_at_3": 1.0,
+            "ltm_mrr": 0.75,
+            "cross_agent_contamination_rate": 0.25,
+            "recall_gate_success_rate": 1.0,
+            "false_recall_trigger_rate": 0.0,
+            "recall_injection_trace_rate": 0.75,
+        }
+        assert summary["unavailable_metrics"] == []
 
 
 def test_parser_accepts_multiple_phases() -> None:
@@ -375,6 +451,55 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
     assert events[0].status == "pass"
     assert events[1].status == "pass"
     assert events[2].status == "pass"
+    assert events[0].metrics["real_probe_candidate_count"] == 2
+    assert events[0].metrics["usable_probe_count"] == 2
+    assert events[0].metrics["skipped_probe_count"] == 0
+    assert events[0].metrics["candidate_action_name_distribution"] == {
+        "create_comment": 1,
+        "create_post": 1,
+    }
+    assert events[0].metrics["candidate_agent_distribution"] == {
+        "agent-1": 1,
+        "agent-2": 1,
+    }
+
+
+def test_build_real_scenario_events_reports_probe_skips() -> None:
+    class _FakeStore:
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text, limit, agent_id
+            return [
+                {
+                    "memory_kind": "action_episode",
+                    "agent_id": "agent-1",
+                    "step_id": 4,
+                    "action_index": 0,
+                    "action_name": "like",
+                }
+            ]
+
+    fake_agent = SimpleNamespace(
+        agent_id="agent-1",
+        _persisted_action_episode_ids={(4, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 4},
+        _action_v1_longterm_store=_FakeStore(),
+    )
+
+    events = _build_real_scenario_events(
+        manager=manager,
+        init_result={"agent_count": 1},
+        config=EvaluationConfig(phases=["real-scenarios"], embedding_url=""),
+    )
+
+    event = events[0]
+    assert event.status == "fail"
+    assert event.metrics["real_probe_candidate_count"] == 1
+    assert event.metrics["usable_probe_count"] == 0
+    assert event.metrics["skipped_probe_count"] == 1
+    assert event.metrics["skipped_probe_reason_counts"] == {"missing_query_text": 1}
 
 
 def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:

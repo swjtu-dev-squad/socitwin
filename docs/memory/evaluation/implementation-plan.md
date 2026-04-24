@@ -1,12 +1,12 @@
 # Memory Evaluation Implementation Plan
 
-- Status: draft implementation checklist
+- Status: Phase 1 implemented; Phase 3+ pending
 - Audience: implementers
 - Doc role: define concrete implementation steps for the first usable evaluation KPI output
 
 ## 1. Current Position
 
-当前仓库已经有 evaluation harness 和真实场景 probe，但还缺统一 KPI 输出。
+当前仓库已经有 evaluation harness 和真实场景 probe，并已补上第一阶段 summary 级 KPI 输出。
 
 现有可复用基础：
 
@@ -19,13 +19,15 @@
 - `VAL-RCL-09`
 - `VAL-RCL-10`
 
-本轮目标不是重写 harness，而是在现有事件基础上补 summary 级指标。
+第一阶段目标不是重写 harness，而是在现有事件基础上补 summary 级指标。该部分已完成；后续重点转向 `B-level v0` 的样本可靠性收口。
 
 测试可靠性原则见：
 
 - [dataset-and-reliability.md](./dataset-and-reliability.md)
 
 ## 2. Phase 1: Summary KPI Aggregation
+
+Status: implemented.
 
 ### Task 1: Add `memory_kpis`
 
@@ -50,6 +52,7 @@
 - phase 未运行时使用 `null`；
 - 不用 `0` 表示缺失；
 - 指标来源要能追溯到 event name。
+- summary 同时输出 `memory_kpi_sources` 和 `unavailable_metrics`。
 
 ### Task 2: Aggregate Retrieval Metrics
 
@@ -63,6 +66,12 @@
 如果当前 event 缺 top3 slot count，需要在 per-query score 中补：
 
 - `retrieved_top3_count`
+
+当前已补充：
+
+- per-query `retrieved_top3_count`
+- summary `top3_candidate_slot_count`
+- summary `cross_agent_contamination_rate`
 
 `cross_agent_contamination_rate` 是 agent filter 回归防线。正常 recall 路径已经按当前 `agent_id` 过滤长期记忆；如果该指标明显大于 0，应优先排查过滤参数传递或向量库 where filter，而不是把它解释成普通排序噪声。
 
@@ -103,6 +112,8 @@ else:
 
 ## 3. Phase 2: Readable Report
 
+Status: implemented for Phase 1 KPI output.
+
 在 harness 的 `README.md` 输出中增加：
 
 - KPI 摘要；
@@ -112,7 +123,17 @@ else:
 
 目标是让人类和 AI 都能快速读懂测试结果。
 
+当前 README 已输出：
+
+- `Memory KPIs`
+- `Unavailable Metrics`
+- exact episode hit 与传统 Recall@K 的差异说明
+- trace-level injection 与目标 episode 注入成功的差异说明
+- retrieve-only probe 与 full-path injection 的差异说明
+
 ## 4. Phase 3: B-Level v0 Reliability Upgrade
+
+Status: partially implemented.
 
 在进入 controlled benchmark 和完整 scenario pack 之前，先把当前 `real-scenarios / real-longwindow` 收口成可解释的 `B-level v0`。
 
@@ -128,7 +149,25 @@ else:
 - agent distribution；
 - usable probe validity gate。
 
+当前已补充到 `VAL-LTM-05` 及共享 base metrics：
+
+- `probe_attempt_limit`
+- `usable_probe_count`
+- `skipped_probe_count`
+- `skipped_probe_reason_counts`
+- `candidate_action_name_distribution`
+- `candidate_agent_distribution`
+- `usable_probe_action_name_distribution`
+- `usable_probe_agent_distribution`
+
 这一步的目标不是把 B 级做成完整 benchmark 平台，而是避免它继续停留在“随机 run 一次看看”。
+
+仍未完成：
+
+- 固定 `file` / `manual` agent profiles；
+- 固定 topic / 初始环境；
+- 更严格的 usable probe validity gate；
+- 多 run 汇总。
 
 ## 5. Phase 4: Controlled Benchmark
 
@@ -192,8 +231,20 @@ Phase 1 完成时应满足：
 - 默认 summary 中存在 `memory_kpis`；
 - 未运行 phase 的指标不会被错误写成 `0`；
 - README 报告能解释指标含义；
-- real-run replay 结果能报告 usable probe count 和 skipped reason；
 - 文档与实际字段名一致。
+
+已验证：
+
+- `uv run pytest tests/memory/evaluation/test_memory_evaluation_harness.py`
+- `uv run pyright app/`
+- `uv run ruff check app tests/memory/evaluation/test_memory_evaluation_harness.py --ignore=E501`
+
+Phase 3 已开始补充：
+
+- real-run replay 的 `usable probe count`
+- `skipped episode count`
+- `skipped reasons`
+- action / agent distribution
 
 ## 9. Open Decisions
 

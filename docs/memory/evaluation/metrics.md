@@ -1,6 +1,6 @@
 # Long-Term Memory Metrics
 
-- Status: draft metric contract
+- Status: active metric contract
 - Audience: implementers, evaluators, report authors
 - Doc role: define KPI meaning, source fields, and current implementation gaps
 
@@ -25,9 +25,9 @@
 | `ltm_exact_hit_at_3` | retrieval | 目标 `(agent_id, step_id, action_index)` 出现在 top-3 candidate 的比例 | `real-scenarios` event metrics `hit_at_3` | `v1` |
 | `ltm_exact_hit_at_1` | retrieval ranking | 目标 episode 是否排在 top-1 | `real-scenarios` event metrics `hit_at_1` | `v1` |
 | `ltm_mrr` | retrieval | 目标 episode first hit rank 的倒数均值 | `real-scenarios` event metrics `mrr` | `v1` |
-| `cross_agent_contamination_rate` | retrieval safety | top-k candidate 中错误 `agent_id` 的比例；正常路径应接近或等于 0 | 当前已有 `cross_agent_retrieved_count` / `cross_agent_top3_count`，还需 summary rate | `v1.1 guardrail` |
-| `recall_gate_success_rate` | gate | 需要 recall 的正例 probe 中 gate 打开的比例 | `gate_decision` / `last_recall_gate` | `v1.1` |
-| `false_recall_trigger_rate` | gate | 不需要 recall 的负例 probe 中 gate 被错误打开的比例 | `VAL-RCL-09` / empty observation probe | `v1.1` |
+| `cross_agent_contamination_rate` | retrieval safety | top-k candidate 中错误 `agent_id` 的比例；正常路径应接近或等于 0 | `cross_agent_top3_count / top3_candidate_slot_count` | `v1` |
+| `recall_gate_success_rate` | gate | 需要 recall 的正例 probe 中 gate 打开的比例 | `VAL-RCL-08` event metrics `gate_decision` | `v1` |
+| `false_recall_trigger_rate` | gate | 不需要 recall 的负例 probe 中 gate 被错误打开的比例 | `VAL-RCL-09` event metrics `gate_decision/retrieval_attempted/recalled_count` | `v1` |
 | `recall_injection_trace_rate` | injection | 真实长窗口中出现 injected recall trace 的 agent/trace 比例 | `real-longwindow` metrics `recall_injected_trace_count` | `v1` |
 | `target_episode_injection_success_rate` | injection | retrieval 命中目标 episode 后，该目标 episode 最终进入 prompt 的比例 | 需要关联 target episode 与 injected step ids | `future` |
 
@@ -108,9 +108,7 @@ LTM Retrieval Recall@3 (Exact Episode Hit@3)
 
 因此 cross-agent contamination 不应被理解成“预期会经常出现的质量指标”，而应被理解成过滤边界的回归防线。
 
-当前代码已经统计了 top-3 中跨 agent 的数量，但还没有统一 rate。
-
-建议第一版定义为：
+当前 summary 已按第一版定义聚合为：
 
 ```text
 cross_agent_contamination_rate =
@@ -157,9 +155,27 @@ target_episode_injection_success_rate
 | `prompt_budget_block_rate` | 因总 prompt budget 不能注入的比例 | 判断上下文预算压力 |
 | `recall_budget_block_rate` | 因 recall budget 不能注入的比例 | 判断 recall 局部预算是否过紧 |
 
-## 6. Minimum Summary Output
+## 6. Real Replay Reliability Fields
 
-第一阶段建议在 `summary.json` 增加：
+真实 simulation replay 的检索 KPI 必须同时报告样本基础，否则一次低样本运行容易被误读。
+
+当前 `VAL-LTM-05 real_self_action_retrievability` 会输出：
+
+- `real_probe_candidate_count`：从长期记忆中可回查到的候选 episode 数；
+- `probe_attempt_limit`：本轮最多拿多少候选出题，当前默认 5；
+- `usable_probe_count`：实际能构造 query 的 probe 数；
+- `skipped_probe_count`：没有进入 probe 的候选数；
+- `skipped_probe_reason_counts`：跳过原因，例如 `missing_query_text` 或 `outside_probe_limit`；
+- `candidate_action_name_distribution`：候选池动作分布；
+- `candidate_agent_distribution`：候选池 agent 分布；
+- `usable_probe_action_name_distribution`：实际出题样本动作分布；
+- `usable_probe_agent_distribution`：实际出题样本 agent 分布。
+
+这些字段不直接等于记忆能力得分，但决定本轮结果是否有解释价值。
+
+## 7. Minimum Summary Output
+
+第一阶段已在 `summary.json` 增加：
 
 ```json
 {
@@ -175,4 +191,10 @@ target_episode_injection_success_rate
 }
 ```
 
-如果某个 phase 没跑，对应字段应使用 `null` 或放入 `unavailable_metrics` 说明，不要用 `0` 冒充真实结果。
+如果某个 phase 没跑，对应字段使用 `null`，并在 `unavailable_metrics` 中说明缺失原因，不用 `0` 冒充真实结果。
+
+同时输出：
+
+- `memory_kpi_sources`：记录每个 KPI 对应的 event name；
+- `unavailable_metrics`：记录不可用指标、原因、所需 event 和所需 metric；
+- run 目录下的 `README.md`：输出 KPI 摘要、不可用指标和 retrieve-only / injection 口径说明。

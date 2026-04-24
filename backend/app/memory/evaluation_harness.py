@@ -35,6 +35,26 @@ DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "memory-eval"
 DEFAULT_PHASES = ("preflight", "deterministic")
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
+MEMORY_KPI_FIELDS = (
+    "ltm_exact_hit_at_1",
+    "ltm_exact_hit_at_3",
+    "ltm_mrr",
+    "cross_agent_contamination_rate",
+    "recall_gate_success_rate",
+    "false_recall_trigger_rate",
+    "recall_injection_trace_rate",
+)
+MEMORY_KPI_SOURCES = {
+    "ltm_exact_hit_at_1": ["VAL-LTM-05 real_self_action_retrievability"],
+    "ltm_exact_hit_at_3": ["VAL-LTM-05 real_self_action_retrievability"],
+    "ltm_mrr": ["VAL-LTM-05 real_self_action_retrievability"],
+    "cross_agent_contamination_rate": ["VAL-LTM-05 real_self_action_retrievability"],
+    "recall_gate_success_rate": ["VAL-RCL-08 real_continuity_recall_probe"],
+    "false_recall_trigger_rate": [
+        "VAL-RCL-09 real_empty_observation_recall_suppression"
+    ],
+    "recall_injection_trace_rate": ["VAL-RCL-10 real_longwindow_recall_injection"],
+}
 
 
 @dataclass(slots=True)
@@ -119,6 +139,7 @@ class EvaluationRecorder:
             phase_summary[event.status] = phase_summary.get(event.status, 0) + 1
         success = not any(event.status == "fail" for event in self.events)
         has_blockers = any(event.status == "blocked" for event in self.events)
+        memory_kpis, unavailable_metrics = _build_memory_kpis(self.events)
         return {
             "config": _jsonable(asdict(config)),
             "summary": {
@@ -126,6 +147,9 @@ class EvaluationRecorder:
                 "has_blockers": has_blockers,
                 "by_phase": by_phase,
             },
+            "memory_kpis": memory_kpis,
+            "memory_kpi_sources": MEMORY_KPI_SOURCES,
+            "unavailable_metrics": unavailable_metrics,
             "event_briefs": [
                 {
                     "phase": event.phase,
@@ -146,12 +170,205 @@ class EvaluationRecorder:
             f"- success: `{summary['summary']['success']}`",
             f"- has_blockers: `{summary['summary']['has_blockers']}`",
             "",
-            "## Events",
-            "",
         ]
+        lines.extend(_memory_kpi_readme_lines(summary))
+        lines.extend(["", "## Events", ""])
         for event in self.events:
-            lines.append(f"- `{event.phase}` / `{event.name}` / `{event.status}`")
+            reason = f" - {event.reason}" if event.reason else ""
+            lines.append(f"- `{event.phase}` / `{event.name}` / `{event.status}`{reason}")
         return "\n".join(lines)
+
+
+def _build_memory_kpis(
+    events: list[EvaluationEvent],
+) -> tuple[dict[str, float | None], list[dict[str, str]]]:
+    kpis: dict[str, float | None] = {field: None for field in MEMORY_KPI_FIELDS}
+    unavailable: list[dict[str, str]] = []
+
+    ltm_event = _first_event(events, "VAL-LTM-05 real_self_action_retrievability")
+    if _event_has_metric(ltm_event, "hit_at_3"):
+        metrics = ltm_event.metrics if ltm_event else {}
+        kpis["ltm_exact_hit_at_1"] = _optional_float(metrics.get("hit_at_1"))
+        kpis["ltm_exact_hit_at_3"] = _optional_float(metrics.get("hit_at_3"))
+        kpis["ltm_mrr"] = _optional_float(metrics.get("mrr"))
+        top3_slots = int(metrics.get("top3_candidate_slot_count", 0) or 0)
+        cross_agent_count = int(metrics.get("cross_agent_top3_count", 0) or 0)
+        if top3_slots > 0:
+            kpis["cross_agent_contamination_rate"] = round(
+                cross_agent_count / top3_slots,
+                4,
+            )
+        else:
+            _mark_unavailable(
+                unavailable,
+                "cross_agent_contamination_rate",
+                "top3_candidate_slot_count is missing or zero",
+            )
+    else:
+        reason = _unavailable_event_reason(ltm_event)
+        for metric in (
+            "ltm_exact_hit_at_1",
+            "ltm_exact_hit_at_3",
+            "ltm_mrr",
+            "cross_agent_contamination_rate",
+        ):
+            _mark_unavailable(unavailable, metric, reason)
+
+    gate_event = _first_event(events, "VAL-RCL-08 real_continuity_recall_probe")
+    if _event_has_metric(gate_event, "gate_decision"):
+        assert gate_event is not None
+        kpis["recall_gate_success_rate"] = (
+            1.0 if bool(gate_event.metrics.get("gate_decision")) else 0.0
+        )
+    else:
+        _mark_unavailable(
+            unavailable,
+            "recall_gate_success_rate",
+            _unavailable_event_reason(gate_event),
+        )
+
+    suppression_event = _first_event(
+        events,
+        "VAL-RCL-09 real_empty_observation_recall_suppression",
+    )
+    if _event_has_metric(suppression_event, "gate_decision"):
+        assert suppression_event is not None
+        false_triggered = (
+            bool(suppression_event.metrics.get("gate_decision"))
+            or bool(suppression_event.metrics.get("retrieval_attempted"))
+            or int(suppression_event.metrics.get("recalled_count", 0) or 0) > 0
+        )
+        kpis["false_recall_trigger_rate"] = 1.0 if false_triggered else 0.0
+    else:
+        _mark_unavailable(
+            unavailable,
+            "false_recall_trigger_rate",
+            _unavailable_event_reason(suppression_event),
+        )
+
+    injection_event = _first_event(events, "VAL-RCL-10 real_longwindow_recall_injection")
+    if _event_has_metric(injection_event, "recall_recalled_trace_count"):
+        assert injection_event is not None
+        recalled_trace_count = int(
+            injection_event.metrics.get("recall_recalled_trace_count", 0) or 0
+        )
+        injected_trace_count = int(
+            injection_event.metrics.get("recall_injected_trace_count", 0) or 0
+        )
+        if recalled_trace_count > 0:
+            kpis["recall_injection_trace_rate"] = round(
+                injected_trace_count / recalled_trace_count,
+                4,
+            )
+        else:
+            _mark_unavailable(
+                unavailable,
+                "recall_injection_trace_rate",
+                "recall_recalled_trace_count is zero",
+            )
+    else:
+        _mark_unavailable(
+            unavailable,
+            "recall_injection_trace_rate",
+            _unavailable_event_reason(injection_event),
+        )
+
+    return kpis, unavailable
+
+
+def _first_event(
+    events: list[EvaluationEvent],
+    name: str,
+) -> EvaluationEvent | None:
+    for event in events:
+        if event.name == name:
+            return event
+    return None
+
+
+def _event_has_metric(event: EvaluationEvent | None, metric: str) -> bool:
+    return event is not None and event.status != "blocked" and metric in event.metrics
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return round(float(value), 4)
+    except (TypeError, ValueError):
+        return None
+
+
+def _mark_unavailable(
+    unavailable: list[dict[str, str]],
+    metric: str,
+    reason: str,
+) -> None:
+    unavailable.append(
+        {
+            "metric": metric,
+            "reason": reason,
+            "required_event": ", ".join(MEMORY_KPI_SOURCES.get(metric, [])),
+            "required_metric": _required_metric_for_memory_kpi(metric),
+        }
+    )
+
+
+def _unavailable_event_reason(event: EvaluationEvent | None) -> str:
+    if event is None:
+        return "required evaluation event was not produced"
+    if event.status == "blocked":
+        return event.reason or "required evaluation event was blocked"
+    return "required metric was not produced by evaluation event"
+
+
+def _required_metric_for_memory_kpi(metric: str) -> str:
+    mapping = {
+        "ltm_exact_hit_at_1": "hit_at_1",
+        "ltm_exact_hit_at_3": "hit_at_3",
+        "ltm_mrr": "mrr",
+        "cross_agent_contamination_rate": (
+            "cross_agent_top3_count + top3_candidate_slot_count"
+        ),
+        "recall_gate_success_rate": "gate_decision",
+        "false_recall_trigger_rate": (
+            "gate_decision + retrieval_attempted + recalled_count"
+        ),
+        "recall_injection_trace_rate": (
+            "recall_injected_trace_count + recall_recalled_trace_count"
+        ),
+    }
+    return mapping.get(metric, "")
+
+
+def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
+    lines = ["## Memory KPIs", ""]
+    kpis = summary.get("memory_kpis", {})
+    for kpi_field in MEMORY_KPI_FIELDS:
+        value = kpis.get(kpi_field)
+        rendered = "n/a" if value is None else str(value)
+        lines.append(f"- `{kpi_field}`: `{rendered}`")
+    lines.extend(
+        [
+            "",
+            "Notes:",
+            "",
+            "- `ltm_exact_hit_at_3` is reported as LTM Retrieval Recall@3 (Exact Episode Hit@3). It is a single-target exact episode hit metric, not a traditional multi-document Recall@K.",
+            "- `recall_injection_trace_rate` is a trace-level injection metric. It does not prove the model used the injected memory in its final action.",
+            "- retrieve-only probes validate gate + retrieval. They do not execute full prompt assembly unless the event explicitly says so.",
+        ]
+    )
+    unavailable = list(summary.get("unavailable_metrics", []) or [])
+    if unavailable:
+        lines.extend(["", "## Unavailable Metrics", ""])
+        for item in unavailable:
+            lines.append(
+                "- "
+                f"`{item.get('metric', '')}`: {item.get('reason', '')} "
+                f"(required event: `{item.get('required_event', '')}`, "
+                f"required metric: `{item.get('required_metric', '')}`)"
+            )
+    return lines
 
 
 def run_memory_evaluation(config: EvaluationConfig) -> dict[str, Any]:
@@ -953,8 +1170,8 @@ def _build_real_scenario_events(
         ),
         "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
         "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
-        "real_probe_candidate_count": len(candidates),
         "actual_persisted_action_episode_count": persisted_count,
+        **_summarize_real_probe_candidate_pool(candidates),
     }
     return [
         _build_real_self_action_retrievability_event(
@@ -1056,11 +1273,10 @@ def _build_real_self_action_retrievability_event(
             reason="No real action episode candidates were retrievable from Chroma.",
         )
 
+    probe_candidates = _usable_real_probe_candidates(candidates)
     per_query: list[dict[str, Any]] = []
-    for candidate in candidates[:5]:
+    for candidate in probe_candidates:
         query_text = _query_from_real_episode(candidate)
-        if not query_text:
-            continue
         expected_agent_id = str(candidate.get("agent_id", "") or "")
         retrieved = store.retrieve_relevant(
             query_text,
@@ -1318,6 +1534,71 @@ def _collect_real_longterm_probe_candidates(store: Any) -> list[dict[str, Any]]:
     )
 
 
+def _summarize_real_probe_candidate_pool(
+    candidates: list[dict[str, Any]],
+    *,
+    probe_limit: int = 5,
+) -> dict[str, Any]:
+    considered = candidates[:probe_limit]
+    usable = _usable_real_probe_candidates(candidates, probe_limit=probe_limit)
+    missing_query_count = sum(
+        1 for candidate in considered if not _query_from_real_episode(candidate)
+    )
+    outside_limit_count = max(0, len(candidates) - probe_limit)
+    skipped_reason_counts: dict[str, int] = {}
+    if missing_query_count:
+        skipped_reason_counts["missing_query_text"] = missing_query_count
+    if outside_limit_count:
+        skipped_reason_counts["outside_probe_limit"] = outside_limit_count
+    return {
+        "real_probe_candidate_count": len(candidates),
+        "probe_attempt_limit": probe_limit,
+        "usable_probe_count": len(usable),
+        "skipped_probe_count": missing_query_count + outside_limit_count,
+        "skipped_probe_reason_counts": skipped_reason_counts,
+        "candidate_action_name_distribution": _episode_field_distribution(
+            candidates,
+            "action_name",
+        ),
+        "candidate_agent_distribution": _episode_field_distribution(
+            candidates,
+            "agent_id",
+        ),
+        "usable_probe_action_name_distribution": _episode_field_distribution(
+            usable,
+            "action_name",
+        ),
+        "usable_probe_agent_distribution": _episode_field_distribution(
+            usable,
+            "agent_id",
+        ),
+    }
+
+
+def _usable_real_probe_candidates(
+    candidates: list[dict[str, Any]],
+    *,
+    probe_limit: int = 5,
+) -> list[dict[str, Any]]:
+    return [
+        candidate
+        for candidate in candidates[:probe_limit]
+        if _query_from_real_episode(candidate)
+    ]
+
+
+def _episode_field_distribution(
+    episodes: list[dict[str, Any]],
+    field_name: str,
+) -> dict[str, int]:
+    return _count_string_values(
+        [
+            str(episode.get(field_name, "") or "unknown")
+            for episode in episodes
+        ]
+    )
+
+
 def _count_persisted_action_episodes(agents: list[Any]) -> int:
     total = 0
     for agent in agents:
@@ -1363,6 +1644,7 @@ def _score_real_episode_retrieval_probe(
         "retrieved_same_agent_flags": [
             key[0] == expected_key[0] for key in retrieved_keys
         ],
+        "retrieved_top3_count": len(retrieved_keys[:3]),
         "cross_agent_retrieved_count": sum(
             1 for key in retrieved_keys[:3] if key[0] != expected_key[0]
         ),
@@ -1391,6 +1673,10 @@ def _summarize_real_probe_scores(per_query: list[dict[str, Any]]) -> dict[str, A
         ),
         "cross_agent_top3_count": sum(
             int(item.get("cross_agent_retrieved_count", 0) or 0)
+            for item in per_query
+        ),
+        "top3_candidate_slot_count": sum(
+            int(item.get("retrieved_top3_count", 0) or 0)
             for item in per_query
         ),
     }
@@ -1453,7 +1739,11 @@ def _context_agent_for_episode(
     if not expected_agent_id:
         return None
     for agent in agents:
-        if str(getattr(agent, "agent_id", "") or "") == expected_agent_id:
+        if (
+            str(getattr(agent, "agent_id", "") or "") == expected_agent_id
+            and hasattr(agent, "_recall_planner")
+            and hasattr(agent, "_memory_state")
+        ):
             return agent
     return None
 
