@@ -58,7 +58,8 @@ def run_apify_actor(token: str, payload: dict) -> list[dict]:
         with urllib.request.urlopen(req, timeout=300) as resp:
             return json.loads(resp.read().decode()) or []
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Apify error: {e.code} - {e.read().decode()[:200]}")
+        log(f"Apify request failed with HTTP {e.code}")
+        raise RuntimeError(f"Apify error: HTTP {e.code}") from e
 
 
 def clean_str(v: Any) -> str:
