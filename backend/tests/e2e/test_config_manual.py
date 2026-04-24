@@ -20,7 +20,7 @@ def create_test_config(agent_count: int = 10) -> Dict[str, Any]:
         "agent_count": agent_count,
         "llm_config": {
             "model_platform": "DEEPSEEK",
-            "model_type": "DEEPSEEK_CHAT",
+            "model_type": "deepseek-v4-flash",
             "temperature": 0.7,
             "max_tokens": 1000,
         },
@@ -33,7 +33,7 @@ def create_reddit_config(agent_count: int = 15) -> Dict[str, Any]:
         "agent_count": agent_count,
         "llm_config": {
             "model_platform": "DEEPSEEK",
-            "model_type": "DEEPSEEK_CHAT",
+            "model_type": "deepseek-v4-flash",
             "temperature": 0.7,
         },
     }
@@ -95,7 +95,7 @@ def main() -> None:
                 "agent_count": 10,
                 "llm_config": {
                     "model_platform": "DEEPSEEK",
-                    "model_type": "DEEPSEEK_CHAT",
+                    "model_type": "deepseek-v4-flash",
                 },
             },
             422,

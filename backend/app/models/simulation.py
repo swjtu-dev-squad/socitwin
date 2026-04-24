@@ -96,7 +96,7 @@ class OASISActionType(str, Enum):
 class ModelConfig(BaseModel):
     """LLM 模型配置"""
     model_platform: str = "DEEPSEEK"
-    model_type: str = "DEEPSEEK_CHAT"
+    model_type: str = "deepseek-v4-flash"
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1000, ge=1, le=128000)
 

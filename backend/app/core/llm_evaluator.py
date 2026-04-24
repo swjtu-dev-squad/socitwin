@@ -34,7 +34,7 @@ class LLMEvaluator:
             base_url="https://api.deepseek.com"
         )
 
-        self.model = getattr(settings, 'POLARIZATION_LLM_MODEL', 'deepseek-chat')
+        self.model = getattr(settings, 'POLARIZATION_LLM_MODEL', 'deepseek-v4-flash')
         self.temperature = getattr(settings, 'POLARIZATION_LLM_TEMPERATURE', 0.3)
         self.timeout = 30  # seconds
 

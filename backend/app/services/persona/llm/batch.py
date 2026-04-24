@@ -111,7 +111,7 @@ def _platform_requires_cloud_api_key(platform: str) -> bool:
 def _default_model_type_for_platform(platform: str) -> str:
     pl = platform.lower()
     if pl == "deepseek":
-        return "deepseek-chat"
+        return "deepseek-v4-flash"
     if pl == "openai":
         return "gpt-4o-mini"
     if pl == "openrouter":

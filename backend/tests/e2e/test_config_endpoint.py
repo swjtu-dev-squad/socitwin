@@ -50,7 +50,7 @@ def _base_config(**overrides):
         "agent_count": 10,
         "llm_config": {
             "model_platform": "DEEPSEEK",
-            "model_type": "DEEPSEEK_CHAT",
+            "model_type": "deepseek-v4-flash",
         },
     }
     config.update(overrides)
@@ -91,7 +91,7 @@ def test_configure_uses_default_agent_count(client: TestClient, mock_service):
         "platform": "twitter",
         "llm_config": {
             "model_platform": "DEEPSEEK",
-            "model_type": "DEEPSEEK_CHAT",
+            "model_type": "deepseek-v4-flash",
         },
     }
 

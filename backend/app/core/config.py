@@ -98,7 +98,7 @@ class Settings(BaseSettings):
 
     # OASIS Settings
     OASIS_DEFAULT_PLATFORM: str = "twitter"
-    OASIS_DEFAULT_MODEL: str = "gpt-4o-mini"
+    OASIS_DEFAULT_MODEL: str = "deepseek-v4-flash"
     OASIS_MEMORY_MODE: str = "upstream"
     OASIS_MAX_AGENTS: int = 1000
     OASIS_DB_PATH: str = "./data/simulations"
@@ -145,7 +145,7 @@ class Settings(BaseSettings):
     METRICS_ENABLE_DB_PERSISTENCE: bool = True  # Enable/disable database persistence
 
     # Polarization LLM Settings
-    POLARIZATION_LLM_MODEL: str = "deepseek-chat"
+    POLARIZATION_LLM_MODEL: str = "deepseek-v4-flash"
     POLARIZATION_LLM_TEMPERATURE: float = 0.3
     POLARIZATION_BATCH_SIZE: int = 10  # agents per LLM batch
     POLARIZATION_CALCULATION_INTERVAL: int = 2  # Calculate every N steps

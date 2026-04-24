@@ -38,8 +38,8 @@ DEFAULT_PLATFORM = "twitter"
 DEFAULT_AGENT_COUNT = 5
 DEFAULT_MAX_STEPS = 10
 # 从环境变量读取模型配置（.env 文件）
-DEFAULT_MODEL_PLATFORM = os.getenv("OASIS_MODEL_PLATFORM", "openai")
-DEFAULT_MODEL_TYPE = os.getenv("OASIS_MODEL_TYPE", "qwen-35b")
+DEFAULT_MODEL_PLATFORM = os.getenv("OASIS_MODEL_PLATFORM", "DEEPSEEK")
+DEFAULT_MODEL_TYPE = os.getenv("OASIS_MODEL_TYPE", "deepseek-v4-flash")
 DEFAULT_TEMPERATURE = float(os.getenv("OASIS_MODEL_TEMPERATURE", "0.7"))
 DEFAULT_MAX_TOKENS = int(os.getenv("OASIS_MODEL_GENERATION_MAX_TOKENS", "1024"))
 DEFAULT_MEMORY_MODE = os.getenv("OASIS_MEMORY_MODE", "action_v1")
@@ -1059,7 +1059,7 @@ Examples:
         "--model-type",
         type=str,
         default=DEFAULT_MODEL_TYPE,
-        help="LLM model type (default: DEEPSEEK_CHAT)"
+        help=f"LLM model type (default: {DEFAULT_MODEL_TYPE})"
     )
 
     parser.add_argument(

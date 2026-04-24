@@ -28,7 +28,7 @@ def _normalize_openai_base_url(base: str) -> str:
 def _resolve_chat_runtime() -> tuple[str, dict[str, str], dict[str, Any]]:
     platform = os.environ.get("OASIS_MODEL_PLATFORM", "deepseek").strip().lower()
     model_type = os.environ.get("OASIS_MODEL_TYPE", "").strip() or (
-        "deepseek-chat" if platform == "deepseek" else "qwen3:8b"
+        "deepseek-v4-flash" if platform == "deepseek" else "qwen3:8b"
     )
     raw_key = os.environ.get("OASIS_MODEL_API_KEY", "").strip()
     if not raw_key and platform == "deepseek":

@@ -84,6 +84,13 @@
 - `temperature`
 - `max_tokens`
 
+截至 DeepSeek 当前官方文档，项目侧 DeepSeek 默认模型应使用：
+
+- `model_platform=DEEPSEEK`
+- `model_type=deepseek-v4-flash`
+
+旧别名 `deepseek-chat` / `deepseek-reasoner` 仍有兼容映射，但官方文档已标注后续弃用；新代码和示例不应继续依赖旧别名。
+
 这里要明确两个不同语义：
 
 - `max_tokens`

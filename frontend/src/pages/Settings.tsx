@@ -47,8 +47,8 @@ const defaultModelConfigs: ModelConfig[] = [
   },
   {
     id: '4',
-    name: 'DeepSeek-V3',
-    apiEndpoint: 'https://api.deepseek.com/v1',
+    name: 'DeepSeek-V4-Flash',
+    apiEndpoint: 'https://api.deepseek.com',
     apiKey: '',
     isDefault: false,
   },
