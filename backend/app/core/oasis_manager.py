@@ -482,18 +482,29 @@ class OASISManager:
                 logger.info("OPENAI_API_KEY set from settings")
 
             model_platform = getattr(ModelPlatformType, config.model_platform.upper())
-            model_type = getattr(ModelType, config.model_type.upper())
+
+            # vLLM 等平台支持自定义模型名（字符串），不要求 ModelType 枚举
+            try:
+                model_type = getattr(ModelType, config.model_type.upper())
+            except AttributeError:
+                model_type = config.model_type
 
             model_config_dict = ChatGPTConfig(
                 temperature=config.temperature,
                 max_tokens=config.max_tokens
             ).as_dict()
 
-            model = ModelFactory.create(
-                model_platform=model_platform,
-                model_type=model_type,
-                model_config_dict=model_config_dict,
-            )
+            create_kwargs: dict[str, Any] = {
+                "model_platform": model_platform,
+                "model_type": model_type,
+                "model_config_dict": model_config_dict,
+            }
+
+            # vLLM / OpenAI 兼容平台需要指定 url
+            if model_platform == ModelPlatformType.VLLM and settings.OPENAI_BASE_URL:
+                create_kwargs["url"] = settings.OPENAI_BASE_URL
+
+            model = ModelFactory.create(**create_kwargs)
 
             self._model = model
             logger.info(f"Model created: {config.model_platform}/{config.model_type}")

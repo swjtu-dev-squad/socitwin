@@ -5,10 +5,15 @@ Coordinates topic activation with the OASIS simulation system and exposes
 preprocessed topic/persona data sourced from oasis_datasets.db.
 """
 
+from __future__ import annotations
+
+import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+from fastapi import HTTPException
 from oasis import ActionType, LLMAction, ManualAction, SocialAgent
 
 from app.core.oasis_manager import OASISManager, OASISStateError
@@ -20,8 +25,10 @@ from app.models.topics import (
     TopicProfilesResponse,
     TopicReloadResult,
     TopicSimulationResponse,
+    TwitterTrendingTopicsResponse,
 )
 from app.services.dataset_service import DatasetService, DatasetServiceError
+from scripts.datasets.fetch_twitter_data import APIError, fetch_trending_news_topic_rows
 
 logger = logging.getLogger(__name__)
 
@@ -316,3 +323,45 @@ class TopicService:
             issues.append("No simulation agents available")
 
         return {"valid": len(issues) == 0, "issues": issues}
+
+    async def fetch_live_twitter_trending_topics(
+        self,
+        *,
+        max_per_axis: int,
+        max_age_hours: int,
+    ) -> TwitterTrendingTopicsResponse:
+        """调用 X /news/search 拉取热点话题列表（不入库）。"""
+
+        def _sync_fetch() -> list[dict]:
+            return fetch_trending_news_topic_rows(
+                max_news_per_axis=max_per_axis,
+                max_age_hours=max_age_hours,
+            )
+
+        try:
+            rows = await asyncio.to_thread(_sync_fetch)
+        except APIError as e:
+            logger.warning("X News API error: %s %s", e.status_code, e.detail)
+            if e.status_code == 401:
+                raise HTTPException(status_code=401, detail=e.detail) from e
+            if e.status_code == 403:
+                raise HTTPException(status_code=403, detail=e.detail) from e
+            if e.status_code == 429:
+                raise HTTPException(status_code=429, detail=e.detail) from e
+            raise HTTPException(
+                status_code=502,
+                detail=f"X News API 错误 (HTTP {e.status_code}): {e.detail}",
+            ) from e
+        except RuntimeError as e:
+            raise HTTPException(status_code=503, detail=str(e)) from e
+
+        collected_at = datetime.now(timezone.utc).isoformat()
+        return TwitterTrendingTopicsResponse.model_validate(
+            {
+                "success": True,
+                "source": "x_news_search",
+                "collected_at": collected_at,
+                "count": len(rows),
+                "topics": rows,
+            }
+        )

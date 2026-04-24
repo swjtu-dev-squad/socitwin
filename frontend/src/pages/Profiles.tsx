@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Database,
   Network,
@@ -89,6 +89,15 @@ const ALGORITHM_DESCRIPTIONS: Record<string, string> = {
   'semantic-homophily': '基于兴趣语义相似度与真实互动边混合生成关系网络。',
 }
 
+/** 列表 API 返回的 recsys_type 大小写可能不一致，与卡片 platform.id 比较时统一为小写 */
+function datasetMatchesPlatform(dataset: PersonaDatasetSummary, platformId: string) {
+  return (
+    String(dataset.recsys_type ?? '')
+      .trim()
+      .toLowerCase() === platformId.toLowerCase()
+  )
+}
+
 const ALGORITHM_OUTPUTS: Record<string, string[]> = {
   'community-homophily': ['社区优先补边', '同质性约束', '三角闭包收紧结构'],
   'real-seed-fusion': ['保留真实种子结构', '最小必要补边', '稳定输出图谱'],
@@ -115,7 +124,7 @@ const SEED_METRIC_META = {
 const PLATFORM_META = [
   { id: 'twitter', name: 'X / Twitter', colorClass: 'text-blue-400' },
   { id: 'reddit', name: 'Reddit', colorClass: 'text-orange-500' },
-  { id: 'tiktok', name: 'TikTok', colorClass: 'text-pink-500' },
+  { id: 'tiktok', name: '小红书', colorClass: 'text-red-500' },
   { id: 'instagram', name: 'Instagram', colorClass: 'text-purple-500' },
   { id: 'facebook', name: 'Facebook', colorClass: 'text-blue-600' },
 ] as const
@@ -127,24 +136,6 @@ const PLATFORM_LABELS = Object.fromEntries(
 function formatNumber(value: number | undefined | null) {
   if (value == null) return '0'
   return value.toLocaleString()
-}
-
-function formatBeijingTime(value: string | undefined | null) {
-  if (!value) return '未同步'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  })
-    .format(date)
-    .replace(/\//g, '-')
 }
 
 function formatBeijingDay(value: string | undefined | null) {
@@ -161,18 +152,6 @@ function formatBeijingDay(value: string | undefined | null) {
   return `${lookup.year}-${lookup.month}-${lookup.day}`
 }
 
-function formatDatasetTrendSummary(dataset: PersonaDatasetSummary) {
-  const trends = Array.isArray(dataset.meta?.trends_processed)
-    ? dataset.meta.trends_processed.filter(
-        (item: unknown): item is string => typeof item === 'string' && item.trim().length > 0
-      )
-    : []
-  if (trends.length === 0) return dataset.label
-  const shown = trends.slice(0, 3)
-  const suffix = trends.length > shown.length ? ` +${trends.length - shown.length}` : ''
-  return `${shown.join(' / ')}${suffix}`
-}
-
 function datasetSnapshotTimestamp(
   dataset: Pick<PersonaDatasetSummary, 'created_at' | 'updated_at'>
 ) {
@@ -180,10 +159,6 @@ function datasetSnapshotTimestamp(
   if (Number.isFinite(createdAt) && createdAt > 0) return createdAt
   const updatedAt = new Date(dataset.updated_at).getTime()
   return Number.isFinite(updatedAt) ? updatedAt : 0
-}
-
-function formatDayOption(day: string, count: number) {
-  return `${day} · ${count} 份快照`
 }
 
 function formatDensityPercent(value: number | undefined) {
@@ -196,7 +171,6 @@ export default function Profiles() {
   const navigate = useNavigate()
 
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
-  const [selectedSnapshotDay, setSelectedSnapshotDay] = useState('')
   const [datasets, setDatasets] = useState<PersonaDatasetSummary[]>([])
   const [selectedDatasetId, setSelectedDatasetId] = useState('')
   const [selectedDataset, setSelectedDataset] = useState<PersonaDatasetDetail | null>(null)
@@ -205,7 +179,6 @@ export default function Profiles() {
   /** 本次生成写入 Mongo 的拟合用户（与图谱节点一一对应，列表展示用） */
   const [generatedAgentsList, setGeneratedAgentsList] = useState<GeneratedAgentRecord[]>([])
   const [agentsListLoading, setAgentsListLoading] = useState(false)
-  const [datasetsLoading, setDatasetsLoading] = useState(false)
   const [datasetDetailLoading, setDatasetDetailLoading] = useState(false)
   const [generationLoading, setGenerationLoading] = useState(false)
   const [generationElapsedSec, setGenerationElapsedSec] = useState(0)
@@ -223,6 +196,7 @@ export default function Profiles() {
   const [subscriptionLoadingPlatform, setSubscriptionLoadingPlatform] = useState<string | null>(
     null
   )
+  const platformToggleAbortRef = useRef<AbortController | null>(null)
   const [liveSubscriptions, setLiveSubscriptions] = useState<Record<string, boolean>>({
     twitter: false,
     reddit: false,
@@ -236,7 +210,7 @@ export default function Profiles() {
   // 默认使用 LLM 生成模拟画像（不再提供开关）
   const useLlmPersonas = true
 
-  /** Twitter：SQLite 话题多选 + 合并种子统计 */
+  /** SQLite 话题多选 + 合并种子统计（按当前 platform） */
   const [sqliteTopicsLoading, setSqliteTopicsLoading] = useState(false)
   const [sqliteTopicRows, setSqliteTopicRows] = useState<TwitterSqliteTopicOption[]>([])
   /** topic_key -> 是否参与合并抽样（加载后默认全为 true） */
@@ -305,34 +279,15 @@ export default function Profiles() {
     !(generatedGraph && !agentsListLoading && generatedAgentsList.length > 0)
   const agentsPanelBusy = agentsListLoading || sqliteTopicsPersonasLoading
 
+  const platformSubscribed = Boolean(selectedPlatform && liveSubscriptions[selectedPlatform])
+
   const platformDatasets = useMemo(
     () =>
       datasets
-        .filter(dataset => dataset.recsys_type === selectedPlatform)
+        .filter(dataset => datasetMatchesPlatform(dataset, selectedPlatform))
         .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left)),
     [datasets, selectedPlatform]
   )
-
-  const availableSnapshotDays = useMemo(
-    () =>
-      Array.from(
-        new Set(platformDatasets.map(dataset => formatBeijingDay(dataset.created_at)))
-      ).filter(Boolean),
-    [platformDatasets]
-  )
-
-  const filteredPlatformDatasets = useMemo(
-    () =>
-      selectedSnapshotDay
-        ? platformDatasets.filter(
-            dataset => formatBeijingDay(dataset.created_at) === selectedSnapshotDay
-          )
-        : platformDatasets,
-    [platformDatasets, selectedSnapshotDay]
-  )
-
-  const selectedDatasetOption =
-    filteredPlatformDatasets.find(dataset => dataset.dataset_id === selectedDatasetId) || null
 
   const graphStats = useMemo(() => {
     if (localDiskMetrics) {
@@ -361,7 +316,7 @@ export default function Profiles() {
   const mongoCounts = selectedDataset?.counts || EMPTY_COUNTS
   const effectiveSeedCounts = useMemo(() => {
     let base = mongoCounts
-    if (selectedPlatform === 'twitter' && sqliteSelectedTopicKeys.length > 0 && sqliteSeedCounts) {
+    if (sqliteSelectedTopicKeys.length > 0 && sqliteSeedCounts) {
       base = {
         ...mongoCounts,
         users: sqliteSeedCounts.users,
@@ -370,17 +325,11 @@ export default function Profiles() {
         topics: sqliteSeedCounts.topics,
       }
     }
-    if (selectedPlatform === 'twitter' && sqlitePreviewAgents.length > 0) {
+    if (sqlitePreviewAgents.length > 0) {
       return { ...base, users: sqlitePreviewAgents.length }
     }
     return base
-  }, [
-    mongoCounts,
-    selectedPlatform,
-    sqliteSeedCounts,
-    sqliteSelectedKeysSignature,
-    sqlitePreviewAgents.length,
-  ])
+  }, [mongoCounts, sqliteSeedCounts, sqliteSelectedKeysSignature, sqlitePreviewAgents.length])
 
   const visibleSeedMetrics = useMemo<SeedMetricDescriptor[]>(() => {
     const keys = ALGORITHM_SEED_KEYS[algorithm as keyof typeof ALGORITHM_SEED_KEYS]
@@ -395,7 +344,7 @@ export default function Profiles() {
     () =>
       PLATFORM_META.map(platform => {
         const platformItems = datasets
-          .filter(dataset => dataset.recsys_type === platform.id)
+          .filter(dataset => datasetMatchesPlatform(dataset, platform.id))
           .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left))
         const datasetCount = platformItems.length
         const dayCount = new Set(platformItems.map(dataset => formatBeijingDay(dataset.created_at)))
@@ -428,9 +377,10 @@ export default function Profiles() {
   )
 
   const loadDatasets = async (preferredDatasetId?: string) => {
-    setDatasetsLoading(true)
     try {
-      const { datasets: items } = await listPersonaDatasets()
+      const { datasets: items } = await listPersonaDatasets({
+        signal: platformToggleAbortRef.current?.signal,
+      })
       setDatasets(items)
 
       if (preferredDatasetId) {
@@ -442,8 +392,6 @@ export default function Profiles() {
       // Socitwin 默认不启用 Mongo：列表为空属正常，不弹错误打扰
       setDatasets([])
       return [] as PersonaDatasetSummary[]
-    } finally {
-      setDatasetsLoading(false)
     }
   }
 
@@ -475,7 +423,6 @@ export default function Profiles() {
 
   useEffect(() => {
     if (!liveSubscriptions[selectedPlatform]) {
-      if (selectedSnapshotDay) setSelectedSnapshotDay('')
       if (selectedDatasetId) setSelectedDatasetId('')
       setSelectedDataset(null)
       setGeneratedGraph(null)
@@ -484,35 +431,21 @@ export default function Profiles() {
     }
 
     if (!platformDatasets.length) {
-      if (selectedSnapshotDay) setSelectedSnapshotDay('')
       if (selectedDatasetId) setSelectedDatasetId('')
       return
     }
-  }, [
-    liveSubscriptions,
-    platformDatasets.length,
-    selectedPlatform,
-    selectedSnapshotDay,
-    selectedDatasetId,
-  ])
-
-  useEffect(() => {
-    if (!liveSubscriptions[selectedPlatform] || !availableSnapshotDays.length) return
-    if (!selectedSnapshotDay || !availableSnapshotDays.includes(selectedSnapshotDay)) {
-      setSelectedSnapshotDay(availableSnapshotDays[0])
-    }
-  }, [availableSnapshotDays, liveSubscriptions, selectedPlatform, selectedSnapshotDay])
+  }, [liveSubscriptions, platformDatasets.length, selectedPlatform, selectedDatasetId])
 
   useEffect(() => {
     if (!liveSubscriptions[selectedPlatform]) return
-    if (!filteredPlatformDatasets.length) {
+    if (!platformDatasets.length) {
       if (selectedDatasetId) setSelectedDatasetId('')
       return
     }
-    if (!filteredPlatformDatasets.some(dataset => dataset.dataset_id === selectedDatasetId)) {
-      setSelectedDatasetId(filteredPlatformDatasets[0].dataset_id)
+    if (!platformDatasets.some(dataset => dataset.dataset_id === selectedDatasetId)) {
+      setSelectedDatasetId(platformDatasets[0].dataset_id)
     }
-  }, [filteredPlatformDatasets, liveSubscriptions, selectedDatasetId, selectedPlatform])
+  }, [platformDatasets, liveSubscriptions, selectedDatasetId, selectedPlatform])
 
   useEffect(() => {
     loadDatasetDetail(selectedDatasetId).catch(() => {
@@ -527,22 +460,23 @@ export default function Profiles() {
   }, [selectedDatasetId])
 
   useEffect(() => {
-    if (selectedPlatform !== 'twitter') {
-      setSqliteTopicRows([])
-      setSqliteTopicSelected({})
-      setSqliteSeedCounts(null)
-      setSqliteSeedUserCount('100')
-      setSqlitePreviewAgents([])
-      setSqlitePreviewTopics([])
-      setSyntheticTopicCount('5')
-    }
+    setSqliteTopicRows([])
+    setSqliteTopicSelected({})
+    setSqliteSeedCounts(null)
+    setSqliteSeedUserCount('100')
+    setSqlitePreviewAgents([])
+    setSqlitePreviewTopics([])
+    setSyntheticTopicCount('5')
   }, [selectedPlatform])
 
   useEffect(() => {
-    if (selectedPlatform !== 'twitter') return
+    if (!selectedPlatform || !liveSubscriptions[selectedPlatform]) {
+      setSqliteTopicsLoading(false)
+      return
+    }
     let cancelled = false
     setSqliteTopicsLoading(true)
-    void getTwitterSqliteTopicsList({ recentPool: 2000 })
+    void getTwitterSqliteTopicsList({ recentPool: 2000, platform: selectedPlatform })
       .then(res => {
         if (cancelled) return
         const rows = res.topics
@@ -565,16 +499,24 @@ export default function Profiles() {
     return () => {
       cancelled = true
     }
-  }, [selectedPlatform])
+  }, [selectedPlatform, liveSubscriptions])
 
   useEffect(() => {
-    if (selectedPlatform !== 'twitter' || sqliteSelectedTopicKeys.length === 0) {
+    if (
+      !selectedPlatform ||
+      !liveSubscriptions[selectedPlatform] ||
+      sqliteSelectedTopicKeys.length === 0
+    ) {
       setSqliteSeedCounts(null)
       return
     }
     let cancelled = false
     setSqliteSeedLoading(true)
-    void postTwitterSqliteTopicSeed(sqliteSelectedTopicKeys, sqliteSeedUserCountParsed)
+    void postTwitterSqliteTopicSeed(
+      sqliteSelectedTopicKeys,
+      sqliteSeedUserCountParsed,
+      selectedPlatform
+    )
       .then(res => {
         if (cancelled) return
         setSqliteSeedCounts(res.counts)
@@ -592,18 +534,10 @@ export default function Profiles() {
     return () => {
       cancelled = true
     }
-  }, [selectedPlatform, sqliteSelectedKeysSignature, sqliteSeedUserCountParsed])
+  }, [selectedPlatform, liveSubscriptions, sqliteSelectedKeysSignature, sqliteSeedUserCountParsed])
 
   useEffect(() => {
     const users = selectedDataset?.counts?.users
-    if (selectedPlatform !== 'twitter') {
-      if (users != null && users > 0) {
-        setAgentCount(String(users))
-        return
-      }
-      setAgentCount('0')
-      return
-    }
     if (users != null && users > 0) {
       setAgentCount(String(users))
       return
@@ -612,10 +546,14 @@ export default function Profiles() {
       const n = Number.parseInt(String(prev).trim(), 10)
       return Number.isFinite(n) && n > 0 ? prev : '10'
     })
-  }, [selectedDataset?.counts?.users, selectedPlatform])
+  }, [selectedDataset?.counts?.users])
 
   const handleSqliteTopicsPersonasLlm = async () => {
-    if (selectedPlatform !== 'twitter' || sqliteSelectedTopicKeys.length === 0) {
+    if (!selectedPlatform || !liveSubscriptions[selectedPlatform]) {
+      toast.error('请先订阅当前平台')
+      return
+    }
+    if (sqliteSelectedTopicKeys.length === 0) {
       toast.error('请先勾选至少一个话题')
       return
     }
@@ -631,6 +569,7 @@ export default function Profiles() {
         seed_user_count: sqliteSeedUserCountParsed,
         synthetic_topic_count: syntheticTopicCountParsed,
         user_target_count: llmUserTargetParsed,
+        platform: selectedPlatform,
         llmBatchSize: 4,
         llmSeedSample: 10,
         llmMaxRetries: 1,
@@ -671,6 +610,15 @@ export default function Profiles() {
 
   const handleTogglePlatform = async (platformId: string, checked: boolean) => {
     const platformName = PLATFORM_LABELS[platformId] || platformId
+    if (checked) {
+      const onlyThis =
+        liveSubscriptions[platformId] &&
+        Object.values(liveSubscriptions).filter(Boolean).length === 1
+      if (onlyThis) {
+        setSelectedPlatform(platformId)
+        return
+      }
+    }
     if (!checked) {
       setLiveSubscriptions({
         twitter: false,
@@ -688,17 +636,20 @@ export default function Profiles() {
       return
     }
 
+    platformToggleAbortRef.current?.abort()
+    platformToggleAbortRef.current = new AbortController()
+
     setSubscriptionLoadingPlatform(platformId)
     try {
       setSelectedPlatform(platformId)
-      setSelectedSnapshotDay('')
       setSelectedDatasetId('')
       setSelectedDataset(null)
       setGeneratedGraph(null)
       setCurrentGenerationId(null)
       const items = await loadDatasets()
+      if (platformToggleAbortRef.current.signal.aborted) return
       const subscribedDatasets = items
-        .filter(dataset => dataset.recsys_type === platformId)
+        .filter(dataset => datasetMatchesPlatform(dataset, platformId))
         .sort((left, right) => datasetSnapshotTimestamp(right) - datasetSnapshotTimestamp(left))
       setLiveSubscriptions({
         twitter: false,
@@ -709,37 +660,40 @@ export default function Profiles() {
         [platformId]: true,
       })
       if (subscribedDatasets[0]?.dataset_id) {
-        setSelectedSnapshotDay(formatBeijingDay(subscribedDatasets[0].created_at))
         setSelectedDatasetId(subscribedDatasets[0].dataset_id)
       } else {
-        setSelectedSnapshotDay('')
         setSelectedDatasetId('')
         setSelectedDataset(null)
         setGeneratedGraph(null)
         setCurrentGenerationId(null)
       }
 
-      if (platformId === 'twitter') {
-        try {
-          const topicRes = await getTwitterSqliteTopicsList({ recentPool: 2000 })
-          const n = topicRes.topics.length
-          if (n > 0) {
-            toast.success(`已从本地库加载 ${n} 个话题`)
-          } else {
-            toast.info(
-              '未从本地库读取到话题，请检查 oasis_datasets.db 或 TWITTER_DATASET_SQLITE_PATH'
-            )
-          }
-        } catch (e) {
-          console.error('Twitter sqlite topics (toast):', e)
-          toast.error((e as Error).message || '读取本地话题失败')
+      try {
+        const topicRes = await getTwitterSqliteTopicsList({
+          recentPool: 2000,
+          platform: platformId,
+          signal: platformToggleAbortRef.current?.signal,
+        })
+        if (platformToggleAbortRef.current.signal.aborted) return
+        const n = topicRes.topics.length
+        if (subscribedDatasets[0]?.dataset_id) {
+          toast.success(
+            `已载入 ${subscribedDatasets.length} 份 ${platformName} 数据集；SQLite 话题 ${n} 条`
+          )
+        } else if (n > 0) {
+          toast.success(`已从本地库加载 ${n} 条 ${platformName} 话题（datasets 列表可为空）`)
+        } else {
+          toast.info(
+            `${platformName}：datasets 列表与 topics 均未发现数据，请检查 oasis_datasets.db 中 platform 字段是否一致`
+          )
         }
-      } else if (subscribedDatasets[0]?.dataset_id) {
-        toast.success(`已载入 ${subscribedDatasets.length} 份 ${platformName} 数据集`)
-      } else {
-        toast.info(`${platformName} 暂无可用数据集`)
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') return
+        console.error('SQLite topics (toast):', e)
+        toast.error((e as Error).message || '读取本地话题失败')
       }
     } catch (error) {
+      if ((error as Error)?.name === 'AbortError') return
       console.error('Load platform datasets error:', error)
       setLiveSubscriptions({
         twitter: false,
@@ -751,7 +705,9 @@ export default function Profiles() {
       setSelectedPlatform('')
       toast.error((error as Error).message || '载入数据集失败')
     } finally {
-      setSubscriptionLoadingPlatform(null)
+      if (!platformToggleAbortRef.current?.signal.aborted) {
+        setSubscriptionLoadingPlatform(null)
+      }
     }
   }
 
@@ -873,20 +829,21 @@ export default function Profiles() {
   }
 
   const handleGenerate = async () => {
-    const isTwitterLocalGraph = selectedPlatform === 'twitter' && sqlitePreviewAgents.length > 0
-    const canTwitterGraph = isTwitterLocalGraph
-    if (!selectedDatasetId && !canTwitterGraph) {
-      toast.error('请先订阅并选择一个数据集（Twitter 可先完成「生成仿真话题与用户画像」）')
+    const useSqlitePreviewGraph = sqlitePreviewAgents.length > 0
+    if (!selectedDatasetId && !useSqlitePreviewGraph) {
+      toast.error(
+        '请先订阅当前平台；或先完成「生成仿真话题与用户画像」以使用本地 SQLite 关系图流程'
+      )
       return
     }
-    if (isTwitterLocalGraph && sqliteSelectedTopicKeys.length === 0) {
+    if (useSqlitePreviewGraph && sqliteSelectedTopicKeys.length === 0) {
       toast.error('请先勾选至少一个话题（用于从 SQLite 抽取真实互动边）')
       return
     }
 
     setGenerationLoading(true)
     try {
-      if (isTwitterLocalGraph) {
+      if (useSqlitePreviewGraph) {
         await generateTwitterLocalGraph()
         return
       }
@@ -956,24 +913,17 @@ export default function Profiles() {
                 <span className="text-sm font-bold">
                   当前平台：{PLATFORM_LABELS[selectedPlatform] || selectedPlatform || '未选择'}
                 </span>
-                {selectedPlatform === 'twitter' ? (
-                  <Badge variant="outline" className="shrink-0 text-[10px] tabular-nums">
-                    {sqliteTopicsLoading ? 'SQLite · …' : `SQLite · ${sqliteTopicRows.length} 话题`}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {platformDatasets.length} snapshots
-                  </Badge>
-                )}
+                <Badge variant="outline" className="shrink-0 text-[10px] tabular-nums">
+                  {sqliteTopicsLoading ? 'SQLite · …' : `SQLite · ${sqliteTopicRows.length} 话题`}
+                </Badge>
               </div>
-              {selectedPlatform !== 'twitter' && selectedSnapshotDay ? (
-                <p className="text-[11px] text-text-tertiary">
-                  当前日期：{selectedSnapshotDay}，当天共 {filteredPlatformDatasets.length} 份快照
-                </p>
-              ) : null}
             </div>
 
-            {selectedPlatform === 'twitter' ? (
+            {!platformSubscribed ? (
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                请先在上方「全网数据实时订阅」中开启对应平台的开关，再加载该平台 SQLite 话题与种子。
+              </p>
+            ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
@@ -987,10 +937,7 @@ export default function Profiles() {
                   {sqliteTopicsLoading ? (
                     <p className="p-4 text-xs text-text-muted">话题加载中…</p>
                   ) : sqliteTopicRows.length === 0 ? (
-                    <p className="p-4 text-xs leading-relaxed text-text-muted">
-                      暂无话题（请确认 oasis_dashboard/datasets/oasis_datasets.db 或环境变量
-                      TWITTER_DATASET_SQLITE_PATH）
-                    </p>
+                    <p className="p-4 text-xs leading-relaxed text-text-muted">暂无话题。</p>
                   ) : (
                     <ul className="divide-y divide-border-default">
                       {sqliteTopicRows.map(row => {
@@ -1057,111 +1004,13 @@ export default function Profiles() {
                   <p className="text-[11px] text-text-muted">正在按帖子/评论池计算种子…</p>
                 ) : null}
               </div>
-            ) : null}
+            )}
 
-            {selectedPlatform !== 'twitter' ? (
-              <>
-                {availableSnapshotDays.length > 1 ? (
-                  <div className="space-y-2">
-                    <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
-                      选择日期
-                    </label>
-                    <Select value={selectedSnapshotDay} onValueChange={setSelectedSnapshotDay}>
-                      <SelectTrigger className="bg-bg-primary border-border-default h-12 rounded-xl">
-                        <SelectValue
-                          placeholder={
-                            datasetsLoading ? '日期加载中...' : '先订阅平台，再选择快照日期'
-                          }
-                          value={
-                            selectedSnapshotDay
-                              ? formatDayOption(
-                                  selectedSnapshotDay,
-                                  filteredPlatformDatasets.length
-                                )
-                              : undefined
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableSnapshotDays.map(day => {
-                          const count = platformDatasets.filter(
-                            dataset => formatBeijingDay(dataset.created_at) === day
-                          ).length
-                          return (
-                            <SelectItem key={day} value={day}>
-                              <div className="font-bold">{day}</div>
-                              <div className="text-[10px] text-text-muted">{count} 份快照</div>
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
-                    选择数据集
-                  </label>
-                  <Select value={selectedDatasetId} onValueChange={setSelectedDatasetId}>
-                    <SelectTrigger className="bg-bg-primary border-border-default h-auto min-h-[64px] rounded-xl py-3">
-                      {selectedDatasetOption ? (
-                        <div className="min-w-0 pr-4 text-left">
-                          <div className="text-xs font-bold leading-tight">
-                            {formatBeijingTime(selectedDatasetOption.created_at)}
-                          </div>
-                          <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-tertiary">
-                            {selectedDatasetOption.dataset_id}
-                          </div>
-                          <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
-                            {formatDatasetTrendSummary(selectedDatasetOption)}
-                          </div>
-                        </div>
-                      ) : (
-                        <SelectValue
-                          placeholder={
-                            datasetsLoading
-                              ? '数据集加载中...'
-                              : '请先订阅平台，再选择已同步的数据集'
-                          }
-                        />
-                      )}
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredPlatformDatasets.map(dataset => (
-                        <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
-                          <div className="pr-6">
-                            <div className="font-bold leading-tight">
-                              {formatBeijingTime(dataset.created_at)}
-                            </div>
-                            <div className="mt-1 break-all font-mono text-[10px] leading-tight text-text-muted">
-                              {dataset.dataset_id}
-                            </div>
-                            <div className="mt-1 whitespace-normal break-words text-[10px] leading-snug text-text-muted">
-                              {formatDatasetTrendSummary(dataset)}
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            ) : null}
-
-            {!selectedDataset && selectedPlatform !== 'twitter' ? (
-              <EmptyState
-                text={
-                  datasetDetailLoading
-                    ? '正在加载数据集详情...'
-                    : '当前平台还没有可用数据集，可切换平台。'
-                }
-              />
-            ) : null}
-            {!selectedDataset && selectedPlatform === 'twitter' ? (
+            {!selectedDataset && platformSubscribed ? (
               <p className="text-[11px] text-text-muted leading-relaxed">
-                当前没有已同步的 MongoDB 数据集；仍可查看上方 SQLite
-                话题的种子统计。生成社交网络需先完成数据同步（将自动选用当前平台最新一份数据集）。
+                {datasetDetailLoading
+                  ? '正在加载数据集详情…'
+                  : '若列表侧暂无数据集元数据，仍可依据上方 SQLite 话题与种子统计操作；生成社交网络时会优先使用当前平台已订阅的数据集 ID（若有）。'}
               </p>
             ) : null}
 
@@ -1261,7 +1110,7 @@ export default function Profiles() {
                 className="bg-bg-primary border-border-default h-11 rounded-xl font-mono text-sm"
               />
             </div>
-            {selectedPlatform === 'twitter' ? (
+            {platformSubscribed ? (
               <>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-widest text-text-tertiary">
@@ -1307,14 +1156,7 @@ export default function Profiles() {
           <Button
             className="w-full h-14 rounded-2xl bg-accent hover:bg-accent-hover shadow-lg shadow-accent/20 font-bold gap-2"
             onClick={handleGenerate}
-            disabled={
-              generationLoading ||
-              (!selectedDatasetId &&
-                !(selectedPlatform === 'twitter' && sqlitePreviewAgents.length > 0)) ||
-              (selectedPlatform === 'twitter' &&
-                sqlitePreviewAgents.length === 0 &&
-                !generatedGraph)
-            }
+            disabled={generationLoading || (!selectedDatasetId && sqlitePreviewAgents.length === 0)}
           >
             {generationLoading ? (
               <>
@@ -1652,14 +1494,6 @@ function StatsCard({
         <p className="text-2xl font-mono font-bold">{value}</p>
       </div>
     </Card>
-  )
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-border-default bg-bg-primary/60 px-4 py-6 text-center text-sm text-text-muted">
-      {text}
-    </div>
   )
 }
 

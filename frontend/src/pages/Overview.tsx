@@ -346,6 +346,7 @@ export default function Overview() {
     return chartHistory.map(point => ({
       currentStep: point.step,
       polarization: point.polarization || 0,
+      sentimentTendency: point.sentimentTendency ?? 0,
       propagation: point.propagation || 0,
       herding: point.herdEffect || 0,
     }))
@@ -1524,6 +1525,16 @@ export default function Overview() {
                 <Activity className="w-3 h-3 text-rose-500" />
                 极化演化
               </h3>
+              <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  极化率
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-cyan-500" />
+                  情感倾向
+                </span>
+              </div>
             </div>
             <div className="flex-1 min-h-0">
               {chartData.length > 0 ? (
@@ -1533,6 +1544,10 @@ export default function Overview() {
                       <linearGradient id="colorPol2" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.2} />
                         <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorSent2" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.16} />
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
@@ -1548,7 +1563,7 @@ export default function Overview() {
                       fontSize={8}
                       tickLine={false}
                       axisLine={false}
-                      domain={[0, 1]}
+                      domain={[-1, 1]}
                     />
                     <Tooltip
                       contentStyle={{
@@ -1565,6 +1580,14 @@ export default function Overview() {
                       strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#colorPol2)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="sentimentTendency"
+                      stroke="#06b6d4"
+                      strokeWidth={2}
+                      fillOpacity={1}
+                      fill="url(#colorSent2)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>

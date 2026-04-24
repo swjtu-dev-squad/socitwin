@@ -130,6 +130,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str | None = None
 
+    # Baidu NLP Sentiment Settings
+    BAIDU_APP_ID: str | None = None
+    BAIDU_API_KEY: str | None = None
+    BAIDU_SECRET_KEY: str | None = None
+
     # DeepSeek Settings (required for OASIS)
     DEEPSEEK_API_KEY: str = ""
 
