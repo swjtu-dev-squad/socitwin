@@ -5,7 +5,6 @@
 import sqlite3
 from pathlib import Path
 
-
 CREATE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     platform TEXT NOT NULL,
