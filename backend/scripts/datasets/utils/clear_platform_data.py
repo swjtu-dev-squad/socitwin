@@ -14,10 +14,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 DATASETS_DIR = SCRIPT_DIR.parent
 BACKEND_ROOT = DATASETS_DIR.parents[1]
 DEFAULT_DB_PATH = BACKEND_ROOT / "data" / "datasets" / "oasis_datasets.db"
-
+from utils.db_utils import DatasetDB
 # 将 scripts/datasets 加入模块搜索路径
 sys.path.insert(0, str(DATASETS_DIR))
-from utils.db_utils import DatasetDB
+
 
 
 def clear_platform(platform: str, db_path: Path, confirm: bool = False) -> dict:
