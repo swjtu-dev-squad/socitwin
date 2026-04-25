@@ -168,6 +168,7 @@ Status: partially implemented.
 
 - fixture: `backend/tests/memory/evaluation/fixtures/b_level_real_run_packs.json`
 - CLI: `--scenario-pack`
+- CLI: `--scenario-probe-limit`，默认 25；更长测试需要提高覆盖率时可显式调高，避免只评估 probe limit 内的 usable probes。
 - agent source: fixture agents -> `manual_config`
 - seed post: `ManualAction(CREATE_POST)` warm-up，`count_towards_budget=False`
 - refresh: seed 后对全部 agent 执行 `REFRESH` warm-up，`count_towards_budget=False`

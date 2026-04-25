@@ -39,6 +39,7 @@ DEFAULT_B_LEVEL_FIXTURE_PATH = (
 DEFAULT_PHASES = ("preflight", "deterministic")
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
+DEFAULT_SCENARIO_PROBE_LIMIT = 25
 MEMORY_KPI_FIELDS = (
     "ltm_exact_hit_at_1",
     "ltm_exact_hit_at_3",
@@ -77,6 +78,7 @@ class EvaluationConfig:
     scenario_steps: int = 3
     scenario_agent_count: int = 2
     scenario_timeout_seconds: int = 120
+    scenario_probe_limit: int = DEFAULT_SCENARIO_PROBE_LIMIT
     scenario_pack: str = ""
     scenario_fixture_path: Path = DEFAULT_B_LEVEL_FIXTURE_PATH
     longwindow_steps: int = 8
@@ -471,6 +473,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Timeout for real-scenarios initialize/step flow.",
     )
     parser.add_argument(
+        "--scenario-probe-limit",
+        type=int,
+        default=DEFAULT_SCENARIO_PROBE_LIMIT,
+        help=(
+            "Maximum real-scenarios probe candidates to score. "
+            f"Default is {DEFAULT_SCENARIO_PROBE_LIMIT}."
+        ),
+    )
+    parser.add_argument(
         "--scenario-pack",
         default="",
         help=(
@@ -537,6 +548,7 @@ def parse_args(args: list[str] | None = None) -> EvaluationConfig:
         scenario_steps=parsed.scenario_steps,
         scenario_agent_count=parsed.scenario_agent_count,
         scenario_timeout_seconds=parsed.scenario_timeout_seconds,
+        scenario_probe_limit=parsed.scenario_probe_limit,
         scenario_pack=parsed.scenario_pack,
         scenario_fixture_path=Path(parsed.scenario_fixture_path),
         longwindow_steps=parsed.longwindow_steps,
@@ -1335,7 +1347,10 @@ def _build_real_scenario_events(
         "actual_persisted_action_episode_count": persisted_count,
         "raw_real_probe_candidate_count": len(raw_candidates),
         "warmup_excluded_probe_candidate_count": len(raw_candidates) - len(candidates),
-        **_summarize_real_probe_candidate_pool(candidates),
+        **_summarize_real_probe_candidate_pool(
+            candidates,
+            probe_limit=max(0, config.scenario_probe_limit),
+        ),
     }
     return [
         _build_real_self_action_retrievability_event(
@@ -1437,7 +1452,10 @@ def _build_real_self_action_retrievability_event(
             reason="No real action episode candidates were retrievable from Chroma.",
         )
 
-    probe_candidates = _usable_real_probe_candidates(candidates)
+    probe_candidates = _usable_real_probe_candidates(
+        candidates,
+        probe_limit=int(base_metrics.get("probe_attempt_limit", 5) or 0),
+    )
     per_query: list[dict[str, Any]] = []
     for candidate in probe_candidates:
         query_text = _query_from_real_episode(candidate)
@@ -1871,6 +1889,7 @@ def _real_episode_label(episode: dict[str, Any]) -> str:
     return (
         f"agent={episode.get('agent_id')} "
         f"step={episode.get('step_id')} "
+        f"idx={episode.get('action_index')} "
         f"action={episode.get('action_name')}"
     )
 

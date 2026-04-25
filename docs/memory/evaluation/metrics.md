@@ -162,7 +162,7 @@ target_episode_injection_success_rate
 当前 `VAL-LTM-05 real_self_action_retrievability` 会输出：
 
 - `real_probe_candidate_count`：从长期记忆中可回查到的候选 episode 数；
-- `probe_attempt_limit`：本轮最多拿多少候选出题，当前默认 5；
+- `probe_attempt_limit`：本轮最多拿多少候选出题，当前默认 25，可通过 `--scenario-probe-limit` 调整；
 - `usable_probe_count`：实际能构造 query 的 probe 数；
 - `skipped_probe_count`：没有进入 probe 的候选数；
 - `skipped_probe_reason_counts`：跳过原因，例如 `missing_query_text` 或 `outside_probe_limit`；
@@ -172,6 +172,12 @@ target_episode_injection_success_rate
 - `usable_probe_agent_distribution`：实际出题样本 agent 分布。
 
 这些字段不直接等于记忆能力得分，但决定本轮结果是否有解释价值。
+
+提高 `probe_attempt_limit` 后，`like_post` / `repost` 等弱语义动作可能显著拉低 exact episode hit。原因是当前 real-run replay 的 query 通常来自目标内容或 episode 摘要；对点赞、转发这类动作来说，目标正文可能与同一步的 quote/create 或同主题历史高度相似，但缺少“我点赞/我转发了它”的动作语义。因此这类掉分需要拆开解释：
+
+- 如果目标 episode 的 `agent_id` 被过滤正确，`cross_agent_contamination_rate` 仍为 0，说明 agent 隔离没有坏；
+- 如果 miss 集中在 `like_post` / `repost`，优先视为 probe query 构造或弱动作 episode 语义不足问题；
+- 如果 `create_post` / `comment` 也大量 miss，才更直接指向 embedding/rerank 或 episode document 质量问题。
 
 ## 7. Minimum Summary Output
 

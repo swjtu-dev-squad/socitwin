@@ -172,18 +172,35 @@ def test_parser_accepts_real_scenarios_phase() -> None:
     assert config.phases == ["real-scenarios"]
     assert config.scenario_agent_count == 3
     assert config.scenario_steps == 4
+    assert config.scenario_probe_limit == 25
 
 
 def test_parser_accepts_b_level_scenario_pack() -> None:
     args = build_parser().parse_args(
-        ["--phase", "real-scenarios", "--scenario-pack", "s1_stable_single_topic"]
+        [
+            "--phase",
+            "real-scenarios",
+            "--scenario-pack",
+            "s1_stable_single_topic",
+            "--scenario-probe-limit",
+            "20",
+        ]
     )
     config = parse_args(
-        ["--phase", "real-scenarios", "--scenario-pack", "s1_stable_single_topic"]
+        [
+            "--phase",
+            "real-scenarios",
+            "--scenario-pack",
+            "s1_stable_single_topic",
+            "--scenario-probe-limit",
+            "20",
+        ]
     )
 
     assert args.scenario_pack == "s1_stable_single_topic"
+    assert args.scenario_probe_limit == 20
     assert config.scenario_pack == "s1_stable_single_topic"
+    assert config.scenario_probe_limit == 20
 
 
 def test_load_b_level_scenario_pack_from_default_fixture() -> None:
@@ -524,6 +541,113 @@ def test_build_real_scenario_events_reports_probe_skips() -> None:
     assert event.metrics["usable_probe_count"] == 0
     assert event.metrics["skipped_probe_count"] == 1
     assert event.metrics["skipped_probe_reason_counts"] == {"missing_query_text": 1}
+
+
+def test_build_real_scenario_events_honors_probe_limit() -> None:
+    episodes = [
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 1,
+            "action_index": 0,
+            "action_name": "create_post",
+            "authored_content": "first post",
+        },
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 2,
+            "action_index": 0,
+            "action_name": "create_post",
+            "authored_content": "second post",
+        },
+    ]
+
+    class _FakeStore:
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text, limit, agent_id
+            return episodes
+
+    class _FakeObservationPolicy:
+        def build_perception_envelope(self, *, prompt_visible_snapshot, observation_prompt):
+            if observation_prompt.startswith("No new relevant social content"):
+                return SimpleNamespace(
+                    topic="",
+                    semantic_anchors=[],
+                    entities=[],
+                    snapshot=prompt_visible_snapshot,
+                )
+            return SimpleNamespace(
+                topic="memory topic",
+                semantic_anchors=[],
+                entities=[],
+                snapshot=prompt_visible_snapshot,
+            )
+
+    class _FakeRecallPlanner:
+        def prepare(
+            self,
+            *,
+            agent_id=None,
+            topic="",
+            semantic_anchors=None,
+            entities=None,
+            snapshot=None,
+            memory_state=None,
+            longterm_store=None,
+            next_step_id=0,
+            runtime_state=None,
+        ):
+            del semantic_anchors, entities, snapshot, memory_state, next_step_id, runtime_state
+            if not topic:
+                return SimpleNamespace(
+                    gate_decision=False,
+                    retrieval_attempted=False,
+                    recalled_count=0,
+                    recalled_step_ids=[],
+                    query_text="",
+                    candidates=[],
+                    gate_reason_flags={},
+                )
+            candidates = list(longterm_store.retrieve_relevant("memory topic", limit=3, agent_id=agent_id))
+            return SimpleNamespace(
+                gate_decision=True,
+                retrieval_attempted=True,
+                recalled_count=len(candidates),
+                recalled_step_ids=[int(item["step_id"]) for item in candidates],
+                query_text="memory topic",
+                candidates=candidates,
+                gate_reason_flags={},
+            )
+
+    fake_agent = SimpleNamespace(
+        agent_id="agent-1",
+        _observation_policy=_FakeObservationPolicy(),
+        _recall_planner=_FakeRecallPlanner(),
+        _memory_state=object(),
+        _persisted_action_episode_ids={(1, 0), (2, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 2},
+        _action_v1_longterm_store=_FakeStore(),
+    )
+
+    events = _build_real_scenario_events(
+        manager=manager,
+        init_result={"agent_count": 1},
+        config=EvaluationConfig(
+            phases=["real-scenarios"],
+            embedding_url="",
+            scenario_probe_limit=1,
+        ),
+    )
+
+    event = events[0]
+    assert event.metrics["probe_attempt_limit"] == 1
+    assert event.metrics["usable_probe_count"] == 1
+    assert event.metrics["skipped_probe_reason_counts"] == {"outside_probe_limit": 1}
+    assert len(event.evidence["per_query"]) == 1
 
 
 def test_build_real_scenario_events_excludes_warmup_candidates() -> None:

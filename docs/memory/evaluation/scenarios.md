@@ -119,17 +119,21 @@
 uv run python -m app.memory.evaluation_harness \
   --phase real-scenarios \
   --scenario-pack s1_stable_single_topic \
-  --scenario-steps 10
+  --scenario-steps 10 \
+  --scenario-probe-limit 50
 ```
 
 ```bash
 uv run python -m app.memory.evaluation_harness \
   --phase real-scenarios \
   --scenario-pack s2_similar_topic_interference \
-  --scenario-steps 12
+  --scenario-steps 12 \
+  --scenario-probe-limit 50
 ```
 
 如果不传 `--scenario-pack`，`real-scenarios` 保持旧的 template agent 行为，避免破坏已有调试入口。
+
+`--scenario-probe-limit` 默认是 25，足够覆盖当前 S1/S2 的常见候选规模。更长测试中如果 `skipped_probe_reason_counts.outside_probe_limit` 仍然出现，应显式调高到能覆盖本轮 `raw_real_probe_candidate_count` 的数量，否则 1.0 结果只代表已进入 probe limit 的候选。
 
 ## 3. New Scenario Candidates
 
