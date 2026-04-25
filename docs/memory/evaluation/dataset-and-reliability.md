@@ -221,6 +221,31 @@ B 级应尽量满足：
 
 不建议第一阶段把开放随机 template agent generation 作为 B 级正式 benchmark 入口。
 
+当前 `B-level v0` 已采用最小固定输入方案：
+
+- 使用 fixture JSON 固化脱敏后的 scenario pack；
+- 使用 `manual_config` 初始化固定 agents；
+- 使用 seed post warm-up 启动环境；
+- seed post 与 refresh 都不消耗正式 step budget；
+- replay candidate 会排除 warm-up 后已经存在的 persisted episode keys。
+
+第一版 fixture 位于：
+
+```text
+backend/tests/memory/evaluation/fixtures/b_level_real_run_packs.json
+```
+
+其中：
+
+- `s1_stable_single_topic` 用于稳定单话题 replay；
+- `s2_similar_topic_interference` 用于相似话题干扰 replay。
+
+需要注意：
+
+- 固定 agents 和 seed 只能减少输入分布随机性，不能保证每次真实 LLM 运行产生完全相同的 episode；
+- 因此每次仍必须报告 `persisted episode count`、`usable probe count`、`skipped reasons`；
+- S1 和 S2 的解释口径不同，不能使用同一套简单阈值解释所有结果。
+
 ### 3.2.2 B-Level Scenario Packs
 
 第一阶段不必一步到位做完整 pack 系统，但目标设计应明确为少量固定 pack，而不是一个开放随机 run。

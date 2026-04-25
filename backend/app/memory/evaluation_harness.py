@@ -16,6 +16,7 @@ from typing import Any, Iterator
 
 from camel.memories import MemoryRecord
 from camel.messages import BaseMessage
+from oasis import ActionType, ManualAction
 
 from app.core.config import get_settings
 from app.core.oasis_manager import OASISManager
@@ -32,6 +33,9 @@ from .working_memory import MemoryState
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "memory-eval"
+DEFAULT_B_LEVEL_FIXTURE_PATH = (
+    BACKEND_ROOT / "tests" / "memory" / "evaluation" / "fixtures" / "b_level_real_run_packs.json"
+)
 DEFAULT_PHASES = ("preflight", "deterministic")
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
@@ -73,6 +77,8 @@ class EvaluationConfig:
     scenario_steps: int = 3
     scenario_agent_count: int = 2
     scenario_timeout_seconds: int = 120
+    scenario_pack: str = ""
+    scenario_fixture_path: Path = DEFAULT_B_LEVEL_FIXTURE_PATH
     longwindow_steps: int = 8
     longwindow_agent_count: int = 2
     longwindow_timeout_seconds: int = 240
@@ -465,6 +471,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Timeout for real-scenarios initialize/step flow.",
     )
     parser.add_argument(
+        "--scenario-pack",
+        default="",
+        help=(
+            "Optional B-level fixture pack id for real-scenarios "
+            "(for example s1_stable_single_topic)."
+        ),
+    )
+    parser.add_argument(
+        "--scenario-fixture-path",
+        default=str(DEFAULT_B_LEVEL_FIXTURE_PATH),
+        help="Path to B-level real-run fixture packs JSON.",
+    )
+    parser.add_argument(
         "--longwindow-steps",
         type=int,
         default=8,
@@ -518,6 +537,8 @@ def parse_args(args: list[str] | None = None) -> EvaluationConfig:
         scenario_steps=parsed.scenario_steps,
         scenario_agent_count=parsed.scenario_agent_count,
         scenario_timeout_seconds=parsed.scenario_timeout_seconds,
+        scenario_pack=parsed.scenario_pack,
+        scenario_fixture_path=Path(parsed.scenario_fixture_path),
         longwindow_steps=parsed.longwindow_steps,
         longwindow_agent_count=parsed.longwindow_agent_count,
         longwindow_timeout_seconds=parsed.longwindow_timeout_seconds,
@@ -775,6 +796,120 @@ def _comparison_embedding_blocker(
     )
 
 
+def _load_b_level_scenario_pack(config: EvaluationConfig) -> dict[str, Any]:
+    fixture_path = Path(config.scenario_fixture_path)
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    packs = payload.get("packs", [])
+    if not isinstance(packs, list):
+        raise ValueError(f"B-level fixture file has invalid packs list: {fixture_path}")
+    for item in packs:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("id", "") or "") == config.scenario_pack:
+            _validate_b_level_scenario_pack(item)
+            return item
+    raise ValueError(
+        f"B-level scenario pack not found: {config.scenario_pack} "
+        f"in {fixture_path}"
+    )
+
+
+def _validate_b_level_scenario_pack(pack: dict[str, Any]) -> None:
+    agents = pack.get("agents", [])
+    seed_post = pack.get("seed_post", {})
+    if not isinstance(agents, list) or not agents:
+        raise ValueError(f"B-level scenario pack has no agents: {pack.get('id')}")
+    if not isinstance(seed_post, dict) or not str(seed_post.get("content", "")).strip():
+        raise ValueError(f"B-level scenario pack has no seed post: {pack.get('id')}")
+    agent_ids = {
+        int(agent["agent_id"])
+        for agent in agents
+        if isinstance(agent, dict) and "agent_id" in agent
+    }
+    seed_author_id = int(seed_post.get("author_agent_id", 0))
+    if seed_author_id not in agent_ids:
+        raise ValueError(
+            f"B-level scenario pack seed author {seed_author_id} is not in agents: "
+            f"{pack.get('id')}"
+        )
+
+
+def _scenario_pack_platform(scenario_pack: dict[str, Any] | None) -> PlatformType:
+    if not scenario_pack:
+        return PlatformType.REDDIT
+    return PlatformType(str(scenario_pack.get("platform", "twitter") or "twitter"))
+
+
+def _scenario_pack_agent_source(
+    scenario_pack: dict[str, Any] | None,
+) -> AgentSource:
+    if not scenario_pack:
+        return AgentSource(source_type="template")
+    return AgentSource(
+        source_type="manual",
+        manual_config=list(scenario_pack.get("agents", []) or []),
+    )
+
+
+async def _run_b_level_pack_warmup(
+    *,
+    manager: OASISManager,
+    scenario_pack: dict[str, Any],
+    timeout_seconds: int,
+) -> None:
+    seed_post = dict(scenario_pack.get("seed_post", {}) or {})
+    author_agent_id = int(seed_post.get("author_agent_id", 0))
+    content = str(seed_post.get("content", "") or "").strip()
+    author_agent = manager.get_agent(author_agent_id)
+    if author_agent is None:
+        raise ValueError(
+            f"Seed author agent not found for scenario pack {scenario_pack.get('id')}: "
+            f"{author_agent_id}"
+        )
+    await asyncio.wait_for(
+        manager.step(
+            {
+                author_agent: ManualAction(
+                    action_type=ActionType.CREATE_POST,
+                    action_args={"content": content},
+                )
+            },
+            count_towards_budget=False,
+        ),
+        timeout=timeout_seconds,
+    )
+    refresh_actions: dict[Any, Any] = {
+        agent: ManualAction(action_type=ActionType.REFRESH, action_args={})
+        for agent in manager.get_all_agents()
+    }
+    if refresh_actions:
+        await asyncio.wait_for(
+            manager.step(refresh_actions, count_towards_budget=False),
+            timeout=timeout_seconds,
+        )
+
+
+def _collect_persisted_action_episode_keys(
+    agents: list[Any],
+) -> set[tuple[str, int | None, int | None]]:
+    keys: set[tuple[str, int | None, int | None]] = set()
+    for agent in agents:
+        agent_id = str(getattr(agent, "agent_id", "") or "")
+        persisted = getattr(agent, "_persisted_action_episode_ids", None) or set()
+        for item in persisted:
+            if not isinstance(item, tuple) or len(item) != 2:
+                continue
+            step_id, action_index = item
+            keys.add(
+                (
+                    agent_id,
+                    int(step_id) if step_id is not None else None,
+                    int(action_index) if action_index is not None else None,
+                )
+            )
+    return keys
+
+
 async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str, Any]:
     manager = OASISManager()
     db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-smoke-"))
@@ -919,6 +1054,7 @@ async def _run_action_v1_real_scenarios_async(
     config: EvaluationConfig,
 ) -> list[EvaluationEvent]:
     manager = OASISManager()
+    scenario_pack = _load_b_level_scenario_pack(config) if config.scenario_pack else None
     db_dir = Path(tempfile.mkdtemp(prefix="socitwin-real-scenarios-"))
     chroma_dir = db_dir / "chroma"
     db_path = db_dir / "simulation.db"
@@ -947,17 +1083,31 @@ async def _run_action_v1_real_scenarios_async(
                 pass
 
             simulation_config = SimulationConfig(
-                platform=PlatformType.REDDIT,
-                agent_count=config.scenario_agent_count,
+                platform=_scenario_pack_platform(scenario_pack),
+                agent_count=(
+                    len(scenario_pack["agents"])
+                    if scenario_pack
+                    else config.scenario_agent_count
+                ),
                 memory_mode=MemoryMode.ACTION_V1,
                 db_path=str(db_path),
                 max_steps=max(1, config.scenario_steps),
-                agent_source=AgentSource(source_type="template"),
+                agent_source=_scenario_pack_agent_source(scenario_pack),
             )
             init_result = await asyncio.wait_for(
                 manager.initialize(simulation_config),
                 timeout=max(1, config.scenario_timeout_seconds),
             )
+            warmup_episode_keys: set[tuple[str, int | None, int | None]] = set()
+            if scenario_pack:
+                await _run_b_level_pack_warmup(
+                    manager=manager,
+                    scenario_pack=scenario_pack,
+                    timeout_seconds=max(1, config.scenario_timeout_seconds),
+                )
+                warmup_episode_keys = _collect_persisted_action_episode_keys(
+                    list(manager.get_all_agents())
+                )
             for _ in range(max(1, config.scenario_steps)):
                 await asyncio.wait_for(
                     manager.step(),
@@ -968,6 +1118,8 @@ async def _run_action_v1_real_scenarios_async(
                 manager=manager,
                 init_result=init_result,
                 config=config,
+                scenario_pack=scenario_pack,
+                excluded_episode_keys=warmup_episode_keys,
             )
         finally:
             try:
@@ -1158,19 +1310,31 @@ def _build_real_scenario_events(
     manager: OASISManager,
     init_result: dict[str, Any],
     config: EvaluationConfig,
+    scenario_pack: dict[str, Any] | None = None,
+    excluded_episode_keys: set[tuple[str, int | None, int | None]] | None = None,
 ) -> list[EvaluationEvent]:
     agents = list(manager.get_all_agents())
     store = getattr(manager, "_action_v1_longterm_store", None)
-    candidates = _collect_real_longterm_probe_candidates(store)
+    raw_candidates = _collect_real_longterm_probe_candidates(store)
+    excluded_episode_keys = excluded_episode_keys or set()
+    candidates = [
+        candidate
+        for candidate in raw_candidates
+        if _real_episode_key(candidate) not in excluded_episode_keys
+    ]
     persisted_count = _count_persisted_action_episodes(agents)
     base_metrics = {
         "memory_mode": MemoryMode.ACTION_V1.value,
         "longterm_backend": (
             "openai_compatible" if config.embedding_url else "heuristic"
         ),
+        "scenario_pack_id": str((scenario_pack or {}).get("id", "") or ""),
+        "scenario_pack_purpose": str((scenario_pack or {}).get("purpose", "") or ""),
         "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
         "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
         "actual_persisted_action_episode_count": persisted_count,
+        "raw_real_probe_candidate_count": len(raw_candidates),
+        "warmup_excluded_probe_candidate_count": len(raw_candidates) - len(candidates),
         **_summarize_real_probe_candidate_pool(candidates),
     }
     return [

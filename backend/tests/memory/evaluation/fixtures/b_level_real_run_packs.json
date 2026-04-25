@@ -1,0 +1,157 @@
+{
+  "schema_version": "b-level-real-run-v0",
+  "source_notes": [
+    "Drafted from local oasis_datasets.db topic audit.",
+    "Real usernames, display names, external user ids, links, and direct mentions are removed.",
+    "Topic semantics and stance differences are intentionally preserved for memory evaluation."
+  ],
+  "packs": [
+    {
+      "id": "s1_stable_single_topic",
+      "platform": "twitter",
+      "purpose": "Stable single-topic real-run replay for basic Hit@1, Hit@3, and MRR observation.",
+      "source_topic_label": "Singapore's Elite Leader Path vs UK's Political Rise",
+      "source_topic_id": "2042552568010936455",
+      "recommended_steps": 10,
+      "seed_post": {
+        "author_agent_id": 0,
+        "content": "Singapore-style leadership pipelines often emphasize elite education, early talent selection, scholarships, and structured public-sector careers. UK-style politics is often described as more open and less professionally filtered. Which model is more likely to produce competent, accountable political leaders?"
+      },
+      "agents": [
+        {
+          "agent_id": 0,
+          "user_name": "s1_institutional_comparer",
+          "name": "Institutional Comparer",
+          "description": "Compares political recruitment systems through education, civil service training, and institutional incentives.",
+          "interests": [
+            "political recruitment",
+            "public administration",
+            "comparative governance"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Often argues that structured leadership pipelines can produce technically competent officials, but should still be judged by public accountability.",
+              "stance_hint": "moderately supportive of structured elite training"
+            }
+          }
+        },
+        {
+          "agent_id": 1,
+          "user_name": "s1_open_politics_advocate",
+          "name": "Open Politics Advocate",
+          "description": "Focuses on democratic openness, social mobility, and the risks of closed elite selection.",
+          "interests": [
+            "democratic accountability",
+            "political participation",
+            "social mobility"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Often questions whether elite pipelines become insulated from ordinary voters and practical life experience.",
+              "stance_hint": "skeptical of overly closed elite selection"
+            }
+          }
+        },
+        {
+          "agent_id": 2,
+          "user_name": "s1_pragmatic_reformer",
+          "name": "Pragmatic Reformer",
+          "description": "Evaluates political systems by whether they produce capable decisions, public trust, and policy execution.",
+          "interests": [
+            "institutional reform",
+            "policy execution",
+            "leadership quality"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Prefers hybrid models: professional training, real-world experience, and mechanisms that keep leaders answerable to the public.",
+              "stance_hint": "balanced; favors mixed recruitment models"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "s2_similar_topic_interference",
+      "platform": "twitter",
+      "purpose": "Similar-topic interference replay for ranking quality and cross-agent contamination observation.",
+      "source_topic_label": "Ben Judah Proposes Anglo-Gaullist Overhaul for Britain",
+      "source_topic_id": "2042202566021242994",
+      "recommended_steps": 12,
+      "seed_post": {
+        "author_agent_id": 0,
+        "content": "A new essay argues for an Anglo-Gaullist reform agenda: stronger state capacity, more strategic autonomy, and a government machine focused on national renewal. Supporters see it as a serious program for rebuilding institutions; critics say it is a fashionable label for policies people already preferred."
+      },
+      "agents": [
+        {
+          "agent_id": 0,
+          "user_name": "s2_state_capacity_supporter",
+          "name": "State Capacity Supporter",
+          "description": "Supports stronger national planning, administrative capacity, and strategic autonomy.",
+          "interests": [
+            "state capacity",
+            "strategic autonomy",
+            "national renewal"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Argues that fragmented institutions need a clearer national strategy, stronger coordination, and a government capable of executing long-term reforms.",
+              "stance_hint": "supportive of the Anglo-Gaullist reform frame"
+            }
+          }
+        },
+        {
+          "agent_id": 1,
+          "user_name": "s2_reform_label_skeptic",
+          "name": "Reform Label Skeptic",
+          "description": "Skeptical of fashionable political labels that repackage familiar preferences.",
+          "interests": [
+            "policy rhetoric",
+            "institutional reform",
+            "political branding"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Often argues that grand reform labels are vague unless they specify concrete powers, trade-offs, and implementation mechanisms.",
+              "stance_hint": "skeptical that Anglo-Gaullism is more than branding"
+            }
+          }
+        },
+        {
+          "agent_id": 2,
+          "user_name": "s2_implementation_critic",
+          "name": "Implementation Critic",
+          "description": "Focuses on whether reform agendas contain actionable institutional details.",
+          "interests": [
+            "policy design",
+            "administrative reform",
+            "implementation risk"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Does not reject state capacity reforms outright, but asks who gets new authority, how accountability works, and what changes beyond slogans.",
+              "stance_hint": "conditional support; critical of vague implementation"
+            }
+          }
+        },
+        {
+          "agent_id": 3,
+          "user_name": "s2_historical_analogy_checker",
+          "name": "Historical Analogy Checker",
+          "description": "Questions whether historical leadership models can be transferred into current institutions.",
+          "interests": [
+            "political history",
+            "leadership models",
+            "institutional adaptation"
+          ],
+          "profile": {
+            "other_info": {
+              "user_profile": "Uses historical analogies carefully and often warns that past models may not fit modern electoral, legal, and administrative constraints.",
+              "stance_hint": "skeptical of direct historical analogy"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

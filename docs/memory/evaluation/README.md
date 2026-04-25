@@ -65,6 +65,7 @@
 - 使用 `summary.json` 中的 `memory_kpis` 汇总 exact episode hit、cross-agent contamination、gate、false trigger 和 trace-level injection；
 - 使用 `unavailable_metrics` 区分“没有跑 / 没样本”和真实 0 分；
 - 使用 run 目录下的 `README.md` 给人类和 AI 快速阅读 KPI 与缺失原因；
+- 使用 `--scenario-pack` 运行第一版固定输入 B-level v0 replay，当前包含 `s1_stable_single_topic` 和 `s2_similar_topic_interference`；
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
 - 明确区分确定性组件测试、真实运行 episode 回放和随机行为级场景，避免把一次真实模拟结果当成最终结论。
 - 先把当前真实 replay 收口成 `B-level v0`，再演进到固定 scenario packs 的 `B-level v1`。

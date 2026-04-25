@@ -102,6 +102,35 @@
 - `B-level v1`
   - 再引入固定 scenario packs 和多次运行聚合。
 
+当前 `B-level v0` 已有两个固定输入 pack：
+
+- `s1_stable_single_topic`
+  - 来源：脱敏改写后的 `Singapore's Elite Leader Path vs UK's Political Rise`；
+  - 目标：稳定产生 post/comment 类 `ActionEpisode`；
+  - 重点指标：persisted episode count、usable probe count、Hit@1、Hit@3、MRR。
+- `s2_similar_topic_interference`
+  - 来源：脱敏改写后的 `Ben Judah Proposes Anglo-Gaullist Overhaul for Britain`；
+  - 目标：保留同主题、相似表达、不同 agent 的结构；
+  - 重点指标：Hit@1、Hit@3、MRR、cross-agent contamination。
+
+运行入口示例：
+
+```bash
+uv run python -m app.memory.evaluation_harness \
+  --phase real-scenarios \
+  --scenario-pack s1_stable_single_topic \
+  --scenario-steps 10
+```
+
+```bash
+uv run python -m app.memory.evaluation_harness \
+  --phase real-scenarios \
+  --scenario-pack s2_similar_topic_interference \
+  --scenario-steps 12
+```
+
+如果不传 `--scenario-pack`，`real-scenarios` 保持旧的 template agent 行为，避免破坏已有调试入口。
+
 ## 3. New Scenario Candidates
 
 下面这些适合后续补充，不建议第一轮全部实现。

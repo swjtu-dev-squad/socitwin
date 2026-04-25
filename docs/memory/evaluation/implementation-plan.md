@@ -159,13 +159,33 @@ Status: partially implemented.
 - `candidate_agent_distribution`
 - `usable_probe_action_name_distribution`
 - `usable_probe_agent_distribution`
+- `scenario_pack_id`
+- `scenario_pack_purpose`
+- `raw_real_probe_candidate_count`
+- `warmup_excluded_probe_candidate_count`
+
+当前已新增第一版固定输入入口：
+
+- fixture: `backend/tests/memory/evaluation/fixtures/b_level_real_run_packs.json`
+- CLI: `--scenario-pack`
+- agent source: fixture agents -> `manual_config`
+- seed post: `ManualAction(CREATE_POST)` warm-up，`count_towards_budget=False`
+- refresh: seed 后对全部 agent 执行 `REFRESH` warm-up，`count_towards_budget=False`
+- replay candidate 排除：warm-up 后已存在的 persisted episode keys 会从 real-run replay candidates 中排除，避免 seed 环境污染正式长期记忆检索 KPI。
+
+已内置两个 v0 packs：
+
+- `s1_stable_single_topic`
+  - 目标：稳定单话题，观察基础 Hit@1 / Hit@3 / MRR；
+  - 解释口径：重点看是否稳定产生 persisted / usable probes，不应按强干扰场景解释。
+- `s2_similar_topic_interference`
+  - 目标：同主题、相似表达、不同 agent 的干扰；
+  - 解释口径：重点看排序质量、MRR 和 cross-agent contamination，不应只用 S1 的简单通过/失败口径解释。
 
 这一步的目标不是把 B 级做成完整 benchmark 平台，而是避免它继续停留在“随机 run 一次看看”。
 
 仍未完成：
 
-- 固定 `file` / `manual` agent profiles；
-- 固定 topic / 初始环境；
 - 更严格的 usable probe validity gate；
 - 多 run 汇总。
 

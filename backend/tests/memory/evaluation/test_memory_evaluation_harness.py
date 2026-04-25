@@ -14,6 +14,7 @@ from app.memory.evaluation_harness import (
     EvaluationRecorder,
     _build_real_longwindow_events,
     _build_real_scenario_events,
+    _load_b_level_scenario_pack,
     _run_comparison,
     _summarize_comparison_run,
     build_parser,
@@ -171,6 +172,29 @@ def test_parser_accepts_real_scenarios_phase() -> None:
     assert config.phases == ["real-scenarios"]
     assert config.scenario_agent_count == 3
     assert config.scenario_steps == 4
+
+
+def test_parser_accepts_b_level_scenario_pack() -> None:
+    args = build_parser().parse_args(
+        ["--phase", "real-scenarios", "--scenario-pack", "s1_stable_single_topic"]
+    )
+    config = parse_args(
+        ["--phase", "real-scenarios", "--scenario-pack", "s1_stable_single_topic"]
+    )
+
+    assert args.scenario_pack == "s1_stable_single_topic"
+    assert config.scenario_pack == "s1_stable_single_topic"
+
+
+def test_load_b_level_scenario_pack_from_default_fixture() -> None:
+    pack = _load_b_level_scenario_pack(
+        EvaluationConfig(scenario_pack="s2_similar_topic_interference")
+    )
+
+    assert pack["id"] == "s2_similar_topic_interference"
+    assert pack["platform"] == "twitter"
+    assert len(pack["agents"]) == 4
+    assert pack["seed_post"]["author_agent_id"] == 0
 
 
 def test_parser_accepts_real_longwindow_phase() -> None:
@@ -500,6 +524,61 @@ def test_build_real_scenario_events_reports_probe_skips() -> None:
     assert event.metrics["usable_probe_count"] == 0
     assert event.metrics["skipped_probe_count"] == 1
     assert event.metrics["skipped_probe_reason_counts"] == {"missing_query_text": 1}
+
+
+def test_build_real_scenario_events_excludes_warmup_candidates() -> None:
+    class _FakeStore:
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text, limit, agent_id
+            return [
+                {
+                    "memory_kind": "action_episode",
+                    "agent_id": "agent-1",
+                    "step_id": 1,
+                    "action_index": 0,
+                    "action_name": "create_post",
+                    "action_fact": "create_post(content=seed)",
+                    "topic": "seed topic",
+                    "authored_content": "seed topic",
+                    "target_snapshot": {"summary": "seed topic"},
+                },
+                {
+                    "memory_kind": "action_episode",
+                    "agent_id": "agent-1",
+                    "step_id": 2,
+                    "action_index": 0,
+                    "action_name": "create_comment",
+                    "action_fact": "create_comment(content=follow-up)",
+                    "topic": "follow-up topic",
+                    "authored_content": "follow-up topic",
+                    "target_snapshot": {"summary": "follow-up topic"},
+                },
+            ]
+
+    fake_agent = SimpleNamespace(
+        agent_id="agent-1",
+        _persisted_action_episode_ids={(1, 0), (2, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 2},
+        _action_v1_longterm_store=_FakeStore(),
+    )
+
+    events = _build_real_scenario_events(
+        manager=manager,
+        init_result={"agent_count": 1},
+        config=EvaluationConfig(phases=["real-scenarios"], embedding_url=""),
+        scenario_pack={"id": "s1_stable_single_topic", "purpose": "test"},
+        excluded_episode_keys={("agent-1", 1, 0)},
+    )
+
+    event = events[0]
+    assert event.metrics["scenario_pack_id"] == "s1_stable_single_topic"
+    assert event.metrics["raw_real_probe_candidate_count"] == 2
+    assert event.metrics["warmup_excluded_probe_candidate_count"] == 1
+    assert event.metrics["real_probe_candidate_count"] == 1
+    assert event.evidence["per_query"][0]["expected_key"] == ("agent-1", 2, 0)
 
 
 def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
