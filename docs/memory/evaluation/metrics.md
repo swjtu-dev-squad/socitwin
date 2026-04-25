@@ -212,3 +212,12 @@ target_episode_injection_success_rate
 - `retrieved_keys / retrieved_episodes`：top-k 返回候选的 key 和摘要；
 - `retrieved_same_agent_flags / retrieved_same_step_flags`：辅助判断是跨 agent、同一步多动作，还是普通排序问题；
 - `expected_action_name / retrieved_action_names`：辅助判断是否集中在 `like_post`、`repost` 等弱语义动作。
+
+如果需要判断真实模拟和长期记忆形成过程是否正常，应优先查看 run 目录下的过程审计文件：
+
+- `artifacts/real-scenarios/step_audit.jsonl`：每步的 `step_result`、`memory_debug`、agent 本步动作和记忆状态；
+- `artifacts/real-scenarios/episode_audit.jsonl`：每条 `ActionEpisode` 的完整 payload、是否持久化、probe query、长期记忆 document；
+- `artifacts/real-scenarios/audit_summary.json`：重复 query、episode 动作分布和 LTM 指标摘要；
+- `artifacts/real-scenarios/simulation.db`：从临时目录复制出的 OASIS SQLite 数据库。
+
+这些文件用于先回答“agent 到底做了什么、记忆到底写了什么”，再解释 Hit@K / MRR。

@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import shutil
+import sqlite3
 import tempfile
 import time
 import warnings
@@ -12,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping, Sequence
 
 from camel.memories import MemoryRecord
 from camel.messages import BaseMessage
@@ -24,7 +25,7 @@ from app.models.simulation import AgentSource, MemoryMode, PlatformType, Simulat
 
 from .config import ActionV1RuntimeSettings
 from .episodic_memory import ActionEpisode
-from .longterm import build_chroma_longterm_store, payload_to_episode
+from .longterm import _episode_document, build_chroma_longterm_store, payload_to_episode
 from .observation_shaper import ObservationShaper
 from .recall_planner import RecallPlanner, RecallRuntimeState
 from .retrieval_policy import RetrievalPolicy
@@ -197,6 +198,9 @@ class EvaluationRecorder:
                 "- `summary.json`：机器可读的总览、KPI 和不可用指标。",
                 "- `events.jsonl`：逐事件详细证据；检索类事件包含逐条 probe 的 expected / retrieved 信息。",
                 "- `config.json`：本次评测参数，包括场景、步数、probe limit 和 embedding 配置。",
+                "- `artifacts/real-scenarios/step_audit.jsonl`：逐步记录 step_result、memory_debug、agent 本步动作和记忆状态。",
+                "- `artifacts/real-scenarios/episode_audit.jsonl`：逐条记录 ActionEpisode payload、是否持久化、probe query 和长期记忆 document。",
+                "- `artifacts/real-scenarios/sqlite_trace_summary.json`：OASIS SQLite trace 表摘要；`simulation.db` 会被复制到审计目录。",
                 "- `README.md`：当前中文摘要报告，面向人工阅读和组会复盘。",
             ]
         )
@@ -438,6 +442,7 @@ def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
         f"- 场景目的：{metrics.get('scenario_pack_purpose', '') or '未记录'}",
         f"- 运行步数：`{metrics.get('step_count', 0)}`",
         f"- 实际持久化 ActionEpisode 数：`{metrics.get('actual_persisted_action_episode_count', 0)}`",
+        f"- 审计材料目录：`{metrics.get('audit_artifact_dir', '') or '未生成'}`",
         f"- 原始可回查候选数：`{metrics.get('raw_real_probe_candidate_count', 0)}`",
         f"- warm-up 排除候选数：`{metrics.get('warmup_excluded_probe_candidate_count', 0)}`",
         f"- probe limit：`{metrics.get('probe_attempt_limit', 0)}`",
@@ -900,7 +905,12 @@ def _run_real_smoke(config: EvaluationConfig, recorder: EvaluationRecorder) -> N
 
 def _run_real_scenarios(config: EvaluationConfig, recorder: EvaluationRecorder) -> None:
     try:
-        events = asyncio.run(_run_action_v1_real_scenarios_async(config))
+        events = asyncio.run(
+            _run_action_v1_real_scenarios_async(
+                config,
+                artifact_dir=recorder.run_dir / "artifacts" / "real-scenarios",
+            )
+        )
         for event in events:
             recorder.record(event)
     except Exception as exc:
@@ -1035,7 +1045,7 @@ async def _run_b_level_pack_warmup(
     manager: OASISManager,
     scenario_pack: dict[str, Any],
     timeout_seconds: int,
-) -> None:
+) -> list[dict[str, Any]]:
     seed_post = dict(scenario_pack.get("seed_post", {}) or {})
     author_agent_id = int(seed_post.get("author_agent_id", 0))
     content = str(seed_post.get("content", "") or "").strip()
@@ -1045,7 +1055,7 @@ async def _run_b_level_pack_warmup(
             f"Seed author agent not found for scenario pack {scenario_pack.get('id')}: "
             f"{author_agent_id}"
         )
-    await asyncio.wait_for(
+    seed_result = await asyncio.wait_for(
         manager.step(
             {
                 author_agent: ManualAction(
@@ -1057,15 +1067,20 @@ async def _run_b_level_pack_warmup(
         ),
         timeout=timeout_seconds,
     )
+    results = [{"phase": "warmup_seed_post", "step_result": dict(seed_result or {})}]
     refresh_actions: dict[Any, Any] = {
         agent: ManualAction(action_type=ActionType.REFRESH, action_args={})
         for agent in manager.get_all_agents()
     }
     if refresh_actions:
-        await asyncio.wait_for(
+        refresh_result = await asyncio.wait_for(
             manager.step(refresh_actions, count_towards_budget=False),
             timeout=timeout_seconds,
         )
+        results.append(
+            {"phase": "warmup_refresh_all_agents", "step_result": dict(refresh_result or {})}
+        )
+    return results
 
 
 def _collect_persisted_action_episode_keys(
@@ -1087,6 +1102,264 @@ def _collect_persisted_action_episode_keys(
                 )
             )
     return keys
+
+
+def _build_real_scenario_step_audit_entry(
+    *,
+    manager: OASISManager,
+    step_result: Mapping[str, Any],
+    phase_label: str,
+    run_step_index: int,
+    count_towards_budget: bool,
+) -> dict[str, Any]:
+    memory_debug = manager.get_memory_debug_info()
+    debug_by_social_id = {
+        str(item.get("agent_id", "")): dict(item)
+        for item in (memory_debug.get("agents", []) or [])
+        if isinstance(item, dict)
+    }
+    agents = []
+    for agent in manager.get_all_agents():
+        user_info = getattr(agent, "user_info", None)
+        social_agent_id = getattr(agent, "social_agent_id", None)
+        persisted_ids = getattr(agent, "_persisted_action_episode_ids", None) or set()
+        last_action_episodes = []
+        for episode in getattr(agent, "action_episode_records", []) or []:
+            payload = episode.to_payload()
+            persisted = (
+                int(payload.get("step_id", 0) or 0),
+                int(payload.get("action_index", 0) or 0),
+            ) in persisted_ids
+            last_action_episodes.append(
+                {
+                    "key": list(_real_episode_key(payload)),
+                    "persisted": persisted,
+                    "probe_query_text": _query_from_real_episode(payload),
+                    "longterm_document": _episode_document(payload),
+                    "payload": payload,
+                }
+            )
+        agents.append(
+            {
+                "agent_id": str(getattr(agent, "agent_id", "") or ""),
+                "social_agent_id": social_agent_id,
+                "user_name": str(getattr(user_info, "user_name", "") or ""),
+                "name": str(getattr(user_info, "name", "") or ""),
+                "last_action_episode_count": len(last_action_episodes),
+                "last_persisted_action_episode_count": sum(
+                    1 for item in last_action_episodes if item["persisted"]
+                ),
+                "memory_debug": debug_by_social_id.get(str(social_agent_id), {}),
+                "last_action_episodes": last_action_episodes,
+            }
+        )
+    return {
+        "phase": phase_label,
+        "run_step_index": run_step_index,
+        "count_towards_budget": count_towards_budget,
+        "manager_current_step": memory_debug.get("current_step"),
+        "step_result": dict(step_result or {}),
+        "memory_debug": memory_debug,
+        "agents": agents,
+    }
+
+
+def _episode_audit_records_from_step(step_entry: Mapping[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for agent in step_entry.get("agents", []) or []:
+        if not isinstance(agent, Mapping):
+            continue
+        for episode in agent.get("last_action_episodes", []) or []:
+            if not isinstance(episode, Mapping):
+                continue
+            records.append(
+                {
+                    "phase": step_entry.get("phase"),
+                    "run_step_index": step_entry.get("run_step_index"),
+                    "manager_current_step": step_entry.get("manager_current_step"),
+                    "agent_id": agent.get("agent_id"),
+                    "social_agent_id": agent.get("social_agent_id"),
+                    "user_name": agent.get("user_name"),
+                    "name": agent.get("name"),
+                    "key": episode.get("key"),
+                    "persisted": episode.get("persisted"),
+                    "probe_query_text": episode.get("probe_query_text"),
+                    "longterm_document": episode.get("longterm_document"),
+                    "payload": episode.get("payload"),
+                }
+            )
+    return records
+
+
+def _write_real_scenario_run_inputs(
+    *,
+    artifact_dir: Path,
+    config: EvaluationConfig,
+    init_result: Mapping[str, Any],
+    scenario_pack: Mapping[str, Any] | None,
+    db_path: Path,
+    chroma_dir: Path,
+) -> None:
+    _write_json_file(
+        artifact_dir / "run_inputs.json",
+        {
+            "config": _jsonable(asdict(config)),
+            "init_result": dict(init_result),
+            "scenario_pack": dict(scenario_pack or {}),
+            "temporary_db_path": str(db_path),
+            "temporary_chroma_dir": str(chroma_dir),
+            "note": (
+                "temporary_* paths are copied/summarized into this artifact directory "
+                "before the temporary simulation directory is removed."
+            ),
+        },
+    )
+
+
+def _write_real_scenario_audit_artifacts(
+    *,
+    artifact_dir: Path,
+    step_audit_records: list[dict[str, Any]],
+    episode_audit_records: list[dict[str, Any]],
+    events: list[EvaluationEvent],
+    db_path: Path,
+) -> None:
+    try:
+        _write_jsonl_file(artifact_dir / "step_audit.jsonl", step_audit_records)
+        _write_jsonl_file(artifact_dir / "episode_audit.jsonl", episode_audit_records)
+        _write_json_file(
+            artifact_dir / "audit_summary.json",
+            _build_real_scenario_audit_summary(
+                step_audit_records=step_audit_records,
+                episode_audit_records=episode_audit_records,
+                events=events,
+            ),
+        )
+        _write_sqlite_trace_artifacts(artifact_dir=artifact_dir, db_path=db_path)
+    except Exception as exc:
+        _write_json_file(
+            artifact_dir / "audit_artifact_error.json",
+            {"error": str(exc)},
+        )
+
+
+def _build_real_scenario_audit_summary(
+    *,
+    step_audit_records: list[dict[str, Any]],
+    episode_audit_records: list[dict[str, Any]],
+    events: list[EvaluationEvent],
+) -> dict[str, Any]:
+    ltm_event = _first_event(events, "VAL-LTM-05 real_self_action_retrievability")
+    per_query = list((ltm_event.evidence if ltm_event else {}).get("per_query", []) or [])
+    query_texts = [str(item.get("query_text", "") or "") for item in per_query]
+    duplicated_queries = {
+        query: count
+        for query, count in _count_string_values(query_texts).items()
+        if query and count > 1
+    }
+    return {
+        "official_step_count": sum(
+            1 for item in step_audit_records
+            if item.get("phase") == "official_step"
+        ),
+        "warmup_step_count": sum(
+            1 for item in step_audit_records
+            if str(item.get("phase", "")).startswith("warmup")
+        ),
+        "step_audit_record_count": len(step_audit_records),
+        "episode_audit_record_count": len(episode_audit_records),
+        "persisted_episode_audit_record_count": sum(
+            1 for item in episode_audit_records if item.get("persisted")
+        ),
+        "episode_action_distribution": _count_string_values(
+            [
+                str((item.get("payload") or {}).get("action_name", "") or "unknown")
+                for item in episode_audit_records
+                if isinstance(item.get("payload"), Mapping)
+            ]
+        ),
+        "probe_query_count": len(query_texts),
+        "probe_unique_query_count": len(set(query_texts)),
+        "probe_duplicate_query_count": sum(
+            max(0, count - 1) for count in duplicated_queries.values()
+        ),
+        "top_duplicated_probe_queries": [
+            {"count": count, "query_text": query[:240]}
+            for query, count in sorted(
+                duplicated_queries.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )[:10]
+        ],
+        "ltm_metrics": dict(ltm_event.metrics if ltm_event else {}),
+    }
+
+
+def _write_sqlite_trace_artifacts(
+    *,
+    artifact_dir: Path,
+    db_path: Path,
+) -> None:
+    if not db_path.exists():
+        _write_json_file(
+            artifact_dir / "sqlite_trace_summary.json",
+            {"available": False, "reason": "simulation db does not exist"},
+        )
+        return
+    copied_db_path = artifact_dir / "simulation.db"
+    shutil.copy2(db_path, copied_db_path)
+    summary: dict[str, Any] = {
+        "available": True,
+        "copied_db_path": str(copied_db_path),
+    }
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        tables = [
+            str(row["name"])
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+            ).fetchall()
+        ]
+        summary["tables"] = tables
+        if "trace" not in tables:
+            summary["trace_available"] = False
+            _write_json_file(artifact_dir / "sqlite_trace_summary.json", summary)
+            return
+        columns = [
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(trace)").fetchall()
+        ]
+        trace_count = int(conn.execute("SELECT COUNT(*) AS count FROM trace").fetchone()["count"])
+        trace_sample = [
+            dict(row)
+            for row in conn.execute("SELECT * FROM trace LIMIT 100").fetchall()
+        ]
+    summary.update(
+        {
+            "trace_available": True,
+            "trace_columns": columns,
+            "trace_count": trace_count,
+            "trace_sample_count": len(trace_sample),
+        }
+    )
+    _write_json_file(artifact_dir / "sqlite_trace_summary.json", summary)
+    _write_json_file(artifact_dir / "sqlite_trace_sample.json", trace_sample)
+
+
+def _write_json_file(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(_jsonable(payload), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _write_jsonl_file(path: Path, records: Sequence[Mapping[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(json.dumps(_jsonable(record), ensure_ascii=False) for record in records),
+        encoding="utf-8",
+    )
 
 
 async def _run_action_v1_real_smoke_async(config: EvaluationConfig) -> dict[str, Any]:
@@ -1231,6 +1504,8 @@ def _infer_openai_compatible_embedding_dim(
 
 async def _run_action_v1_real_scenarios_async(
     config: EvaluationConfig,
+    *,
+    artifact_dir: Path | None = None,
 ) -> list[EvaluationEvent]:
     manager = OASISManager()
     scenario_pack = _load_b_level_scenario_pack(config) if config.scenario_pack else None
@@ -1238,6 +1513,8 @@ async def _run_action_v1_real_scenarios_async(
     chroma_dir = db_dir / "chroma"
     db_path = db_dir / "simulation.db"
     close_timeout = min(10, max(1, config.scenario_timeout_seconds))
+    step_audit_records: list[dict[str, Any]] = []
+    episode_audit_records: list[dict[str, Any]] = []
 
     env_updates = {
         "OASIS_MEMORY_MODE": MemoryMode.ACTION_V1.value,
@@ -1277,29 +1554,67 @@ async def _run_action_v1_real_scenarios_async(
                 manager.initialize(simulation_config),
                 timeout=max(1, config.scenario_timeout_seconds),
             )
+            if artifact_dir is not None:
+                _write_real_scenario_run_inputs(
+                    artifact_dir=artifact_dir,
+                    config=config,
+                    init_result=init_result,
+                    scenario_pack=scenario_pack,
+                    db_path=db_path,
+                    chroma_dir=chroma_dir,
+                )
             warmup_episode_keys: set[tuple[str, int | None, int | None]] = set()
             if scenario_pack:
-                await _run_b_level_pack_warmup(
+                warmup_results = await _run_b_level_pack_warmup(
                     manager=manager,
                     scenario_pack=scenario_pack,
                     timeout_seconds=max(1, config.scenario_timeout_seconds),
                 )
+                for warmup_index, warmup_result in enumerate(warmup_results, start=1):
+                    entry = _build_real_scenario_step_audit_entry(
+                        manager=manager,
+                        step_result=warmup_result.get("step_result", {}),
+                        phase_label=str(warmup_result.get("phase", "warmup")),
+                        run_step_index=warmup_index,
+                        count_towards_budget=False,
+                    )
+                    step_audit_records.append(entry)
+                    episode_audit_records.extend(_episode_audit_records_from_step(entry))
                 warmup_episode_keys = _collect_persisted_action_episode_keys(
                     list(manager.get_all_agents())
                 )
-            for _ in range(max(1, config.scenario_steps)):
-                await asyncio.wait_for(
+            for step_index in range(1, max(1, config.scenario_steps) + 1):
+                step_result = await asyncio.wait_for(
                     manager.step(),
                     timeout=max(1, config.scenario_timeout_seconds),
                 )
+                entry = _build_real_scenario_step_audit_entry(
+                    manager=manager,
+                    step_result=step_result,
+                    phase_label="official_step",
+                    run_step_index=step_index,
+                    count_towards_budget=True,
+                )
+                step_audit_records.append(entry)
+                episode_audit_records.extend(_episode_audit_records_from_step(entry))
 
-            return _build_real_scenario_events(
+            events = _build_real_scenario_events(
                 manager=manager,
                 init_result=init_result,
                 config=config,
                 scenario_pack=scenario_pack,
                 excluded_episode_keys=warmup_episode_keys,
+                artifact_dir=artifact_dir,
             )
+            if artifact_dir is not None:
+                _write_real_scenario_audit_artifacts(
+                    artifact_dir=artifact_dir,
+                    step_audit_records=step_audit_records,
+                    episode_audit_records=episode_audit_records,
+                    events=events,
+                    db_path=db_path,
+                )
+            return events
         finally:
             try:
                 await asyncio.wait_for(manager.close(), timeout=close_timeout)
@@ -1491,6 +1806,7 @@ def _build_real_scenario_events(
     config: EvaluationConfig,
     scenario_pack: dict[str, Any] | None = None,
     excluded_episode_keys: set[tuple[str, int | None, int | None]] | None = None,
+    artifact_dir: Path | None = None,
 ) -> list[EvaluationEvent]:
     agents = list(manager.get_all_agents())
     store = getattr(manager, "_action_v1_longterm_store", None)
@@ -1512,6 +1828,7 @@ def _build_real_scenario_events(
         "agent_count": int(init_result.get("agent_count", len(agents)) or len(agents)),
         "step_count": int(manager.get_state_info().get("current_step", 0) or 0),
         "actual_persisted_action_episode_count": persisted_count,
+        "audit_artifact_dir": str(artifact_dir) if artifact_dir is not None else "",
         "raw_real_probe_candidate_count": len(raw_candidates),
         "warmup_excluded_probe_candidate_count": len(raw_candidates) - len(candidates),
         **_summarize_real_probe_candidate_pool(
@@ -2114,10 +2431,24 @@ def _real_episode_debug_view(episode: dict[str, Any]) -> dict[str, Any]:
         "step_id": episode.get("step_id"),
         "action_index": episode.get("action_index"),
         "action_name": episode.get("action_name"),
+        "action_category": episode.get("action_category"),
         "action_fact": episode.get("action_fact"),
+        "target_type": episode.get("target_type"),
+        "target_id": episode.get("target_id"),
         "topic": episode.get("topic"),
         "query_source": episode.get("query_source"),
         "target_snapshot": episode.get("target_snapshot"),
+        "target_visible_in_prompt": episode.get("target_visible_in_prompt"),
+        "target_resolution_status": episode.get("target_resolution_status"),
+        "execution_status": episode.get("execution_status"),
+        "local_context": episode.get("local_context"),
+        "authored_content": episode.get("authored_content"),
+        "state_changes": episode.get("state_changes"),
+        "outcome": episode.get("outcome"),
+        "action_significance": episode.get("action_significance"),
+        "evidence_quality": episode.get("evidence_quality"),
+        "degraded_evidence": episode.get("degraded_evidence"),
+        "summary_text": episode.get("summary_text"),
     }
 
 

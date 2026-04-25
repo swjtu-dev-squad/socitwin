@@ -135,6 +135,19 @@ Status: implemented for Phase 1 KPI output; upgraded to Chinese human-readable r
 - trace-level injection 与目标 episode 注入成功的差异说明
 - retrieve-only probe 与 full-path injection 的差异说明
 
+当前 real-scenarios 还会在 run 目录下输出过程审计材料：
+
+- `artifacts/real-scenarios/step_audit.jsonl`
+  - 逐步记录 `step_result`、`memory_debug`、每个 agent 本步生成的 `ActionEpisode`。
+- `artifacts/real-scenarios/episode_audit.jsonl`
+  - 逐条记录 `ActionEpisode` payload、是否被持久化、评测 probe query、写入长期记忆时使用的 document 文本。
+- `artifacts/real-scenarios/audit_summary.json`
+  - 汇总 step 数、episode 数、动作分布、重复 probe query 情况和 LTM 指标。
+- `artifacts/real-scenarios/sqlite_trace_summary.json`
+  - 记录 OASIS `trace` 表摘要，并复制 `simulation.db` 方便后续人工排查。
+
+这些审计材料的定位是先判断模拟过程和记忆形成是否正常，再解释抽象指标。
+
 ## 4. Phase 3: B-Level v0 Reliability Upgrade
 
 Status: partially implemented.
