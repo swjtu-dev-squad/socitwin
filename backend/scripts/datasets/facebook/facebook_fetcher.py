@@ -318,7 +318,7 @@ class FacebookFetcher:
         log(f"  搜索 topic: {topic}")
         started_at = time.monotonic()
         try:
-            results = run_apify_actor(self.token, POSTS_SEARCH_ACTOR, payload, timeout=35)
+            results = run_apify_actor(self.token, POSTS_SEARCH_ACTOR, payload, timeout=90)
         except Exception as exc:
             log(f"  警告: Facebook 帖子抓取失败 '{topic}' - {exc}")
             return []
