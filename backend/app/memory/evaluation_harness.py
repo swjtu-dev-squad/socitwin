@@ -171,19 +171,35 @@ class EvaluationRecorder:
 
     def _build_readme(self, summary: dict[str, Any]) -> str:
         lines = [
-            "# Memory Evaluation Report",
+            "# 记忆评测报告",
             "",
-            "## Summary",
+            "## 1. 运行结论",
             "",
-            f"- success: `{summary['summary']['success']}`",
-            f"- has_blockers: `{summary['summary']['has_blockers']}`",
+            f"- 总体是否通过：`{_zh_bool(summary['summary']['success'])}`",
+            f"- 是否存在阻塞项：`{_zh_bool(summary['summary']['has_blockers'])}`",
+            f"- 运行目录：`{self.run_dir}`",
             "",
         ]
         lines.extend(_memory_kpi_readme_lines(summary))
-        lines.extend(["", "## Events", ""])
+        lines.extend(_real_scenario_readme_lines(self.events))
+        lines.extend(_recall_probe_readme_lines(self.events))
+        lines.extend(["", "## 8. 事件列表", ""])
         for event in self.events:
-            reason = f" - {event.reason}" if event.reason else ""
-            lines.append(f"- `{event.phase}` / `{event.name}` / `{event.status}`{reason}")
+            reason = f"；原因：{event.reason}" if event.reason else ""
+            lines.append(
+                f"- `{event.phase}` / `{event.name}` / `{_zh_status(event.status)}`{reason}"
+            )
+        lines.extend(
+            [
+                "",
+                "## 9. 原始文件说明",
+                "",
+                "- `summary.json`：机器可读的总览、KPI 和不可用指标。",
+                "- `events.jsonl`：逐事件详细证据；检索类事件包含逐条 probe 的 expected / retrieved 信息。",
+                "- `config.json`：本次评测参数，包括场景、步数、probe limit 和 embedding 配置。",
+                "- `README.md`：当前中文摘要报告，面向人工阅读和组会复盘。",
+            ]
+        )
         return "\n".join(lines)
 
 
@@ -349,34 +365,185 @@ def _required_metric_for_memory_kpi(metric: str) -> str:
     return mapping.get(metric, "")
 
 
+def _zh_bool(value: Any) -> str:
+    return "是" if bool(value) else "否"
+
+
+def _zh_status(status: str) -> str:
+    return {
+        "pass": "通过",
+        "fail": "失败",
+        "blocked": "阻塞",
+    }.get(status, status)
+
+
 def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
-    lines = ["## Memory KPIs", ""]
+    lines = [
+        "## 2. 核心指标",
+        "",
+        "| 指标 | 数值 | 怎么理解 |",
+        "| --- | ---: | --- |",
+    ]
     kpis = summary.get("memory_kpis", {})
-    for kpi_field in MEMORY_KPI_FIELDS:
+    for kpi_field, description in _memory_kpi_descriptions().items():
         value = kpis.get(kpi_field)
         rendered = "n/a" if value is None else str(value)
-        lines.append(f"- `{kpi_field}`: `{rendered}`")
+        lines.append(f"| `{kpi_field}` | `{rendered}` | {description} |")
     lines.extend(
         [
             "",
-            "Notes:",
+            "说明：",
             "",
-            "- `ltm_exact_hit_at_3` is reported as LTM Retrieval Recall@3 (Exact Episode Hit@3). It is a single-target exact episode hit metric, not a traditional multi-document Recall@K.",
-            "- `recall_injection_trace_rate` is a trace-level injection metric. It does not prove the model used the injected memory in its final action.",
-            "- retrieve-only probes validate gate + retrieval. They do not execute full prompt assembly unless the event explicitly says so.",
+            "- `ltm_exact_hit_at_3` 可以对外解释为 LTM Retrieval Recall@3，但这里是单目标 exact episode hit，不是传统多相关文档 Recall@K。",
+            "- 当前 ground truth 是精确的 `(agent_id, step_id, action_index)`，所以同一步另一个动作被召回也不算 exact hit。",
+            "- `recall_injection_trace_rate` 是 trace 级注入痕迹，能说明记忆进入 prompt，但不能证明模型最终行为一定使用了该记忆。",
+            "- `real-scenarios` 中的 `VAL-RCL-08/09` 是 retrieve-only probe，只验证 gate + retrieval，不执行完整 prompt assembly。",
         ]
     )
     unavailable = list(summary.get("unavailable_metrics", []) or [])
     if unavailable:
-        lines.extend(["", "## Unavailable Metrics", ""])
+        lines.extend(["", "## 3. 不可用指标", ""])
         for item in unavailable:
             lines.append(
                 "- "
-                f"`{item.get('metric', '')}`: {item.get('reason', '')} "
-                f"(required event: `{item.get('required_event', '')}`, "
-                f"required metric: `{item.get('required_metric', '')}`)"
+                f"`{item.get('metric', '')}`：{item.get('reason', '')}；"
+                f"需要事件 `{item.get('required_event', '')}`，"
+                f"需要字段 `{item.get('required_metric', '')}`。"
             )
     return lines
+
+
+def _memory_kpi_descriptions() -> dict[str, str]:
+    return {
+        "ltm_exact_hit_at_1": "目标历史动作是否排在 top-1；越高说明排序越尖锐。",
+        "ltm_exact_hit_at_3": "目标历史动作是否进入 top-3；当前主检索召回指标。",
+        "ltm_mrr": "目标首次命中的倒数排名均值；越高说明目标越靠前。",
+        "cross_agent_contamination_rate": "top-3 中错误 agent 的比例；正常应接近 0。",
+        "recall_gate_success_rate": "正例 recall probe 中 gate 是否打开。",
+        "false_recall_trigger_rate": "空/弱 observation 下是否误触发 recall；越低越好。",
+        "recall_injection_trace_rate": "长窗口运行中 recalled 记忆进入 prompt 的 trace 比例。",
+    }
+
+
+def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
+    event = _first_event(events, "VAL-LTM-05 real_self_action_retrievability")
+    if event is None:
+        return []
+    metrics = event.metrics
+    lines = [
+        "",
+        "## 4. Real-Scenarios 样本覆盖",
+        "",
+        f"- 场景包：`{metrics.get('scenario_pack_id', '') or '未指定'}`",
+        f"- 场景目的：{metrics.get('scenario_pack_purpose', '') or '未记录'}",
+        f"- 运行步数：`{metrics.get('step_count', 0)}`",
+        f"- 实际持久化 ActionEpisode 数：`{metrics.get('actual_persisted_action_episode_count', 0)}`",
+        f"- 原始可回查候选数：`{metrics.get('raw_real_probe_candidate_count', 0)}`",
+        f"- warm-up 排除候选数：`{metrics.get('warmup_excluded_probe_candidate_count', 0)}`",
+        f"- probe limit：`{metrics.get('probe_attempt_limit', 0)}`",
+        f"- 实际可用 probe 数：`{metrics.get('usable_probe_count', 0)}`",
+        f"- 跳过 probe 数：`{metrics.get('skipped_probe_count', 0)}`",
+        f"- 跳过原因：`{json.dumps(metrics.get('skipped_probe_reason_counts', {}), ensure_ascii=False)}`",
+        "",
+        "动作分布：",
+        "",
+        f"- 候选池：`{json.dumps(metrics.get('candidate_action_name_distribution', {}), ensure_ascii=False)}`",
+        f"- 实际出题：`{json.dumps(metrics.get('usable_probe_action_name_distribution', {}), ensure_ascii=False)}`",
+    ]
+    action_rows = _action_score_rows(event)
+    if action_rows:
+        lines.extend(
+            [
+                "",
+                "## 5. 按动作类型的检索表现",
+                "",
+                "| 动作 | probe 数 | Hit@1 | Hit@3 | MRR | Miss 数 |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+        for row in action_rows:
+            lines.append(
+                f"| `{row['action_name']}` | {row['query_count']} | "
+                f"{row['hit_at_1']} | {row['hit_at_3']} | {row['mrr']} | {row['miss_count']} |"
+            )
+    miss_lines = _miss_case_readme_lines(event)
+    if miss_lines:
+        lines.extend(miss_lines)
+    return lines
+
+
+def _action_score_rows(event: EvaluationEvent) -> list[dict[str, Any]]:
+    per_query = list(event.evidence.get("per_query", []) or [])
+    return _probe_score_rows_by_action(per_query)
+
+
+def _miss_case_readme_lines(event: EvaluationEvent, *, limit: int = 8) -> list[str]:
+    per_query = list(event.evidence.get("per_query", []) or [])
+    misses = [item for item in per_query if not item.get("hit_at_3")]
+    if not misses:
+        return [
+            "",
+            "## 6. 未命中样例",
+            "",
+            "- 本次没有 top-3 未命中的 probe。",
+        ]
+    lines = [
+        "",
+        "## 6. 未命中样例",
+        "",
+        f"以下最多展示前 {limit} 个 top-3 未命中 probe。完整列表见 `events.jsonl` 的 `VAL-LTM-05.evidence.per_query`。",
+        "",
+    ]
+    for index, item in enumerate(misses[:limit], start=1):
+        retrieved_labels = item.get("retrieved_labels", []) or []
+        same_agent_flags = item.get("retrieved_same_agent_flags", []) or []
+        query_text = _truncate_text(str(item.get("query_text", "") or ""), 180)
+        lines.extend(
+            [
+                f"{index}. 期望：`{item.get('expected_label', '')}`",
+                f"   - 查询文本：{query_text}",
+                f"   - top-3：`{json.dumps(retrieved_labels[:3], ensure_ascii=False)}`",
+                f"   - 是否同 agent：`{json.dumps(same_agent_flags[:3], ensure_ascii=False)}`",
+                f"   - 首次命中排名：`{item.get('first_hit_rank', 0) or '未命中'}`",
+                "",
+            ]
+        )
+    return lines
+
+
+def _recall_probe_readme_lines(events: list[EvaluationEvent]) -> list[str]:
+    lines = ["", "## 7. Recall Gate / Suppression", ""]
+    has_any = False
+    for name in (
+        "VAL-RCL-08 real_continuity_recall_probe",
+        "VAL-RCL-09 real_empty_observation_recall_suppression",
+        "VAL-RCL-10 real_longwindow_recall_injection",
+    ):
+        event = _first_event(events, name)
+        if event is None:
+            continue
+        has_any = True
+        metrics = event.metrics
+        lines.append(f"- `{name}`：`{_zh_status(event.status)}`")
+        if "gate_decision" in metrics:
+            lines.append(f"  - gate_decision：`{_zh_bool(metrics.get('gate_decision'))}`")
+        if "retrieval_attempted" in metrics:
+            lines.append(
+                f"  - retrieval_attempted：`{_zh_bool(metrics.get('retrieval_attempted'))}`"
+            )
+        if "recalled_count" in metrics:
+            lines.append(f"  - recalled_count：`{metrics.get('recalled_count')}`")
+        if "injected_count" in metrics:
+            lines.append(f"  - injected_count：`{metrics.get('injected_count')}`")
+        if event.reason:
+            lines.append(f"  - 原因：{event.reason}")
+    return lines if has_any else []
+
+
+def _truncate_text(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)] + "..."
 
 
 def run_memory_evaluation(config: EvaluationConfig) -> dict[str, Any]:
@@ -1821,10 +1988,22 @@ def _score_real_episode_retrieval_probe(
         "query_text": query_text,
         "expected_key": expected_key,
         "expected_label": _real_episode_label(expected),
+        "expected_agent_id": expected_key[0],
+        "expected_step_id": expected_key[1],
+        "expected_action_index": expected_key[2],
+        "expected_action_name": str(expected.get("action_name", "") or ""),
+        "expected_episode": _real_episode_debug_view(expected),
         "retrieved_keys": retrieved_keys,
         "retrieved_labels": [_real_episode_label(item) for item in retrieved],
+        "retrieved_action_names": [
+            str(item.get("action_name", "") or "") for item in retrieved
+        ],
+        "retrieved_episodes": [_real_episode_debug_view(item) for item in retrieved],
         "retrieved_same_agent_flags": [
             key[0] == expected_key[0] for key in retrieved_keys
+        ],
+        "retrieved_same_step_flags": [
+            key[1] == expected_key[1] for key in retrieved_keys
         ],
         "retrieved_top3_count": len(retrieved_keys[:3]),
         "cross_agent_retrieved_count": sum(
@@ -1861,6 +2040,16 @@ def _summarize_real_probe_scores(per_query: list[dict[str, Any]]) -> dict[str, A
             int(item.get("retrieved_top3_count", 0) or 0)
             for item in per_query
         ),
+        "score_by_action_name": {
+            row["action_name"]: {
+                "query_count": row["query_count"],
+                "hit_at_1": row["hit_at_1"],
+                "hit_at_3": row["hit_at_3"],
+                "mrr": row["mrr"],
+                "miss_count": row["miss_count"],
+            }
+            for row in _probe_score_rows_by_action(per_query)
+        },
     }
 
 
@@ -1872,6 +2061,31 @@ def _real_probe_readable_rows(per_query: list[dict[str, Any]]) -> list[str]:
         )
         for item in per_query
     ]
+
+
+def _probe_score_rows_by_action(per_query: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for item in per_query:
+        action_name = str(item.get("expected_action_name", "") or "unknown")
+        grouped.setdefault(action_name, []).append(item)
+    rows: list[dict[str, Any]] = []
+    for action_name, items in sorted(grouped.items()):
+        count = len(items)
+        rows.append(
+            {
+                "action_name": action_name,
+                "query_count": count,
+                "hit_at_1": _mean_bool(item.get("hit_at_1") for item in items),
+                "hit_at_3": _mean_bool(item.get("hit_at_3") for item in items),
+                "mrr": round(
+                    sum(float(item.get("mrr", 0) or 0) for item in items)
+                    / max(1, count),
+                    4,
+                ),
+                "miss_count": sum(1 for item in items if not item.get("hit_at_3")),
+            }
+        )
+    return rows
 
 
 def _real_episode_key(episode: dict[str, Any]) -> tuple[str, int | None, int | None]:

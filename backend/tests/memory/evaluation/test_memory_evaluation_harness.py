@@ -59,8 +59,9 @@ def test_run_memory_evaluation_writes_summary_and_events() -> None:
         )
 
         readme = (run_dir / "README.md").read_text(encoding="utf-8")
-        assert "## Memory KPIs" in readme
-        assert "## Unavailable Metrics" in readme
+        assert "## 2. 核心指标" in readme
+        assert "## 3. 不可用指标" in readme
+        assert "## 9. 原始文件说明" in readme
 
         events = [
             json.loads(line)

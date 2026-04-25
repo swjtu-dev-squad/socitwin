@@ -203,4 +203,12 @@ target_episode_injection_success_rate
 
 - `memory_kpi_sources`：记录每个 KPI 对应的 event name；
 - `unavailable_metrics`：记录不可用指标、原因、所需 event 和所需 metric；
-- run 目录下的 `README.md`：输出 KPI 摘要、不可用指标和 retrieve-only / injection 口径说明。
+- run 目录下的 `README.md`：输出中文 KPI 摘要、指标解释、样本覆盖、按动作类型命中率、未命中样例、不可用指标和 retrieve-only / injection 口径说明。
+
+当前 `events.jsonl` 的 `VAL-LTM-05.evidence.per_query` 会保留逐条 probe 的关键过程证据：
+
+- `query_text`：本条 probe 实际用于检索的文本；
+- `expected_key / expected_episode`：目标 episode 的精确 key 和摘要；
+- `retrieved_keys / retrieved_episodes`：top-k 返回候选的 key 和摘要；
+- `retrieved_same_agent_flags / retrieved_same_step_flags`：辅助判断是跨 agent、同一步多动作，还是普通排序问题；
+- `expected_action_name / retrieved_action_names`：辅助判断是否集中在 `like_post`、`repost` 等弱语义动作。

@@ -112,7 +112,7 @@ else:
 
 ## 3. Phase 2: Readable Report
 
-Status: implemented for Phase 1 KPI output.
+Status: implemented for Phase 1 KPI output; upgraded to Chinese human-readable report.
 
 在 harness 的 `README.md` 输出中增加：
 
@@ -120,13 +120,17 @@ Status: implemented for Phase 1 KPI output.
 - 哪些 phase 没跑；
 - 哪些指标不可用；
 - retrieve-only 与 full-path 的口径说明。
+- real-scenarios 样本覆盖、动作分布、按动作类型命中率和未命中样例。
 
 目标是让人类和 AI 都能快速读懂测试结果。
 
 当前 README 已输出：
 
-- `Memory KPIs`
-- `Unavailable Metrics`
+- 中文核心指标表；
+- 中文不可用指标说明；
+- real-scenarios 样本覆盖和 probe limit；
+- 按动作类型的 Hit@1 / Hit@3 / MRR / miss count；
+- 前若干条 top-3 未命中样例；
 - exact episode hit 与传统 Recall@K 的差异说明
 - trace-level injection 与目标 episode 注入成功的差异说明
 - retrieve-only probe 与 full-path injection 的差异说明
