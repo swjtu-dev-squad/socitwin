@@ -41,7 +41,18 @@
 - 检到的 candidate 还会经过 overlap suppression、recall budget 和 prompt budget，检到不等于注入。
 - 行为效果最重要，但最难自动判读，应放在检索/gate/注入指标稳定之后。
 
-## 4. Reading Order
+## 4. Evaluation Design Principle
+
+当前记忆实现仍然比较粗糙：episode 写入、runtime query、rerank、prompt 注入都存在工程妥协。因此评测不能假设系统已经是成熟 RAG，也不能为了得到好看指标而脱离当前实现。
+
+所有评测设计都必须同时回答两个问题：
+
+- 实现贴合性：这个测试问的问题是否是当前系统真实会发生的问题。
+- 缺陷暴露性：这个测试是否能暴露当前实现中写入、查询、排序、过滤、注入或行为连续性的具体问题。
+
+换句话说，评测必须贴合当前实现，否则结果无法解释当前系统；但评测不能迁就当前实现，否则只会把粗糙实现包装成“指标正常”。
+
+## 5. Reading Order
 
 建议按下面顺序读：
 
@@ -58,7 +69,7 @@
 6. [implementation-plan.md](./implementation-plan.md)
    - 已完成的 Phase 1 KPI 聚合，以及 B-level v0、runtime-query replay 和 optional controlled benchmark 的实施顺序。
 
-## 5. First-Phase Position
+## 6. First-Phase Position
 
 第一阶段不要追求“大而全”的评测系统。
 
