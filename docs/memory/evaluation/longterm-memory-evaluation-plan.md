@@ -16,7 +16,7 @@
 
 第一阶段重点不是直接证明行为完全变好，而是先建立可解释、可复测的工程指标。
 
-## 2. Ground Truth
+## 2. Ground Truth And Query Scope
 
 当前长期记忆的最小评测单位是一个具体历史动作事件：
 
@@ -31,6 +31,19 @@
 - 可以准确判断是否检到了目标 `ActionEpisode`；
 - 可以发现同主题但非目标事件的混淆；
 - 可以验证按 agent 过滤后的检索边界是否仍然可靠。
+
+但当前实现已经暴露出一个关键边界：不同测试口径的 query 来源不同。
+
+- `VAL-LTM-05 real_self_action_retrievability`
+  - query 从目标 `ActionEpisode` 自身字段反推；
+  - 主要回答“这条已经写入的 episode 在给定自身线索时能不能被查回”；
+  - 应解释为 `episode self-retrievability`。
+- runtime recall
+  - query 来自当前 observation 的 `topic / semantic_anchors / entities / recent_episodes`；
+  - 当前实现中最常见的是第一条可见 post/group 的 `summary`；
+  - 主要回答“真实运行中当前看到的内容能不能唤起相关历史”。
+
+因此 exact episode hit 仍有价值，但不能单独代表完整 runtime recall 质量。B 级后续需要补 runtime-query replay，把真实 `last_recall_query_text` 和相关历史集合一起评估。
 
 ## 3. Evaluation Layers
 
@@ -55,6 +68,8 @@
 
 - `real-scenarios` 中的部分 probe 是 retrieve-only，不执行 prompt assembly。
 - retrieve-only 命中不能汇报成“模型实际用上了记忆”。
+- 当前 `VAL-LTM-05` 是 self-retrievability，不等于 runtime recall。
+- B 级缺口是 runtime-query replay：使用真实运行中的 recall query，评估是否找回与当前 observation 相关的历史 episode。
 
 ### 3.2 Gate And Injection Benchmark
 
@@ -96,29 +111,35 @@
 
 第一阶段建议正式汇报下面这组核心指标：
 
-- `LTM Retrieval Recall@3 (Exact Episode Hit@3)`
-- `LTM Exact Hit@1`
-- `LTM MRR`
+- `Episode Self-Retrievability Hit@3`
+- `Episode Self-Retrievability Hit@1`
+- `Episode Self-Retrievability MRR`
 - `Cross-Agent Contamination Rate`
 - `Recall Injection Trace Rate`
 
 这些指标分别回答：
 
-- 检不检得到目标历史；
-- 正确历史是否已经排第一；
-- 平均排序位置是否足够靠前；
+- 给目标 episode 自身线索时，能否查回目标历史；
+- 目标 episode 是否已经排第一；
+- self-retrievability 的平均排序位置是否足够靠前；
 - agent 过滤是否仍然可靠；
 - 长期记忆有没有进入 prompt。
 
 如果需要对外使用“召回率”这个词，建议写成：
 
 ```text
-LTM Retrieval Recall@3 (Exact Episode Hit@3)
+Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)
 ```
 
 并明确说明它是单目标 episode top-3 命中率，不是传统多相关文档 Recall@K。
 
-`@3` 作为主 KPI 的原因是：当前 recall 默认检索 top-3 候选，后续 prompt assembly 也是基于候选集合继续做 overlap 和 budget 裁决；因此 `@3` 更接近“目标历史是否进入可用候选集”。`@1` 更严格，适合衡量排序尖锐度，所以作为正式辅助 KPI 保留。
+`@3` 作为当前可用 KPI 的原因是：当前 recall 默认检索 top-3 候选，后续 prompt assembly 也是基于候选集合继续做 overlap 和 budget 裁决；因此 `@3` 更接近“目标历史是否进入可用候选集”。`@1` 更严格，适合衡量排序尖锐度，所以作为正式辅助 KPI 保留。
+
+该 KPI 的限制必须同时汇报：
+
+- 它来自 episode-derived probe query；
+- 它不代表真实 runtime query 下的相关召回率；
+- runtime-query related retrieval 是 B 级下一步待补指标。
 
 ## 5. First-Phase Non-Goals
 
@@ -136,7 +157,8 @@ LTM Retrieval Recall@3 (Exact Episode Hit@3)
 
 - 当前 `socitwin` 的长期记忆以 `ActionEpisode` 为结构化持久化单元。
 - recall 主链被拆成 gate、retrieval、injection 三个可观测阶段。
-- 第一阶段核心指标是 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`、Hit@1、MRR、agent 过滤回归防线和 injection trace rate。
+- 当前已实现的 B 级核心指标是 `Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)`、Hit@1、MRR、agent 过滤回归防线和 injection trace rate。
+- runtime query 主要来自当前 observation summary，相关召回质量仍需要 runtime-query replay 补测。
 - 行为级连续性测试会作为第二阶段增强，不直接替代检索和注入指标。
 
 避免汇报口径：

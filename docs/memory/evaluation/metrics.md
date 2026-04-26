@@ -22,13 +22,14 @@
 
 | Metric | Stage | Definition | Current source | Status |
 | --- | --- | --- | --- | --- |
-| `ltm_exact_hit_at_3` | retrieval | 目标 `(agent_id, step_id, action_index)` 出现在 top-3 candidate 的比例 | `real-scenarios` event metrics `hit_at_3` | `v1` |
-| `ltm_exact_hit_at_1` | retrieval ranking | 目标 episode 是否排在 top-1 | `real-scenarios` event metrics `hit_at_1` | `v1` |
-| `ltm_mrr` | retrieval | 目标 episode first hit rank 的倒数均值 | `real-scenarios` event metrics `mrr` | `v1` |
+| `ltm_exact_hit_at_3` | episode self-retrievability | episode-derived query 下，目标 `(agent_id, step_id, action_index)` 出现在 top-3 candidate 的比例 | `VAL-LTM-05` event metrics `hit_at_3` | `v1` |
+| `ltm_exact_hit_at_1` | episode self-retrievability ranking | episode-derived query 下，目标 episode 是否排在 top-1 | `VAL-LTM-05` event metrics `hit_at_1` | `v1` |
+| `ltm_mrr` | episode self-retrievability | episode-derived query 下，目标 episode first hit rank 的倒数均值 | `VAL-LTM-05` event metrics `mrr` | `v1` |
 | `cross_agent_contamination_rate` | retrieval safety | top-k candidate 中错误 `agent_id` 的比例；正常路径应接近或等于 0 | `cross_agent_top3_count / top3_candidate_slot_count` | `v1` |
 | `recall_gate_success_rate` | gate | 需要 recall 的正例 probe 中 gate 打开的比例 | `VAL-RCL-08` event metrics `gate_decision` | `v1` |
 | `false_recall_trigger_rate` | gate | 不需要 recall 的负例 probe 中 gate 被错误打开的比例 | `VAL-RCL-09` event metrics `gate_decision/retrieval_attempted/recalled_count` | `v1` |
 | `recall_injection_trace_rate` | injection | 真实长窗口中出现 injected recall trace 的 agent/trace 比例 | `real-longwindow` metrics `recall_injected_trace_count` | `v1` |
+| `runtime_query_related_hit_at_3` | runtime retrieval | 真实 runtime query 下，top-3 是否包含与当前 observation 相关的历史 episode | 尚未实现 | `v1.1` |
 | `target_episode_injection_success_rate` | injection | retrieval 命中目标 episode 后，该目标 episode 最终进入 prompt 的比例 | 需要关联 target episode 与 injected step ids | `future` |
 
 ## 3. Common Retrieval Metrics In This Project
@@ -49,7 +50,7 @@
 
 通用含义是：所有相关项中有多少被前 K 个结果覆盖。
 
-当前第一阶段 probe 通常是单目标 episode，因此 `Recall@K` 与 `Hit@K` 在数值上非常接近。为了避免概念误用，内部字段使用 `ltm_exact_hit_at_k`，文档展示名使用 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`。
+当前第一阶段 probe 通常是单目标 episode，因此 `Recall@K` 与 `Hit@K` 在数值上非常接近。为了避免概念误用，内部字段使用 `ltm_exact_hit_at_k`，文档展示名使用 `Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)`。
 
 ### 3.3 `Precision@K`
 
@@ -85,7 +86,7 @@
 
 当前 harness 的 `hit_at_3` 更准确地说是：
 
-- 单目标 exact episode top-3 hit。
+- episode-derived query 下的单目标 exact episode top-3 hit。
 
 如果对外汇报为 `Recall@3`，必须说明：
 
@@ -102,10 +103,12 @@ ltm_exact_hit_at_3
 报告中可写：
 
 ```text
-LTM Retrieval Recall@3 (Exact Episode Hit@3)
+Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)
 ```
 
 `@3` 是第一阶段主 KPI，因为当前 recall 默认取 top-3 候选，后续 prompt assembly 会继续在候选集上执行 overlap suppression 和 budget 裁决。`@1` 是正式辅助 KPI，用于判断排序是否已经足够尖锐。
+
+这个指标不应单独写成“真实 runtime recall 召回率”。真实 runtime query 下的相关召回需要 `runtime_query_related_hit_at_3` 或同类指标补充。
 
 ### 4.2 Cross-Agent Contamination
 

@@ -18,9 +18,9 @@
 
 1. 真实运行一段 `action_v1` simulation。
 2. 从 long-term store 中抽取真实 `ActionEpisode`。
-3. 为 episode 构造 probe query / probe snapshot。
+3. 为 episode 构造 episode-derived probe query / probe snapshot，或收集真实 runtime query。
 4. 回查当前 recall / retrieval 路径。
-5. 统计 exact episode hit、MRR、cross-agent contamination。
+5. 统计 episode self-retrievability、MRR、cross-agent contamination；后续再补 runtime-query related retrieval。
 
 优点：
 
@@ -34,9 +34,11 @@
 - episode 分布不可完全控制；
 - 不适合作为唯一回归集。
 
-当前代码里的 `real-scenarios` 属于这一层的雏形，但还不是完整的固定 scenario pack benchmark。
+当前代码里的 `real-scenarios` 已支持 S1 / S2 固定输入 pack，但还不是完整的多 run scenario pack benchmark。
 
 ### 1.2 Controlled Episode Benchmark
+
+当前不把 controlled episode benchmark 作为主线阻塞项。它仍然有价值，但更适合作为后续可选的稳定回归补充，而不是替代真实 simulation 的 B 级主 KPI。
 
 流程：
 
@@ -97,10 +99,14 @@
 当前更稳妥的路线是：
 
 - `B-level v0`
-  - 继续复用现有 `real-scenarios / real-longwindow`；
-  - 补固定输入、usable probe 统计、validity gate。
+  - 使用现有 `real-scenarios`；
+  - 已补 S1 / S2 固定输入、usable probe 统计和 skipped reasons；
+  - 当前主指标是 episode self-retrievability。
+- `B-level v0.5`
+  - 补 runtime-query replay；
+  - 使用真实 `last_recall_query_text` 评估相关历史是否能被找回。
 - `B-level v1`
-  - 再引入固定 scenario packs 和多次运行聚合。
+  - 再考虑多次运行聚合、更多 scenario packs 或 controlled benchmark。
 
 当前 `B-level v0` 已有两个固定输入 pack：
 
@@ -214,11 +220,11 @@ uv run python -m app.memory.evaluation_harness \
 4. 长窗口 injected trace。
 5. persistable / invalid persist 边界。
 
-如果进入 B 级 v1，建议按下面三个 pack 扩展：
+当前 S1 / S2 已有第一版固定输入。后续如果进入 B 级 v1，建议按下面方向扩展：
 
-- `S1 stable single-topic pack`
-- `S2 similar-topic interference pack`
-- `S3 group / multi-context pack`
+- 加强 `S1 stable single-topic pack` 的多 run 聚合和报告；
+- 加强 `S2 similar-topic interference pack` 的 runtime-query replay 和排序诊断；
+- 新增 `S3 group / multi-context pack`。
 
 第二阶段再补：
 

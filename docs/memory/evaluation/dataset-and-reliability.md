@@ -31,11 +31,21 @@
 
 它们不是互斥类别，而是服务于不同稳定性和解释性需求的评测层。
 
-### 2.1 Class A: Deterministic Component Benchmark
+### 2.1 Class A: Sanity And Deterministic Benchmark
 
-这类测试不让主模型参与。
+这类测试用于在 B/C 级之前建立稳定底座。
 
-它使用人工构造的 `ActionEpisode` 和 probe query，直接测试 memory 子系统。
+当前 A 级包含两类能力，但不再单独拆成第四个层级：
+
+- sanity / connectivity
+  - preflight；
+  - embedding / Chroma 可用性；
+  - 最小真实 action_v1 step；
+  - episode 写入和 debug trace 可读性。
+- deterministic component checks
+  - 不让主模型参与；
+  - 使用人工构造或确定性构造的 payload、query 和 memory state；
+  - 直接测试 memory 子系统。
 
 适合覆盖：
 
@@ -55,6 +65,13 @@
 
 它不回答“真实模拟里 agent 行为是否变好”，但它回答“记忆机制本身有没有稳定工作”。
 
+当前实现状态：
+
+- `preflight` 已覆盖依赖和 embedding preflight；
+- `deterministic` 已覆盖 observation shaping 和一条 strong-signal recall trigger；
+- `real-smoke` 已覆盖最小真实 action_v1 链路；
+- 完整 controlled episode benchmark 还没有落地，暂时作为 future / optional，而不是当前主线阻塞项。
+
 ### 2.2 Class B: Real-Run Episode Replay
 
 这类测试允许前面先跑一次真实 `action_v1` simulation，但评分不直接依赖“每次模拟产生完全一样的社交轨迹”。
@@ -63,9 +80,9 @@
 
 1. 真实运行 simulation。
 2. 从 long-term store 中抽取已经产生的 `ActionEpisode`。
-3. 以这些真实 episode 为 ground truth，自动构造 probe query / probe snapshot。
+3. 以这些真实 episode 或真实 runtime query 为评测对象。
 4. 回查当前 recall / retrieval 路径。
-5. 统计 exact hit、MRR、gate、injection 等指标。
+5. 统计 self-retrievability、runtime-query related retrieval、gate、injection 等指标。
 
 它的稳定性来自：
 
@@ -79,6 +96,8 @@
 - B 级不是开放世界随机 simulation 的一次性跑分；
 - 更合理的定位是半受控的真实 replay benchmark；
 - 它应使用真实主链，但尽量固定输入分布。
+- 当前已实现的 `VAL-LTM-05` 属于 episode self-retrievability：query 从目标 `ActionEpisode` 自身字段反推，不等于真实 runtime recall。
+- B 级下一步需要补 runtime-query replay：使用真实运行中的 `last_recall_query_text`，评估它是否能找回与当前 observation 相关的历史。
 
 ### 2.3 Class C: Stochastic Behavioral Scenario
 
@@ -112,25 +131,43 @@
 
 当前 `evaluation_harness.py` 中的 `real-scenarios / real-longwindow`：
 
-- 仍使用 `template` agent source；
-- 只有 agent count、step count、timeout 等粗参数；
-- 还没有固定 scenario pack；
+- 已支持固定 `scenario_pack`，也仍保留不传 pack 时的 template agent 调试入口；
+- S1/S2 v0 pack 使用 fixture JSON 和 manual agents；
+- 已有 agent count、step count、timeout、probe limit 等参数；
 - 还没有 pack 级多次运行聚合；
-- 还没有 usable probe validity gate。
+- 还没有严格 usable probe validity gate；
+- 还没有 runtime-query replay 指标。
 
 因此：
 
-- 当前代码里已经有 B 级雏形；
-- 但文档中提到的“固定 pack、固定输入、run/pack/overall 聚合”仍属于目标设计。
+- 当前代码里已经有 B-level v0 固定输入和 episode self-retrievability；
+- run/pack/overall 聚合仍属于目标设计；
+- runtime-query replay 是当前 B 级最关键缺口。
 
 后续建议把 B 级拆成两步：
 
-- `B-level v0`：在现有 harness 上补固定输入、样本质量统计和有效性门槛；
-- `B-level v1`：再引入固定 scenario packs 和多次运行聚合。
+- `B-level v0`：固定输入、样本质量统计、episode self-retrievability；
+- `B-level v0.5`：补 runtime-query replay；
+- `B-level v1`：再考虑多次运行和 run/pack/overall 聚合。
 
 ## 3.1 Controlled Episode Dataset
 
-第一阶段应补一套小型 controlled dataset。
+controlled dataset 仍有价值，但当前不作为 B 级之前的主线阻塞项。
+
+保留它的理由：
+
+- 稳定比较 embedding / rerank 改动；
+- 做 agent filter 回归；
+- 构造 same-agent near-duplicate 和 cross-agent hard negatives；
+- 在 CI 中提供小型防回归底座。
+
+暂缓它的理由：
+
+- 当前最急的问题来自真实运行中的 query 与 episode 写入不匹配；
+- controlled fixture 容易变成理想化数据，不能暴露 observation summary query 的真实问题；
+- 当前测试体系已经偏重，继续加大型 controlled benchmark 会增加维护成本。
+
+因此第一阶段只保留设计，不要求立即实现。
 
 建议规模：
 
@@ -185,11 +222,23 @@
 
 1. 运行结束后扫描 persisted `ActionEpisode`。
 2. 过滤掉没有足够语义内容的 episode。
-3. 为可用 episode 构造 query。
-4. 用 episode key 作为 ground truth。
-5. 记录样本数量和被过滤原因。
+3. 为可用 episode 构造 episode-derived probe query，或收集真实 runtime query。
+4. 对 episode-derived probe 使用 episode key 作为 ground truth。
+5. 对 runtime query 使用 related episode set 作为更合理的 ground truth。
+6. 记录样本数量和被过滤原因。
 
 这类数据集每次可能不同，但指标仍然可解释，因为每次评分都针对本次实际产生的 episode。
+
+当前需要区分两种 B 级问题：
+
+- episode self-retrievability
+  - 问：给这条 episode 自身线索，能不能查回自己；
+  - 已由 `VAL-LTM-05` 覆盖；
+  - ground truth 是 exact episode key。
+- runtime-query related retrieval
+  - 问：真实运行中当前 observation 产生的 query，能不能找回相关历史；
+  - 当前尚未实现；
+  - ground truth 不宜强制 single exact episode，应基于 query source post/topic/target 构造 related episode set。
 
 必须记录：
 
@@ -248,14 +297,29 @@ backend/tests/memory/evaluation/fixtures/b_level_real_run_packs.json
 
 ### 3.2.2 B-Level Scenario Packs
 
-第一阶段不必一步到位做完整 pack 系统，但目标设计应明确为少量固定 pack，而不是一个开放随机 run。
+这里需要区分“已经有固定 pack”和“还没有完整 pack 平台”。
 
-推荐后续演进为三个 pack：
+当前已经有第一版固定 pack：
+
+- `s1_stable_single_topic`
+- `s2_similar_topic_interference`
+
+它们可以通过 `real-scenarios --scenario-pack ...` 运行，并且已经是 B-level v0 的正式固定输入来源。
+
+当前还没有的是更完整的 pack 平台能力：
+
+- pack 级多次运行；
+- run / pack / overall 聚合；
+- pack 间横向对比报告；
+- 更严格的 validity gate；
+- 更多场景类型。
+
+推荐后续演进方向是继续保留并增强现有 S1/S2，再补 S3：
 
 - `S1 stable single-topic pack`
-  - 基础 exact hit / Hit@1 / MRR；
+  - 加强多 run 聚合和基础 exact hit / Hit@1 / MRR 报告；
 - `S2 similar-topic interference pack`
-  - same-agent hard negatives + cross-agent guardrail；
+  - 加强 runtime-query replay、same-agent hard negatives 和 cross-agent guardrail；
 - `S3 group / multi-context pack`
   - group message、thread、local context continuity。
 
@@ -457,23 +521,24 @@ negative probe 的成功条件是 gate 不打开，或不产生 retrieval。
 
 当前第一阶段建议采用：
 
-- Class A 的 controlled episode benchmark 作为稳定回归底座；
-- Class B 的 real-run episode replay 作为真实系统主 KPI 来源；
+- Class A 的 sanity / deterministic checks 作为连通性与确定性前置底座；
+- Class B 的 fixed-input real-run replay 作为真实系统主 KPI 来源；
 - Class C 的 behavioral scenario 暂时只作为观察和后续设计，不作为硬门槛。
 
 更具体地说：
 
-- 第一阶段先实现 `B-level v0`，而不是直接做完整 `B-level v1` pack 平台；
-- `B-level v0` 的重点是固定输入、补样本质量统计、补 validity gate；
-- pack 设计和多次运行聚合作为后续增强。
+- 当前 `B-level v0` 已有 S1 / S2 固定输入 pack；
+- `B-level v0` 的已实现重点是固定输入、样本质量统计、episode self-retrievability；
+- 当前最关键缺口不是继续扩场景，而是补 runtime-query replay；
+- 多次运行聚合和 controlled benchmark 都应作为后续增强。
 
 第一阶段最小落地顺序：
 
 1. 先完成 `summary.json` 的 `memory_kpis` 聚合。
 2. 为 real-run replay 增加样本质量统计。
-3. 增加 controlled episode dataset 的设计和 fixture。
-4. 再考虑是否把 controlled benchmark 接入 CI。
-5. 最后再设计多次运行的行为级 benchmark。
+3. 固化 S1 / S2 fixed-input replay，并观察 usable probe 与 skipped reasons。
+4. 补 runtime-query replay，使用真实运行中的 recall query 评估相关历史是否能被找回。
+5. 再考虑是否需要 controlled benchmark 或多次运行的行为级 benchmark。
 
 ## 8. Open Questions
 

@@ -56,7 +56,7 @@
 5. [dataset-and-reliability.md](./dataset-and-reliability.md)
    - 测评数据集、ground truth、随机性控制和结果可靠性口径。
 6. [implementation-plan.md](./implementation-plan.md)
-   - 已完成的 Phase 1 KPI 聚合，以及后续 B-level v0 / controlled benchmark 的实施顺序。
+   - 已完成的 Phase 1 KPI 聚合，以及 B-level v0、runtime-query replay 和 optional controlled benchmark 的实施顺序。
 
 ## 5. First-Phase Position
 
@@ -71,7 +71,7 @@
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
 - 明确区分 runtime recall query 与 evaluation probe query：前者来自当前 observation 感知，后者来自目标 `ActionEpisode` 自身字段。
 - 明确区分确定性组件测试、真实运行 episode 回放和随机行为级场景，避免把一次真实模拟结果当成最终结论。
-- 先把当前真实 replay 收口成 `B-level v0`，再演进到固定 scenario packs 的 `B-level v1`。
+- 先把当前固定输入 replay 收口成 `B-level v0`，再补 runtime-query replay，最后再考虑多 run 聚合或 controlled benchmark。
 
 这能先回答组会最关心的问题：
 

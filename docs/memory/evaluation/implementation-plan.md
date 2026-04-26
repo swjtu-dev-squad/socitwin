@@ -1,6 +1,6 @@
 # Memory Evaluation Implementation Plan
 
-- Status: Phase 1 implemented; Phase 3+ pending
+- Status: Phase 1 and B-level v0 fixed replay implemented; runtime-query replay pending
 - Audience: implementers
 - Doc role: define concrete implementation steps for the first usable evaluation KPI output
 
@@ -19,7 +19,22 @@
 - `VAL-RCL-09`
 - `VAL-RCL-10`
 
-第一阶段目标不是重写 harness，而是在现有事件基础上补 summary 级指标。该部分已完成；后续重点转向 `B-level v0` 的样本可靠性收口。
+第一阶段目标不是重写 harness，而是在现有事件基础上补 summary 级指标。该部分已完成。
+
+当前实现状态应按下面理解：
+
+- A-level sanity / deterministic
+  - `preflight`、`deterministic`、`real-smoke` 已具备；
+  - 完整 controlled episode benchmark 暂缓，不作为当前主线阻塞项。
+- B-level v0
+  - 固定 S1/S2 scenario pack、manual agents、seed warm-up、probe limit、审计材料已经具备；
+  - `VAL-LTM-05` 当前是 episode self-retrievability。
+- B-level 缺口
+  - 尚未实现 runtime-query replay；
+  - 不能只用 `VAL-LTM-05` 代表真实 runtime recall 质量。
+- C-level
+  - 行为级场景尚未开始；
+  - `real-longwindow` 当前只作为 trace-level injection 证据。
 
 测试可靠性原则见：
 
@@ -150,9 +165,9 @@ Status: implemented for Phase 1 KPI output; upgraded to Chinese human-readable r
 
 ## 4. Phase 3: B-Level v0 Reliability Upgrade
 
-Status: partially implemented.
+Status: implemented for fixed-input self-retrievability; runtime-query replay pending.
 
-在进入 controlled benchmark 和完整 scenario pack 之前，先把当前 `real-scenarios / real-longwindow` 收口成可解释的 `B-level v0`。
+当前优先把 `real-scenarios / real-longwindow` 收口成可解释的 `B-level v0`。这一步不是完整 benchmark 平台，也不是行为级评测。
 
 建议补充：
 
@@ -202,16 +217,61 @@ Status: partially implemented.
 
 这一步的目标不是把 B 级做成完整 benchmark 平台，而是避免它继续停留在“随机 run 一次看看”。
 
+当前必须明确：
+
+- `VAL-LTM-05` 的 Hit@K / MRR 来自 episode-derived probe query；
+- 它衡量 episode self-retrievability；
+- 它不能单独代表真实 runtime query 下的召回质量。
+
 仍未完成：
 
 - 更严格的 usable probe validity gate；
 - 多 run 汇总。
+- runtime-query replay。
 
-## 5. Phase 4: Controlled Benchmark
+## 5. Phase 4: Runtime-Query Replay
 
-新增小型受控 benchmark 前，需要先决定 fixture 放置位置。
+Status: planned next.
 
-建议候选：
+这是当前 B 级最重要的缺口。
+
+目标：
+
+- 使用真实运行中每步 memory debug 里的 `last_recall_query_text`；
+- 保留 query 来源、当前 observation snapshot、top-k retrieved episodes；
+- 判断当前真实 query 是否找回相关历史，而不是只看 episode 自查能否命中。
+
+为什么需要它：
+
+- 当前 runtime query 通常来自当前 observation 的 post/group `summary`；
+- `VAL-LTM-05` 的 query 从目标 episode 自身字段反推；
+- 两者不是同一个问题。
+
+第一版实现建议：
+
+- 复用 `real-scenarios` 的 `step_audit.jsonl` 和 memory debug；
+- 从每个 official step 的 agent debug 中抽取非空 `last_recall_query_text`；
+- 记录 retrieved candidates 和 selected/injected candidates；
+- 第一版先输出可读诊断和 related-hit 草案，不急着设置硬阈值。
+
+ground truth 口径：
+
+- 不应强制 single exact episode；
+- 应先根据 query source post/topic/target 构造 related episode set；
+- 如果无法稳定标注 related set，先作为诊断指标输出，不进入 summary KPI。
+
+## 6. Optional: Controlled Benchmark
+
+controlled benchmark 暂时不作为当前主线阻塞项，但保留为后续可选组件。
+
+适合在下面情况启动：
+
+- 准备调整 embedding / rerank，需要稳定对比；
+- B 级显示问题集中在 retrieval/rerank，但真实运行噪声太大；
+- 需要 CI 中固定防回归；
+- 老师明确要求一个离线、可复现的召回率 benchmark。
+
+候选 fixture：
 
 - `backend/tests/memory/evaluation/fixtures/controlled_episodes.json`
 
@@ -234,9 +294,9 @@ Status: partially implemented.
 - invalid persist boundary；
 - negative probes。
 
-## 6. Phase 5: B-Level v1 Scenario Packs
+## 7. Phase 5: B-Level v1 Scenario Packs
 
-在 `B-level v0` 和 controlled benchmark 稳定之后，再补固定 scenario packs：
+在 `B-level v0`、runtime-query replay 和必要的 controlled benchmark 稳定之后，再补更完整固定 scenario packs：
 
 - `S1 stable single-topic pack`
 - `S2 similar-topic interference pack`
@@ -248,7 +308,7 @@ Status: partially implemented.
 - pack 级多次运行；
 - 正式 benchmark 结果汇总。
 
-## 7. Phase 6: Behavioral Scenarios
+## 8. Phase 6: Behavioral Scenarios
 
 行为级 benchmark 放到第二阶段之后。
 
@@ -256,16 +316,16 @@ Status: partially implemented.
 
 - retrieval KPI 已稳定；
 - injection 指标已可读；
-- controlled benchmark 可复现；
+- runtime-query replay 已能解释真实查询质量；
 - 已有足够真实运行日志用于设计判定规则。
 
 行为级场景必须按随机实验处理。不能只跑一次就把结果解释成长期记忆能力结论；至少应记录 run count、均值、波动和失败样本。
 
-## 8. Acceptance Criteria For Phase 1
+## 9. Acceptance Criteria For Phase 1
 
 Phase 1 完成时应满足：
 
-- `uv run pytest backend/tests/memory/evaluation/test_memory_evaluation_harness.py` 通过；
+- 在 `backend/` 目录执行 `uv run pytest tests/memory/evaluation/test_memory_evaluation_harness.py` 通过；
 - 默认 summary 中存在 `memory_kpis`；
 - 未运行 phase 的指标不会被错误写成 `0`；
 - README 报告能解释指标含义；
@@ -273,30 +333,34 @@ Phase 1 完成时应满足：
 
 已验证：
 
-- `uv run pytest tests/memory/evaluation/test_memory_evaluation_harness.py`
-- `uv run pyright app/`
-- `uv run ruff check app tests/memory/evaluation/test_memory_evaluation_harness.py --ignore=E501`
+- 在 `backend/` 目录执行 `uv run pytest tests/memory/evaluation/test_memory_evaluation_harness.py`
+- 在 `backend/` 目录执行 `uv run pyright app/`
+- 在 `backend/` 目录执行 `uv run ruff check app tests/memory/evaluation/test_memory_evaluation_harness.py --ignore=E501`
 
-Phase 3 已开始补充：
+B-level v0 已补充：
 
 - real-run replay 的 `usable probe count`
 - `skipped episode count`
 - `skipped reasons`
 - action / agent distribution
 
-## 9. Open Decisions
+仍缺 runtime-query replay 和更严格的 usable probe validity gate。
+
+## 10. Open Decisions
 
 需要后续确认：
 
-- controlled benchmark 是否进入 CI，还是只作为手动评测入口；
+- controlled benchmark 是否仍有必要进入 CI，还是只作为后续手动评测入口；
 - 行为级 benchmark 是否需要人工判读或 LLM-as-judge。
 - 同一行为级场景至少跑几次才适合用于趋势汇报。
-- `B-level v0` 使用 `file` 还是 `manual` 作为固定 agent source。
+- runtime-query replay 的 related episode set 第一版如何标注。
 
 已确认：
 
 - 内部字段使用 `ltm_exact_hit_at_3`；
-- 文档展示名使用 `LTM Retrieval Recall@3 (Exact Episode Hit@3)`；
+- 文档展示名使用 `Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)`；
 - `@1` 作为正式辅助 KPI；
 - `cross_agent_contamination_rate` 使用实际返回 top-k slot 作为分母；
 - phase 未运行或样本不足时，summary 字段使用 `null` 并写入不可用原因。
+- `B-level v0` 使用 fixture JSON + `manual_config` 作为固定 agent source。
+- `VAL-LTM-05` 当前解释为 episode self-retrievability。
