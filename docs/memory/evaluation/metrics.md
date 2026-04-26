@@ -72,6 +72,15 @@
 
 ## 4. Naming Notes
 
+### 4.0 Query Scope
+
+当前评测中至少存在两种 query，不应混用解释：
+
+- runtime recall query：真实 simulation 中由当前 observation 的 `topic / semantic_anchors / entities / recent_episodes` 构建，用于决定本步要不要查长期记忆、查什么；
+- evaluation probe query：`VAL-LTM-05` 从目标 `ActionEpisode` 的 `authored_content / summary_text / topic / action_fact / target_snapshot` 反推，用于检查“这条已写入 episode 是否能被查回”。
+
+因此 `VAL-LTM-05` 的 Hit@K / MRR 是 episode self-retrievability 指标，不等价于真实 prompt injection 效果。真实 runtime gate + retrieval 应看 `VAL-RCL-08`，真实 injected trace 应看长窗口 `VAL-RCL-10` 或 run audit 中的 memory debug trace。
+
 ### 4.1 `Recall@3` 与 `Hit@3`
 
 当前 harness 的 `hit_at_3` 更准确地说是：

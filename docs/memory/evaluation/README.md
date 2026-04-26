@@ -49,11 +49,13 @@
    - 总体评测目标、分层思路和第一阶段落地范围。
 2. [metrics.md](./metrics.md)
    - 指标定义、当前代码字段映射、summary KPI 输出和不可用指标口径。
-3. [scenarios.md](./scenarios.md)
+3. [action-v1-memory-whitebox-flow.md](./action-v1-memory-whitebox-flow.md)
+   - `action_v1` 从 observation、tool call、ActionEvidence、ActionEpisode、长期写入、检索、rerank、过滤到 prompt 注入的白盒流程。
+4. [scenarios.md](./scenarios.md)
    - 真实运行回查、受控 episode benchmark、行为级场景的设计。
-4. [dataset-and-reliability.md](./dataset-and-reliability.md)
+5. [dataset-and-reliability.md](./dataset-and-reliability.md)
    - 测评数据集、ground truth、随机性控制和结果可靠性口径。
-5. [implementation-plan.md](./implementation-plan.md)
+6. [implementation-plan.md](./implementation-plan.md)
    - 已完成的 Phase 1 KPI 聚合，以及后续 B-level v0 / controlled benchmark 的实施顺序。
 
 ## 5. First-Phase Position
@@ -67,6 +69,7 @@
 - 使用 run 目录下的 `README.md` 给人类和 AI 快速阅读 KPI 与缺失原因；
 - 使用 `--scenario-pack` 运行第一版固定输入 B-level v0 replay，当前包含 `s1_stable_single_topic` 和 `s2_similar_topic_interference`；
 - 明确区分 retrieve-only、full-path injection、behavioral effect 三种口径。
+- 明确区分 runtime recall query 与 evaluation probe query：前者来自当前 observation 感知，后者来自目标 `ActionEpisode` 自身字段。
 - 明确区分确定性组件测试、真实运行 episode 回放和随机行为级场景，避免把一次真实模拟结果当成最终结论。
 - 先把当前真实 replay 收口成 `B-level v0`，再演进到固定 scenario packs 的 `B-level v1`。
 
