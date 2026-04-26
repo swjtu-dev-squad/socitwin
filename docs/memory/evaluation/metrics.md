@@ -167,6 +167,44 @@ target_episode_injection_success_rate
 | `prompt_budget_block_rate` | 因总 prompt budget 不能注入的比例 | 判断上下文预算压力 |
 | `recall_budget_block_rate` | 因 recall budget 不能注入的比例 | 判断 recall 局部预算是否过紧 |
 
+### 5.1 Post-Based Runtime Replay Metrics
+
+`VAL-RCL-11 post_based_runtime_replay` 是当前 B-level v0.5 的 observation-summary 检索测试。
+
+它的 query 生成规则是：
+
+```text
+query_text = visible_post.summary
+```
+
+其中 `post_id` 不进入检索文本，只用于判定 ground truth 和调试。
+
+核心字段：
+
+- `post_probe_count`：本轮从所有 official step 的 prompt-visible snapshot 中生成的 post query 总数。
+- `post_probe_with_ground_truth_count`：存在结构化正确答案的 post query 数。
+- `post_probe_without_ground_truth_count`：没有历史相关 episode 的 post query 数；这类不算 miss。
+- `runtime_first_post_with_ground_truth_count`：第一个可见 post 中有正确答案的 query 数，更接近当前真实 runtime query 覆盖范围。
+- `non_first_post_with_ground_truth_count`：非第一个可见 post 中有正确答案的 query 数，用于暴露当前 runtime 只查第一个 post 的覆盖缺陷。
+- `hit_at_1` / `hit_at_3` / `mrr`：只在有 ground truth 的 post query 上计算。
+- `runtime_first_post_hit_at_3`：第一个 post 子集的 Hit@3。
+- `non_first_post_hit_at_3`：非第一个 post 子集的 Hit@3。
+- `self_authored_post_hit_at_3`：可见帖子作者就是当前 agent，且有对应 `create_post` 历史 episode 时的 Hit@3。
+- `diagnosis_counts`：按 `hit`、`no_ground_truth`、`same_agent_wrong_target`、`cross_agent` 等诊断分类计数。
+- `ground_truth_action_distribution`：正确答案 episode 的动作类型分布。
+
+硬正确答案只接受结构化 post 关系：
+
+- `episode.target_type == "post"` 且 `episode.target_id == source_post_id`；
+- 或 `episode.local_context.parent_post.post_id == source_post_id`；
+- 或 self-authored 可见 post 对应历史 `create_post` 的 `created_post:{source_post_id}`。
+
+不纳入第一版硬正确答案：
+
+- `follow` / `unfollow` / `mute` / `unmute`；
+- group actions；
+- 只有主题相似但没有 post 结构关系的 episode。
+
 ## 6. Real Replay Reliability Fields
 
 真实 simulation replay 的检索 KPI 必须同时报告样本基础，否则一次低样本运行容易被误读。

@@ -5,6 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import patch
 
 from app.memory.config import MemoryMode
@@ -62,7 +63,7 @@ def test_run_memory_evaluation_writes_summary_and_events() -> None:
         readme = (run_dir / "README.md").read_text(encoding="utf-8")
         assert "## 2. 核心指标" in readme
         assert "## 3. 不可用指标" in readme
-        assert "## 9. 原始文件说明" in readme
+        assert "## 10. 原始文件说明" in readme
 
         events = [
             json.loads(line)
@@ -428,6 +429,7 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
                     candidates=[],
                     gate_reason_flags={"topic_trigger": False},
                 )
+            assert longterm_store is not None
             candidates = list(longterm_store.retrieve_relevant("memory topic", limit=3, agent_id=agent_id))
             return SimpleNamespace(
                 gate_decision=True,
@@ -449,6 +451,8 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
             "action_fact": "create_comment(content=hello, post_id=1)",
             "topic": "memory topic",
             "query_source": "distilled_topic",
+            "target_type": "post",
+            "target_id": 1,
             "target_snapshot": {"summary": "hello there", "post_id": 1},
             "authored_content": "hello there",
             "action_significance": "high",
@@ -483,20 +487,47 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
     init_result = {"agent_count": 1}
 
     events = _build_real_scenario_events(
-        manager=manager,
+        manager=cast(Any, manager),
         init_result=init_result,
         config=EvaluationConfig(phases=["real-scenarios"], embedding_url="http://127.0.0.1:11434/v1"),
+        step_audit_records=[
+            {
+                "phase": "official_step",
+                "manager_current_step": 4,
+                "run_step_index": 4,
+                "agents": [
+                    {
+                        "agent_id": "agent-1",
+                        "prompt_visible_snapshot": {
+                            "posts": {
+                                "success": True,
+                                "posts": [
+                                    {
+                                        "post_id": 1,
+                                        "user_id": 2,
+                                        "summary": "hello there",
+                                    }
+                                ],
+                            },
+                            "groups": {"success": True},
+                        },
+                    }
+                ],
+            }
+        ],
     )
 
     event_names = [event.name for event in events]
     assert event_names == [
         "VAL-LTM-05 real_self_action_retrievability",
+        "VAL-RCL-11 post_based_runtime_replay",
         "VAL-RCL-08 real_continuity_recall_probe",
         "VAL-RCL-09 real_empty_observation_recall_suppression",
     ]
     assert events[0].status == "pass"
     assert events[1].status == "pass"
     assert events[2].status == "pass"
+    assert events[3].status == "pass"
     assert events[0].metrics["real_probe_candidate_count"] == 2
     assert events[0].metrics["usable_probe_count"] == 2
     assert events[0].metrics["skipped_probe_count"] == 0
@@ -508,6 +539,9 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
         "agent-1": 1,
         "agent-2": 1,
     }
+    assert events[1].metrics["post_probe_count"] == 1
+    assert events[1].metrics["post_probe_with_ground_truth_count"] == 1
+    assert events[1].metrics["hit_at_3"] == 1.0
 
 
 def test_build_real_scenario_events_reports_probe_skips() -> None:
@@ -538,7 +572,7 @@ def test_build_real_scenario_events_reports_probe_skips() -> None:
     )
 
     events = _build_real_scenario_events(
-        manager=manager,
+        manager=cast(Any, manager),
         init_result={"agent_count": 1},
         config=EvaluationConfig(phases=["real-scenarios"], embedding_url=""),
     )
@@ -620,6 +654,7 @@ def test_build_real_scenario_events_honors_probe_limit() -> None:
                     candidates=[],
                     gate_reason_flags={},
                 )
+            assert longterm_store is not None
             candidates = list(longterm_store.retrieve_relevant("memory topic", limit=3, agent_id=agent_id))
             return SimpleNamespace(
                 gate_decision=True,
@@ -645,7 +680,7 @@ def test_build_real_scenario_events_honors_probe_limit() -> None:
     )
 
     events = _build_real_scenario_events(
-        manager=manager,
+        manager=cast(Any, manager),
         init_result={"agent_count": 1},
         config=EvaluationConfig(
             phases=["real-scenarios"],
@@ -706,7 +741,7 @@ def test_build_real_scenario_events_excludes_warmup_candidates() -> None:
     )
 
     events = _build_real_scenario_events(
-        manager=manager,
+        manager=cast(Any, manager),
         init_result={"agent_count": 1},
         config=EvaluationConfig(phases=["real-scenarios"], embedding_url=""),
         scenario_pack={"id": "s1_stable_single_topic", "purpose": "test"},
@@ -827,7 +862,7 @@ def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:
     ]
 
     events = _build_real_longwindow_events(
-        manager=manager,
+        manager=cast(Any, manager),
         init_result=init_result,
         config=EvaluationConfig(phases=["real-longwindow"], embedding_url="http://127.0.0.1:11434/v1"),
         step_snapshots=step_snapshots,

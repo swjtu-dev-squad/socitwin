@@ -43,7 +43,7 @@
   - 当前实现中最常见的是第一条可见 post/group 的 `summary`；
   - 主要回答“真实运行中当前看到的内容能不能唤起相关历史”。
 
-因此 exact episode hit 仍有价值，但不能单独代表完整 runtime recall 质量。B 级后续需要补 runtime-query replay，把真实 `last_recall_query_text` 和相关历史集合一起评估。
+因此 exact episode hit 仍有价值，但不能单独代表完整 runtime recall 质量。当前 B 级已先补 `VAL-RCL-11 post_based_runtime_replay`，用每个可见 post 的 `summary` 出题并用结构化 post 关系判定正确答案；完整 `last_recall_query_text` trace replay 仍留作后续增强。
 
 ## 3. Evaluation Layers
 
@@ -69,7 +69,8 @@
 - `real-scenarios` 中的部分 probe 是 retrieve-only，不执行 prompt assembly。
 - retrieve-only 命中不能汇报成“模型实际用上了记忆”。
 - 当前 `VAL-LTM-05` 是 self-retrievability，不等于 runtime recall。
-- B 级缺口是 runtime-query replay：使用真实运行中的 recall query，评估是否找回与当前 observation 相关的历史 episode。
+- B 级已补 `VAL-RCL-11 post_based_runtime_replay`：使用真实 observation 中每个可见 post 的 summary 出题，评估是否找回同 agent 过去和该 post 结构相关的历史 episode。
+- 更完整的 `last_recall_query_text` trace replay、author-based relationship recall 和 group recall 仍是后续缺口。
 
 ### 3.2 Gate And Injection Benchmark
 
@@ -139,7 +140,8 @@ Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)
 
 - 它来自 episode-derived probe query；
 - 它不代表真实 runtime query 下的相关召回率；
-- runtime-query related retrieval 是 B 级下一步待补指标。
+- 当前已用 `VAL-RCL-11` 先补 post-based runtime observation recall；
+- 完整 `last_recall_query_text` trace replay 仍是后续待补指标。
 
 ## 5. First-Phase Non-Goals
 
@@ -158,7 +160,7 @@ Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)
 - 当前 `socitwin` 的长期记忆以 `ActionEpisode` 为结构化持久化单元。
 - recall 主链被拆成 gate、retrieval、injection 三个可观测阶段。
 - 当前已实现的 B 级核心指标是 `Episode Self-Retrievability Recall@3 (Exact Episode Hit@3)`、Hit@1、MRR、agent 过滤回归防线和 injection trace rate。
-- runtime query 主要来自当前 observation summary，相关召回质量仍需要 runtime-query replay 补测。
+- runtime query 主要来自当前 observation summary；当前已用 `VAL-RCL-11` 先覆盖 post-based runtime observation recall，后续仍需要完整 `last_recall_query_text` trace replay 补测。
 - 行为级连续性测试会作为第二阶段增强，不直接替代检索和注入指标。
 
 避免汇报口径：

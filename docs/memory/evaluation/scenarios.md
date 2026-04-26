@@ -91,6 +91,7 @@
 | `VAL-RCL-08` | 真实行为连续性 recall probe | 检查 gate + retrieval |
 | `VAL-RCL-09` | 空 observation recall suppression | 检查 false trigger |
 | `VAL-RCL-10` | 长窗口真实 recall 注入 | 检查 injected trace |
+| `VAL-RCL-11` | 每个可见 post 的 runtime observation replay | 检查 post-linked 相关历史是否可被 summary query 找回 |
 
 这些是当前代码里已经存在的事实场景，不等于 B 级目标设计已经实现为固定 scenario packs。
 
@@ -103,10 +104,10 @@
   - 已补 S1 / S2 固定输入、usable probe 统计和 skipped reasons；
   - 当前主指标是 episode self-retrievability。
 - `B-level v0.5`
-  - 补 runtime-query replay；
-  - 使用真实 `last_recall_query_text` 评估相关历史是否能被找回。
+  - 已补 post-based runtime replay；
+  - 使用真实 observation 中每个可见 post 的 `summary` 出题，评估 post-linked 相关历史是否能被找回。
 - `B-level v1`
-  - 再考虑多次运行聚合、更多 scenario packs 或 controlled benchmark。
+  - 再考虑完整 `last_recall_query_text` trace replay、多次运行聚合、更多 scenario packs 或 controlled benchmark。
 
 当前 `B-level v0` 已有两个固定输入 pack：
 
@@ -223,7 +224,7 @@ uv run python -m app.memory.evaluation_harness \
 当前 S1 / S2 已有第一版固定输入。后续如果进入 B 级 v1，建议按下面方向扩展：
 
 - 加强 `S1 stable single-topic pack` 的多 run 聚合和报告；
-- 加强 `S2 similar-topic interference pack` 的 runtime-query replay 和排序诊断；
+- 加强 `S2 similar-topic interference pack` 的 post-based runtime replay、完整 query trace replay 和排序诊断；
 - 新增 `S3 group / multi-context pack`。
 
 第二阶段再补：

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
 import os
 import shutil
@@ -184,7 +185,7 @@ class EvaluationRecorder:
         lines.extend(_memory_kpi_readme_lines(summary))
         lines.extend(_real_scenario_readme_lines(self.events))
         lines.extend(_recall_probe_readme_lines(self.events))
-        lines.extend(["", "## 8. 事件列表", ""])
+        lines.extend(["", "## 9. 事件列表", ""])
         for event in self.events:
             reason = f"；原因：{event.reason}" if event.reason else ""
             lines.append(
@@ -193,12 +194,12 @@ class EvaluationRecorder:
         lines.extend(
             [
                 "",
-                "## 9. 原始文件说明",
+                "## 10. 原始文件说明",
                 "",
                 "- `summary.json`：机器可读的总览、KPI 和不可用指标。",
                 "- `events.jsonl`：逐事件详细证据；检索类事件包含逐条 probe 的 expected / retrieved 信息。",
                 "- `config.json`：本次评测参数，包括场景、步数、probe limit 和 embedding 配置。",
-                "- `artifacts/real-scenarios/step_audit.jsonl`：逐步记录 step_result、memory_debug、agent 本步动作和记忆状态。",
+                "- `artifacts/real-scenarios/step_audit.jsonl`：逐步记录 step_result、memory_debug、agent prompt-visible snapshot、本步动作和记忆状态。",
                 "- `artifacts/real-scenarios/episode_audit.jsonl`：逐条记录 ActionEpisode payload、是否持久化、probe query 和长期记忆 document。",
                 "- `artifacts/real-scenarios/sqlite_trace_summary.json`：OASIS SQLite trace 表摘要；`simulation.db` 会被复制到审计目录。",
                 "- `README.md`：当前中文摘要报告，面向人工阅读和组会复盘。",
@@ -474,6 +475,9 @@ def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
     miss_lines = _miss_case_readme_lines(event)
     if miss_lines:
         lines.extend(miss_lines)
+    post_runtime_lines = _post_based_runtime_readme_lines(events)
+    if post_runtime_lines:
+        lines.extend(post_runtime_lines)
     return lines
 
 
@@ -516,8 +520,44 @@ def _miss_case_readme_lines(event: EvaluationEvent, *, limit: int = 8) -> list[s
     return lines
 
 
+def _post_based_runtime_readme_lines(events: list[EvaluationEvent]) -> list[str]:
+    event = _first_event(events, "VAL-RCL-11 post_based_runtime_replay")
+    if event is None:
+        return []
+    metrics = event.metrics
+    lines = [
+        "",
+        "## 7. Post-Based Runtime Replay",
+        "",
+        "这个事件按每个可见 post 单独出题，检索文本只使用 post summary；post_id 只用于判定正确答案和调试，不进入检索文本。",
+        "",
+        f"- 状态：`{_zh_status(event.status)}`",
+        f"- post probe 总数：`{metrics.get('post_probe_count', 0)}`",
+        f"- 有结构化正确答案的 probe：`{metrics.get('post_probe_with_ground_truth_count', 0)}`",
+        f"- 无正确答案的 probe：`{metrics.get('post_probe_without_ground_truth_count', 0)}`",
+        f"- 第一个帖子中有正确答案的 probe：`{metrics.get('runtime_first_post_with_ground_truth_count', 0)}`",
+        f"- 非第一个帖子中有正确答案的 probe：`{metrics.get('non_first_post_with_ground_truth_count', 0)}`",
+        f"- Hit@1：`{metrics.get('hit_at_1', 0)}`",
+        f"- Hit@3：`{metrics.get('hit_at_3', 0)}`",
+        f"- MRR：`{metrics.get('mrr', 0)}`",
+        f"- 第一个帖子 Hit@3：`{metrics.get('runtime_first_post_hit_at_3', 0)}`",
+        f"- 非第一个帖子 Hit@3：`{metrics.get('non_first_post_hit_at_3', 0)}`",
+        f"- self-authored 帖子 Hit@3：`{metrics.get('self_authored_post_hit_at_3', 0)}`",
+        f"- 诊断分布：`{json.dumps(metrics.get('diagnosis_counts', {}), ensure_ascii=False)}`",
+        f"- 正确答案动作分布：`{json.dumps(metrics.get('ground_truth_action_distribution', {}), ensure_ascii=False)}`",
+    ]
+    examples = list(event.evidence.get("readable_summary", []) or [])
+    if examples:
+        lines.extend(["", "Post-based replay 样例：", ""])
+        for index, example in enumerate(examples[:8], start=1):
+            lines.append(f"{index}. {example}")
+    if event.reason:
+        lines.extend(["", f"原因：{event.reason}"])
+    return lines
+
+
 def _recall_probe_readme_lines(events: list[EvaluationEvent]) -> list[str]:
-    lines = ["", "## 7. Recall Gate / Suppression", ""]
+    lines = ["", "## 8. Recall Gate / Suppression", ""]
     has_any = False
     for name in (
         "VAL-RCL-08 real_continuity_recall_probe",
@@ -1150,6 +1190,10 @@ def _build_real_scenario_step_audit_entry(
                     1 for item in last_action_episodes if item["persisted"]
                 ),
                 "memory_debug": debug_by_social_id.get(str(social_agent_id), {}),
+                "prompt_visible_snapshot": copy.deepcopy(
+                    getattr(getattr(agent, "env", None), "last_prompt_visible_snapshot", None)
+                    or {}
+                ),
                 "last_action_episodes": last_action_episodes,
             }
         )
@@ -1250,6 +1294,7 @@ def _build_real_scenario_audit_summary(
     events: list[EvaluationEvent],
 ) -> dict[str, Any]:
     ltm_event = _first_event(events, "VAL-LTM-05 real_self_action_retrievability")
+    post_runtime_event = _first_event(events, "VAL-RCL-11 post_based_runtime_replay")
     per_query = list((ltm_event.evidence if ltm_event else {}).get("per_query", []) or [])
     query_texts = [str(item.get("query_text", "") or "") for item in per_query]
     duplicated_queries = {
@@ -1292,6 +1337,9 @@ def _build_real_scenario_audit_summary(
             )[:10]
         ],
         "ltm_metrics": dict(ltm_event.metrics if ltm_event else {}),
+        "post_based_runtime_metrics": dict(
+            post_runtime_event.metrics if post_runtime_event else {}
+        ),
     }
 
 
@@ -1604,6 +1652,7 @@ async def _run_action_v1_real_scenarios_async(
                 config=config,
                 scenario_pack=scenario_pack,
                 excluded_episode_keys=warmup_episode_keys,
+                step_audit_records=step_audit_records,
                 artifact_dir=artifact_dir,
             )
             if artifact_dir is not None:
@@ -1806,6 +1855,7 @@ def _build_real_scenario_events(
     config: EvaluationConfig,
     scenario_pack: dict[str, Any] | None = None,
     excluded_episode_keys: set[tuple[str, int | None, int | None]] | None = None,
+    step_audit_records: list[dict[str, Any]] | None = None,
     artifact_dir: Path | None = None,
 ) -> list[EvaluationEvent]:
     agents = list(manager.get_all_agents())
@@ -1841,6 +1891,12 @@ def _build_real_scenario_events(
             agents=agents,
             store=store,
             candidates=candidates,
+            base_metrics=base_metrics,
+        ),
+        _build_post_based_runtime_replay_event(
+            store=store,
+            candidates=candidates,
+            step_audit_records=step_audit_records or [],
             base_metrics=base_metrics,
         ),
         _build_real_continuity_recall_probe_event(
@@ -1990,6 +2046,377 @@ def _build_real_self_action_retrievability_event(
             )
         ),
     )
+
+
+def _build_post_based_runtime_replay_event(
+    *,
+    store: Any,
+    candidates: list[dict[str, Any]],
+    step_audit_records: list[dict[str, Any]],
+    base_metrics: dict[str, Any],
+) -> EvaluationEvent:
+    event_name = "VAL-RCL-11 post_based_runtime_replay"
+    if store is None:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name=event_name,
+            status="blocked",
+            metrics=base_metrics,
+            reason="No long-term store was available for post-based runtime replay.",
+        )
+    probes = _collect_post_based_runtime_probes(
+        step_audit_records=step_audit_records,
+        candidates=candidates,
+    )
+    if not probes:
+        return EvaluationEvent(
+            phase="real-scenarios",
+            name=event_name,
+            status="blocked",
+            metrics={
+                **base_metrics,
+                "post_probe_count": 0,
+                "post_probe_with_ground_truth_count": 0,
+            },
+            reason=(
+                "No post-based probes could be built. The real-scenarios audit "
+                "must include prompt_visible_snapshot for each agent."
+            ),
+        )
+
+    per_probe = []
+    for probe in probes:
+        retrieved = list(
+            store.retrieve_relevant(
+                str(probe["query_text"]),
+                limit=3,
+                agent_id=str(probe["agent_id"]) or None,
+            )
+        )
+        per_probe.append(_score_post_based_runtime_probe(probe=probe, retrieved=retrieved))
+
+    scored = [item for item in per_probe if item.get("has_ground_truth")]
+    metrics = {
+        **base_metrics,
+        **_summarize_post_based_runtime_scores(per_probe),
+    }
+    status = "pass" if scored else "blocked"
+    return EvaluationEvent(
+        phase="real-scenarios",
+        name=event_name,
+        status=status,
+        metrics=metrics,
+        evidence={
+            "note": (
+                "每个可见 post 各生成一个 query。检索文本只使用 post.summary；"
+                "post_id 只用于 ground truth 和调试，不进入检索文本。"
+            ),
+            "readable_summary": _post_based_runtime_readable_rows(per_probe),
+            "per_probe": per_probe,
+        },
+        reason=(
+            ""
+            if status == "pass"
+            else "No post-based probe had structural ground truth in prior episodes."
+        ),
+    )
+
+
+def _collect_post_based_runtime_probes(
+    *,
+    step_audit_records: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    probes: list[dict[str, Any]] = []
+    for step_entry in step_audit_records:
+        if step_entry.get("phase") != "official_step":
+            continue
+        current_step_id = _safe_int(
+            step_entry.get("manager_current_step"),
+            default=_safe_int(step_entry.get("run_step_index"), default=0),
+        )
+        for agent_entry in step_entry.get("agents", []) or []:
+            if not isinstance(agent_entry, Mapping):
+                continue
+            agent_id = str(agent_entry.get("agent_id", "") or "")
+            snapshot = agent_entry.get("prompt_visible_snapshot", {}) or {}
+            if not isinstance(snapshot, Mapping):
+                continue
+            posts_payload = snapshot.get("posts", {}) or {}
+            if not isinstance(posts_payload, Mapping):
+                continue
+            for post_index, post in enumerate(posts_payload.get("posts", []) or []):
+                if not isinstance(post, Mapping):
+                    continue
+                query_text = str(post.get("summary", "") or "").strip()
+                if not query_text:
+                    continue
+                source_post_id = post.get("post_id")
+                source_author_id = post.get("user_id")
+                expected = [
+                    candidate
+                    for candidate in candidates
+                    if _episode_is_ground_truth_for_post_probe(
+                        episode=candidate,
+                        agent_id=agent_id,
+                        current_step_id=current_step_id,
+                        source_post_id=source_post_id,
+                        source_author_id=source_author_id,
+                    )
+                ]
+                probes.append(
+                    {
+                        "agent_id": agent_id,
+                        "step_id": current_step_id,
+                        "post_index": post_index,
+                        "is_runtime_first_post": post_index == 0,
+                        "source_post_id": source_post_id,
+                        "source_author_id": source_author_id,
+                        "self_authored_visible_post": (
+                            str(source_author_id) == agent_id
+                            if source_author_id is not None and agent_id
+                            else False
+                        ),
+                        "query_text": query_text,
+                        "expected_episodes": expected,
+                    }
+                )
+    return probes
+
+
+def _episode_is_ground_truth_for_post_probe(
+    *,
+    episode: dict[str, Any],
+    agent_id: str,
+    current_step_id: int,
+    source_post_id: Any,
+    source_author_id: Any,
+) -> bool:
+    if source_post_id is None:
+        return False
+    if str(episode.get("agent_id", "") or "") != str(agent_id):
+        return False
+    episode_step_id = _safe_int(episode.get("step_id"), default=-1)
+    if episode_step_id < 0 or episode_step_id >= current_step_id:
+        return False
+
+    if (
+        str(episode.get("target_type", "") or "") == "post"
+        and _same_id(episode.get("target_id"), source_post_id)
+    ):
+        return True
+
+    local_context = episode.get("local_context") or {}
+    parent_post = (
+        local_context.get("parent_post", {})
+        if isinstance(local_context, Mapping)
+        else {}
+    )
+    if isinstance(parent_post, Mapping) and _same_id(
+        parent_post.get("post_id"),
+        source_post_id,
+    ):
+        return True
+
+    if (
+        str(episode.get("action_name", "") or "") == "create_post"
+        and source_author_id is not None
+        and str(source_author_id) == str(agent_id)
+    ):
+        expected_change = f"created_post:{source_post_id}"
+        return expected_change in {
+            str(item) for item in (episode.get("state_changes", []) or [])
+        }
+    return False
+
+
+def _score_post_based_runtime_probe(
+    *,
+    probe: dict[str, Any],
+    retrieved: list[dict[str, Any]],
+) -> dict[str, Any]:
+    expected = list(probe.get("expected_episodes", []) or [])
+    expected_keys = {_real_episode_key(item) for item in expected}
+    retrieved_keys = [_real_episode_key(item) for item in retrieved]
+    first_hit_rank = 0
+    for index, key in enumerate(retrieved_keys, start=1):
+        if key in expected_keys:
+            first_hit_rank = index
+            break
+    has_ground_truth = bool(expected_keys)
+    cross_agent_count = sum(
+        1 for key in retrieved_keys[:3] if key[0] != str(probe.get("agent_id", "") or "")
+    )
+    same_agent_wrong_target_count = sum(
+        1
+        for key in retrieved_keys[:3]
+        if key[0] == str(probe.get("agent_id", "") or "") and key not in expected_keys
+    )
+    if not has_ground_truth:
+        diagnosis = "no_ground_truth"
+    elif first_hit_rank:
+        diagnosis = "hit"
+    elif cross_agent_count:
+        diagnosis = "cross_agent"
+    elif same_agent_wrong_target_count:
+        diagnosis = "same_agent_wrong_target"
+    elif retrieved_keys:
+        diagnosis = "retrieved_but_unclassified"
+    else:
+        diagnosis = "no_retrieval"
+
+    result = {
+        "agent_id": probe.get("agent_id"),
+        "step_id": probe.get("step_id"),
+        "post_index": probe.get("post_index"),
+        "is_runtime_first_post": probe.get("is_runtime_first_post"),
+        "source_post_id": probe.get("source_post_id"),
+        "source_author_id": probe.get("source_author_id"),
+        "self_authored_visible_post": probe.get("self_authored_visible_post"),
+        "query_text": probe.get("query_text"),
+        "has_ground_truth": has_ground_truth,
+        "expected_keys": list(expected_keys),
+        "expected_labels": [_real_episode_label(item) for item in expected],
+        "expected_action_names": sorted(
+            {
+                str(item.get("action_name", "") or "unknown")
+                for item in expected
+            }
+        ),
+        "retrieved_keys": retrieved_keys,
+        "retrieved_labels": [_real_episode_label(item) for item in retrieved],
+        "retrieved_action_names": [
+            str(item.get("action_name", "") or "") for item in retrieved
+        ],
+        "retrieved_episodes": [_real_episode_debug_view(item) for item in retrieved],
+        "retrieved_top3_count": len(retrieved_keys[:3]),
+        "cross_agent_retrieved_count": cross_agent_count,
+        "same_agent_wrong_target_count": same_agent_wrong_target_count,
+        "first_hit_rank": first_hit_rank,
+        "hit_at_1": first_hit_rank == 1,
+        "hit_at_3": 0 < first_hit_rank <= 3,
+        "mrr": round(1 / first_hit_rank, 4) if first_hit_rank else 0.0,
+        "diagnosis": diagnosis,
+    }
+    return result
+
+
+def _summarize_post_based_runtime_scores(
+    per_probe: list[dict[str, Any]],
+) -> dict[str, Any]:
+    scored = [item for item in per_probe if item.get("has_ground_truth")]
+    first_post_scored = [
+        item for item in scored if bool(item.get("is_runtime_first_post"))
+    ]
+    non_first_scored = [
+        item for item in scored if not bool(item.get("is_runtime_first_post"))
+    ]
+    self_authored_scored = [
+        item for item in scored if bool(item.get("self_authored_visible_post"))
+    ]
+    return {
+        "post_probe_count": len(per_probe),
+        "post_probe_with_ground_truth_count": len(scored),
+        "post_probe_without_ground_truth_count": len(per_probe) - len(scored),
+        "runtime_first_post_probe_count": sum(
+            1 for item in per_probe if bool(item.get("is_runtime_first_post"))
+        ),
+        "runtime_first_post_with_ground_truth_count": len(first_post_scored),
+        "non_first_post_probe_count": sum(
+            1 for item in per_probe if not bool(item.get("is_runtime_first_post"))
+        ),
+        "non_first_post_with_ground_truth_count": len(non_first_scored),
+        "self_authored_post_probe_count": sum(
+            1 for item in per_probe if bool(item.get("self_authored_visible_post"))
+        ),
+        "self_authored_post_with_ground_truth_count": len(self_authored_scored),
+        "query_count": len(scored),
+        "hit_at_1": _mean_bool(item.get("hit_at_1") for item in scored),
+        "hit_at_3": _mean_bool(item.get("hit_at_3") for item in scored),
+        "mrr": _mean_mrr(scored),
+        "runtime_first_post_hit_at_3": _mean_bool(
+            item.get("hit_at_3") for item in first_post_scored
+        ),
+        "non_first_post_hit_at_3": _mean_bool(
+            item.get("hit_at_3") for item in non_first_scored
+        ),
+        "self_authored_post_hit_at_3": _mean_bool(
+            item.get("hit_at_3") for item in self_authored_scored
+        ),
+        "cross_agent_top3_count": sum(
+            int(item.get("cross_agent_retrieved_count", 0) or 0)
+            for item in scored
+        ),
+        "same_agent_wrong_target_probe_count": sum(
+            1 for item in scored if item.get("diagnosis") == "same_agent_wrong_target"
+        ),
+        "top3_candidate_slot_count": sum(
+            int(item.get("retrieved_top3_count", 0) or 0) for item in scored
+        ),
+        "diagnosis_counts": _count_string_values(
+            [str(item.get("diagnosis", "") or "") for item in per_probe]
+        ),
+        "ground_truth_action_distribution": _count_string_values(
+            [
+                action_name
+                for item in scored
+                for action_name in (item.get("expected_action_names", []) or [])
+            ]
+        ),
+    }
+
+
+def _mean_mrr(items: list[dict[str, Any]]) -> float:
+    if not items:
+        return 0.0
+    return round(
+        sum(float(item.get("mrr", 0) or 0) for item in items) / len(items),
+        4,
+    )
+
+
+def _post_based_runtime_readable_rows(
+    per_probe: list[dict[str, Any]],
+    *,
+    limit: int = 20,
+) -> list[str]:
+    rows: list[str] = []
+    interesting = [
+        item
+        for item in per_probe
+        if item.get("has_ground_truth") and not item.get("hit_at_3")
+    ]
+    if not interesting:
+        interesting = [item for item in per_probe if item.get("has_ground_truth")]
+    for item in interesting[:limit]:
+        rows.append(
+            " ".join(
+                [
+                    f"agent={item.get('agent_id')}",
+                    f"step={item.get('step_id')}",
+                    f"post={item.get('source_post_id')}",
+                    f"idx={item.get('post_index')}",
+                    f"diagnosis={item.get('diagnosis')}",
+                    f"expected={item.get('expected_keys')}",
+                    f"top={item.get('retrieved_labels', [])[:3]}",
+                    f"query={_truncate_text(str(item.get('query_text', '') or ''), 120)}",
+                ]
+            )
+        )
+    return rows
+
+
+def _same_id(left: Any, right: Any) -> bool:
+    if left is None or right is None:
+        return False
+    return str(left) == str(right)
+
+
+def _safe_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _build_real_continuity_recall_probe_event(
