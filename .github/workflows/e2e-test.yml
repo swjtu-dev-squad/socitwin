@@ -1,0 +1,320 @@
+name: E2E Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: '社交平台'
+        required: true
+        default: 'twitter'
+        type: choice
+        options:
+          - twitter
+          - reddit
+      topic:
+        description: '测试话题 ID (使用数据库中的 Twitter 话题 ID)'
+        required: true
+        default: '2042552568010936455'
+        type: string
+      agent_count:
+        description: 'Agent数量'
+        required: false
+        default: '5'
+        type: string
+      max_steps:
+        description: '最大步数'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} -p ${{ secrets.SSH_PORT }} >> ~/.ssh/known_hosts
+
+      - name: Check AutoDL connectivity
+        id: check_connectivity
+        run: |
+          echo "🔍 Checking if AutoDL server is online..."
+
+          if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no -p ${{ secrets.SSH_PORT }} root@${{ secrets.SSH_HOST }} "echo 'Connection successful'" > /dev/null 2>&1; then
+            echo "✅ AutoDL is online - proceeding with E2E test"
+            echo "autodl_online=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ AutoDL is offline - skipping E2E test"
+            echo "autodl_online=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy and run E2E test
+        if: steps.check_connectivity.outputs.autodl_online == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: "root"
+          PROJECT_PATH: "/root/autodl-tmp/socitwin"
+          PLATFORM: ${{ github.event.inputs.platform || 'twitter' }}
+          TOPIC: ${{ github.event.inputs.topic || '2042552568010936455' }}
+          AGENT_COUNT: ${{ github.event.inputs.agent_count || '5' }}
+          MAX_STEPS: ${{ github.event.inputs.max_steps || '10' }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+
+            echo "========================================="
+            echo "🚀 E2E Test on AutoDL"
+            echo "========================================="
+
+            # ============================================================================
+            # Step 1: 检查并启动 vLLM
+            # ============================================================================
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Step 1: 检查 vLLM 服务状态"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            VLLM_PORT=6006
+            VLLM_HEALTH_URL="http://localhost:${VLLM_PORT}/health"
+
+            if curl -s --connect-timeout 2 "$VLLM_HEALTH_URL" > /dev/null 2>&1; then
+              echo "✅ vLLM is already running on port $VLLM_PORT"
+            else
+              echo "📦 vLLM not running, starting in background..."
+
+              # 杀掉可能存在的旧 tmux 会话
+              tmux kill-session -t vllm 2>/dev/null || true
+
+              # 在 tmux 会话中启动 vLLM
+              tmux new-session -d -s vllm "source /root/miniconda3/bin/activate vllm && \
+                python -m vllm.entrypoints.openai.api_server \
+                  --model /root/autodl-tmp/models/Qwen3.6-35B-A3B-AWQ \
+                  --served-model-name qwen-35b \
+                  --trust-remote-code \
+                  --gpu-memory-utilization 0.85 \
+                  --max-model-len 32768 \
+                  --enable-auto-tool-choice \
+                  --tool-call-parser qwen3_xml \
+                  --port $VLLM_PORT > /tmp/vllm.log 2>&1"
+
+              echo "⏳ vLLM starting in background (tmux session: vllm)"
+              echo "   Log: tail -f /tmp/vllm.log"
+              echo "   Model: Qwen3.6-35B-A3B-AWQ (served as: qwen-35b)"
+            fi
+
+            # ============================================================================
+            # Step 2: 更新代码并启动后端
+            # ============================================================================
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Step 2: 更新代码并启动后端"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # 检查项目是否存在
+            if [ ! -d "$PROJECT_PATH" ]; then
+              echo "📥 Project not found, cloning..."
+              git clone https://github.com/swjtu-dev-squad/socitwin.git "$PROJECT_PATH"
+            fi
+
+            cd "$PROJECT_PATH"
+            echo "📂 Working directory: $(pwd)"
+
+            # 更新代码
+            echo "📥 Pulling latest code from main..."
+            git checkout main
+            git fetch origin
+            git reset --hard origin/main
+            echo "✅ Code updated"
+
+            # 激活后端 conda 环境
+            # 初始化 conda 并激活环境
+            eval "$(conda shell.bash hook)"
+            conda activate socitwin
+
+            cd backend
+
+            # 同步依赖
+            echo "🔧 Syncing dependencies..."
+            uv sync --dev
+
+            # 检查并启动后端
+            echo "🔍 Checking if backend server is running..."
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "✅ Backend server is already running"
+            else
+              echo "🚀 Starting backend server..."
+
+              # 设置环境变量指向本地 vLLM
+              export OASIS_MODEL_PLATFORM=vllm
+              export OASIS_MODEL_TYPE=qwen-35b
+              export OPENAI_API_KEY=vllm
+              export OPENAI_BASE_URL=http://127.0.0.1:6006/v1
+
+              nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/server.log 2>&1 &
+              SERVER_PID=$!
+
+              echo "⏳ Waiting for backend server to start..."
+              for i in {1..30}; do
+                if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+                  echo "✅ Backend server started successfully (PID: $SERVER_PID)"
+                  break
+                fi
+                if [ $i -eq 30 ]; then
+                  echo "❌ Backend server failed to start"
+                  echo "=== Server log ==="
+                  tail -50 /tmp/server.log
+                  exit 1
+                fi
+                sleep 2
+              done
+            fi
+
+            # ============================================================================
+            # Step 3: 等待 vLLM 就绪
+            # ============================================================================
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Step 3: 等待 vLLM 就绪"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            if curl -s "$VLLM_HEALTH_URL" > /dev/null 2>&1; then
+              echo "✅ vLLM is ready!"
+            else
+              echo "⏳ Waiting for vLLM to initialize (may take 2-5 minutes)..."
+
+              WAIT_TIME=0
+              MAX_WAIT=300  # 最多等5分钟
+              CHECK_INTERVAL=10
+
+              while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+                if curl -s "$VLLM_HEALTH_URL" > /dev/null 2>&1; then
+                  echo "✅ vLLM is ready after ${WAIT_TIME}s!"
+                  break
+                fi
+
+                # 显示当前状态
+                if [ $((WAIT_TIME % 30)) -eq 0 ] && [ $WAIT_TIME -gt 0 ]; then
+                  echo "   Still waiting... (${WAIT_TIME}s / ${MAX_WAIT}s)"
+                  echo "   Check vLLM log: tail /tmp/vllm.log"
+                fi
+
+                sleep $CHECK_INTERVAL
+                WAIT_TIME=$((WAIT_TIME + CHECK_INTERVAL))
+              done
+
+              if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+                echo "❌ vLLM failed to start within ${MAX_WAIT}s"
+                echo "=== vLLM log (last 50 lines) ==="
+                tail -50 /tmp/vllm.log
+                exit 1
+              fi
+            fi
+
+            # ============================================================================
+            # Step 4: 运行 E2E 测试
+            # ============================================================================
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Step 4: 运行 E2E 测试"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            cd tests/e2e
+            chmod +x run_tests.sh
+
+            echo ""
+            echo "Test Configuration:"
+            echo "  Platform: $PLATFORM"
+            echo "  Topic: $TOPIC"
+            echo "  Agent Count: $AGENT_COUNT"
+            echo "  Max Steps: $MAX_STEPS"
+            echo "  Model: qwen-35b via vLLM"
+            echo ""
+
+            echo "Running test..."
+            ./run_tests.sh \
+              --platform "$PLATFORM" \
+              --topic "$TOPIC" \
+              --agent-count "${AGENT_COUNT:-5}" \
+              --max-steps "${MAX_STEPS:-10}"
+
+            TEST_EXIT_CODE=$?
+
+            echo ""
+            echo "========================================="
+            if [ $TEST_EXIT_CODE -eq 0 ]; then
+              echo "✅ All tests passed!"
+            else
+              echo "❌ Tests failed with exit code: $TEST_EXIT_CODE"
+            fi
+            echo "========================================="
+
+            exit $TEST_EXIT_CODE
+          ENDSSH
+
+      - name: Download test results from AutoDL
+        if: always() && steps.check_connectivity.outputs.autodl_online == 'true'
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: "root"
+          PROJECT_PATH: "/root/autodl-tmp/socitwin"
+        run: |
+          echo "📥 Downloading test results from AutoDL..."
+
+          mkdir -p test-results
+
+          scp -r -P $SSH_PORT -o StrictHostKeyChecking=no \
+            $SSH_USER@$SSH_HOST:$PROJECT_PATH/backend/test-results/e2e/ \
+            test-results/ 2>/dev/null || echo "⚠️ No test results found"
+
+          if [ -d "test-results/e2e" ]; then
+            echo "✅ Test results downloaded!"
+            find test-results -type f \( -name "*.json" -o -name "*.png" \) | head -20
+          fi
+
+      - name: Upload test results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: test-results/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Test result summary
+        if: always() && steps.check_connectivity.outputs.autodl_online == 'true'
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📊 E2E Test Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Status: PASSED"
+          else
+            echo "❌ Status: FAILED"
+          fi
+
+          echo ""
+          echo "📦 Artifact: e2e-test-results-${{ github.run_id }}"
+          echo "🔗 https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "⏰ $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: AutoDL offline notice
+        if: steps.check_connectivity.outputs.autodl_online == 'false'
+        run: |
+          echo "⏭️  Workflow skipped - AutoDL server is offline"
+          echo ""
+          echo "To run E2E tests:"
+          echo "  1. Start your AutoDL instance"
+          echo "  2. Go to: https://github.com/${{ github.repository }}/actions"
+          echo "  3. Click 'E2E Test' → 'Run workflow'"

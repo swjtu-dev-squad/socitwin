@@ -30,4 +30,3 @@ class ResolvedModelRuntime:
     token_counter: BaseTokenCounter
     context_token_limit: int
     generation_max_tokens: Optional[int]
-

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import DashboardLayout from './components/DashboardLayout'
 import Overview from './pages/Overview'
+import OverviewV2 from './pages/OverviewV2'
 import Agents from './pages/Agents'
 import Logs from './pages/Logs'
 import GroupChat from './pages/GroupChat'
@@ -14,7 +15,15 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" theme="dark" richColors />
       <Routes>
-        <Route path="/" element={<Navigate to="/overview" replace />} />
+        <Route path="/" element={<Navigate to="/overview-v2" replace />} />
+        <Route
+          path="/overview-v2"
+          element={
+            <DashboardLayout>
+              <OverviewV2 />
+            </DashboardLayout>
+          }
+        />
         <Route
           path="/overview"
           element={
@@ -71,7 +80,7 @@ export default function App() {
             </DashboardLayout>
           }
         />
-        <Route path="*" element={<Navigate to="/overview" replace />} />
+        <Route path="*" element={<Navigate to="/overview-v2" replace />} />
       </Routes>
     </BrowserRouter>
   )

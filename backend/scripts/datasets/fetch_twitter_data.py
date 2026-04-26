@@ -847,6 +847,62 @@ def get_users_batch_news(user_ids: List[str]) -> Dict[str, Dict[str, Any]]:
     return users
 
 
+def fetch_trending_news_topic_rows(
+    *,
+    max_news_per_axis: Optional[int] = None,
+    max_age_hours: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """
+    仅从 X API GET /2/news/search 拉取热点话题列表（政治 / 经济 / 社会三轴），
+    与 run_fetch_pipeline 里 meta.trends_processed / news_rows 同源；按 news_id 去重。
+    不请求 cluster、tweets、回复，不入库。
+    """
+    _get_session()
+    mna = MAX_TRENDS if max_news_per_axis is None else max_news_per_axis
+    mah = MAX_NEWS_AGE_HOURS if max_age_hours is None else max_age_hours
+
+    news_rows: List[Dict[str, Any]] = []
+    for axis, q in NEWS_AXIS_QUERIES:
+        try:
+            items = search_news_api(q, max_results=mna, max_age_hours=mah)
+        except APIError as e:
+            _log(f"[News] 轴 {axis} 搜索失败: {e.status_code} {e.detail}")
+            items = []
+        for it in items:
+            nid = _news_rest_id(it)
+            name = str(it.get("name") or "").strip()
+            if not (nid and name):
+                continue
+            row: Dict[str, Any] = {
+                "news_id": nid,
+                "name": name,
+                "axis": axis,
+                "search_query": q,
+            }
+            summ = str(it.get("summary") or "").strip()
+            if summ:
+                row["summary"] = summ
+            cat = it.get("category")
+            if cat is not None and cat != "":
+                row["category"] = cat if isinstance(cat, str) else json.dumps(cat, ensure_ascii=False)
+            news_rows.append(row)
+        time.sleep(0.15)
+
+    seen_nid: Set[str] = set()
+    deduped: List[Dict[str, Any]] = []
+    for row in news_rows:
+        k = row["news_id"]
+        if k in seen_nid:
+            continue
+        seen_nid.add(k)
+        deduped.append(row)
+
+    for idx, row in enumerate(deduped, start=1):
+        row["trend_rank"] = idx
+
+    return deduped
+
+
 def fetch_news_raw_bundle(
     *,
     max_news_per_axis: int,

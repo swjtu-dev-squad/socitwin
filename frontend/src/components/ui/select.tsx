@@ -143,8 +143,8 @@ export const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
       <div
         ref={ref}
         className={cn(
-          'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent-subtle hover:text-text-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors',
-          isSelected && 'bg-accent text-bg-primary',
+          'tech-select-item relative flex w-full cursor-pointer select-none items-center py-1.5 pl-8 pr-2 text-sm outline-none transition-colors',
+          isSelected && 'selected',
           className
         )}
         onClick={handleClick}

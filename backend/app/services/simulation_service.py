@@ -18,17 +18,13 @@ from typing import Any, Dict, Optional, Union
 # OASIS framework imports
 from oasis import LLMAction, ManualAction, SocialAgent
 
-# Behavior control imports
-from app.core.behavior_controller import get_behavior_controller
-
-from app.core.oasis_manager import (
-    OASISManager,
-)
+from app.core.oasis_manager import OASISManager
 from app.models.simulation import (
     ConfigResult,
     LogEntry,
     LogFilters,
     LogResult,
+    MemoryDebugStatus,
     PlatformType,
     SimulationConfig,
     SimulationStatus,
@@ -200,6 +196,17 @@ class SimulationService:
 
             # 执行步骤
             result = await self.step(request)
+            if result.success:
+                from app.core.simulation_events import simulation_event_bus
+
+                await simulation_event_bus.publish(
+                    "simulation_step_completed",
+                    {
+                        "step_executed": result.step_executed,
+                        "actions_taken": result.actions_taken,
+                        "task_id": task_id,
+                    },
+                )
 
             # 保存结果
             self.task_results[task_id] = {
@@ -479,13 +486,45 @@ class SimulationService:
                 following=following,
             ))
 
-        # 尝试获取高级指标摘要
+        # 只获取缓存的metrics，不触发重新计算（保持status响应快速）
         metrics_summary = None
         try:
             from app.core.dependencies import get_metrics_manager
             metrics_manager = await get_metrics_manager()
             if metrics_manager:
-                metrics_summary = await metrics_manager.get_metrics_summary()
+                # 只从缓存获取，如果没有缓存就返回None，不触发计算
+                try:
+                    propagation = await metrics_manager.caches['propagation'].get('propagation')
+                    polarization = await metrics_manager.caches['polarization'].get('polarization')
+                    herd_effect = await metrics_manager.caches['herd_effect'].get('herd_effect')
+                    sentiment_tendency = await metrics_manager.caches['sentiment_tendency'].get(
+                        'sentiment_tendency'
+                    )
+
+                    # 只有当核心 metrics 都有缓存时才返回
+                    if propagation and polarization and herd_effect:
+                        from app.models.metrics import MetricsSummary
+
+                        metrics_summary = MetricsSummary(
+                            propagation=propagation,
+                            polarization=polarization,
+                            herd_effect=herd_effect,
+                            sentiment_tendency=sentiment_tendency,
+                            current_step=state_info["current_step"],
+                            timestamp=datetime.now()
+                        )
+                        logger.debug("Using cached metrics for status endpoint")
+                    else:
+                        logger.debug(
+                            "Metrics not all cached: P=%s, Pol=%s, H=%s, S=%s",
+                            bool(propagation),
+                            bool(polarization),
+                            bool(herd_effect),
+                            bool(sentiment_tendency),
+                        )
+                except Exception as cache_error:
+                    logger.warning(f"Failed to get metrics from cache: {cache_error}")
+
                 # 更新polarization字段以保持兼容性
                 if metrics_summary and metrics_summary.polarization:
                     self.polarization = metrics_summary.polarization.average_magnitude
@@ -498,6 +537,10 @@ class SimulationService:
             total_steps=state_info["max_steps"],
             agent_count=state_info["agent_count"],
             platform=PlatformType(state_info["platform"]),
+            memory_mode=state_info["memory_mode"],
+            context_token_limit=state_info.get("context_token_limit"),
+            generation_max_tokens=state_info.get("generation_max_tokens"),
+            model_backend_token_limit=state_info.get("model_backend_token_limit"),
             created_at=datetime.fromisoformat(state_info["created_at"]) if state_info["created_at"] else None,
             updated_at=datetime.fromisoformat(state_info["updated_at"]) if state_info["updated_at"] else None,
             total_posts=self.total_posts,
@@ -506,7 +549,13 @@ class SimulationService:
             active_agents=len(agents),
             agents=agents,
             metrics_summary=metrics_summary,
+            error_message=state_info.get("error_message"),
         )
+
+    async def get_memory_debug_status(self) -> MemoryDebugStatus:
+        """获取 memory monitor/debug 摘要。"""
+        payload = self.oasis_manager.get_memory_debug_info()
+        return MemoryDebugStatus.model_validate(payload)
 
     # ========================================================================
     # 日志查询

@@ -49,8 +49,10 @@ async function parseJson<T>(response: Response): Promise<T> {
   return payload as T
 }
 
-export async function listPersonaDatasets(): Promise<{ datasets: PersonaDatasetSummary[] }> {
-  const response = await fetch('/api/persona/datasets')
+export async function listPersonaDatasets(opts?: {
+  signal?: AbortSignal
+}): Promise<{ datasets: PersonaDatasetSummary[] }> {
+  const response = await fetch('/api/persona/datasets', { signal: opts?.signal })
   return parseJson(response)
 }
 
@@ -212,10 +214,17 @@ export async function getTwitterSqliteTopics(params?: { minTopics?: number; rece
 }
 
 /** 按时间倒序返回近期话题全表（不随机），用于多选列表 */
-export async function getTwitterSqliteTopicsList(params?: { recentPool?: number }) {
+export async function getTwitterSqliteTopicsList(params?: {
+  recentPool?: number
+  platform?: string
+  signal?: AbortSignal
+}) {
   const query = new URLSearchParams({ format: 'list' })
   if (params?.recentPool != null) query.set('recent_pool', String(params.recentPool))
-  const response = await fetch(`/api/persona/twitter/sqlite-topics?${query.toString()}`)
+  if (params?.platform?.trim()) query.set('platform', params.platform.trim())
+  const response = await fetch(`/api/persona/twitter/sqlite-topics?${query.toString()}`, {
+    signal: params?.signal,
+  })
   return parseJson<{
     status: string
     topics: TwitterSqliteTopicOption[]
@@ -242,11 +251,19 @@ export async function getTwitterSqliteTopicSeed(topicKey: string, userLimit = 10
 }
 
 /** 多话题：按选中话题下帖子/评论作者合并抽样（POST，避免 URL 过长） */
-export async function postTwitterSqliteTopicSeed(topicKeys: string[], seedUserCount = 100) {
+export async function postTwitterSqliteTopicSeed(
+  topicKeys: string[],
+  seedUserCount = 100,
+  platform?: string
+) {
   const response = await fetch('/api/persona/twitter/sqlite-topic-seed', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic_keys: topicKeys, seed_user_count: seedUserCount }),
+    body: JSON.stringify({
+      topic_keys: topicKeys,
+      seed_user_count: seedUserCount,
+      ...(platform?.trim() ? { platform: platform.trim() } : {}),
+    }),
   })
   return parseJson<{
     status: string
@@ -346,6 +363,7 @@ export async function postTwitterSqliteTopicsPersonasLlm(params: {
   seed_user_count: number
   synthetic_topic_count: number
   user_target_count: number
+  platform?: string
   llmBatchSize?: number
   llmSeedSample?: number
   llmMaxRetries?: number
@@ -363,6 +381,7 @@ export async function postTwitterSqliteTopicsPersonasLlm(params: {
       seed_user_count: params.seed_user_count,
       synthetic_topic_count: params.synthetic_topic_count,
       user_target_count: params.user_target_count,
+      ...(params.platform?.trim() ? { platform: params.platform.trim() } : {}),
       ...(params.llmBatchSize != null ? { llmBatchSize: params.llmBatchSize } : {}),
       ...(params.llmSeedSample != null ? { llmSeedSample: params.llmSeedSample } : {}),
       ...(params.llmMaxRetries != null ? { llmMaxRetries: params.llmMaxRetries } : {}),

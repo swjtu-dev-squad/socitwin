@@ -4,14 +4,19 @@ version = "0.1.0"
 description = "Socitwin Backend API"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "apify-client>=1.8.0",
     "fastapi>=0.135.3",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.2",
     "uvicorn[standard]>=0.44.0",
     "camel-oasis==0.2.5",
+    "chromadb>=1.0.0",
     "openai>=1.0.0",
+    "httpx>=0.27.0",
+    "jieba>=0.42.1",
     "aiofiles>=24.0.0",
     "matplotlib>=3.7.0",
+    "cachetools>=7.0.6",
 ]
 
 [build-system]
@@ -35,6 +40,10 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"app/models/agent_monitor.py" = ["N815"]
+"tests/e2e/e2e_simulation_test.py" = ["E402"]
 
 [tool.pyright]
 include = ["app"]

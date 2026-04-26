@@ -16,6 +16,7 @@ from app.models.metrics import MetricsSummary
 from app.services.metrics.herd_effect_service import HerdEffectService
 from app.services.metrics.polarization_service import PolarizationService
 from app.services.metrics.propagation_service import PropagationService
+from app.services.metrics.sentiment_tendency_service import SentimentTendencyService
 from app.utils import metrics_db
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,7 @@ class MetricsManager:
         # Initialize services
         self.propagation_service = PropagationService(db_path)
         self.herd_service = HerdEffectService(db_path)
+        self.sentiment_service = SentimentTendencyService(db_path)
 
         # Polarization service needs LLM evaluator
         llm_evaluator = get_llm_evaluator()
@@ -132,6 +134,7 @@ class MetricsManager:
                 'propagation': TTLCache(maxsize=1, ttl=0),
                 'polarization': TTLCache(maxsize=1, ttl=0),
                 'herd_effect': TTLCache(maxsize=1, ttl=0),
+                'sentiment_tendency': TTLCache(maxsize=1, ttl=0),
             }
         else:
             # Use different TTLs per metric based on config base
@@ -139,6 +142,7 @@ class MetricsManager:
                 'propagation': TTLCache(maxsize=100, ttl=cache_ttl),  # Use config TTL
                 'polarization': TTLCache(maxsize=100, ttl=max(cache_ttl, 3600)),  # At least 1 hour for expensive LLM
                 'herd_effect': TTLCache(maxsize=100, ttl=max(cache_ttl // 2, 60)),  # Half of config TTL, min 1 min
+                'sentiment_tendency': TTLCache(maxsize=100, ttl=cache_ttl),
             }
             logger.info(f"Metrics cache enabled with TTL: propagation={cache_ttl}s, polarization={max(cache_ttl, 3600)}s, herd_effect={max(cache_ttl // 2, 60)}s")
 
@@ -148,6 +152,79 @@ class MetricsManager:
             logger.info(f"MetricsManager initialized with db persistence: {db_path}")
         else:
             logger.info(f"MetricsManager initialized without db persistence: {db_path}")
+
+        # Flag to track if database metrics have been loaded
+        self._db_metrics_loaded = False
+
+    async def _load_latest_metrics_to_cache(self):
+        """
+        Load latest metrics from database into cache on initialization
+        """
+        try:
+            import asyncio
+            logger.info("Loading latest metrics from database into cache...")
+
+            # Load all persisted metrics in parallel
+            tasks = [
+                self._load_metric_to_cache('propagation'),
+                self._load_metric_to_cache('polarization'),
+                self._load_metric_to_cache('herd_effect'),
+                self._load_metric_to_cache('sentiment_tendency'),
+            ]
+
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            loaded_count = 0
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    logger.warning(
+                        f"Failed to load {['propagation', 'polarization', 'herd_effect', 'sentiment_tendency'][i]}: {result}"
+                    )
+                elif result:
+                    loaded_count += 1
+
+            logger.info(f"Loaded {loaded_count}/4 metrics from database into cache")
+
+        except Exception as e:
+            logger.warning(f"Failed to load metrics from database: {e}")
+
+    async def _load_metric_to_cache(self, metric_type: str):
+        """
+        Load a single metric type from database into cache
+        """
+        try:
+            latest = metrics_db.get_latest_metrics(self.db_path, metric_type)
+            if latest and latest.get('metric_data'):
+                # Parse metric_data based on type
+                metric_data = latest['metric_data']
+
+                # Convert dict to appropriate model
+                if metric_type == 'propagation':
+                    from app.models.metrics import PropagationMetrics
+                    metric_obj = PropagationMetrics(**metric_data)
+                elif metric_type == 'polarization':
+                    from app.models.metrics import PolarizationMetrics
+                    metric_obj = PolarizationMetrics(**metric_data)
+                elif metric_type == 'herd_effect':
+                    from app.models.metrics import HerdEffectMetrics
+                    metric_obj = HerdEffectMetrics(**metric_data)
+                elif metric_type == 'sentiment_tendency':
+                    from app.models.metrics import SentimentTendencyMetrics
+                    metric_obj = SentimentTendencyMetrics(**metric_data)
+                else:
+                    logger.warning(f"Unknown metric type: {metric_type}")
+                    return False
+
+                # Store in cache
+                await self.caches[metric_type].set(metric_type, metric_obj)
+                logger.debug(f"Loaded {metric_type} from step {latest['step_number']} into cache")
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"Failed to load {metric_type} from database: {e}")
+            return False
 
     async def update_all_metrics(
         self,
@@ -183,6 +260,10 @@ class MetricsManager:
             if herd_expired:
                 tasks.append(self._update_herd_effect())
                 metrics_to_update.append('herd_effect')
+
+            logger.info("  sentiment_tendency: force update each step")
+            tasks.append(self._update_sentiment_tendency())
+            metrics_to_update.append('sentiment_tendency')
 
             # Polarization: check if we should calculate
             polarization_expired = await self._is_cache_expired('polarization')
@@ -224,10 +305,17 @@ class MetricsManager:
             MetricsSummary with all three metrics
         """
         try:
+            # Load latest metrics from database on first access
+            if self.enable_db_persistence and not self._db_metrics_loaded:
+                logger.info("First access - loading latest metrics from database into cache")
+                await self._load_latest_metrics_to_cache()
+                self._db_metrics_loaded = True
+
             # Try to get from cache first
             propagation = await self.caches['propagation'].get('propagation')
             polarization = await self.caches['polarization'].get('polarization')
             herd_effect = await self.caches['herd_effect'].get('herd_effect')
+            sentiment_tendency = await self.caches['sentiment_tendency'].get('sentiment_tendency')
 
             # Calculate missing metrics
             if not propagation:
@@ -246,13 +334,22 @@ class MetricsManager:
                 herd_effect = await self.herd_service.get_metrics()
                 await self.caches['herd_effect'].set('herd_effect', herd_effect)
 
-            # Get current step from database
-            current_step = await self._get_current_step()
+            if not sentiment_tendency:
+                sentiment_tendency = await self.sentiment_service.get_metrics()
+                await self.caches['sentiment_tendency'].set('sentiment_tendency', sentiment_tendency)
+
+            # Prefer the simulation-maintained step counter. The old database
+            # approximation used post count as a proxy, which drifts badly in
+            # multi-agent runs and corrupts monitoring/e2e interpretation.
+            current_step = self.current_step
+            if current_step <= 0:
+                current_step = await self._get_current_step()
 
             return MetricsSummary(
                 propagation=propagation,
                 polarization=polarization,
                 herd_effect=herd_effect,
+                sentiment_tendency=sentiment_tendency,
                 current_step=current_step,
                 timestamp=datetime.now()
             )
@@ -326,6 +423,28 @@ class MetricsManager:
             )
         except Exception as e:
             logger.error(f"Failed to update herd effect: {e}")
+
+    async def _update_sentiment_tendency(self):
+        """Update sentiment tendency metrics."""
+        try:
+            metrics = await self.sentiment_service.get_metrics()
+            await self.caches['sentiment_tendency'].set('sentiment_tendency', metrics)
+
+            if self.enable_db_persistence:
+                metrics_db.save_metrics(
+                    self.db_path,
+                    self.current_step,
+                    'sentiment_tendency',
+                    metrics
+                )
+
+            logger.debug(
+                "Sentiment tendency metrics updated: score=%.2f, analyzed_posts=%s",
+                metrics.overall_score,
+                metrics.analyzed_post_count,
+            )
+        except Exception as e:
+            logger.error(f"Failed to update sentiment tendency: {e}")
 
     async def _is_cache_expired(self, metric_name: str) -> bool:
         """

@@ -133,6 +133,39 @@ class PolarizationMetrics(BaseModel):
     )
 
 
+class SentimentAnalyzedPost(BaseModel):
+    """Per-post sentiment analysis details."""
+    post_id: int = Field(..., description="Post ID")
+    user_id: int = Field(..., description="Author user ID")
+    sentiment: str = Field(..., description="Final sentiment label")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Sentiment confidence")
+    signed_score: float = Field(..., ge=-1.0, le=1.0, description="Signed confidence score")
+
+
+class SentimentTendencyMetrics(BaseModel):
+    """Overall sentiment tendency from newly created posts."""
+    overall_score: float = Field(
+        ...,
+        ge=-1.0,
+        le=1.0,
+        description="Average signed sentiment confidence for analyzed posts"
+    )
+    positive_count: int = Field(..., ge=0, description="Positive posts count")
+    negative_count: int = Field(..., ge=0, description="Negative posts count")
+    neutral_count: int = Field(..., ge=0, description="Neutral posts count")
+    analyzed_post_count: int = Field(..., ge=0, description="Total posts analyzed in this step")
+    non_neutral_count: int = Field(..., ge=0, description="Posts included in score calculation")
+    last_post_id: int = Field(..., ge=0, description="Last processed post ID")
+    posts: List[SentimentAnalyzedPost] = Field(
+        default_factory=list,
+        description="Per-post sentiment analysis details"
+    )
+    calculated_at: datetime = Field(
+        default_factory=datetime.now,
+        description="Timestamp of calculation"
+    )
+
+
 # ============================================================================
 # Herd Effect Metrics
 # ============================================================================
@@ -213,6 +246,10 @@ class MetricsSummary(BaseModel):
     herd_effect: Optional[HerdEffectMetrics] = Field(
         None,
         description="Herd effect metrics"
+    )
+    sentiment_tendency: Optional[SentimentTendencyMetrics] = Field(
+        None,
+        description="Overall sentiment tendency metrics"
     )
     current_step: int = Field(
         ...,

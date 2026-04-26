@@ -1,2 +1,1 @@
 """Persona legacy pipeline namespace."""
-

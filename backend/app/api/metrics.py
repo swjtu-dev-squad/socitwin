@@ -17,6 +17,7 @@ from app.models.metrics import (
     MetricsSummary,
     PolarizationMetrics,
     PropagationMetrics,
+    SentimentTendencyMetrics,
     Validator,
 )
 from app.services.metrics.metrics_manager import MetricsManager
@@ -160,6 +161,22 @@ async def get_herd_effect_metrics(
         )
 
 
+@router.get("/sentiment-tendency", response_model=SentimentTendencyMetrics)
+async def get_sentiment_tendency_metrics(
+    service: MetricsManager = Depends(get_metrics_manager_dependency),
+):
+    """获取总体情感倾向指标。"""
+    try:
+        metrics = await service.sentiment_service.get_metrics()
+        return metrics
+    except Exception as e:
+        logger.error(f"Failed to get sentiment tendency metrics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve sentiment tendency metrics: {str(e)}"
+        )
+
+
 # ============================================================================
 # Health Check
 # ============================================================================
@@ -187,7 +204,7 @@ async def metrics_health():
 async def get_metrics_history(
     metric_type: Optional[str] = Query(
         None,
-        description="指标类型过滤: propagation, polarization, herd_effect"
+        description="指标类型过滤: propagation, polarization, herd_effect, sentiment_tendency"
     ),
     step_from: Optional[int] = Query(
         None,
@@ -272,7 +289,7 @@ async def get_metrics_history(
 async def get_latest_metrics(
     metric_type: str = Query(
         ...,
-        description="指标类型: propagation, polarization, herd_effect"
+        description="指标类型: propagation, polarization, herd_effect, sentiment_tendency"
     ),
     service: MetricsManager = Depends(get_metrics_manager_dependency)
 ):

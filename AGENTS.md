@@ -33,13 +33,14 @@ backend/
 │       └── topic_service.py      # 主题服务（主题激活逻辑）
 ├── config/                       # 配置文件
 │   └── topics.yaml               # 主题定义（YAML 格式）
-├── test/                         # E2E 测试框架
-│   ├── e2e_simulation_test.py   # 自动化测试脚本
-│   ├── run_tests.sh              # 测试运行脚本
-│   └── README.md                 # 测试文档
+├── tests/                        # 测试目录
+│   ├── e2e/                      # API / E2E 测试脚本
+│   │   ├── e2e_simulation_test.py
+│   │   └── run_tests.sh
+│   └── memory/                   # 记忆系统 unit / integration / evaluation 测试
 ├── data/                         # 数据目录
 │   └── simulations/              # 模拟数据库（SQLite）
-├── test-result/                  # 测试结果（JSON）
+├── test-results/                 # 测试结果（JSON / memory eval）
 ├── pyproject.toml                # 项目配置（uv）
 ├── .env.example                  # 环境变量模板
 └── main.py                       # FastAPI 应用入口
@@ -161,5 +162,5 @@ curl -X POST http://localhost:8000/api/sim/step \
 ## 🧪 测试
 
 ```bash
-python e2e_simulation_test.py --help
+python backend/tests/e2e/e2e_simulation_test.py --help
 ```

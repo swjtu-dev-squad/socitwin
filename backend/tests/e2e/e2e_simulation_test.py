@@ -6,17 +6,23 @@ This script runs a complete simulation test with configurable parameters,
 executes multiple steps, and generates a detailed JSON report.
 
 Usage:
-    python e2e_simulation_test.py --agent-count 5 --max-steps 10 --topic climate_change_debate
+    python backend/tests/e2e/e2e_simulation_test.py --agent-count 5 --max-steps 10 --topic climate_change_debate
 """
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+os.environ.setdefault(
+    "MPLCONFIGDIR",
+    str(BACKEND_ROOT / "test-results" / ".matplotlib"),
+)
 import matplotlib
 import requests
 
@@ -31,11 +37,15 @@ DEFAULT_BASE_URL = "http://localhost:8000"
 DEFAULT_PLATFORM = "twitter"
 DEFAULT_AGENT_COUNT = 5
 DEFAULT_MAX_STEPS = 10
-DEFAULT_MODEL_PLATFORM = "DEEPSEEK"
-DEFAULT_MODEL_TYPE = "DEEPSEEK_CHAT"
-DEFAULT_TEMPERATURE = 0.7
-DEFAULT_TOPIC = "climate_change_debate"
+# 从环境变量读取模型配置（.env 文件）
+DEFAULT_MODEL_PLATFORM = os.getenv("OASIS_MODEL_PLATFORM", "openai")
+DEFAULT_MODEL_TYPE = os.getenv("OASIS_MODEL_TYPE", "qwen-35b")
+DEFAULT_TEMPERATURE = float(os.getenv("OASIS_MODEL_TEMPERATURE", "0.7"))
+DEFAULT_MAX_TOKENS = int(os.getenv("OASIS_MODEL_GENERATION_MAX_TOKENS", "1024"))
+DEFAULT_MEMORY_MODE = os.getenv("OASIS_MEMORY_MODE", "action_v1")
+DEFAULT_TOPIC = os.getenv("E2E_TEST_TOPIC", "2042552568010936455")  # 从环境变量读取，或使用默认值
 DEFAULT_TIMEOUT = 120  # seconds
+DEFAULT_OUTPUT_DIR = BACKEND_ROOT / "test-results" / "e2e"
 
 
 # ============================================================================
@@ -88,6 +98,10 @@ class SimulationAPIClient:
         """Get current simulation status"""
         return self._request("GET", "/api/sim/status")
 
+    def get_memory_debug_status(self) -> Dict[str, Any]:
+        """Get current memory runtime debug status"""
+        return self._request("GET", "/api/sim/memory")
+
     def list_topics(self) -> Dict[str, Any]:
         """List available topics"""
         return self._request("GET", "/api/topics")
@@ -99,6 +113,17 @@ class SimulationAPIClient:
     def execute_step(self, step_type: str = "auto") -> Dict[str, Any]:
         """Execute a simulation step"""
         return self._request("POST", "/api/sim/step", json={"step_type": step_type})
+
+    def get_step_result(self, task_id: str) -> Dict[str, Any]:
+        """Get background step result"""
+        try:
+            return self._request("GET", f"/api/sim/step/{task_id}")
+        except Exception as exc:
+            # The task endpoint can briefly return 404 before the background
+            # coroutine stores its result. Treat that race as pending.
+            if "404 Client Error" in str(exc):
+                return {"completed": False}
+            raise
 
     def pause_simulation(self) -> Dict[str, Any]:
         """Pause the simulation"""
@@ -168,6 +193,8 @@ class SimulationTestRunner:
         model_platform: str,
         model_type: str,
         temperature: float,
+        max_tokens: int,
+        memory_mode: str,
     ) -> Dict[str, Any]:
         """Run the complete test"""
 
@@ -180,6 +207,8 @@ class SimulationTestRunner:
             "model_platform": model_platform,
             "model_type": model_type,
             "temperature": temperature,
+            "max_tokens": max_tokens,
+            "memory_mode": memory_mode,
             "test_start_time": datetime.now().isoformat(),
         }
 
@@ -203,11 +232,12 @@ class SimulationTestRunner:
                 "platform": platform,
                 "agent_count": agent_count,
                 "max_steps": max_steps,
+                "memory_mode": memory_mode,
                 "llm_config": {
                     "model_platform": model_platform,
                     "model_type": model_type,
                     "temperature": temperature,
-                    "max_tokens": 1000,
+                    "max_tokens": max_tokens,
                 }
             })
 
@@ -252,6 +282,7 @@ class SimulationTestRunner:
             self._print("="*60, Colors.HEADER)
 
             final_status = self.client.get_simulation_status()
+            final_memory_debug = self._collect_memory_debug()
 
             self._print("✓ Simulation completed", Colors.OKGREEN)
             self._print(f"  - Final state: {final_status.get('state')}", Colors.OKCYAN)
@@ -261,6 +292,8 @@ class SimulationTestRunner:
 
             # Generate summary
             self.results["summary"] = self._generate_summary(final_status)
+            if final_memory_debug:
+                self.results["summary"]["final_memory_debug"] = final_memory_debug
 
             # Collect final OASIS metrics
             self._print("\n" + "="*60, Colors.HEADER)
@@ -320,8 +353,10 @@ class SimulationTestRunner:
         # Get status before step
         status_before = self.client.get_simulation_status()
 
-        # Execute step
+        # Execute step. Large agent counts are executed asynchronously by the
+        # backend, so wait for the task before treating this step as complete.
         step_result = self.client.execute_step("auto")
+        step_result = self._wait_for_step_completion(step_result)
 
         execution_time = time.time() - start_time
 
@@ -330,6 +365,7 @@ class SimulationTestRunner:
 
         # Get OASIS metrics after step
         oasis_metrics = self._collect_oasis_metrics()
+        memory_debug = self._collect_memory_debug()
 
         # Collect step information
         step_info = {
@@ -356,6 +392,7 @@ class SimulationTestRunner:
                     "interactions_added": status_after.get("total_interactions", 0) - status_before.get("total_interactions", 0),
                 },
                 "oasis_metrics": oasis_metrics,
+                "memory_debug": memory_debug,
             },
             "state": status_after.get("state", "unknown"),
         }
@@ -394,10 +431,62 @@ class SimulationTestRunner:
                     f"direction={pol.get('average_direction', 'N/A')}",
                     Colors.OKCYAN
                 )
+
+            if memory_debug:
+                self._print(
+                    "  └─ Memory: "
+                    f"mode={memory_debug.get('memory_mode')}, "
+                    f"recent_total={memory_debug.get('total_recent_retained')}, "
+                    f"compressed_total={memory_debug.get('total_compressed_retained')}, "
+                    f"recall_injected={memory_debug.get('total_recall_injected')}, "
+                    f"max_prompt_tokens={memory_debug.get('max_prompt_tokens')}",
+                    Colors.OKCYAN,
+                )
         else:
             self._print_step(step_num, total_steps, f"Step failed: {step_result.get('message')}")
 
         return step_info
+
+    def _wait_for_step_completion(self, step_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Wait for a background step task and return the real StepResult."""
+        task_id = step_result.get("task_id")
+        if not task_id:
+            return step_result
+
+        poll_interval = 2.0
+        deadline = time.time() + self.client.timeout
+        self._print(f"  └─ Background step started: {task_id}", Colors.OKCYAN)
+
+        while time.time() < deadline:
+            task_payload = self.client.get_step_result(task_id)
+            if task_payload.get("completed"):
+                if task_payload.get("error"):
+                    return {
+                        "success": False,
+                        "message": task_payload.get("error", "Background step failed"),
+                        "task_id": task_id,
+                        "step_executed": 0,
+                        "actions_taken": 0,
+                    }
+                result = task_payload.get("result") or {}
+                if isinstance(result, dict):
+                    return result
+                return {
+                    "success": False,
+                    "message": f"Unexpected background result: {result!r}",
+                    "task_id": task_id,
+                    "step_executed": 0,
+                    "actions_taken": 0,
+                }
+            time.sleep(poll_interval)
+
+        return {
+            "success": False,
+            "message": f"Timed out waiting for background step: {task_id}",
+            "task_id": task_id,
+            "step_executed": 0,
+            "actions_taken": 0,
+        }
 
     def _collect_oasis_metrics(self) -> Dict[str, Any]:
         """Collect all three OASIS metrics after a step"""
@@ -416,6 +505,39 @@ class SimulationTestRunner:
         except Exception as e:
             # If metrics API fails, return None and continue
             self._print(f"  ⚠ Failed to collect OASIS metrics: {str(e)}", Colors.WARNING)
+            return None
+
+    def _collect_memory_debug(self) -> Dict[str, Any]:
+        """Collect compact memory debug data after a step."""
+        try:
+            debug = self.client.get_memory_debug_status()
+            agents = debug.get("agents", []) or []
+            recent_total = sum(
+                agent.get("recent_retained_step_count", 0) for agent in agents
+            )
+            compressed_total = sum(
+                agent.get("compressed_retained_step_count", 0) for agent in agents
+            )
+            injected_total = sum(agent.get("last_injected_count", 0) for agent in agents)
+            max_prompt_tokens = max(
+                [agent.get("last_prompt_tokens", 0) for agent in agents] or [0]
+            )
+            max_observation_tokens = max(
+                [agent.get("last_observation_prompt_tokens", 0) for agent in agents] or [0]
+            )
+            return {
+                "memory_mode": debug.get("memory_mode"),
+                "agent_count": debug.get("agent_count"),
+                "context_token_limit": debug.get("context_token_limit"),
+                "generation_max_tokens": debug.get("generation_max_tokens"),
+                "total_recent_retained": recent_total,
+                "total_compressed_retained": compressed_total,
+                "total_recall_injected": injected_total,
+                "max_prompt_tokens": max_prompt_tokens,
+                "max_observation_tokens": max_observation_tokens,
+            }
+        except Exception as e:
+            self._print(f"  ⚠ Failed to collect memory debug: {str(e)}", Colors.WARNING)
             return None
 
     def _validate_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -576,7 +698,7 @@ class SimulationTestRunner:
 class ResultExporter:
     """Export test results to JSON file and generate metrics charts"""
 
-    def __init__(self, output_dir: str = "test-result"):
+    def __init__(self, output_dir: str | Path = DEFAULT_OUTPUT_DIR):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -871,16 +993,19 @@ def parse_arguments():
         epilog="""
 Examples:
   # Run with default parameters
-  python e2e_simulation_test.py
+  python backend/tests/e2e/e2e_simulation_test.py
 
   # Run with custom parameters
-  python e2e_simulation_test.py --agent-count 10 --max-steps 20 --topic tech_ai_regulation
+  python backend/tests/e2e/e2e_simulation_test.py --agent-count 10 --max-steps 20 --topic tech_ai_regulation
 
   # Run with Reddit platform
-  python e2e_simulation_test.py --platform reddit --topic crypto_discussion
+  python backend/tests/e2e/e2e_simulation_test.py --platform reddit --topic crypto_discussion
+
+  # Run action_v1 memory route with compact tracking
+  python backend/tests/e2e/e2e_simulation_test.py --memory-mode action_v1 --agent-count 3 --max-steps 3
 
   # Run quietly (no colored output)
-  python e2e_simulation_test.py --no-verbose
+  python backend/tests/e2e/e2e_simulation_test.py --no-verbose
         """
     )
 
@@ -914,6 +1039,14 @@ Examples:
         help="Topic ID to activate (default: climate_change_debate)"
     )
 
+    parser.add_argument(
+        "--memory-mode",
+        type=str,
+        default=DEFAULT_MEMORY_MODE,
+        choices=["upstream", "action_v1"],
+        help=f"Memory route to use (default: {DEFAULT_MEMORY_MODE})"
+    )
+
     # LLM parameters
     parser.add_argument(
         "--model-platform",
@@ -936,6 +1069,13 @@ Examples:
         help="LLM temperature (default: 0.7)"
     )
 
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=DEFAULT_MAX_TOKENS,
+        help=f"LLM generation max tokens (default: {DEFAULT_MAX_TOKENS})"
+    )
+
     # API configuration
     parser.add_argument(
         "--base-url",
@@ -955,8 +1095,8 @@ Examples:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="test-result",
-        help="Output directory for test results (default: test-result)"
+        default=str(DEFAULT_OUTPUT_DIR),
+        help=f"Output directory for test results (default: {DEFAULT_OUTPUT_DIR})"
     )
 
     parser.add_argument(
@@ -984,8 +1124,10 @@ def main():
     print(f"  Agent Count: {args.agent_count}")
     print(f"  Max Steps: {args.max_steps}")
     print(f"  Topic: {args.topic}")
+    print(f"  Memory Mode: {args.memory_mode}")
     print(f"  Model: {args.model_platform}/{args.model_type}")
     print(f"  Temperature: {args.temperature}")
+    print(f"  Max Tokens: {args.max_tokens}")
     print(f"  Base URL: {args.base_url}")
     print(f"  Output Dir: {args.output_dir}")
 
@@ -1003,6 +1145,8 @@ def main():
             model_platform=args.model_platform,
             model_type=args.model_type,
             temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            memory_mode=args.memory_mode,
         )
 
         # Export results

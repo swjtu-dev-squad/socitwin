@@ -121,4 +121,3 @@ def run_persona_llm_only_sync(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 async def run_persona_llm_only(payload: Dict[str, Any]) -> Dict[str, Any]:
     return await asyncio.to_thread(run_persona_llm_only_sync, payload)
-

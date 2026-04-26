@@ -1,5 +1,5 @@
-import { Card, Badge, Switch, Progress } from '@/components/ui'
-import { MessageCircle, Play } from 'lucide-react'
+import { Card, Badge, Progress, Switch } from '@/components/ui'
+import { MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** 与 Overview / Profiles 共用的平台字面量（无 Mongo 时仍用于类型） */
@@ -24,14 +24,18 @@ export interface SubscriptionPlatformCard {
 interface SubscriptionPanelProps {
   platforms: SubscriptionPlatformCard[]
   selectedPlatform: string
+  /** 只读高亮当前正在编辑详情的平台（可与 checked 一致） */
   onSelectPlatform: (platformId: string) => void
+  /**
+   * 开关状态变化。单选由父级在 checked=true 时互斥；checked=false 为关闭当前订阅视图。
+   */
   onTogglePlatform: (platformId: string, checked: boolean) => void
 }
 
 const PLATFORM_ICONS = {
   twitter: Twitter,
   reddit: MessageCircle,
-  tiktok: Play,
+  tiktok: MessageCircle,
   instagram: Instagram,
   facebook: Facebook,
 } as const
@@ -68,7 +72,7 @@ export function SubscriptionPanel({
           <div>
             <h2 className="text-lg font-bold">全网数据实时订阅 (Live-Link)</h2>
             <p className="text-xs text-text-tertiary">
-              订阅一个平台后，按日期和快照选择可用的数据集。
+              单选一个平台订阅后，按日期和快照选择可用的数据集。
             </p>
           </div>
         </div>
@@ -82,24 +86,37 @@ export function SubscriptionPanel({
           return (
             <div
               key={platform.id}
-              onClick={() => onSelectPlatform(platform.id)}
+              onClick={() => {
+                if (!platform.canToggle) return
+                if (platform.checked) {
+                  onSelectPlatform(platform.id)
+                } else {
+                  onTogglePlatform(platform.id, true)
+                }
+              }}
               className={cn(
                 'p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden group',
                 isSelected
                   ? 'bg-accent/5 border-accent/50'
-                  : 'bg-bg-primary border-border-default hover:border-accent/30'
+                  : 'bg-bg-primary border-border-default hover:border-accent/30',
+                !platform.canToggle && 'opacity-60 cursor-not-allowed'
               )}
             >
               <div className="flex justify-between items-start mb-4">
                 <Icon className={cn('w-6 h-6', platform.colorClass || 'text-text-primary')} />
-                <div onClick={event => event.stopPropagation()}>
+                <div
+                  onClick={e => e.stopPropagation()}
+                  onKeyDown={e => e.stopPropagation()}
+                  className="shrink-0"
+                >
                   <Switch
                     checked={platform.checked}
-                    onCheckedChange={checked => {
+                    disabled={!platform.canToggle}
+                    onCheckedChange={next => {
                       if (!platform.canToggle) return
-                      onTogglePlatform(platform.id, checked)
+                      onTogglePlatform(platform.id, next)
                     }}
-                    className={!platform.canToggle ? 'opacity-50 cursor-not-allowed' : undefined}
+                    aria-label={`${platform.name} 订阅`}
                   />
                 </div>
               </div>

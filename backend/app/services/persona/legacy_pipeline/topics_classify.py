@@ -160,4 +160,3 @@ def classify_topics_to_topics_json(batch_size: int = 24, max_retries: int = 3) -
     }
     (dd / "topics.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return doc
-

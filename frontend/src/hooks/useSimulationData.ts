@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { simulationApi } from '@/lib/api'
+import { normalizeSimulationStatus } from '@/lib/simulationStatus'
 import type {
   SimulationStatus,
   TopicListItem,
@@ -14,6 +15,7 @@ import type {
   PropagationMetrics,
   PolarizationMetrics,
   HerdEffectMetrics,
+  SentimentTendencyMetrics,
   MetricsHistoryEntry,
   ChartDataPoint,
 } from '@/lib/types'
@@ -39,28 +41,7 @@ export function useSimulationStatus(pollingInterval: number = 3000) {
 
       // Only update state if component is still mounted
       if (isMountedRef.current) {
-        // Transform backend snake_case to frontend camelCase
-        const backendData = response.data as any
-        const transformedData: any = {
-          ...response.data,
-          // Map state enum to running/paused booleans
-          running: backendData.state === 'running',
-          paused: backendData.state === 'paused',
-          // Keep original state for reference
-          originalState: backendData.state,
-          // Map snake_case fields to camelCase
-          currentStep: backendData.current_step,
-          currentRound: backendData.current_round,
-          activeAgents: backendData.active_agents,
-          totalPosts: backendData.total_posts,
-          totalInteractions: backendData.total_interactions,
-          agentCount: backendData.agent_count,
-          totalSteps: backendData.total_steps,
-          platform: backendData.platform,
-          recsys: backendData.recsys,
-          topics: backendData.topics,
-          regions: backendData.regions,
-        }
+        const transformedData = normalizeSimulationStatus(response.data)
 
         setData(transformedData)
         setError(null)
@@ -491,30 +472,8 @@ export function useSimulationStatusLightweight(pollingInterval: number = 2000) {
       const response = await simulationApi.getStatus()
 
       if (isMountedRef.current) {
-        // Transform backend snake_case to frontend camelCase
-        const backendData = response.data as any
-        const transformedData: any = {
-          ...response.data,
-          // Map state enum to running/paused booleans
-          running: backendData.state === 'running',
-          paused: backendData.state === 'paused',
-          // Keep original state for reference
-          originalState: backendData.state,
-          // Map snake_case fields to camelCase
-          currentStep: backendData.current_step,
-          currentRound: backendData.current_round,
-          activeAgents: backendData.active_agents,
-          totalPosts: backendData.total_posts,
-          totalInteractions: backendData.total_interactions,
-          agentCount: backendData.agent_count,
-          totalSteps: backendData.total_steps,
-          platform: backendData.platform,
-          recsys: backendData.recsys,
-          topics: backendData.topics,
-          regions: backendData.regions,
-        }
-
-        const newStep = backendData.current_step || 0
+        const transformedData = normalizeSimulationStatus(response.data)
+        const newStep = transformedData.currentStep || 0
 
         setData(transformedData)
         setCurrentStep(newStep)
@@ -567,7 +526,8 @@ export function useSimulationStatusLightweight(pollingInterval: number = 2000) {
 function mergeMetricsByStep(
   propHistory: MetricsHistoryEntry[],
   polHistory: MetricsHistoryEntry[],
-  herdHistory: MetricsHistoryEntry[]
+  herdHistory: MetricsHistoryEntry[],
+  sentimentHistory: MetricsHistoryEntry[]
 ): ChartDataPoint[] {
   const stepMap = new Map<number, ChartDataPoint>()
 
@@ -600,11 +560,21 @@ function mergeMetricsByStep(
     })
   })
 
+  sentimentHistory.forEach(entry => {
+    const metrics = entry.metric_data as SentimentTendencyMetrics
+    const existing = stepMap.get(entry.step_number) || { step: entry.step_number }
+    stepMap.set(entry.step_number, {
+      ...existing,
+      sentimentTendency: metrics.overall_score,
+    })
+  })
+
   // Convert to array and sort by step
   return Array.from(stepMap.values())
     .filter(
       point =>
         point.polarization !== undefined ||
+        point.sentimentTendency !== undefined ||
         point.propagation !== undefined ||
         point.herdEffect !== undefined
     )
@@ -632,10 +602,11 @@ export function useMetricsHistory(currentStep?: number) {
     const fetchHistory = async () => {
       try {
         // Fetch history for all three metric types in parallel
-        const [propHistory, polHistory, herdHistory] = await Promise.all([
+        const [propHistory, polHistory, herdHistory, sentimentHistory] = await Promise.all([
           simulationApi.getMetricsHistory({ metric_type: 'propagation', limit: 1000 }),
           simulationApi.getMetricsHistory({ metric_type: 'polarization', limit: 1000 }),
           simulationApi.getMetricsHistory({ metric_type: 'herd_effect', limit: 1000 }),
+          simulationApi.getMetricsHistory({ metric_type: 'sentiment_tendency', limit: 1000 }),
         ])
 
         if (isMounted && isMountedRef.current) {
@@ -643,7 +614,8 @@ export function useMetricsHistory(currentStep?: number) {
           const mergedData = mergeMetricsByStep(
             propHistory.data.history as MetricsHistoryEntry[],
             polHistory.data.history as MetricsHistoryEntry[],
-            herdHistory.data.history as MetricsHistoryEntry[]
+            herdHistory.data.history as MetricsHistoryEntry[],
+            sentimentHistory.data.history as MetricsHistoryEntry[]
           )
 
           setData(mergedData)
@@ -695,10 +667,12 @@ export function useStepDrivenMetrics(currentStep: number) {
     propagation: PropagationMetrics | null
     polarization: PolarizationMetrics | null
     herdEffect: HerdEffectMetrics | null
+    sentimentTendency: SentimentTendencyMetrics | null
   }>({
     propagation: null,
     polarization: null,
     herdEffect: null,
+    sentimentTendency: null,
   })
 
   const [lastFetchedStep, setLastFetchedStep] = useState<number>(-1)
@@ -714,16 +688,19 @@ export function useStepDrivenMetrics(currentStep: number) {
       setIsLoading(true)
       try {
         // Fetch latest metrics for all types in parallel
-        const [prop, pol, herd] = await Promise.all([
+        const [prop, pol, herd, sentiment] = await Promise.all([
           simulationApi.getLatestMetrics('propagation').catch(() => null),
           simulationApi.getLatestMetrics('polarization').catch(() => null),
           simulationApi.getLatestMetrics('herd_effect').catch(() => null),
+          simulationApi.getLatestMetrics('sentiment_tendency').catch(() => null),
         ])
 
+        // 提取 metric_data 字段（MetricsHistoryEntry.metric_data -> PropagationMetrics）
         setLatestMetrics({
-          propagation: prop?.data || null,
-          polarization: pol?.data || null,
-          herdEffect: herd?.data || null,
+          propagation: prop?.data?.metric_data || null,
+          polarization: pol?.data?.metric_data || null,
+          herdEffect: herd?.data?.metric_data || null,
+          sentimentTendency: sentiment?.data?.metric_data || sentiment?.data || null,
         })
 
         setLastFetchedStep(currentStep)

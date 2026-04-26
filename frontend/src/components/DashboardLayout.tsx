@@ -7,32 +7,95 @@ import {
   MessageCircle,
   Eye,
   FlaskConical,
+  Activity,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { motion } from 'motion/react'
 import { Logo } from './Logo'
 
 const navItems = [
-  { name: '态势推演', icon: Eye, href: '/overview' },
-  { name: '用户画像', icon: UserRound, href: '/profiles' },
-  { name: '社交网络监控', icon: Users, href: '/agents' },
-  { name: '热门话题监控', icon: MessageCircle, href: '/groupchat' },
-  { name: '社交平台实验室', icon: FlaskConical, href: '/experiments' },
-  { name: '系统日志', icon: MessageSquare, href: '/logs' },
-  { name: '系统设置', icon: SettingsIcon, href: '/settings' },
+  {
+    id: 'overview-v2',
+    name: '态势推演 V2',
+    icon: Eye,
+    href: '/overview-v2',
+  },
+  {
+    id: 'overview',
+    name: '态势推演 (旧版)',
+    icon: Activity,
+    href: '/overview',
+  },
+  {
+    id: 'profiles',
+    name: '用户画像',
+    icon: UserRound,
+    href: '/profiles',
+  },
+  {
+    id: 'agents',
+    name: '社交网络监控',
+    icon: Users,
+    href: '/agents',
+  },
+  {
+    id: 'groupchat',
+    name: '热门话题监控',
+    icon: MessageCircle,
+    href: '/groupchat',
+  },
+  {
+    id: 'experiments',
+    name: '社交平台实验室',
+    icon: FlaskConical,
+    href: '/experiments',
+  },
+  {
+    id: 'logs',
+    name: '系统日志',
+    icon: MessageSquare,
+    href: '/logs',
+  },
+  {
+    id: 'settings',
+    name: '系统设置',
+    icon: SettingsIcon,
+    href: '/settings',
+  },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
 
   return (
-    <div className="flex h-screen bg-bg-primary text-text-primary font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-bg-secondary border-r border-border-default flex flex-col z-20">
-        <div className="p-6 flex items-center gap-3">
-          <Logo />
+    <div className="flex h-screen font-sans overflow-hidden" style={{ background: '#181e25' }}>
+      {/* Sidebar - 深色科技风 */}
+      <aside
+        className="w-64 flex flex-col z-20 relative"
+        style={{
+          background: 'rgba(24, 30, 37, 0.95)',
+          backdropFilter: 'blur(20px)',
+        }}
+      >
+        {/* Logo 区域 - 装饰角标 */}
+        <div className="relative p-6">
+          {/* 装饰角标 */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '24px',
+              left: '24px',
+              width: '6px',
+              height: '6px',
+              borderTop: '1px solid rgba(0, 242, 255, 0.5)',
+              borderLeft: '1px solid rgba(0, 242, 255, 0.5)',
+            }}
+          />
+          <div className="flex items-center gap-3 pl-3">
+            <Logo />
+          </div>
         </div>
 
+        {/* 导航区域 */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map(item => {
             const isActive = location.pathname === item.href
@@ -40,48 +103,87 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 to={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group relative',
-                  isActive
-                    ? 'bg-accent-subtle text-accent'
-                    : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
-                )}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 group relative"
+                style={{
+                  fontFamily: '"JetBrains Mono", monospace',
+                  letterSpacing: '0.05em',
+                  ...(isActive
+                    ? {
+                        background: 'rgba(0, 242, 255, 0.1)',
+                        color: '#00f2ff',
+                        border: '1px solid rgba(0, 242, 255, 0.3)',
+                      }
+                    : {
+                        color: '#a1a1aa',
+                      }),
+                }}
+                onMouseEnter={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'
+                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.2)'
+                    e.currentTarget.style.color = '#fafafa'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = 'transparent'
+                    e.currentTarget.style.borderColor = 'transparent'
+                    e.currentTarget.style.color = '#a1a1aa'
+                  }
+                }}
               >
+                {/* 图标 */}
                 <item.icon
-                  className={cn(
-                    'w-5 h-5 transition-transform group-hover:scale-110',
-                    isActive && 'text-accent'
-                  )}
+                  className="w-4 h-4 transition-transform group-hover:scale-110"
+                  style={{
+                    color: isActive ? '#00f2ff' : 'inherit',
+                    flexShrink: 0,
+                  }}
                 />
-                {item.name}
+
+                {/* 导航项名称 */}
+                <span className="flex-1">{item.name}</span>
+
+                {/* 激活状态指示器 */}
                 {isActive && (
                   <motion.div
                     layoutId="active-nav"
-                    className="absolute left-0 w-1 h-6 bg-accent rounded-r-full"
+                    className="absolute left-0 w-0.5 h-8 rounded-r-full"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, #00f2ff 0%, rgba(0, 242, 255, 0.3) 100%)',
+                      boxShadow: '0 0 8px rgba(0, 242, 255, 0.6)',
+                    }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  />
+                )}
+
+                {/* 悬停时发光 */}
+                {isActive && (
+                  <div
+                    className="absolute inset-0 rounded-lg pointer-events-none"
+                    style={{
+                      background:
+                        'radial-gradient(circle at center, rgba(0, 242, 255, 0.1) 0%, transparent 70%)',
+                    }}
                   />
                 )}
               </Link>
             )
           })}
         </nav>
-
-        <div className="p-4 border-t border-border-default">
-          <div className="bg-bg-tertiary/50 rounded-2xl p-4 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xs font-bold">
-              AD
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold truncate">Admin User</p>
-              <p className="text-[10px] text-text-tertiary truncate">a4098853@gmail.com</p>
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto relative custom-scrollbar">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.05),transparent_50%)] pointer-events-none"></div>
+        {/* 背景装饰 - 青色光晕 */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(circle at 50% 0%, rgba(0, 242, 255, 0.03) 0%, transparent 50%)',
+          }}
+        />
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
