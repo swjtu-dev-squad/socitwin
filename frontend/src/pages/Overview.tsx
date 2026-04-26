@@ -223,7 +223,13 @@ export default function Overview() {
   const [isResetting, setIsResetting] = useState(false)
   // Controlled agent addition state
   const [controlledAgents, setControlledAgents] = useState<ControlledAgentConfig[]>([
-    { user_name: '', name: '', description: '', interests: [], behavior_strategy: BehaviorStrategy.RULE_BASED },
+    {
+      user_name: '',
+      name: '',
+      description: '',
+      interests: [],
+      behavior_strategy: BehaviorStrategy.RULE_BASED,
+    },
   ])
   const [checkPolarization, setCheckPolarization] = useState(false)
   const [polarizationThreshold, setPolarizationThreshold] = useState(0.6)
@@ -258,7 +264,13 @@ export default function Overview() {
   const addAgentRow = () => {
     setControlledAgents([
       ...controlledAgents,
-      { user_name: '', name: '', description: '', interests: [], behavior_strategy: BehaviorStrategy.RULE_BASED },
+      {
+        user_name: '',
+        name: '',
+        description: '',
+        interests: [],
+        behavior_strategy: BehaviorStrategy.RULE_BASED,
+      },
     ])
   }
 
@@ -267,7 +279,15 @@ export default function Overview() {
     newAgents.splice(index, 1)
     if (newAgents.length === 0) {
       // 如果删除了所有行，添加一个空行
-      setControlledAgents([{ user_name: '', name: '', description: '', interests: [], behavior_strategy: BehaviorStrategy.RULE_BASED }])
+      setControlledAgents([
+        {
+          user_name: '',
+          name: '',
+          description: '',
+          interests: [],
+          behavior_strategy: BehaviorStrategy.RULE_BASED,
+        },
+      ])
     } else {
       setControlledAgents(newAgents)
     }
@@ -300,7 +320,15 @@ export default function Overview() {
       if (response.data.success) {
         toast.success(`成功添加 ${response.data.added_count} 个受控agent`)
         // Reset form or keep for further additions
-        setControlledAgents([{ user_name: '', name: '', description: '', interests: [], behavior_strategy: BehaviorStrategy.RULE_BASED }])
+        setControlledAgents([
+          {
+            user_name: '',
+            name: '',
+            description: '',
+            interests: [],
+            behavior_strategy: BehaviorStrategy.RULE_BASED,
+          },
+        ])
       } else {
         toast.error(`添加失败: ${response.data.message}`)
       }
@@ -1340,14 +1368,31 @@ export default function Overview() {
                         }
                       >
                         <SelectTrigger className="bg-bg-secondary border-accent/20 text-text-primary">
-                          <SelectValue placeholder="选择策略" value={strategyLabelMap[agent.behavior_strategy || BehaviorStrategy.RULE_BASED]} />
+                          <SelectValue
+                            placeholder="选择策略"
+                            value={
+                              strategyLabelMap[
+                                agent.behavior_strategy || BehaviorStrategy.RULE_BASED
+                              ]
+                            }
+                          />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={BehaviorStrategy.RULE_BASED}>规则模型 — 基于预设规则决策</SelectItem>
-                          <SelectItem value={BehaviorStrategy.PROBABILISTIC}>概率模型 — 基于概率分布采样</SelectItem>
-                          <SelectItem value={BehaviorStrategy.MIXED}>混合模型 — 规则+概率融合</SelectItem>
-                          <SelectItem value={BehaviorStrategy.LLM_AUTONOMOUS}>LLM自主决策 — 原始AI模型控制</SelectItem>
-                          <SelectItem value={BehaviorStrategy.SCHEDULED}>时间调度 — 按时间线执行动作</SelectItem>
+                          <SelectItem value={BehaviorStrategy.RULE_BASED}>
+                            规则模型 — 基于预设规则决策
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.PROBABILISTIC}>
+                            概率模型 — 基于概率分布采样
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.MIXED}>
+                            混合模型 — 规则+概率融合
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.LLM_AUTONOMOUS}>
+                            LLM自主决策 — 原始AI模型控制
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.SCHEDULED}>
+                            时间调度 — 按时间线执行动作
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

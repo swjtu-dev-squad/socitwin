@@ -6,28 +6,26 @@
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.core.behavior_controller import BehaviorController
+from app.core.dependencies import get_behavior_controller_dependency
 from app.models.behavior import (
-    BehaviorConfigRequest,
-    BehaviorProfileRequest,
-    ApplyProfileRequest,
-    BehaviorConfigResponse,
-    BehaviorProfilesResponse,
     AgentBehaviorConfig,
-    BehaviorProfile,
+    ApplyProfileRequest,
+    BehaviorConfigRequest,
+    BehaviorConfigResponse,
+    BehaviorProfileRequest,
+    BehaviorProfilesResponse,
     BehaviorStrategy,
     create_default_behavior_config,
     create_probabilistic_config,
-    create_scheduled_config,
     create_rule_based_config,
+    create_scheduled_config,
 )
-from app.core.dependencies import get_behavior_controller_dependency
-from app.core.behavior_controller import BehaviorController
-
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +36,11 @@ router = APIRouter(prefix="/behavior", tags=["behavior"])
 # 智能体行为配置端点
 # ============================================================================
 
+
 @router.post("/config", response_model=BehaviorConfigResponse)
 async def update_agent_behavior(
     request: BehaviorConfigRequest,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     更新智能体行为配置
@@ -83,8 +82,7 @@ async def update_agent_behavior(
     """
     try:
         success = await controller.update_agent_behavior(
-            agent_id=request.agent_id,
-            behavior_config=request.behavior_config
+            agent_id=request.agent_id, behavior_config=request.behavior_config
         )
 
         if success:
@@ -92,7 +90,7 @@ async def update_agent_behavior(
                 success=True,
                 message=f"Behavior configuration updated for agent {request.agent_id}",
                 agent_id=request.agent_id,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
         else:
             return BehaviorConfigResponse(
@@ -100,7 +98,7 @@ async def update_agent_behavior(
                 message=f"Failed to update behavior configuration for agent {request.agent_id}",
                 agent_id=request.agent_id,
                 error="Agent not found or configuration invalid",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
     except Exception as e:
@@ -110,14 +108,13 @@ async def update_agent_behavior(
             message=f"Failed to update behavior configuration: {str(e)}",
             agent_id=request.agent_id,
             error=str(e),
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
 
 @router.get("/config/{agent_id}", response_model=AgentBehaviorConfig)
 async def get_agent_behavior(
-    agent_id: int,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    agent_id: int, controller: BehaviorController = Depends(get_behavior_controller_dependency)
 ):
     """
     获取智能体行为配置
@@ -152,15 +149,13 @@ async def get_agent_behavior(
     except Exception as e:
         logger.error(f"Failed to get behavior config for agent {agent_id}: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get behavior configuration: {str(e)}"
+            status_code=500, detail=f"Failed to get behavior configuration: {str(e)}"
         )
 
 
 @router.delete("/config/{agent_id}", response_model=BehaviorConfigResponse)
 async def reset_agent_behavior(
-    agent_id: int,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    agent_id: int, controller: BehaviorController = Depends(get_behavior_controller_dependency)
 ):
     """
     重置智能体行为配置为默认值
@@ -184,7 +179,7 @@ async def reset_agent_behavior(
                 success=True,
                 message=f"Behavior configuration reset to default for agent {agent_id}",
                 agent_id=agent_id,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
         else:
             return BehaviorConfigResponse(
@@ -192,7 +187,7 @@ async def reset_agent_behavior(
                 message=f"Failed to reset behavior configuration for agent {agent_id}",
                 agent_id=agent_id,
                 error="Agent not found",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
     except Exception as e:
@@ -202,7 +197,7 @@ async def reset_agent_behavior(
             message=f"Failed to reset behavior configuration: {str(e)}",
             agent_id=agent_id,
             error=str(e),
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
 
@@ -210,10 +205,11 @@ async def reset_agent_behavior(
 # 批量操作端点
 # ============================================================================
 
+
 @router.post("/config/batch", response_model=List[BehaviorConfigResponse])
 async def batch_update_agent_behavior(
     requests: List[BehaviorConfigRequest],
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     批量更新智能体行为配置
@@ -230,35 +226,42 @@ async def batch_update_agent_behavior(
     for request in requests:
         try:
             success = await controller.update_agent_behavior(
-                agent_id=request.agent_id,
-                behavior_config=request.behavior_config
+                agent_id=request.agent_id, behavior_config=request.behavior_config
             )
 
             if success:
-                results.append(BehaviorConfigResponse(
-                    success=True,
-                    message=f"Behavior configuration updated for agent {request.agent_id}",
-                    agent_id=request.agent_id,
-                    timestamp=datetime.now()
-                ))
+                results.append(
+                    BehaviorConfigResponse(
+                        success=True,
+                        message=f"Behavior configuration updated for agent {request.agent_id}",
+                        agent_id=request.agent_id,
+                        timestamp=datetime.now(),
+                    )
+                )
             else:
-                results.append(BehaviorConfigResponse(
-                    success=False,
-                    message=f"Failed to update behavior configuration for agent {request.agent_id}",
-                    agent_id=request.agent_id,
-                    error="Agent not found or configuration invalid",
-                    timestamp=datetime.now()
-                ))
+                results.append(
+                    BehaviorConfigResponse(
+                        success=False,
+                        message=(
+                            f"Failed to update behavior configuration for agent {request.agent_id}"
+                        ),
+                        agent_id=request.agent_id,
+                        error="Agent not found or configuration invalid",
+                        timestamp=datetime.now(),
+                    )
+                )
 
         except Exception as e:
             logger.error(f"Failed to update behavior config for agent {request.agent_id}: {e}")
-            results.append(BehaviorConfigResponse(
-                success=False,
-                message=f"Failed to update behavior configuration: {str(e)}",
-                agent_id=request.agent_id,
-                error=str(e),
-                timestamp=datetime.now()
-            ))
+            results.append(
+                BehaviorConfigResponse(
+                    success=False,
+                    message=f"Failed to update behavior configuration: {str(e)}",
+                    agent_id=request.agent_id,
+                    error=str(e),
+                    timestamp=datetime.now(),
+                )
+            )
 
     return results
 
@@ -266,7 +269,7 @@ async def batch_update_agent_behavior(
 @router.post("/config/apply-profile", response_model=List[BehaviorConfigResponse])
 async def apply_behavior_profile(
     request: ApplyProfileRequest,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     应用行为配置模板到智能体
@@ -283,20 +286,18 @@ async def apply_behavior_profile(
     """
     # TODO: 实现行为配置模板存储和检索
     # 目前返回未实现错误
-    raise HTTPException(
-        status_code=501,
-        detail="Behavior profile system not yet implemented"
-    )
+    raise HTTPException(status_code=501, detail="Behavior profile system not yet implemented")
 
 
 # ============================================================================
 # 行为配置模板端点（占位符）
 # ============================================================================
 
+
 @router.post("/profiles", response_model=BehaviorConfigResponse)
 async def create_behavior_profile(
     request: BehaviorProfileRequest,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     创建行为配置模板
@@ -312,15 +313,12 @@ async def create_behavior_profile(
         这是一个占位端点，实际实现需要行为配置模板存储系统
     """
     # TODO: 实现行为配置模板存储
-    raise HTTPException(
-        status_code=501,
-        detail="Behavior profile system not yet implemented"
-    )
+    raise HTTPException(status_code=501, detail="Behavior profile system not yet implemented")
 
 
 @router.get("/profiles", response_model=BehaviorProfilesResponse)
 async def list_behavior_profiles(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     列出所有行为配置模板
@@ -335,16 +333,12 @@ async def list_behavior_profiles(
         这是一个占位端点，实际实现需要行为配置模板存储系统
     """
     # TODO: 实现行为配置模板存储
-    raise HTTPException(
-        status_code=501,
-        detail="Behavior profile system not yet implemented"
-    )
+    raise HTTPException(status_code=501, detail="Behavior profile system not yet implemented")
 
 
 @router.delete("/profiles/{profile_id}", response_model=BehaviorConfigResponse)
 async def delete_behavior_profile(
-    profile_id: str,
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    profile_id: str, controller: BehaviorController = Depends(get_behavior_controller_dependency)
 ):
     """
     删除行为配置模板
@@ -360,22 +354,23 @@ async def delete_behavior_profile(
         这是一个占位端点，实际实现需要行为配置模板存储系统
     """
     # TODO: 实现行为配置模板存储
-    raise HTTPException(
-        status_code=501,
-        detail="Behavior profile system not yet implemented"
-    )
+    raise HTTPException(status_code=501, detail="Behavior profile system not yet implemented")
 
 
 # ============================================================================
 # 预定义配置端点
 # ============================================================================
 
+
 @router.post("/config/preset/{agent_id}", response_model=BehaviorConfigResponse)
 async def apply_preset_config(
     agent_id: int,
-    preset: str = Query(..., description="预定义配置名称: default, probabilistic, scheduled, rule_based"),
+    preset: str = Query(
+        ...,
+        description="预定义配置名称: default, probabilistic, scheduled, rule_based",
+    ),
     platform: str = Query("twitter", description="平台类型: twitter, reddit"),
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     应用预定义行为配置
@@ -412,7 +407,10 @@ async def apply_preset_config(
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown preset: {preset}. Available: default, probabilistic, scheduled, rule_based"
+                detail=(
+                    f"Unknown preset: {preset}. "
+                    "Available: default, probabilistic, scheduled, rule_based"
+                ),
             )
 
         # 应用配置
@@ -423,7 +421,7 @@ async def apply_preset_config(
                 success=True,
                 message=f"Preset '{preset}' applied to agent {agent_id}",
                 agent_id=agent_id,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
         else:
             return BehaviorConfigResponse(
@@ -431,7 +429,7 @@ async def apply_preset_config(
                 message=f"Failed to apply preset '{preset}' to agent {agent_id}",
                 agent_id=agent_id,
                 error="Agent not found",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
     except ValueError as e:
@@ -445,7 +443,7 @@ async def apply_preset_config(
             message=f"Failed to apply preset configuration: {str(e)}",
             agent_id=agent_id,
             error=str(e),
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
 
@@ -453,9 +451,10 @@ async def apply_preset_config(
 # 统计信息端点
 # ============================================================================
 
+
 @router.get("/stats")
 async def get_behavior_statistics(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     获取行为控制统计信息
@@ -473,27 +472,25 @@ async def get_behavior_statistics(
         return {
             "strategy_statistics": stats,
             "total_agents_with_config": len(controller.agent_behavior_state),
-            "controller_initialized": controller._probabilistic_engine is not None or
-                                    controller._rule_engine is not None or
-                                    controller._scheduling_engine is not None,
+            "controller_initialized": controller._probabilistic_engine is not None
+            or controller._rule_engine is not None
+            or controller._scheduling_engine is not None,
             "timestamp": datetime.now(),
         }
 
     except Exception as e:
         logger.error(f"Failed to get behavior statistics: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get behavior statistics: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get behavior statistics: {str(e)}")
 
 
 # ============================================================================
 # 引擎状态端点
 # ============================================================================
 
+
 @router.get("/engine/probabilistic")
 async def get_probabilistic_engine_stats(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     获取概率引擎统计信息
@@ -524,14 +521,13 @@ async def get_probabilistic_engine_stats(
     except Exception as e:
         logger.error(f"Failed to get probabilistic engine stats: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get probabilistic engine statistics: {str(e)}"
+            status_code=500, detail=f"Failed to get probabilistic engine statistics: {str(e)}"
         )
 
 
 @router.get("/engine/rule")
 async def get_rule_engine_stats(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     获取规则引擎统计信息
@@ -562,14 +558,13 @@ async def get_rule_engine_stats(
     except Exception as e:
         logger.error(f"Failed to get rule engine stats: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get rule engine statistics: {str(e)}"
+            status_code=500, detail=f"Failed to get rule engine statistics: {str(e)}"
         )
 
 
 @router.get("/engine/scheduling")
 async def get_scheduling_engine_stats(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     获取调度引擎统计信息
@@ -600,14 +595,14 @@ async def get_scheduling_engine_stats(
     except Exception as e:
         logger.error(f"Failed to get scheduling engine stats: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get scheduling engine statistics: {str(e)}"
+            status_code=500, detail=f"Failed to get scheduling engine statistics: {str(e)}"
         )
 
 
 # ============================================================================
 # 辅助端点
 # ============================================================================
+
 
 @router.get("/strategies")
 async def get_available_strategies():
@@ -619,18 +614,20 @@ async def get_available_strategies():
     """
     strategies = []
     for strategy in BehaviorStrategy:
-        strategies.append({
-            "value": strategy.value,
-            "label": strategy.value.replace("_", " ").title(),
-            "description": _get_strategy_description(strategy)
-        })
+        strategies.append(
+            {
+                "value": strategy.value,
+                "label": strategy.value.replace("_", " ").title(),
+                "description": _get_strategy_description(strategy),
+            }
+        )
 
     return {"strategies": strategies}
 
 
 @router.get("/status")
 async def get_behavior_controller_status(
-    controller: BehaviorController = Depends(get_behavior_controller_dependency)
+    controller: BehaviorController = Depends(get_behavior_controller_dependency),
 ):
     """
     获取行为控制器状态
@@ -661,17 +658,13 @@ async def get_behavior_controller_status(
             "probabilistic": check_engine_available(
                 controller._probabilistic_engine,
                 "app.core.probabilistic_engine",
-                "ProbabilisticEngine"
+                "ProbabilisticEngine",
             ),
             "rule": check_engine_available(
-                controller._rule_engine,
-                "app.core.rule_engine",
-                "RuleEngine"
+                controller._rule_engine, "app.core.rule_engine", "RuleEngine"
             ),
             "scheduling": check_engine_available(
-                controller._scheduling_engine,
-                "app.core.scheduling_engine",
-                "SchedulingEngine"
+                controller._scheduling_engine, "app.core.scheduling_engine", "SchedulingEngine"
             ),
         }
 
@@ -699,6 +692,7 @@ async def get_behavior_controller_status(
 # ============================================================================
 # 辅助函数
 # ============================================================================
+
 
 def _get_strategy_description(strategy: BehaviorStrategy) -> str:
     """获取策略描述"""

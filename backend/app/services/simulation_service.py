@@ -72,9 +72,6 @@ class SimulationService:
         self.total_interactions = 0
         self.polarization = 0.0
 
-        # 行为控制器（延迟初始化）
-        self._behavior_controller = None
-
         logger.info("Simulation Service initialized")
 
     # ========================================================================
@@ -226,19 +223,6 @@ class SimulationService:
                 "timestamp": datetime.now().isoformat(),
             }
 
-    async def _get_behavior_controller(self):
-        """
-        获取行为控制器实例（延迟初始化）
-
-        Returns:
-            BehaviorController实例
-        """
-        if self._behavior_controller is None:
-            self._behavior_controller = await get_behavior_controller()
-            logger.info("Behavior Controller initialized in Simulation Service")
-
-        return self._behavior_controller
-
     async def _build_actions(
         self, request: StepRequest
     ) -> Dict[SocialAgent, Union[LLMAction, ManualAction]]:
@@ -259,30 +243,9 @@ class SimulationService:
 
         # 根据步骤类型构建动作
         if request.step_type == StepType.AUTO:
-            # 智能行为决策：使用行为控制器或LLM自动决策
-            try:
-                # 获取行为控制器
-                behavior_controller = await self._get_behavior_controller()
-
-                # 构建上下文信息
-                context = {
-                    'current_step': self.oasis_manager._current_step,
-                    'platform': self.oasis_manager._platform_type,
-                    'simulation_state': self.oasis_manager.get_state_info(),
-                    'step_type': request.step_type.value,
-                    'agent_filter': request.agent_filter,
-                }
-
-                # 为每个智能体决定动作
-                for agent in agents:
-                    action = await behavior_controller.decide_action(agent, context)
-                    actions[agent] = action
-
-            except Exception as e:
-                logger.warning(f"Behavior controller failed, falling back to LLM autonomous: {e}")
-                # 降级到LLM自动决策
-                for agent in agents:
-                    actions[agent] = LLMAction()
+            # LLM 自动决策
+            for agent in agents:
+                actions[agent] = LLMAction()
 
         elif request.step_type == StepType.MANUAL:
             # 手动控制
@@ -294,11 +257,6 @@ class SimulationService:
                         action_type=action_type,
                         action_args=manual_action.action_args
                     )
-        else:
-            # 未知步骤类型，使用LLM自动决策
-            logger.warning(f"Unknown step type: {request.step_type}, using LLM autonomous")
-            for agent in agents:
-                actions[agent] = LLMAction()
 
         return actions
 
@@ -848,10 +806,6 @@ class SimulationService:
         """清理服务资源"""
         try:
             await self._cleanup_background_tasks()
-
-            # 清理行为控制器引用
-            self._behavior_controller = None
-
             logger.info("Simulation Service cleaned up")
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")

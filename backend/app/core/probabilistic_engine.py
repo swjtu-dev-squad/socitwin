@@ -8,30 +8,27 @@ and platform-specific action filtering.
 
 import logging
 import random
-from typing import List, Dict, Any, Optional, Tuple
-import math
+from typing import Any, Dict, List, Optional, Tuple
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction, SocialAgent
 
 # Local imports
-from app.models.behavior import (
-    ProbabilityDistribution,
-    ActionProbability,
-    BehaviorContext
-)
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.behavior import BehaviorContext, ProbabilityDistribution
+from app.models.simulation import OASISActionType, PlatformType
 
 logger = logging.getLogger(__name__)
 
 
 class ProbabilisticEngineError(Exception):
     """Probabilistic engine error base class"""
+
     pass
 
 
 class NoValidActionsError(ProbabilisticEngineError):
     """No valid actions available error"""
+
     pass
 
 
@@ -68,10 +65,7 @@ class ProbabilisticEngine:
     # ========================================================================
 
     async def select_action(
-        self,
-        agent: SocialAgent,
-        distribution: ProbabilityDistribution,
-        context: BehaviorContext
+        self, agent: SocialAgent, distribution: ProbabilityDistribution, context: BehaviorContext
     ) -> ManualAction:
         """
         Select action based on probability distribution
@@ -95,20 +89,18 @@ class ProbabilisticEngine:
                 raise NoValidActionsError("No actions available for agent")
 
             # Filter and weight actions based on distribution
-            weighted_actions = self._apply_distribution(
-                distribution, available_actions, context
-            )
+            weighted_actions = self._apply_distribution(distribution, available_actions, context)
 
             if not weighted_actions:
                 raise NoValidActionsError("No actions after applying distribution")
 
             # Select action using weighted random choice
-            selected_action_type, selected_probability = self._weighted_random_choice(weighted_actions)
+            selected_action_type, selected_probability = self._weighted_random_choice(
+                weighted_actions
+            )
 
             # Generate action arguments
-            action_args = self._generate_action_args(
-                selected_action_type, agent, context
-            )
+            action_args = self._generate_action_args(selected_action_type, agent, context)
 
             # Update statistics
             self._update_statistics(selected_action_type.value)
@@ -120,8 +112,7 @@ class ProbabilisticEngine:
 
             # Create and return ManualAction
             return ManualAction(
-                action_type=getattr(ActionType, selected_action_type.value),
-                action_args=action_args
+                action_type=getattr(ActionType, selected_action_type.value), action_args=action_args
             )
 
         except NoValidActionsError as e:
@@ -135,7 +126,7 @@ class ProbabilisticEngine:
         self,
         agents: List[SocialAgent],
         distribution: ProbabilityDistribution,
-        context: BehaviorContext
+        context: BehaviorContext,
     ) -> Dict[SocialAgent, ManualAction]:
         """
         Select actions for multiple agents
@@ -196,7 +187,7 @@ class ProbabilisticEngine:
         self,
         distribution: ProbabilityDistribution,
         available_actions: List[OASISActionType],
-        context: BehaviorContext
+        context: BehaviorContext,
     ) -> List[Tuple[OASISActionType, float]]:
         """
         Apply probability distribution to available actions
@@ -238,9 +229,7 @@ class ProbabilisticEngine:
         return weighted_actions
 
     def _check_conditions(
-        self,
-        conditions: Optional[Dict[str, Any]],
-        context: BehaviorContext
+        self, conditions: Optional[Dict[str, Any]], context: BehaviorContext
     ) -> bool:
         """
         Check if conditions are met
@@ -255,7 +244,7 @@ class ProbabilisticEngine:
         if not conditions:
             return True
 
-        context_dict = context.dict()
+        context_dict = context.model_dump()
 
         for key, value in conditions.items():
             # Check if key exists in context
@@ -273,8 +262,7 @@ class ProbabilisticEngine:
     # ========================================================================
 
     def _weighted_random_choice(
-        self,
-        weighted_actions: List[Tuple[OASISActionType, float]]
+        self, weighted_actions: List[Tuple[OASISActionType, float]]
     ) -> Tuple[OASISActionType, float]:
         """
         Select action using weighted random choice
@@ -289,17 +277,12 @@ class ProbabilisticEngine:
         actions, probabilities = zip(*weighted_actions)
 
         # Make selection
-        selected_index = random.choices(
-            range(len(actions)),
-            weights=probabilities,
-            k=1
-        )[0]
+        selected_index = random.choices(range(len(actions)), weights=probabilities, k=1)[0]
 
         return actions[selected_index], probabilities[selected_index]
 
     def _normalize_probabilities(
-        self,
-        weighted_actions: List[Tuple[OASISActionType, float]]
+        self, weighted_actions: List[Tuple[OASISActionType, float]]
     ) -> List[Tuple[OASISActionType, float]]:
         """
         Normalize probabilities to sum to 1.0
@@ -333,9 +316,7 @@ class ProbabilisticEngine:
     # ========================================================================
 
     def _get_available_actions(
-        self,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, agent: SocialAgent, context: BehaviorContext
     ) -> List[OASISActionType]:
         """
         Get available actions for agent
@@ -363,10 +344,7 @@ class ProbabilisticEngine:
         return filtered_actions
 
     def _is_action_available(
-        self,
-        action_type: OASISActionType,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, action_type: OASISActionType, agent: SocialAgent, context: BehaviorContext
     ) -> bool:
         """
         Check if an action is available for the agent
@@ -386,8 +364,12 @@ class ProbabilisticEngine:
             # Always available to create posts
             return True
 
-        elif action_type in [OASISActionType.LIKE_POST, OASISActionType.DISLIKE_POST,
-                           OASISActionType.CREATE_COMMENT, OASISActionType.QUOTE_POST]:
+        elif action_type in [
+            OASISActionType.LIKE_POST,
+            OASISActionType.DISLIKE_POST,
+            OASISActionType.CREATE_COMMENT,
+            OASISActionType.QUOTE_POST,
+        ]:
             # Need to have posts in feed
             # Simplified check - in real implementation would check agent's feed
             return context.current_step > 0  # Assume posts exist after step 0
@@ -404,10 +386,7 @@ class ProbabilisticEngine:
         return True
 
     def _generate_action_args(
-        self,
-        action_type: OASISActionType,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, action_type: OASISActionType, agent: SocialAgent, context: BehaviorContext
     ) -> Dict[str, Any]:
         """
         Generate action arguments for selected action
@@ -434,15 +413,13 @@ class ProbabilisticEngine:
             args = self._generate_quote_content(agent, context)
 
         # Add agent context
-        args['agent_id'] = agent.social_agent_id
-        args['step'] = context.current_step
+        args["agent_id"] = agent.social_agent_id
+        args["step"] = context.current_step
 
         return args
 
     def _generate_post_content(
-        self,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, agent: SocialAgent, context: BehaviorContext
     ) -> Dict[str, Any]:
         """
         Generate content for a post
@@ -475,9 +452,7 @@ class ProbabilisticEngine:
         }
 
     def _generate_comment_content(
-        self,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, agent: SocialAgent, context: BehaviorContext
     ) -> Dict[str, Any]:
         """
         Generate content for a comment
@@ -506,9 +481,7 @@ class ProbabilisticEngine:
         }
 
     def _generate_quote_content(
-        self,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, agent: SocialAgent, context: BehaviorContext
     ) -> Dict[str, Any]:
         """
         Generate content for a quote post
@@ -553,10 +526,7 @@ class ProbabilisticEngine:
     # Platform Configuration
     # ========================================================================
 
-    def _load_platform_actions(
-        self,
-        platform: PlatformType
-    ) -> List[OASISActionType]:
+    def _load_platform_actions(self, platform: PlatformType) -> List[OASISActionType]:
         """
         Load available actions for platform
 
@@ -619,10 +589,7 @@ class ProbabilisticEngine:
                 OASISActionType.DO_NOTHING,
             ]
 
-    def _load_default_action_args(
-        self,
-        platform: PlatformType
-    ) -> Dict[str, Dict[str, Any]]:
+    def _load_default_action_args(self, platform: PlatformType) -> Dict[str, Dict[str, Any]]:
         """
         Load default action arguments for platform
 

@@ -7,38 +7,39 @@ and rule prioritization.
 """
 
 import logging
-import random
-from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction, SocialAgent
 
 # Local imports
 from app.models.behavior import (
+    BehaviorContext,
     BehaviorRule,
-    RuleSet,
-    RuleCondition,
     ConditionOperator,
-    BehaviorContext
+    RuleCondition,
 )
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.simulation import OASISActionType
 
 logger = logging.getLogger(__name__)
 
 
 class RuleEngineError(Exception):
     """Rule engine error base class"""
+
     pass
 
 
 class RuleEvaluationError(RuleEngineError):
     """Error during rule evaluation"""
+
     pass
 
 
 class InvalidRuleError(RuleEngineError):
     """Invalid rule configuration error"""
+
     pass
 
 
@@ -83,9 +84,7 @@ class RuleEngine:
     # ========================================================================
 
     async def evaluate_rules(
-        self,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, agent: SocialAgent, context: BehaviorContext
     ) -> Optional[ManualAction]:
         """
         Evaluate all rules for an agent and return action if any rule triggers
@@ -115,9 +114,7 @@ class RuleEngine:
                     # Rule triggered!
                     self._update_rule_trigger_count(rule.rule_id)
 
-                    logger.debug(
-                        f"Rule '{rule.name}' triggered for agent {agent.social_agent_id}"
-                    )
+                    logger.debug(f"Rule '{rule.name}' triggered for agent {agent.social_agent_id}")
 
                     # Generate action with arguments
                     action = self._create_action_from_rule(rule, agent, context)
@@ -132,9 +129,7 @@ class RuleEngine:
             raise RuleEvaluationError(f"Rule evaluation failed: {str(e)}")
 
     async def batch_evaluate_rules(
-        self,
-        agents: List[SocialAgent],
-        context: BehaviorContext
+        self, agents: List[SocialAgent], context: BehaviorContext
     ) -> Dict[SocialAgent, Optional[ManualAction]]:
         """
         Evaluate rules for multiple agents
@@ -318,11 +313,7 @@ class RuleEngine:
     # Rule Evaluation
     # ========================================================================
 
-    def _evaluate_rule_conditions(
-        self,
-        rule: BehaviorRule,
-        context: BehaviorContext
-    ) -> bool:
+    def _evaluate_rule_conditions(self, rule: BehaviorRule, context: BehaviorContext) -> bool:
         """
         Evaluate all conditions for a rule
 
@@ -337,7 +328,7 @@ class RuleEngine:
             # Rule with no conditions always triggers
             return True
 
-        context_dict = context.dict()
+        context_dict = context.model_dump()
 
         for condition in rule.conditions:
             if not self._evaluate_condition(condition, context_dict):
@@ -346,11 +337,7 @@ class RuleEngine:
         # All conditions passed
         return True
 
-    def _evaluate_condition(
-        self,
-        condition: RuleCondition,
-        context_dict: Dict[str, Any]
-    ) -> bool:
+    def _evaluate_condition(self, condition: RuleCondition, context_dict: Dict[str, Any]) -> bool:
         """
         Evaluate a single condition
 
@@ -480,10 +467,7 @@ class RuleEngine:
     # ========================================================================
 
     def _create_action_from_rule(
-        self,
-        rule: BehaviorRule,
-        agent: SocialAgent,
-        context: BehaviorContext
+        self, rule: BehaviorRule, agent: SocialAgent, context: BehaviorContext
     ) -> ManualAction:
         """
         Create ManualAction from triggered rule
@@ -500,10 +484,10 @@ class RuleEngine:
         action_args = rule.action_args.copy() if rule.action_args else {}
 
         # Add agent context
-        action_args['agent_id'] = agent.social_agent_id
-        action_args['step'] = context.current_step
-        action_args['platform'] = context.platform.value
-        action_args['rule_id'] = rule.rule_id
+        action_args["agent_id"] = agent.social_agent_id
+        action_args["step"] = context.current_step
+        action_args["platform"] = context.platform.value
+        action_args["rule_id"] = rule.rule_id
 
         # Map OASISActionType to ActionType
         try:
@@ -513,10 +497,7 @@ class RuleEngine:
             raise RuleEvaluationError(f"Invalid action type: {rule.action.value}")
 
         # Create and return ManualAction
-        return ManualAction(
-            action_type=oasis_action_type,
-            action_args=action_args
-        )
+        return ManualAction(action_type=oasis_action_type, action_args=action_args)
 
     # ========================================================================
     # Rule Management
@@ -528,7 +509,7 @@ class RuleEngine:
         self._sorted_rules = sorted(
             self.rules,
             key=lambda r: r.priority,
-            reverse=True  # Higher priority first
+            reverse=True,  # Higher priority first
         )
 
         # Rebuild index

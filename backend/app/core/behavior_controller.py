@@ -7,37 +7,39 @@ and integrates with the existing LLM autonomous decision system.
 
 import logging
 import random
-from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 
 # OASIS framework imports
-from oasis import SocialAgent, LLMAction, ManualAction, ActionType
+from oasis import LLMAction, ManualAction, SocialAgent
 
 # Local imports
 from app.core.oasis_manager import OASISManager
 from app.models.behavior import (
     AgentBehaviorConfig,
-    BehaviorStrategy,
     BehaviorContext,
-    create_default_behavior_config
+    BehaviorStrategy,
+    create_default_behavior_config,
 )
-from app.models.simulation import PlatformType, OASISActionType
 
 logger = logging.getLogger(__name__)
 
 
 class BehaviorControllerError(Exception):
     """Behavior controller error base class"""
+
     pass
 
 
 class BehaviorDecisionError(BehaviorControllerError):
     """Error during behavior decision making"""
+
     pass
 
 
 class StrategyNotImplementedError(BehaviorControllerError):
     """Strategy not implemented error"""
+
     pass
 
 
@@ -101,9 +103,7 @@ class BehaviorController:
     # ========================================================================
 
     async def decide_action(
-        self,
-        agent: SocialAgent,
-        context: Optional[Dict[str, Any]] = None
+        self, agent: SocialAgent, context: Optional[Dict[str, Any]] = None
     ) -> Union[LLMAction, ManualAction]:
         """
         Decide action for an agent based on its behavior configuration
@@ -133,8 +133,10 @@ class BehaviorController:
             behavior_context = self._build_behavior_context(agent, context)
 
             # Check configuration conditions
-            if not behavior_config.is_active(behavior_context.dict()):
-                logger.debug(f"Behavior config not active for agent {agent_id}, using LLM autonomous")
+            if not behavior_config.is_active(behavior_context.model_dump()):
+                logger.debug(
+                    f"Behavior config not active for agent {agent_id}, using LLM autonomous"
+                )
                 return LLMAction()
 
             # Make decision based on strategy
@@ -146,7 +148,10 @@ class BehaviorController:
             # Update agent state
             self._update_agent_state(agent_id, behavior_config.strategy, decision)
 
-            logger.debug(f"Agent {agent_id} decision: {behavior_config.strategy} -> {type(decision).__name__}")
+            logger.debug(
+                f"Agent {agent_id} decision: "
+                f"{behavior_config.strategy} -> {type(decision).__name__}"
+            )
             return decision
 
         except Exception as e:
@@ -155,9 +160,7 @@ class BehaviorController:
             return LLMAction()
 
     async def batch_decide_actions(
-        self,
-        agents: List[SocialAgent],
-        context: Optional[Dict[str, Any]] = None
+        self, agents: List[SocialAgent], context: Optional[Dict[str, Any]] = None
     ) -> Dict[SocialAgent, Union[LLMAction, ManualAction]]:
         """
         Decide actions for multiple agents
@@ -182,9 +185,7 @@ class BehaviorController:
     # ========================================================================
 
     async def update_agent_behavior(
-        self,
-        agent_id: int,
-        behavior_config: AgentBehaviorConfig
+        self, agent_id: int, behavior_config: AgentBehaviorConfig
     ) -> bool:
         """
         Update behavior configuration for an agent
@@ -207,8 +208,8 @@ class BehaviorController:
             if agent_id not in self.agent_behavior_state:
                 self.agent_behavior_state[agent_id] = {}
 
-            self.agent_behavior_state[agent_id]['config'] = behavior_config
-            self.agent_behavior_state[agent_id]['updated_at'] = datetime.now()
+            self.agent_behavior_state[agent_id]["config"] = behavior_config
+            self.agent_behavior_state[agent_id]["updated_at"] = datetime.now()
 
             logger.info(f"Updated behavior config for agent {agent_id}: {behavior_config.strategy}")
             return True
@@ -217,10 +218,7 @@ class BehaviorController:
             logger.error(f"Failed to update behavior for agent {agent_id}: {e}")
             return False
 
-    async def get_agent_behavior(
-        self,
-        agent_id: int
-    ) -> Optional[AgentBehaviorConfig]:
+    async def get_agent_behavior(self, agent_id: int) -> Optional[AgentBehaviorConfig]:
         """
         Get behavior configuration for an agent
 
@@ -241,7 +239,9 @@ class BehaviorController:
             logger.error(f"Failed to get behavior for agent {agent_id}: {e}")
             return None
 
-    def get_strategy_stats(self, use_configuration: bool = False) -> Dict[BehaviorStrategy, Dict[str, Any]]:
+    def get_strategy_stats(
+        self, use_configuration: bool = False
+    ) -> Dict[BehaviorStrategy, Dict[str, Any]]:
         """
         Get statistics about strategy usage
 
@@ -267,7 +267,7 @@ class BehaviorController:
             stats[strategy] = {
                 "count": count,
                 "percentage": round(percentage, 2),
-                "last_updated": datetime.now()
+                "last_updated": datetime.now(),
             }
 
         return stats
@@ -284,7 +284,7 @@ class BehaviorController:
 
         # Count strategies from agent configurations
         for agent_id, state in self.agent_behavior_state.items():
-            config = state.get('config')
+            config = state.get("config")
             if config:
                 strategy = config.strategy
                 config_counts[strategy] = config_counts.get(strategy, 0) + 1
@@ -294,11 +294,7 @@ class BehaviorController:
         if total_configs == 0:
             stats = {}
             for strategy in BehaviorStrategy:
-                stats[strategy] = {
-                    "count": 0,
-                    "percentage": 0.0,
-                    "last_updated": datetime.now()
-                }
+                stats[strategy] = {"count": 0, "percentage": 0.0, "last_updated": datetime.now()}
             return stats
 
         # Calculate percentages
@@ -308,7 +304,7 @@ class BehaviorController:
             stats[strategy] = {
                 "count": count,
                 "percentage": round(percentage, 2),
-                "last_updated": datetime.now()
+                "last_updated": datetime.now(),
             }
 
         return stats
@@ -318,10 +314,7 @@ class BehaviorController:
     # ========================================================================
 
     async def _make_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
     ) -> Union[LLMAction, ManualAction]:
         """
         Make decision based on strategy
@@ -355,10 +348,7 @@ class BehaviorController:
             raise StrategyNotImplementedError(f"Strategy not implemented: {strategy}")
 
     async def _llm_autonomous_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
     ) -> LLMAction:
         """
         LLM autonomous decision (original behavior)
@@ -375,11 +365,8 @@ class BehaviorController:
         return LLMAction()
 
     async def _probabilistic_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
-    ) -> ManualAction:
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
+    ) -> Union[LLMAction, ManualAction]:
         """
         Probabilistic decision based on configured distribution
 
@@ -402,14 +389,15 @@ class BehaviorController:
             # Get probability distribution
             distribution = config.probability_distribution
             if not distribution:
-                logger.warning(f"No probability distribution for agent {agent.social_agent_id}, using LLM autonomous")
+                logger.warning(
+                    f"No probability distribution for agent "
+                    f"{agent.social_agent_id}, using LLM autonomous"
+                )
                 return LLMAction()
 
             # Let probabilistic engine decide
             return await self._probabilistic_engine.select_action(
-                agent=agent,
-                distribution=distribution,
-                context=context
+                agent=agent, distribution=distribution, context=context
             )
 
         except ImportError:
@@ -420,10 +408,7 @@ class BehaviorController:
             return LLMAction()
 
     async def _rule_based_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
     ) -> Union[LLMAction, ManualAction]:
         """
         Rule-based decision
@@ -459,7 +444,9 @@ class BehaviorController:
                 return action
             else:
                 # No rule triggered, use LLM autonomous
-                logger.debug(f"No rules triggered for agent {agent.social_agent_id}, using LLM autonomous")
+                logger.debug(
+                    f"No rules triggered for agent {agent.social_agent_id}, using LLM autonomous"
+                )
                 return LLMAction()
 
         except ImportError:
@@ -470,10 +457,7 @@ class BehaviorController:
             return LLMAction()
 
     async def _scheduled_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
     ) -> Union[LLMAction, ManualAction]:
         """
         Scheduled decision based on timeline
@@ -501,16 +485,17 @@ class BehaviorController:
 
             # Get scheduled action for current step
             action = await self._scheduling_engine.get_scheduled_action(
-                agent_id=agent.social_agent_id,
-                schedule=schedule,
-                current_step=context.current_step
+                agent_id=agent.social_agent_id, schedule=schedule, current_step=context.current_step
             )
 
             if action:
                 return action
             else:
                 # No scheduled event for this step, use LLMAction
-                logger.debug(f"No scheduled event for agent {agent.social_agent_id} at step {context.current_step}, using LLMAction")
+                logger.debug(
+                    f"No scheduled event for agent {agent.social_agent_id} "
+                    f"at step {context.current_step}, using LLMAction"
+                )
                 return LLMAction()
 
         except ImportError:
@@ -521,10 +506,7 @@ class BehaviorController:
             return LLMAction()
 
     async def _mixed_decision(
-        self,
-        agent: SocialAgent,
-        config: AgentBehaviorConfig,
-        context: BehaviorContext
+        self, agent: SocialAgent, config: AgentBehaviorConfig, context: BehaviorContext
     ) -> Union[LLMAction, ManualAction]:
         """
         Mixed strategy decision
@@ -540,7 +522,9 @@ class BehaviorController:
         try:
             mixed_config = config.mixed_strategy
             if not mixed_config or not mixed_config.strategy_weights:
-                logger.warning(f"No mixed strategy config for agent {agent.social_agent_id}, using LLMAction")
+                logger.warning(
+                    f"No mixed strategy config for agent {agent.social_agent_id}, using LLMAction"
+                )
                 return LLMAction()
 
             # Select strategy based on weights
@@ -564,10 +548,7 @@ class BehaviorController:
     # Helper Methods
     # ========================================================================
 
-    async def _get_agent_behavior_config(
-        self,
-        agent: SocialAgent
-    ) -> AgentBehaviorConfig:
+    async def _get_agent_behavior_config(self, agent: SocialAgent) -> AgentBehaviorConfig:
         """
         Get behavior configuration for an agent
 
@@ -582,20 +563,22 @@ class BehaviorController:
         # Check if we have stored configuration
         if agent_id in self.agent_behavior_state:
             state = self.agent_behavior_state[agent_id]
-            if 'config' in state:
-                return state['config']
+            if "config" in state:
+                return state["config"]
 
         # Try to get from agent user info profile
         try:
-            profile = getattr(agent.user_info, 'profile', None)
-            if profile and 'behavior_config' in profile:
+            profile = getattr(agent.user_info, "profile", None)
+            if profile and "behavior_config" in profile:
                 # Parse from profile
                 import json
-                config_dict = profile['behavior_config']
+
+                config_dict = profile["behavior_config"]
                 if isinstance(config_dict, str):
                     config_dict = json.loads(config_dict)
 
                 from app.models.behavior import AgentBehaviorConfig
+
                 return AgentBehaviorConfig(**config_dict)
         except Exception as e:
             logger.debug(f"Failed to parse behavior config from profile: {e}")
@@ -604,9 +587,7 @@ class BehaviorController:
         return create_default_behavior_config()
 
     def _build_behavior_context(
-        self,
-        agent: SocialAgent,
-        external_context: Optional[Dict[str, Any]] = None
+        self, agent: SocialAgent, external_context: Optional[Dict[str, Any]] = None
     ) -> BehaviorContext:
         """
         Build behavior context for decision making
@@ -622,15 +603,15 @@ class BehaviorController:
 
         # Base context
         context_dict = {
-            'current_step': self.oasis_manager._current_step,
-            'platform': self.oasis_manager._platform_type,
-            'agent_id': agent.social_agent_id,
-            'agent_state': self._get_agent_state(agent),
-            'simulation_state': self.oasis_manager.get_state_info(),
-            'recent_actions': self._get_recent_actions(agent.social_agent_id),
-            'timestamp': datetime.now(),
+            "current_step": self.oasis_manager._current_step,
+            "platform": self.oasis_manager._platform_type,
+            "agent_id": agent.social_agent_id,
+            "agent_state": self._get_agent_state(agent),
+            "simulation_state": self.oasis_manager.get_state_info(),
+            "recent_actions": self._get_recent_actions(agent.social_agent_id),
+            "timestamp": datetime.now(),
             # Probability bucket for rule-based probabilistic behavior (0-99)
-            'probability_bucket': (agent.social_agent_id + self.oasis_manager._current_step) % 100,
+            "probability_bucket": (agent.social_agent_id + self.oasis_manager._current_step) % 100,
         }
 
         # Merge external context
@@ -653,10 +634,10 @@ class BehaviorController:
         agent_id = agent.social_agent_id
 
         state = {
-            'id': agent_id,
-            'user_name': agent.user_info.user_name,
-            'name': agent.user_info.name,
-            'description': agent.user_info.description,
+            "id": agent_id,
+            "user_name": agent.user_info.user_name,
+            "name": agent.user_info.name,
+            "description": agent.user_info.description,
         }
 
         # Add behavior state if available
@@ -680,10 +661,7 @@ class BehaviorController:
         return []
 
     def _update_agent_state(
-        self,
-        agent_id: int,
-        strategy: BehaviorStrategy,
-        decision: Union[LLMAction, ManualAction]
+        self, agent_id: int, strategy: BehaviorStrategy, decision: Union[LLMAction, ManualAction]
     ) -> None:
         """
         Update agent behavior state
@@ -697,14 +675,14 @@ class BehaviorController:
             self.agent_behavior_state[agent_id] = {}
 
         state = self.agent_behavior_state[agent_id]
-        state['last_strategy'] = strategy
-        state['last_decision'] = type(decision).__name__
-        state['last_decision_time'] = datetime.now()
+        state["last_strategy"] = strategy
+        state["last_decision"] = type(decision).__name__
+        state["last_decision_time"] = datetime.now()
 
         # Track decision count
-        if 'decision_count' not in state:
-            state['decision_count'] = 0
-        state['decision_count'] += 1
+        if "decision_count" not in state:
+            state["decision_count"] = 0
+        state["decision_count"] += 1
 
     # ========================================================================
     # Utility Methods
@@ -730,7 +708,7 @@ _behavior_controller = None
 
 
 async def get_behavior_controller(
-    oasis_manager: Optional[OASISManager] = None
+    oasis_manager: Optional[OASISManager] = None,
 ) -> BehaviorController:
     """
     Get behavior controller instance (singleton pattern)
@@ -746,6 +724,7 @@ async def get_behavior_controller(
     if _behavior_controller is None:
         if oasis_manager is None:
             from app.core.oasis_manager import get_oasis_manager
+
             oasis_manager = await get_oasis_manager()
 
         _behavior_controller = BehaviorController(oasis_manager)

@@ -6,37 +6,35 @@ configured timelines, with support for repeating events and schedule looping.
 """
 
 import logging
-import asyncio
-from typing import List, Dict, Any, Optional, Set
-from datetime import datetime, timedelta
 from collections import defaultdict
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 # OASIS framework imports
-from oasis import SocialAgent, ManualAction, ActionType
+from oasis import ActionType, ManualAction
 
 # Local imports
-from app.models.behavior import (
-    BehaviorSchedule,
-    TimelineEvent,
-    BehaviorContext
-)
-from app.models.simulation import PlatformType, OASISActionType
+from app.models.behavior import BehaviorSchedule, TimelineEvent
+from app.models.simulation import OASISActionType
 
 logger = logging.getLogger(__name__)
 
 
 class SchedulingEngineError(Exception):
     """Scheduling engine error base class"""
+
     pass
 
 
 class ScheduleNotFoundError(SchedulingEngineError):
     """Schedule not found error"""
+
     pass
 
 
 class InvalidScheduleError(SchedulingEngineError):
     """Invalid schedule configuration error"""
+
     pass
 
 
@@ -76,10 +74,7 @@ class SchedulingEngine:
     # ========================================================================
 
     async def get_scheduled_action(
-        self,
-        agent_id: int,
-        schedule: BehaviorSchedule,
-        current_step: int
+        self, agent_id: int, schedule: BehaviorSchedule, current_step: int
     ) -> Optional[ManualAction]:
         """
         Get scheduled action for an agent at current step
@@ -128,8 +123,7 @@ class SchedulingEngine:
             self._update_statistics(agent_id, event)
 
             logger.debug(
-                f"Agent {agent_id} scheduled action '{event.action.value}' "
-                f"at step {current_step}"
+                f"Agent {agent_id} scheduled action '{event.action.value}' at step {current_step}"
             )
 
             return action
@@ -138,11 +132,7 @@ class SchedulingEngine:
             logger.error(f"Failed to get scheduled action for agent {agent_id}: {e}")
             return None
 
-    async def load_schedule(
-        self,
-        agent_id: int,
-        schedule: BehaviorSchedule
-    ) -> bool:
+    async def load_schedule(self, agent_id: int, schedule: BehaviorSchedule) -> bool:
         """
         Load schedule for an agent
 
@@ -204,11 +194,7 @@ class SchedulingEngine:
             logger.error(f"Failed to unload schedule for agent {agent_id}: {e}")
             return False
 
-    async def update_schedule(
-        self,
-        agent_id: int,
-        schedule: BehaviorSchedule
-    ) -> bool:
+    async def update_schedule(self, agent_id: int, schedule: BehaviorSchedule) -> bool:
         """
         Update schedule for an agent
 
@@ -231,9 +217,7 @@ class SchedulingEngine:
             return False
 
     async def batch_get_scheduled_actions(
-        self,
-        agent_schedules: Dict[int, BehaviorSchedule],
-        current_step: int
+        self, agent_schedules: Dict[int, BehaviorSchedule], current_step: int
     ) -> Dict[int, Optional[ManualAction]]:
         """
         Get scheduled actions for multiple agents
@@ -265,10 +249,7 @@ class SchedulingEngine:
         """
         return self._agent_schedules.get(agent_id)
 
-    def get_schedule_progress(
-        self,
-        agent_id: int
-    ) -> Dict[str, Any]:
+    def get_schedule_progress(self, agent_id: int) -> Dict[str, Any]:
         """
         Get progress information for an agent's schedule
 
@@ -286,7 +267,7 @@ class SchedulingEngine:
 
         # Calculate progress
         total_events = len(schedule.timeline)
-        executed_events = len(execution_state.get('executed_events', {}))
+        executed_events = len(execution_state.get("executed_events", {}))
         upcoming_events = self._get_upcoming_events(agent_id, execution_state)
 
         # Calculate percentage if there are events
@@ -296,17 +277,17 @@ class SchedulingEngine:
             progress_percent = 0.0
 
         return {
-            'agent_id': agent_id,
-            'schedule_name': schedule.name,
-            'total_events': total_events,
-            'executed_events': executed_events,
-            'upcoming_events': len(upcoming_events),
-            'progress_percent': round(progress_percent, 2),
-            'is_looping': schedule.loop,
-            'current_cycle': execution_state.get('current_cycle', 1),
-            'last_executed_step': execution_state.get('last_executed_step'),
-            'next_scheduled_step': self._get_next_scheduled_step(agent_id, execution_state),
-            'execution_counts': self.schedule_execution_counts.get(agent_id, 0),
+            "agent_id": agent_id,
+            "schedule_name": schedule.name,
+            "total_events": total_events,
+            "executed_events": executed_events,
+            "upcoming_events": len(upcoming_events),
+            "progress_percent": round(progress_percent, 2),
+            "is_looping": schedule.loop,
+            "current_cycle": execution_state.get("current_cycle", 1),
+            "last_executed_step": execution_state.get("last_executed_step"),
+            "next_scheduled_step": self._get_next_scheduled_step(agent_id, execution_state),
+            "execution_counts": self.schedule_execution_counts.get(agent_id, 0),
         }
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -324,20 +305,20 @@ class SchedulingEngine:
             progress = self.get_schedule_progress(agent_id)
 
             schedule_stats[agent_id] = {
-                'schedule_name': schedule.name,
-                'total_events': progress['total_events'],
-                'executed_events': progress['executed_events'],
-                'progress_percent': progress['progress_percent'],
-                'execution_count': self.schedule_execution_counts.get(agent_id, 0),
-                'is_looping': schedule.loop,
+                "schedule_name": schedule.name,
+                "total_events": progress["total_events"],
+                "executed_events": progress["executed_events"],
+                "progress_percent": progress["progress_percent"],
+                "execution_count": self.schedule_execution_counts.get(agent_id, 0),
+                "is_looping": schedule.loop,
             }
 
         return {
-            'total_agents': total_agents,
-            'total_scheduled_actions': self.total_scheduled_actions,
-            'missed_events': self.missed_events,
-            'schedule_statistics': schedule_stats,
-            'last_updated': datetime.now(),
+            "total_agents": total_agents,
+            "total_scheduled_actions": self.total_scheduled_actions,
+            "missed_events": self.missed_events,
+            "schedule_statistics": schedule_stats,
+            "last_updated": datetime.now(),
         }
 
     def reset_statistics(self) -> None:
@@ -372,10 +353,7 @@ class SchedulingEngine:
     # ========================================================================
 
     def _find_events_for_step(
-        self,
-        agent_id: int,
-        current_step: int,
-        execution_state: Dict[str, Any]
+        self, agent_id: int, current_step: int, execution_state: Dict[str, Any]
     ) -> List[TimelineEvent]:
         """
         Find events scheduled for current step
@@ -395,9 +373,7 @@ class SchedulingEngine:
 
         for event in cached_events:
             # Calculate actual step considering repeats and cycles
-            actual_step = self._calculate_actual_step(
-                event, execution_state, current_step
-            )
+            actual_step = self._calculate_actual_step(event, execution_state, current_step)
 
             if actual_step == current_step:
                 events.append(event)
@@ -405,10 +381,7 @@ class SchedulingEngine:
         return events
 
     def _calculate_actual_step(
-        self,
-        event: TimelineEvent,
-        execution_state: Dict[str, Any],
-        current_step: int
+        self, event: TimelineEvent, execution_state: Dict[str, Any], current_step: int
     ) -> int:
         """
         Calculate actual step for an event considering repeats and cycles
@@ -422,11 +395,11 @@ class SchedulingEngine:
             Actual step number or -1 if not applicable
         """
         base_step = event.step
-        current_cycle = execution_state.get('current_cycle', 1)
+        current_cycle = execution_state.get("current_cycle", 1)
 
         # Adjust for schedule looping
-        if execution_state.get('schedule_looping', False):
-            schedule_length = execution_state.get('schedule_length', 0)
+        if execution_state.get("schedule_looping", False):
+            schedule_length = execution_state.get("schedule_length", 0)
             if schedule_length > 0:
                 base_step = base_step + (schedule_length * (current_cycle - 1))
 
@@ -434,9 +407,9 @@ class SchedulingEngine:
         if event.repeat_interval:
             # Get execution history for this event
             event_key = f"event_{event.step}"
-            execution_history = execution_state.get('executed_events', {}).get(event_key, {})
+            execution_history = execution_state.get("executed_events", {}).get(event_key, {})
 
-            repeat_count = execution_history.get('repeat_count', 0)
+            repeat_count = execution_history.get("repeat_count", 0)
             max_repeats = event.repeat_count
 
             # Check if we've exceeded repeat count
@@ -456,10 +429,7 @@ class SchedulingEngine:
         return base_step
 
     def _should_execute_event(
-        self,
-        event: TimelineEvent,
-        execution_state: Dict[str, Any],
-        current_step: int
+        self, event: TimelineEvent, execution_state: Dict[str, Any], current_step: int
     ) -> bool:
         """
         Check if event should be executed
@@ -474,7 +444,7 @@ class SchedulingEngine:
         """
         # Check if event has already been executed at this step
         event_key = f"event_{event.step}"
-        executed_events = execution_state.get('executed_events', {})
+        executed_events = execution_state.get("executed_events", {})
 
         if event_key in executed_events:
             event_state = executed_events[event_key]
@@ -484,22 +454,19 @@ class SchedulingEngine:
                 return False
 
             # For repeating events, check repeat count
-            repeat_count = event_state.get('repeat_count', 0)
+            repeat_count = event_state.get("repeat_count", 0)
             if event.repeat_count and repeat_count >= event.repeat_count:
                 return False
 
             # Check if this specific repeat has been executed
-            last_executed_step = event_state.get('last_executed_step')
+            last_executed_step = event_state.get("last_executed_step")
             if last_executed_step == current_step:
                 return False
 
         return True
 
     def _update_event_execution(
-        self,
-        event: TimelineEvent,
-        execution_state: Dict[str, Any],
-        current_step: int
+        self, event: TimelineEvent, execution_state: Dict[str, Any], current_step: int
     ) -> None:
         """
         Update execution state for an event
@@ -512,36 +479,36 @@ class SchedulingEngine:
         event_key = f"event_{event.step}"
 
         # Initialize executed events dict if needed
-        if 'executed_events' not in execution_state:
-            execution_state['executed_events'] = {}
+        if "executed_events" not in execution_state:
+            execution_state["executed_events"] = {}
 
         # Get or create event state
-        if event_key not in execution_state['executed_events']:
-            execution_state['executed_events'][event_key] = {
-                'event_step': event.step,
-                'action': event.action.value,
-                'repeat_count': 0,
-                'last_executed_step': None,
-                'first_executed_step': current_step,
+        if event_key not in execution_state["executed_events"]:
+            execution_state["executed_events"][event_key] = {
+                "event_step": event.step,
+                "action": event.action.value,
+                "repeat_count": 0,
+                "last_executed_step": None,
+                "first_executed_step": current_step,
             }
 
-        event_state = execution_state['executed_events'][event_key]
+        event_state = execution_state["executed_events"][event_key]
 
         # Update execution details
-        event_state['last_executed_step'] = current_step
-        event_state['repeat_count'] = event_state.get('repeat_count', 0) + 1
-        event_state['last_execution_time'] = datetime.now()
+        event_state["last_executed_step"] = current_step
+        event_state["repeat_count"] = event_state.get("repeat_count", 0) + 1
+        event_state["last_execution_time"] = datetime.now()
 
         # Update overall execution state
-        execution_state['last_executed_step'] = current_step
-        execution_state['last_execution_time'] = datetime.now()
+        execution_state["last_executed_step"] = current_step
+        execution_state["last_execution_time"] = datetime.now()
 
     def _handle_schedule_looping(
         self,
         agent_id: int,
         schedule: BehaviorSchedule,
         execution_state: Dict[str, Any],
-        current_step: int
+        current_step: int,
     ) -> None:
         """
         Handle schedule looping logic
@@ -563,33 +530,28 @@ class SchedulingEngine:
         schedule_length = max_step + 1  # Add 1 for zero-based steps
 
         # Store schedule length in execution state
-        execution_state['schedule_length'] = schedule_length
-        execution_state['schedule_looping'] = True
+        execution_state["schedule_length"] = schedule_length
+        execution_state["schedule_looping"] = True
 
         # Check if we need to advance to next cycle
-        current_cycle = execution_state.get('current_cycle', 1)
+        current_cycle = execution_state.get("current_cycle", 1)
         cycle_end_step = schedule_length * current_cycle
 
         if current_step >= cycle_end_step:
             # Advance to next cycle
-            execution_state['current_cycle'] = current_cycle + 1
+            execution_state["current_cycle"] = current_cycle + 1
 
             # Reset executed events for new cycle
-            execution_state['executed_events'] = {}
+            execution_state["executed_events"] = {}
 
-            logger.debug(
-                f"Agent {agent_id} schedule advanced to cycle {current_cycle + 1}"
-            )
+            logger.debug(f"Agent {agent_id} schedule advanced to cycle {current_cycle + 1}")
 
     # ========================================================================
     # Action Creation
     # ========================================================================
 
     def _create_action_from_event(
-        self,
-        event: TimelineEvent,
-        agent_id: int,
-        current_step: int
+        self, event: TimelineEvent, agent_id: int, current_step: int
     ) -> ManualAction:
         """
         Create ManualAction from timeline event
@@ -606,15 +568,15 @@ class SchedulingEngine:
         action_args = event.action_args.copy() if event.action_args else {}
 
         # Add context
-        action_args['agent_id'] = agent_id
-        action_args['step'] = current_step
-        action_args['event_step'] = event.step
-        action_args['event_description'] = event.description or ""
+        action_args["agent_id"] = agent_id
+        action_args["step"] = current_step
+        action_args["event_step"] = event.step
+        action_args["event_description"] = event.description or ""
 
         # Add repeat information for repeating events
         if event.repeat_interval:
-            action_args['repeat_interval'] = event.repeat_interval
-            action_args['repeat_count'] = event.repeat_count
+            action_args["repeat_interval"] = event.repeat_interval
+            action_args["repeat_count"] = event.repeat_count
 
         # Map OASISActionType to ActionType
         try:
@@ -624,10 +586,7 @@ class SchedulingEngine:
             raise SchedulingEngineError(f"Invalid action type: {event.action.value}")
 
         # Create and return ManualAction
-        return ManualAction(
-            action_type=oasis_action_type,
-            action_args=action_args
-        )
+        return ManualAction(action_type=oasis_action_type, action_args=action_args)
 
     # ========================================================================
     # State Management
@@ -645,11 +604,7 @@ class SchedulingEngine:
         """
         return self._agent_execution_state[agent_id]
 
-    def _initialize_execution_state(
-        self,
-        agent_id: int,
-        schedule: BehaviorSchedule
-    ) -> None:
+    def _initialize_execution_state(self, agent_id: int, schedule: BehaviorSchedule) -> None:
         """
         Initialize execution state for an agent
 
@@ -658,20 +613,20 @@ class SchedulingEngine:
             schedule: Behavior schedule
         """
         execution_state = {
-            'agent_id': agent_id,
-            'schedule_name': schedule.name,
-            'current_cycle': 1,
-            'executed_events': {},
-            'last_executed_step': None,
-            'last_execution_time': None,
-            'schedule_looping': schedule.loop,
-            'initialized_at': datetime.now(),
+            "agent_id": agent_id,
+            "schedule_name": schedule.name,
+            "current_cycle": 1,
+            "executed_events": {},
+            "last_executed_step": None,
+            "last_execution_time": None,
+            "schedule_looping": schedule.loop,
+            "initialized_at": datetime.now(),
         }
 
         # Calculate schedule length for looping schedules
         if schedule.loop and schedule.timeline:
             max_step = max(event.step for event in schedule.timeline)
-            execution_state['schedule_length'] = max_step + 1
+            execution_state["schedule_length"] = max_step + 1
 
         self._agent_execution_state[agent_id] = execution_state
 
@@ -679,11 +634,7 @@ class SchedulingEngine:
     # Event Cache Management
     # ========================================================================
 
-    def _build_event_cache(
-        self,
-        agent_id: int,
-        schedule: BehaviorSchedule
-    ) -> None:
+    def _build_event_cache(self, agent_id: int, schedule: BehaviorSchedule) -> None:
         """
         Build event cache for quick lookup
 
@@ -699,9 +650,7 @@ class SchedulingEngine:
         self._event_cache[agent_id] = events
 
     def _get_upcoming_events(
-        self,
-        agent_id: int,
-        execution_state: Dict[str, Any]
+        self, agent_id: int, execution_state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
         Get upcoming events for an agent
@@ -716,20 +665,20 @@ class SchedulingEngine:
         upcoming = []
 
         cached_events = self._event_cache.get(agent_id, [])
-        current_cycle = execution_state.get('current_cycle', 1)
-        schedule_length = execution_state.get('schedule_length', 0)
+        current_cycle = execution_state.get("current_cycle", 1)
+        schedule_length = execution_state.get("schedule_length", 0)
 
         for event in cached_events:
             # Calculate base step considering current cycle
             base_step = event.step
-            if schedule_length > 0 and execution_state.get('schedule_looping', False):
+            if schedule_length > 0 and execution_state.get("schedule_looping", False):
                 base_step = base_step + (schedule_length * (current_cycle - 1))
 
             # Check if event has repeat intervals
             if event.repeat_interval:
                 event_key = f"event_{event.step}"
-                event_state = execution_state.get('executed_events', {}).get(event_key, {})
-                repeat_count = event_state.get('repeat_count', 0)
+                event_state = execution_state.get("executed_events", {}).get(event_key, {})
+                repeat_count = event_state.get("repeat_count", 0)
 
                 # Calculate next repeat step
                 next_step = base_step + (repeat_count * event.repeat_interval)
@@ -738,39 +687,41 @@ class SchedulingEngine:
                 if event.repeat_count and repeat_count >= event.repeat_count:
                     continue
 
-                upcoming.append({
-                    'event_step': event.step,
-                    'next_step': next_step,
-                    'action': event.action.value,
-                    'description': event.description,
-                    'is_repeating': True,
-                    'repeat_count': repeat_count + 1,
-                    'max_repeats': event.repeat_count,
-                })
+                upcoming.append(
+                    {
+                        "event_step": event.step,
+                        "next_step": next_step,
+                        "action": event.action.value,
+                        "description": event.description,
+                        "is_repeating": True,
+                        "repeat_count": repeat_count + 1,
+                        "max_repeats": event.repeat_count,
+                    }
+                )
             else:
                 # Non-repeating event
                 event_key = f"event_{event.step}"
-                if event_key in execution_state.get('executed_events', {}):
+                if event_key in execution_state.get("executed_events", {}):
                     # Already executed
                     continue
 
-                upcoming.append({
-                    'event_step': event.step,
-                    'next_step': base_step,
-                    'action': event.action.value,
-                    'description': event.description,
-                    'is_repeating': False,
-                })
+                upcoming.append(
+                    {
+                        "event_step": event.step,
+                        "next_step": base_step,
+                        "action": event.action.value,
+                        "description": event.description,
+                        "is_repeating": False,
+                    }
+                )
 
         # Sort by next step
-        upcoming.sort(key=lambda e: e['next_step'])
+        upcoming.sort(key=lambda e: e["next_step"])
 
         return upcoming
 
     def _get_next_scheduled_step(
-        self,
-        agent_id: int,
-        execution_state: Dict[str, Any]
+        self, agent_id: int, execution_state: Dict[str, Any]
     ) -> Optional[int]:
         """
         Get next scheduled step for an agent
@@ -784,7 +735,7 @@ class SchedulingEngine:
         """
         upcoming = self._get_upcoming_events(agent_id, execution_state)
         if upcoming:
-            return upcoming[0]['next_step']
+            return upcoming[0]["next_step"]
         return None
 
     # ========================================================================
@@ -815,9 +766,7 @@ class SchedulingEngine:
 
             # Check for duplicate steps (non-repeating events only)
             if not event.repeat_interval and event.step in seen_steps:
-                logger.warning(
-                    f"Duplicate step {event.step} in schedule '{schedule.name}'"
-                )
+                logger.warning(f"Duplicate step {event.step} in schedule '{schedule.name}'")
             seen_steps.add(event.step)
 
     def _validate_timeline_event(self, event: TimelineEvent) -> None:
@@ -847,9 +796,7 @@ class SchedulingEngine:
                 )
 
             if event.repeat_count is not None and event.repeat_count < 1:
-                raise InvalidScheduleError(
-                    f"Repeat count must be >= 1, got {event.repeat_count}"
-                )
+                raise InvalidScheduleError(f"Repeat count must be >= 1, got {event.repeat_count}")
 
     # ========================================================================
     # Statistics

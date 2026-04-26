@@ -1,9 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Database, Cpu, Save, RefreshCw, Trash2, AlertTriangle, Plus, Edit2, X, Key, Brain, Dice1 as Dice, GitBranch, Calendar, BarChart3, AlertCircle, Zap } from 'lucide-react';
-import { Card, Button, Input, Badge } from '@/components/ui';
-import { toast } from 'sonner';
-import { getBehaviorControllerStatus, getBehaviorStatistics, applyPresetConfig, getAvailableStrategies } from '@/lib/behaviorApi';
-import type { BehaviorControllerStatus } from '@/lib/behaviorTypes';
+import React, { useState, useEffect } from 'react'
+import {
+  Settings as SettingsIcon,
+  Cpu,
+  Save,
+  RefreshCw,
+  Trash2,
+  Plus,
+  Edit2,
+  X,
+  Key,
+  Brain,
+  Dice1 as Dice,
+  GitBranch,
+  Calendar,
+  BarChart3,
+  AlertCircle,
+  Zap,
+} from 'lucide-react'
+import { Card, Button, Input, Badge } from '@/components/ui'
+import { toast } from 'sonner'
+import {
+  getBehaviorControllerStatus,
+  getBehaviorStatistics,
+  applyPresetConfig,
+} from '@/lib/behaviorApi'
+import type { BehaviorControllerStatus } from '@/lib/behaviorTypes'
 
 interface ModelConfig {
   id: string
@@ -57,13 +78,15 @@ export default function Settings() {
   })
 
   // 行为控制相关状态
-  const [behaviorStatus, setBehaviorStatus] = useState<BehaviorControllerStatus | null>(null);
-  const [behaviorStats, setBehaviorStats] = useState<any>(null);
-  const [isLoadingBehavior, setIsLoadingBehavior] = useState(false);
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
-  const [selectedPreset, setSelectedPreset] = useState('default');
-  const [presetPlatform, setPresetPlatform] = useState<'twitter' | 'reddit'>('twitter');
-  const [activeBehaviorTab, setActiveBehaviorTab] = useState<'overview' | 'strategies' | 'engines'>('overview');
+  const [behaviorStatus, setBehaviorStatus] = useState<BehaviorControllerStatus | null>(null)
+  const [behaviorStats, setBehaviorStats] = useState<any>(null)
+  const [isLoadingBehavior, setIsLoadingBehavior] = useState(false)
+  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null)
+  const [selectedPreset, setSelectedPreset] = useState('default')
+  const [presetPlatform, setPresetPlatform] = useState<'twitter' | 'reddit'>('twitter')
+  const [activeBehaviorTab, setActiveBehaviorTab] = useState<'overview' | 'strategies' | 'engines'>(
+    'overview'
+  )
 
   // 从 localStorage 加载配置
   useEffect(() => {
@@ -85,28 +108,28 @@ export default function Settings() {
   // 加载行为控制数据
   useEffect(() => {
     const loadBehaviorData = async () => {
-      setIsLoadingBehavior(true);
+      setIsLoadingBehavior(true)
       try {
         // 加载控制器状态
-        const status = await getBehaviorControllerStatus();
-        setBehaviorStatus(status);
+        const status = await getBehaviorControllerStatus()
+        setBehaviorStatus(status)
 
         // 加载统计信息
-        const stats = await getBehaviorStatistics();
-        setBehaviorStats(stats);
+        const stats = await getBehaviorStatistics()
+        setBehaviorStats(stats)
 
         // 加载可用策略（暂未在界面使用）
         // const strategies = await getAvailableStrategies();
       } catch (error) {
-        console.error('Failed to load behavior data:', error);
-        toast.error('加载行为控制数据失败');
+        console.error('Failed to load behavior data:', error)
+        toast.error('加载行为控制数据失败')
       } finally {
-        setIsLoadingBehavior(false);
+        setIsLoadingBehavior(false)
       }
-    };
+    }
 
-    loadBehaviorData();
-  }, []);
+    loadBehaviorData()
+  }, [])
 
   // 保存配置到 localStorage
   const saveConfigsToStorage = (configs: ModelConfig[]) => {
@@ -209,56 +232,56 @@ export default function Settings() {
   // 行为控制相关处理函数
   const handleApplyPreset = async () => {
     if (selectedAgentId === null) {
-      toast.error('请选择智能体ID');
-      return;
+      toast.error('请选择智能体ID')
+      return
     }
 
-    setIsLoadingBehavior(true);
+    setIsLoadingBehavior(true)
     try {
-      const response = await applyPresetConfig(selectedAgentId, selectedPreset, presetPlatform);
+      const response = await applyPresetConfig(selectedAgentId, selectedPreset, presetPlatform)
       if (response.success) {
-        toast.success(`预设配置已应用到智能体 ${selectedAgentId}`);
+        toast.success(`预设配置已应用到智能体 ${selectedAgentId}`)
         // 重新加载数据
         const [status, stats] = await Promise.all([
           getBehaviorControllerStatus(),
-          getBehaviorStatistics()
-        ]);
-        setBehaviorStatus(status);
-        setBehaviorStats(stats);
+          getBehaviorStatistics(),
+        ])
+        setBehaviorStatus(status)
+        setBehaviorStats(stats)
       } else {
-        toast.error(`应用预设失败: ${response.error || response.message}`);
+        toast.error(`应用预设失败: ${response.error || response.message}`)
       }
     } catch (error) {
-      console.error('Failed to apply preset:', error);
-      toast.error('应用预设配置失败');
+      console.error('Failed to apply preset:', error)
+      toast.error('应用预设配置失败')
     } finally {
-      setIsLoadingBehavior(false);
+      setIsLoadingBehavior(false)
     }
-  };
+  }
 
   const handleRefreshBehaviorData = async () => {
-    setIsLoadingBehavior(true);
+    setIsLoadingBehavior(true)
     try {
       // 重新加载所有行为控制数据
       const [status, stats] = await Promise.all([
         getBehaviorControllerStatus(),
-        getBehaviorStatistics()
-      ]);
+        getBehaviorStatistics(),
+      ])
 
-      setBehaviorStatus(status);
-      setBehaviorStats(stats);
-      toast.success('行为控制数据已刷新');
+      setBehaviorStatus(status)
+      setBehaviorStats(stats)
+      toast.success('行为控制数据已刷新')
     } catch (error) {
-      console.error('Failed to refresh behavior data:', error);
-      toast.error('刷新行为控制数据失败');
+      console.error('Failed to refresh behavior data:', error)
+      toast.error('刷新行为控制数据失败')
     } finally {
-      setIsLoadingBehavior(false);
+      setIsLoadingBehavior(false)
     }
-  };
+  }
 
   const formatStrategyPercentage = (percentage: number) => {
-    return `${percentage.toFixed(1)}%`;
-  };
+    return `${percentage.toFixed(1)}%`
+  }
 
   return (
     <div className="px-6 lg:px-12 py-10 space-y-8 max-w-5xl mx-auto">
@@ -568,8 +591,6 @@ export default function Settings() {
           </div>
         </Card>
 
-        
-
         <Card className="p-8 bg-bg-secondary border-border-default space-y-8">
           <div className="flex items-center justify-between border-b border-border-default pb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
@@ -584,11 +605,18 @@ export default function Settings() {
                 disabled={isLoadingBehavior}
                 className="gap-2"
               >
-                {isLoadingBehavior ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {isLoadingBehavior ? (
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3 h-3" />
+                )}
                 刷新状态
               </Button>
-              <Badge variant={behaviorStatus?.available ? "default" : "destructive"} className="text-xs">
-                {behaviorStatus?.available ? "控制器在线" : "控制器离线"}
+              <Badge
+                variant={behaviorStatus?.available ? 'default' : 'destructive'}
+                className="text-xs"
+              >
+                {behaviorStatus?.available ? '控制器在线' : '控制器离线'}
               </Badge>
             </div>
           </div>
@@ -604,18 +632,25 @@ export default function Settings() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="p-6 border border-border-default bg-bg-primary rounded-2xl space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${behaviorStatus.available ? 'bg-green-500' : 'bg-red-500'}`} />
+                    <div
+                      className={`w-3 h-3 rounded-full ${behaviorStatus.available ? 'bg-green-500' : 'bg-red-500'}`}
+                    />
                     <h3 className="text-base font-bold text-text-primary">控制器状态</h3>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary">智能体配置数</span>
-                      <span className="text-sm font-bold text-text-primary">{behaviorStatus.agent_config_count}</span>
+                      <span className="text-sm font-bold text-text-primary">
+                        {behaviorStatus.agent_config_count}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary">OASIS连接</span>
-                      <Badge variant={behaviorStatus.oasis_manager_connected ? "default" : "destructive"} className="text-xs">
-                        {behaviorStatus.oasis_manager_connected ? "已连接" : "未连接"}
+                      <Badge
+                        variant={behaviorStatus.oasis_manager_connected ? 'default' : 'destructive'}
+                        className="text-xs"
+                      >
+                        {behaviorStatus.oasis_manager_connected ? '已连接' : '未连接'}
                       </Badge>
                     </div>
                   </div>
@@ -627,14 +662,15 @@ export default function Settings() {
                     <h3 className="text-base font-bold text-text-primary">引擎可用性</h3>
                   </div>
                   <div className="space-y-2">
-                    {behaviorStatus.engines && Object.entries(behaviorStatus.engines).map(([engine, available]) => (
-                      <div key={engine} className="flex justify-between items-center">
-                        <span className="text-sm text-text-secondary capitalize">{engine}</span>
-                        <Badge variant={available ? "default" : "secondary"} className="text-xs">
-                          {available ? "可用" : "不可用"}
-                        </Badge>
-                      </div>
-                    ))}
+                    {behaviorStatus.engines &&
+                      Object.entries(behaviorStatus.engines).map(([engine, available]) => (
+                        <div key={engine} className="flex justify-between items-center">
+                          <span className="text-sm text-text-secondary capitalize">{engine}</span>
+                          <Badge variant={available ? 'default' : 'secondary'} className="text-xs">
+                            {available ? '可用' : '不可用'}
+                          </Badge>
+                        </div>
+                      ))}
                   </div>
                 </div>
 
@@ -644,12 +680,19 @@ export default function Settings() {
                     <h3 className="text-base font-bold text-text-primary">策略分布</h3>
                   </div>
                   <div className="space-y-2">
-                    {behaviorStatus.strategy_statistics && Object.entries(behaviorStatus.strategy_statistics).map(([strategy, stats]: [string, any]) => (
-                      <div key={strategy} className="flex justify-between items-center">
-                        <span className="text-sm text-text-secondary capitalize">{strategy.replace('_', ' ')}</span>
-                        <span className="text-sm font-bold text-text-primary">{formatStrategyPercentage(stats.percentage || 0)}</span>
-                      </div>
-                    ))}
+                    {behaviorStatus.strategy_statistics &&
+                      Object.entries(behaviorStatus.strategy_statistics).map(
+                        ([strategy, stats]: [string, any]) => (
+                          <div key={strategy} className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary capitalize">
+                              {strategy.replace('_', ' ')}
+                            </span>
+                            <span className="text-sm font-bold text-text-primary">
+                              {formatStrategyPercentage(stats.percentage || 0)}
+                            </span>
+                          </div>
+                        )
+                      )}
                   </div>
                 </div>
               </div>
@@ -667,7 +710,9 @@ export default function Settings() {
                       <Input
                         type="number"
                         value={selectedAgentId !== null ? selectedAgentId.toString() : ''}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedAgentId(e.target.value ? parseInt(e.target.value) : null)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setSelectedAgentId(e.target.value ? parseInt(e.target.value) : null)
+                        }
                         placeholder="输入智能体ID"
                         className="bg-bg-primary border-border-default rounded-xl"
                       />
@@ -679,7 +724,9 @@ export default function Settings() {
                       </label>
                       <select
                         value={selectedPreset}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedPreset(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                          setSelectedPreset(e.target.value)
+                        }
                         className="w-full h-11 bg-bg-primary border border-border-default rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
                       >
                         <option value="default">默认配置 (LLM自主决策)</option>
@@ -695,7 +742,9 @@ export default function Settings() {
                       </label>
                       <select
                         value={presetPlatform}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPresetPlatform(e.target.value as 'twitter' | 'reddit')}
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                          setPresetPlatform(e.target.value as 'twitter' | 'reddit')
+                        }
                         className="w-full h-11 bg-bg-primary border border-border-default rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
                       >
                         <option value="twitter">Twitter</option>
@@ -708,9 +757,9 @@ export default function Settings() {
                     <Button
                       variant="outline"
                       onClick={() => {
-                        setSelectedAgentId(null);
-                        setSelectedPreset('default');
-                        setPresetPlatform('twitter');
+                        setSelectedAgentId(null)
+                        setSelectedPreset('default')
+                        setPresetPlatform('twitter')
                       }}
                     >
                       重置
@@ -720,7 +769,11 @@ export default function Settings() {
                       disabled={selectedAgentId === null || isLoadingBehavior}
                       className="gap-2"
                     >
-                      {isLoadingBehavior ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      {isLoadingBehavior ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Zap className="w-4 h-4" />
+                      )}
                       应用预设配置
                     </Button>
                   </div>
@@ -732,28 +785,31 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold text-text-primary">详细统计信息</h3>
                   <Badge variant="outline" className="text-text-tertiary">
-                    最后更新: {behaviorStats ? new Date(behaviorStats.timestamp || Date.now()).toLocaleString() : '未加载'}
+                    最后更新:{' '}
+                    {behaviorStats
+                      ? new Date(behaviorStats.timestamp || Date.now()).toLocaleString()
+                      : '未加载'}
                   </Badge>
                 </div>
 
                 <div className="p-6 border border-border-default bg-bg-primary rounded-2xl">
                   <div className="grid w-full grid-cols-3 mb-4 gap-2">
                     <Button
-                      variant={activeBehaviorTab === 'overview' ? "default" : "outline"}
+                      variant={activeBehaviorTab === 'overview' ? 'default' : 'outline'}
                       onClick={() => setActiveBehaviorTab('overview')}
                       className="w-full"
                     >
                       概览
                     </Button>
                     <Button
-                      variant={activeBehaviorTab === 'strategies' ? "default" : "outline"}
+                      variant={activeBehaviorTab === 'strategies' ? 'default' : 'outline'}
                       onClick={() => setActiveBehaviorTab('strategies')}
                       className="w-full"
                     >
                       策略统计
                     </Button>
                     <Button
-                      variant={activeBehaviorTab === 'engines' ? "default" : "outline"}
+                      variant={activeBehaviorTab === 'engines' ? 'default' : 'outline'}
                       onClick={() => setActiveBehaviorTab('engines')}
                       className="w-full"
                     >
@@ -768,12 +824,19 @@ export default function Settings() {
                           <div className="space-y-2">
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-text-secondary">配置智能体总数</span>
-                              <span className="text-sm font-bold text-text-primary">{behaviorStats.total_agents_with_config || 0}</span>
+                              <span className="text-sm font-bold text-text-primary">
+                                {behaviorStats.total_agents_with_config || 0}
+                              </span>
                             </div>
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-text-secondary">控制器初始化</span>
-                              <Badge variant={behaviorStats.controller_initialized ? "default" : "destructive"} className="text-xs">
-                                {behaviorStats.controller_initialized ? "已初始化" : "未初始化"}
+                              <Badge
+                                variant={
+                                  behaviorStats.controller_initialized ? 'default' : 'destructive'
+                                }
+                                className="text-xs"
+                              >
+                                {behaviorStats.controller_initialized ? '已初始化' : '未初始化'}
                               </Badge>
                             </div>
                           </div>
@@ -781,15 +844,15 @@ export default function Settings() {
                             <div className="flex justify-between items-center">
                               <span className="text-sm text-text-secondary">数据更新时间</span>
                               <span className="text-sm text-text-tertiary">
-                                {new Date(behaviorStats.timestamp || Date.now()).toLocaleTimeString()}
+                                {new Date(
+                                  behaviorStats.timestamp || Date.now()
+                                ).toLocaleTimeString()}
                               </span>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center py-4 text-text-tertiary">
-                          统计信息加载中...
-                        </div>
+                        <div className="text-center py-4 text-text-tertiary">统计信息加载中...</div>
                       )}
                     </div>
                   )}
@@ -797,18 +860,29 @@ export default function Settings() {
                   {activeBehaviorTab === 'strategies' && (
                     <div className="space-y-4">
                       {behaviorStats && behaviorStats.strategy_statistics ? (
-                        Object.entries(behaviorStats.strategy_statistics).map(([strategy, stats]: [string, any]) => (
-                          <div key={strategy} className="flex items-center justify-between p-3 border border-border-default rounded-xl">
-                            <div className="flex items-center gap-3">
-                              <div className="w-2 h-2 rounded-full bg-accent" />
-                              <span className="text-sm text-text-primary capitalize">{strategy.replace('_', ' ')}</span>
+                        Object.entries(behaviorStats.strategy_statistics).map(
+                          ([strategy, stats]: [string, any]) => (
+                            <div
+                              key={strategy}
+                              className="flex items-center justify-between p-3 border border-border-default rounded-xl"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-2 h-2 rounded-full bg-accent" />
+                                <span className="text-sm text-text-primary capitalize">
+                                  {strategy.replace('_', ' ')}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <span className="text-xs text-text-tertiary">
+                                  使用次数: {stats.count || 0}
+                                </span>
+                                <span className="text-sm font-bold text-text-primary">
+                                  {formatStrategyPercentage(stats.percentage || 0)}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-xs text-text-tertiary">使用次数: {stats.count || 0}</span>
-                              <span className="text-sm font-bold text-text-primary">{formatStrategyPercentage(stats.percentage || 0)}</span>
-                            </div>
-                          </div>
-                        ))
+                          )
+                        )
                       ) : (
                         <div className="text-center py-4 text-text-tertiary">
                           策略统计数据加载中...
@@ -827,8 +901,13 @@ export default function Settings() {
                                 <Dice className="w-4 h-4 text-green-500" />
                                 <span className="text-sm font-bold">概率引擎</span>
                               </div>
-                              <Badge variant={behaviorStatus.engines?.probabilistic ? "default" : "secondary"} className="text-xs">
-                                {behaviorStatus.engines?.probabilistic ? "可用" : "不可用"}
+                              <Badge
+                                variant={
+                                  behaviorStatus.engines?.probabilistic ? 'default' : 'secondary'
+                                }
+                                className="text-xs"
+                              >
+                                {behaviorStatus.engines?.probabilistic ? '可用' : '不可用'}
                               </Badge>
                             </div>
                             <p className="text-xs text-text-tertiary">基于概率分布选择动作</p>
@@ -840,8 +919,11 @@ export default function Settings() {
                                 <GitBranch className="w-4 h-4 text-orange-500" />
                                 <span className="text-sm font-bold">规则引擎</span>
                               </div>
-                              <Badge variant={behaviorStatus.engines?.rule ? "default" : "secondary"} className="text-xs">
-                                {behaviorStatus.engines?.rule ? "可用" : "不可用"}
+                              <Badge
+                                variant={behaviorStatus.engines?.rule ? 'default' : 'secondary'}
+                                className="text-xs"
+                              >
+                                {behaviorStatus.engines?.rule ? '可用' : '不可用'}
                               </Badge>
                             </div>
                             <p className="text-xs text-text-tertiary">基于条件和规则触发动作</p>
@@ -853,8 +935,13 @@ export default function Settings() {
                                 <Calendar className="w-4 h-4 text-purple-500" />
                                 <span className="text-sm font-bold">调度引擎</span>
                               </div>
-                              <Badge variant={behaviorStatus.engines?.scheduling ? "default" : "secondary"} className="text-xs">
-                                {behaviorStatus.engines?.scheduling ? "可用" : "不可用"}
+                              <Badge
+                                variant={
+                                  behaviorStatus.engines?.scheduling ? 'default' : 'secondary'
+                                }
+                                className="text-xs"
+                              >
+                                {behaviorStatus.engines?.scheduling ? '可用' : '不可用'}
                               </Badge>
                             </div>
                             <p className="text-xs text-text-tertiary">按预定义时间线执行动作</p>
@@ -875,11 +962,7 @@ export default function Settings() {
               <AlertCircle className="w-12 h-12 mx-auto text-text-tertiary mb-4" />
               <p className="text-text-secondary">无法加载行为控制数据</p>
               <p className="text-xs text-text-tertiary mt-2">请检查后端行为控制器是否正常运行</p>
-              <Button
-                variant="outline"
-                className="mt-4 gap-2"
-                onClick={handleRefreshBehaviorData}
-              >
+              <Button variant="outline" className="mt-4 gap-2" onClick={handleRefreshBehaviorData}>
                 <RefreshCw className="w-3 h-3" />
                 重试加载
               </Button>

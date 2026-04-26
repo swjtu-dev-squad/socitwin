@@ -7,27 +7,18 @@ from pydantic import BaseModel, Field, field_validator
 from app.memory.config import MemoryMode
 from app.models.metrics import MetricsSummary
 
-# Import behavior models
 try:
     from app.models.behavior import (
-        AgentBehaviorConfig,
-        create_default_behavior_config,
-        BehaviorStrategy
+        AgentBehaviorConfig,  # pyright: ignore[reportAssignmentType]
+        create_default_behavior_config,  # pyright: ignore[reportAssignmentType]
     )
-except ImportError:
-    # Define minimal fallback for import resolution
+except ImportError:  # pragma: no cover
     class AgentBehaviorConfig(BaseModel):
-        """Fallback behavior config for import resolution"""
         strategy: str = "llm_autonomous"
         enabled: bool = True
 
     def create_default_behavior_config() -> AgentBehaviorConfig:
-        """Fallback default behavior config"""
         return AgentBehaviorConfig()
-
-    class BehaviorStrategy(str, Enum):
-        """Fallback behavior strategy"""
-        LLM_AUTONOMOUS = "llm_autonomous"
 
 # ============================================================================
 # 平台和状态枚举
