@@ -41,7 +41,7 @@ DEFAULT_B_LEVEL_FIXTURE_PATH = (
 DEFAULT_PHASES = ("preflight", "deterministic")
 DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:latest"
 DEFAULT_EMBEDDING_URL = "http://127.0.0.1:11434/v1"
-DEFAULT_SCENARIO_PROBE_LIMIT = 25
+DEFAULT_SCENARIO_PROBE_LIMIT = 0
 MEMORY_KPI_FIELDS = (
     "ltm_exact_hit_at_1",
     "ltm_exact_hit_at_3",
@@ -175,17 +175,23 @@ class EvaluationRecorder:
         lines = [
             "# 记忆评测报告",
             "",
-            "## 1. 运行结论",
+            "## 1. 运行概览",
             "",
             f"- 总体是否通过：`{_zh_bool(summary['summary']['success'])}`",
             f"- 是否存在阻塞项：`{_zh_bool(summary['summary']['has_blockers'])}`",
             f"- 运行目录：`{self.run_dir}`",
             "",
+            "怎么读这份报告：",
+            "",
+            "- `Episode Self-Retrievability` 测的是“给某条历史动作自身线索时，这条记忆能不能被找回”。它主要检查写入文档、embedding、rerank 和 agent filter 是否基本可用。",
+            "- `Post-Linked Final Lookup` 测的是“某个 agent 曾经在 observation 中看见过某个 post，整场模拟结束后能否用该 post 的 summary 找回这个 agent 与该 post 相关的长期记忆”。它测最终长期记忆检索质量，不复现某一步 runtime recall。",
+            "- `Hit@1 / Hit@3 / MRR` 只在有结构化正确答案的 probe 上计算；无正确答案的 post probe 用来观察场景覆盖，不进入命中率分母。",
+            "",
         ]
         lines.extend(_memory_kpi_readme_lines(summary))
         lines.extend(_real_scenario_readme_lines(self.events))
         lines.extend(_recall_probe_readme_lines(self.events))
-        lines.extend(["", "## 9. 事件列表", ""])
+        lines.extend(["", "## 8. 事件列表", ""])
         for event in self.events:
             reason = f"；原因：{event.reason}" if event.reason else ""
             lines.append(
@@ -194,11 +200,11 @@ class EvaluationRecorder:
         lines.extend(
             [
                 "",
-                "## 10. 原始文件说明",
+                "## 9. 原始文件说明",
                 "",
                 "- `summary.json`：机器可读的总览、KPI 和不可用指标。",
                 "- `events.jsonl`：逐事件详细证据；检索类事件包含逐条 probe 的 expected / retrieved 信息。",
-                "- `config.json`：本次评测参数，包括场景、步数、probe limit 和 embedding 配置。",
+                "- `config.json`：本次评测参数，包括场景、步数、probe limit 和 embedding 配置；`scenario_probe_limit <= 0` 表示全量候选。",
                 "- `artifacts/real-scenarios/step_audit.jsonl`：逐步记录 step_result、memory_debug、agent prompt-visible snapshot、本步动作和记忆状态。",
                 "- `artifacts/real-scenarios/episode_audit.jsonl`：逐条记录 ActionEpisode payload、是否持久化、probe query 和长期记忆 document。",
                 "- `artifacts/real-scenarios/sqlite_trace_summary.json`：OASIS SQLite trace 表摘要；`simulation.db` 会被复制到审计目录。",
@@ -382,9 +388,19 @@ def _zh_status(status: str) -> str:
     }.get(status, status)
 
 
+def _format_probe_limit(value: Any) -> str:
+    try:
+        limit = int(value or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    if limit <= 0:
+        return "无限制（全量候选）"
+    return str(limit)
+
+
 def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
     lines = [
-        "## 2. 核心指标",
+        "## 2. 总览指标",
         "",
         "| 指标 | 数值 | 怎么理解 |",
         "| --- | ---: | --- |",
@@ -406,8 +422,8 @@ def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
         ]
     )
     unavailable = list(summary.get("unavailable_metrics", []) or [])
+    lines.extend(["", "## 3. 指标缺失说明", ""])
     if unavailable:
-        lines.extend(["", "## 3. 不可用指标", ""])
         for item in unavailable:
             lines.append(
                 "- "
@@ -415,6 +431,8 @@ def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
                 f"需要事件 `{item.get('required_event', '')}`，"
                 f"需要字段 `{item.get('required_metric', '')}`。"
             )
+    else:
+        lines.append("- 本轮没有不可用的总览指标。")
     return lines
 
 
@@ -439,17 +457,24 @@ def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
         "",
         "## 4. Real-Scenarios 样本覆盖",
         "",
-        f"- 场景包：`{metrics.get('scenario_pack_id', '') or '未指定'}`",
-        f"- 场景目的：{metrics.get('scenario_pack_purpose', '') or '未记录'}",
-        f"- 运行步数：`{metrics.get('step_count', 0)}`",
-        f"- 实际持久化 ActionEpisode 数：`{metrics.get('actual_persisted_action_episode_count', 0)}`",
+        "这一节先回答本轮测试有没有足够样本。样本不够时，后面的命中率不应被当成稳定结论。",
+        "",
+        "| 项目 | 数值 | 说明 |",
+        "| --- | ---: | --- |",
+        f"| 场景包 | `{metrics.get('scenario_pack_id', '') or '未指定'}` | {metrics.get('scenario_pack_purpose', '') or '未记录'} |",
+        f"| 运行步数 | `{metrics.get('step_count', 0)}` | action_v1 official steps |",
+        f"| 持久化 ActionEpisode | `{metrics.get('actual_persisted_action_episode_count', 0)}` | 实际进入长期记忆的动作事件数 |",
+        f"| 原始候选 episode | `{metrics.get('raw_real_probe_candidate_count', 0)}` | 从长期记忆后端读取到的 action episode 候选 |",
+        f"| warm-up 排除 | `{metrics.get('warmup_excluded_probe_candidate_count', 0)}` | seed/warm-up 不纳入正式 probe 的数量 |",
+        f"| probe limit | `{_format_probe_limit(metrics.get('probe_attempt_limit', 0))}` | 默认全量；手动设置正数时只评估前 N 个候选 |",
+        f"| 实际可用 self-retrieval probe | `{metrics.get('usable_probe_count', 0)}` | 有可构造 query 的 episode 数 |",
+        f"| 跳过 probe | `{metrics.get('skipped_probe_count', 0)}` | 见跳过原因 |",
+        "",
+        "跳过原因：",
+        "",
+        f"- `{json.dumps(metrics.get('skipped_probe_reason_counts', {}), ensure_ascii=False)}`",
+        "",
         f"- 审计材料目录：`{metrics.get('audit_artifact_dir', '') or '未生成'}`",
-        f"- 原始可回查候选数：`{metrics.get('raw_real_probe_candidate_count', 0)}`",
-        f"- warm-up 排除候选数：`{metrics.get('warmup_excluded_probe_candidate_count', 0)}`",
-        f"- probe limit：`{metrics.get('probe_attempt_limit', 0)}`",
-        f"- 实际可用 probe 数：`{metrics.get('usable_probe_count', 0)}`",
-        f"- 跳过 probe 数：`{metrics.get('skipped_probe_count', 0)}`",
-        f"- 跳过原因：`{json.dumps(metrics.get('skipped_probe_reason_counts', {}), ensure_ascii=False)}`",
         "",
         "动作分布：",
         "",
@@ -461,7 +486,14 @@ def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
         lines.extend(
             [
                 "",
-                "## 5. 按动作类型的检索表现",
+                "## 5. Episode Self-Retrievability",
+                "",
+                "这个事件使用目标 episode 自身字段构造 query，检查“这条写入长期记忆的动作事件，在有自身线索时能否被找回”。它不是 runtime query 效果，但能定位长期记忆写入、embedding、rerank、agent filter 的基础问题。",
+                "",
+                f"- Hit@1：`{metrics.get('hit_at_1', 0)}`",
+                f"- Hit@3：`{metrics.get('hit_at_3', 0)}`",
+                f"- MRR：`{metrics.get('mrr', 0)}`",
+                f"- cross-agent top-3 数：`{metrics.get('cross_agent_top3_count', 0)}`",
                 "",
                 "| 动作 | probe 数 | Hit@1 | Hit@3 | MRR | Miss 数 |",
                 "| --- | ---: | ---: | ---: | ---: | ---: |",
@@ -475,7 +507,7 @@ def _real_scenario_readme_lines(events: list[EvaluationEvent]) -> list[str]:
     miss_lines = _miss_case_readme_lines(event)
     if miss_lines:
         lines.extend(miss_lines)
-    post_runtime_lines = _post_based_runtime_readme_lines(events)
+    post_runtime_lines = _post_linked_final_lookup_readme_lines(events)
     if post_runtime_lines:
         lines.extend(post_runtime_lines)
     return lines
@@ -492,13 +524,13 @@ def _miss_case_readme_lines(event: EvaluationEvent, *, limit: int = 8) -> list[s
     if not misses:
         return [
             "",
-            "## 6. 未命中样例",
+            "### 5.1 Episode Self-Retrievability 未命中样例",
             "",
             "- 本次没有 top-3 未命中的 probe。",
         ]
     lines = [
         "",
-        "## 6. 未命中样例",
+        "### 5.1 Episode Self-Retrievability 未命中样例",
         "",
         f"以下最多展示前 {limit} 个 top-3 未命中 probe。完整列表见 `events.jsonl` 的 `VAL-LTM-05.evidence.per_query`。",
         "",
@@ -520,35 +552,45 @@ def _miss_case_readme_lines(event: EvaluationEvent, *, limit: int = 8) -> list[s
     return lines
 
 
-def _post_based_runtime_readme_lines(events: list[EvaluationEvent]) -> list[str]:
-    event = _first_event(events, "VAL-RCL-11 post_based_runtime_replay")
+def _post_linked_final_lookup_readme_lines(events: list[EvaluationEvent]) -> list[str]:
+    event = _first_event(events, "VAL-RCL-11 post_linked_final_lookup")
     if event is None:
         return []
     metrics = event.metrics
     lines = [
         "",
-        "## 7. Post-Based Runtime Replay",
+        "## 6. Post-Linked Final Lookup",
         "",
-        "这个事件按每个可见 post 单独出题，检索文本只使用 post summary；post_id 只用于判定正确答案和调试，不进入检索文本。",
+        "这个事件从真实 observation 历史中取 agent 实际看见过的 post。每个可见 post 单独出题，检索文本只使用 post summary；post_id 只用于判定正确答案和调试，不进入检索文本。它使用模拟结束后的最终长期记忆库，不做 step 时间过滤。",
         "",
-        f"- 状态：`{_zh_status(event.status)}`",
-        f"- post probe 总数：`{metrics.get('post_probe_count', 0)}`",
-        f"- 有结构化正确答案的 probe：`{metrics.get('post_probe_with_ground_truth_count', 0)}`",
-        f"- 无正确答案的 probe：`{metrics.get('post_probe_without_ground_truth_count', 0)}`",
-        f"- 第一个帖子中有正确答案的 probe：`{metrics.get('runtime_first_post_with_ground_truth_count', 0)}`",
-        f"- 非第一个帖子中有正确答案的 probe：`{metrics.get('non_first_post_with_ground_truth_count', 0)}`",
-        f"- Hit@1：`{metrics.get('hit_at_1', 0)}`",
-        f"- Hit@3：`{metrics.get('hit_at_3', 0)}`",
-        f"- MRR：`{metrics.get('mrr', 0)}`",
-        f"- 第一个帖子 Hit@3：`{metrics.get('runtime_first_post_hit_at_3', 0)}`",
-        f"- 非第一个帖子 Hit@3：`{metrics.get('non_first_post_hit_at_3', 0)}`",
-        f"- self-authored 帖子 Hit@3：`{metrics.get('self_authored_post_hit_at_3', 0)}`",
-        f"- 诊断分布：`{json.dumps(metrics.get('diagnosis_counts', {}), ensure_ascii=False)}`",
-        f"- 正确答案动作分布：`{json.dumps(metrics.get('ground_truth_action_distribution', {}), ensure_ascii=False)}`",
+        "| 指标 | 数值 | 说明 |",
+        "| --- | ---: | --- |",
+        f"| 状态 | `{_zh_status(event.status)}` | 是否成功构造并评分 post-linked probe |",
+        f"| post probe 总数 | `{metrics.get('post_probe_count', 0)}` | 从真实 prompt-visible snapshot 中看到的 post 数 |",
+        f"| 有正确答案的 post probe | `{metrics.get('post_probe_with_ground_truth_count', 0)}` | 最终长期记忆中存在 same-agent、same-post 结构关系的 probe，命中率只在这部分计算 |",
+        f"| 无正确答案的 post probe | `{metrics.get('post_probe_without_ground_truth_count', 0)}` | 该 agent 最终长期记忆里没有与此 post 结构相关的动作，不进入 Hit 分母 |",
+        f"| Hit@1 | `{metrics.get('hit_at_1', 0)}` | 相关历史动作排在第一位的比例 |",
+        f"| Hit@3 | `{metrics.get('hit_at_3', 0)}` | 相关历史动作进入 top-3 的比例 |",
+        f"| MRR | `{metrics.get('mrr', 0)}` | 相关历史动作首次命中排名的倒数均值 |",
+        f"| self-authored 帖子 Hit@3 | `{metrics.get('self_authored_post_hit_at_3', 0)}` | 当前样本中若为 0，通常表示没有 self-authored 可见 post probe |",
+        f"| cross-agent top-3 数 | `{metrics.get('cross_agent_top3_count', 0)}` | top-3 中召回到其他 agent 记忆的次数，正常应接近 0 |",
+        f"| same-agent wrong-target probe 数 | `{metrics.get('same_agent_wrong_target_probe_count', 0)}` | 同 agent 但错 post/错 episode，通常指向同主题排序混淆 |",
+        "",
+        "覆盖拆分：",
+        "",
+        f"- self-authored 帖子：`{metrics.get('self_authored_post_with_ground_truth_count', 0)}` 个有正确答案 / `{metrics.get('self_authored_post_probe_count', 0)}` 个 probe。",
+        "",
+        "诊断分布：",
+        "",
+        f"- `{json.dumps(metrics.get('diagnosis_counts', {}), ensure_ascii=False)}`",
+        "",
+        "正确答案动作分布：",
+        "",
+        f"- `{json.dumps(metrics.get('ground_truth_action_distribution', {}), ensure_ascii=False)}`",
     ]
     examples = list(event.evidence.get("readable_summary", []) or [])
     if examples:
-        lines.extend(["", "Post-based replay 样例：", ""])
+        lines.extend(["", "### 6.1 Post-Linked Final Lookup 样例", ""])
         for index, example in enumerate(examples[:8], start=1):
             lines.append(f"{index}. {example}")
     if event.reason:
@@ -557,7 +599,7 @@ def _post_based_runtime_readme_lines(events: list[EvaluationEvent]) -> list[str]
 
 
 def _recall_probe_readme_lines(events: list[EvaluationEvent]) -> list[str]:
-    lines = ["", "## 8. Recall Gate / Suppression", ""]
+    lines = ["", "## 7. Recall Gate / Suppression Sanity", ""]
     has_any = False
     for name in (
         "VAL-RCL-08 real_continuity_recall_probe",
@@ -690,7 +732,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SCENARIO_PROBE_LIMIT,
         help=(
             "Maximum real-scenarios probe candidates to score. "
-            f"Default is {DEFAULT_SCENARIO_PROBE_LIMIT}."
+            "Use 0 or a negative value for unlimited. "
+            f"Default is {DEFAULT_SCENARIO_PROBE_LIMIT} (unlimited)."
         ),
     )
     parser.add_argument(
@@ -1294,7 +1337,7 @@ def _build_real_scenario_audit_summary(
     events: list[EvaluationEvent],
 ) -> dict[str, Any]:
     ltm_event = _first_event(events, "VAL-LTM-05 real_self_action_retrievability")
-    post_runtime_event = _first_event(events, "VAL-RCL-11 post_based_runtime_replay")
+    post_runtime_event = _first_event(events, "VAL-RCL-11 post_linked_final_lookup")
     per_query = list((ltm_event.evidence if ltm_event else {}).get("per_query", []) or [])
     query_texts = [str(item.get("query_text", "") or "") for item in per_query]
     duplicated_queries = {
@@ -1337,7 +1380,7 @@ def _build_real_scenario_audit_summary(
             )[:10]
         ],
         "ltm_metrics": dict(ltm_event.metrics if ltm_event else {}),
-        "post_based_runtime_metrics": dict(
+        "post_linked_final_lookup_metrics": dict(
             post_runtime_event.metrics if post_runtime_event else {}
         ),
     }
@@ -1883,7 +1926,7 @@ def _build_real_scenario_events(
         "warmup_excluded_probe_candidate_count": len(raw_candidates) - len(candidates),
         **_summarize_real_probe_candidate_pool(
             candidates,
-            probe_limit=max(0, config.scenario_probe_limit),
+            probe_limit=config.scenario_probe_limit,
         ),
     }
     return [
@@ -1893,7 +1936,7 @@ def _build_real_scenario_events(
             candidates=candidates,
             base_metrics=base_metrics,
         ),
-        _build_post_based_runtime_replay_event(
+        _build_post_linked_final_lookup_event(
             store=store,
             candidates=candidates,
             step_audit_records=step_audit_records or [],
@@ -2048,23 +2091,23 @@ def _build_real_self_action_retrievability_event(
     )
 
 
-def _build_post_based_runtime_replay_event(
+def _build_post_linked_final_lookup_event(
     *,
     store: Any,
     candidates: list[dict[str, Any]],
     step_audit_records: list[dict[str, Any]],
     base_metrics: dict[str, Any],
 ) -> EvaluationEvent:
-    event_name = "VAL-RCL-11 post_based_runtime_replay"
+    event_name = "VAL-RCL-11 post_linked_final_lookup"
     if store is None:
         return EvaluationEvent(
             phase="real-scenarios",
             name=event_name,
             status="blocked",
             metrics=base_metrics,
-            reason="No long-term store was available for post-based runtime replay.",
+            reason="No long-term store was available for post-linked final lookup.",
         )
-    probes = _collect_post_based_runtime_probes(
+    probes = _collect_post_linked_final_lookup_probes(
         step_audit_records=step_audit_records,
         candidates=candidates,
     )
@@ -2093,12 +2136,12 @@ def _build_post_based_runtime_replay_event(
                 agent_id=str(probe["agent_id"]) or None,
             )
         )
-        per_probe.append(_score_post_based_runtime_probe(probe=probe, retrieved=retrieved))
+        per_probe.append(_score_post_linked_final_lookup_probe(probe=probe, retrieved=retrieved))
 
     scored = [item for item in per_probe if item.get("has_ground_truth")]
     metrics = {
         **base_metrics,
-        **_summarize_post_based_runtime_scores(per_probe),
+        **_summarize_post_linked_final_lookup_scores(per_probe),
     }
     status = "pass" if scored else "blocked"
     return EvaluationEvent(
@@ -2108,21 +2151,21 @@ def _build_post_based_runtime_replay_event(
         metrics=metrics,
         evidence={
             "note": (
-                "每个可见 post 各生成一个 query。检索文本只使用 post.summary；"
-                "post_id 只用于 ground truth 和调试，不进入检索文本。"
+                "从 observation 历史中每个可见 post 各生成一个 query。检索文本只使用 post.summary；"
+                "post_id 只用于 final-store ground truth 和调试，不进入检索文本。"
             ),
-            "readable_summary": _post_based_runtime_readable_rows(per_probe),
+            "readable_summary": _post_linked_final_lookup_readable_rows(per_probe),
             "per_probe": per_probe,
         },
         reason=(
             ""
             if status == "pass"
-            else "No post-based probe had structural ground truth in prior episodes."
+            else "No post-linked probe had structural ground truth in final long-term memory."
         ),
     )
 
 
-def _collect_post_based_runtime_probes(
+def _collect_post_linked_final_lookup_probes(
     *,
     step_audit_records: list[dict[str, Any]],
     candidates: list[dict[str, Any]],
@@ -2159,7 +2202,6 @@ def _collect_post_based_runtime_probes(
                     if _episode_is_ground_truth_for_post_probe(
                         episode=candidate,
                         agent_id=agent_id,
-                        current_step_id=current_step_id,
                         source_post_id=source_post_id,
                         source_author_id=source_author_id,
                     )
@@ -2169,7 +2211,6 @@ def _collect_post_based_runtime_probes(
                         "agent_id": agent_id,
                         "step_id": current_step_id,
                         "post_index": post_index,
-                        "is_runtime_first_post": post_index == 0,
                         "source_post_id": source_post_id,
                         "source_author_id": source_author_id,
                         "self_authored_visible_post": (
@@ -2188,16 +2229,12 @@ def _episode_is_ground_truth_for_post_probe(
     *,
     episode: dict[str, Any],
     agent_id: str,
-    current_step_id: int,
     source_post_id: Any,
     source_author_id: Any,
 ) -> bool:
     if source_post_id is None:
         return False
     if str(episode.get("agent_id", "") or "") != str(agent_id):
-        return False
-    episode_step_id = _safe_int(episode.get("step_id"), default=-1)
-    if episode_step_id < 0 or episode_step_id >= current_step_id:
         return False
 
     if (
@@ -2230,7 +2267,7 @@ def _episode_is_ground_truth_for_post_probe(
     return False
 
 
-def _score_post_based_runtime_probe(
+def _score_post_linked_final_lookup_probe(
     *,
     probe: dict[str, Any],
     retrieved: list[dict[str, Any]],
@@ -2269,7 +2306,6 @@ def _score_post_based_runtime_probe(
         "agent_id": probe.get("agent_id"),
         "step_id": probe.get("step_id"),
         "post_index": probe.get("post_index"),
-        "is_runtime_first_post": probe.get("is_runtime_first_post"),
         "source_post_id": probe.get("source_post_id"),
         "source_author_id": probe.get("source_author_id"),
         "self_authored_visible_post": probe.get("self_authored_visible_post"),
@@ -2301,16 +2337,10 @@ def _score_post_based_runtime_probe(
     return result
 
 
-def _summarize_post_based_runtime_scores(
+def _summarize_post_linked_final_lookup_scores(
     per_probe: list[dict[str, Any]],
 ) -> dict[str, Any]:
     scored = [item for item in per_probe if item.get("has_ground_truth")]
-    first_post_scored = [
-        item for item in scored if bool(item.get("is_runtime_first_post"))
-    ]
-    non_first_scored = [
-        item for item in scored if not bool(item.get("is_runtime_first_post"))
-    ]
     self_authored_scored = [
         item for item in scored if bool(item.get("self_authored_visible_post"))
     ]
@@ -2318,14 +2348,6 @@ def _summarize_post_based_runtime_scores(
         "post_probe_count": len(per_probe),
         "post_probe_with_ground_truth_count": len(scored),
         "post_probe_without_ground_truth_count": len(per_probe) - len(scored),
-        "runtime_first_post_probe_count": sum(
-            1 for item in per_probe if bool(item.get("is_runtime_first_post"))
-        ),
-        "runtime_first_post_with_ground_truth_count": len(first_post_scored),
-        "non_first_post_probe_count": sum(
-            1 for item in per_probe if not bool(item.get("is_runtime_first_post"))
-        ),
-        "non_first_post_with_ground_truth_count": len(non_first_scored),
         "self_authored_post_probe_count": sum(
             1 for item in per_probe if bool(item.get("self_authored_visible_post"))
         ),
@@ -2334,12 +2356,6 @@ def _summarize_post_based_runtime_scores(
         "hit_at_1": _mean_bool(item.get("hit_at_1") for item in scored),
         "hit_at_3": _mean_bool(item.get("hit_at_3") for item in scored),
         "mrr": _mean_mrr(scored),
-        "runtime_first_post_hit_at_3": _mean_bool(
-            item.get("hit_at_3") for item in first_post_scored
-        ),
-        "non_first_post_hit_at_3": _mean_bool(
-            item.get("hit_at_3") for item in non_first_scored
-        ),
         "self_authored_post_hit_at_3": _mean_bool(
             item.get("hit_at_3") for item in self_authored_scored
         ),
@@ -2375,7 +2391,7 @@ def _mean_mrr(items: list[dict[str, Any]]) -> float:
     )
 
 
-def _post_based_runtime_readable_rows(
+def _post_linked_final_lookup_readable_rows(
     per_probe: list[dict[str, Any]],
     *,
     limit: int = 20,
@@ -2630,12 +2646,14 @@ def _summarize_real_probe_candidate_pool(
     *,
     probe_limit: int = 5,
 ) -> dict[str, Any]:
-    considered = candidates[:probe_limit]
+    considered = _limit_probe_candidates(candidates, probe_limit=probe_limit)
     usable = _usable_real_probe_candidates(candidates, probe_limit=probe_limit)
     missing_query_count = sum(
         1 for candidate in considered if not _self_retrieval_query_from_episode(candidate)
     )
-    outside_limit_count = max(0, len(candidates) - probe_limit)
+    outside_limit_count = (
+        max(0, len(candidates) - probe_limit) if probe_limit > 0 else 0
+    )
     skipped_reason_counts: dict[str, int] = {}
     if missing_query_count:
         skipped_reason_counts["missing_query_text"] = missing_query_count
@@ -2673,9 +2691,19 @@ def _usable_real_probe_candidates(
 ) -> list[dict[str, Any]]:
     return [
         candidate
-        for candidate in candidates[:probe_limit]
+        for candidate in _limit_probe_candidates(candidates, probe_limit=probe_limit)
         if _self_retrieval_query_from_episode(candidate)
     ]
+
+
+def _limit_probe_candidates(
+    candidates: list[dict[str, Any]],
+    *,
+    probe_limit: int,
+) -> list[dict[str, Any]]:
+    if probe_limit <= 0:
+        return list(candidates)
+    return candidates[:probe_limit]
 
 
 def _episode_field_distribution(

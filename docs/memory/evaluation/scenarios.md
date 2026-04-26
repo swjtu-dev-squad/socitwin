@@ -91,7 +91,7 @@
 | `VAL-RCL-08` | 真实行为连续性 recall probe | 检查 gate + retrieval |
 | `VAL-RCL-09` | 空 observation recall suppression | 检查 false trigger |
 | `VAL-RCL-10` | 长窗口真实 recall 注入 | 检查 injected trace |
-| `VAL-RCL-11` | 每个可见 post 的 runtime observation replay | 检查 post-linked 相关历史是否可被 summary query 找回 |
+| `VAL-RCL-11` | 每个可见 post 的 final-store post-linked lookup | 检查 post-linked 相关长期记忆是否可被 summary query 找回 |
 
 这些是当前代码里已经存在的事实场景，不等于 B 级目标设计已经实现为固定 scenario packs。
 
@@ -104,7 +104,7 @@
   - 已补 S1 / S2 固定输入、usable probe 统计和 skipped reasons；
   - 当前主指标是 episode self-retrievability。
 - `B-level v0.5`
-  - 已补 post-based runtime replay；
+  - 已补 post-linked final lookup；
   - 使用真实 observation 中每个可见 post 的 `summary` 出题，评估 post-linked 相关历史是否能被找回。
 - `B-level v1`
   - 再考虑完整 `last_recall_query_text` trace replay、多次运行聚合、更多 scenario packs 或 controlled benchmark。
@@ -126,21 +126,19 @@
 uv run python -m app.memory.evaluation_harness \
   --phase real-scenarios \
   --scenario-pack s1_stable_single_topic \
-  --scenario-steps 10 \
-  --scenario-probe-limit 50
+  --scenario-steps 10
 ```
 
 ```bash
 uv run python -m app.memory.evaluation_harness \
   --phase real-scenarios \
   --scenario-pack s2_similar_topic_interference \
-  --scenario-steps 12 \
-  --scenario-probe-limit 50
+  --scenario-steps 12
 ```
 
 如果不传 `--scenario-pack`，`real-scenarios` 保持旧的 template agent 行为，避免破坏已有调试入口。
 
-`--scenario-probe-limit` 默认是 25，足够覆盖当前 S1/S2 的常见候选规模。更长测试中如果 `skipped_probe_reason_counts.outside_probe_limit` 仍然出现，应显式调高到能覆盖本轮 `raw_real_probe_candidate_count` 的数量，否则 1.0 结果只代表已进入 probe limit 的候选。
+`--scenario-probe-limit` 默认是 `0`，表示全量覆盖候选 episode。正式评测建议保持默认全量；只有在调试速度或成本压力很大时，才手动传入正数做抽样。若设置了正数且 `skipped_probe_reason_counts.outside_probe_limit` 出现，报告中的命中率只代表进入 limit 的那部分候选，不能当作完整场景结论。
 
 ## 3. New Scenario Candidates
 
@@ -224,7 +222,7 @@ uv run python -m app.memory.evaluation_harness \
 当前 S1 / S2 已有第一版固定输入。后续如果进入 B 级 v1，建议按下面方向扩展：
 
 - 加强 `S1 stable single-topic pack` 的多 run 聚合和报告；
-- 加强 `S2 similar-topic interference pack` 的 post-based runtime replay、完整 query trace replay 和排序诊断；
+- 加强 `S2 similar-topic interference pack` 的 post-linked final lookup、完整 query trace replay 和排序诊断；
 - 新增 `S3 group / multi-context pack`。
 
 第二阶段再补：

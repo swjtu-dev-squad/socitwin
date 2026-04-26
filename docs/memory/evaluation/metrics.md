@@ -167,9 +167,9 @@ target_episode_injection_success_rate
 | `prompt_budget_block_rate` | 因总 prompt budget 不能注入的比例 | 判断上下文预算压力 |
 | `recall_budget_block_rate` | 因 recall budget 不能注入的比例 | 判断 recall 局部预算是否过紧 |
 
-### 5.1 Post-Based Runtime Replay Metrics
+### 5.1 Post-Linked Final Lookup Metrics
 
-`VAL-RCL-11 post_based_runtime_replay` 是当前 B-level v0.5 的 observation-summary 检索测试。
+`VAL-RCL-11 post_linked_final_lookup` 是当前 B-level v0.5 的 observation-summary 检索测试。
 
 它的 query 生成规则是：
 
@@ -177,18 +177,16 @@ target_episode_injection_success_rate
 query_text = visible_post.summary
 ```
 
-其中 `post_id` 不进入检索文本，只用于判定 ground truth 和调试。
+其中 `post_id` 不进入检索文本，只用于判定 final-store ground truth 和调试。
+
+它不是 per-step runtime recall replay，不复现某一步当时的 `last_recall_query_text`，也不按 step 做时间过滤。它测的是：给定 agent A 曾经在 observation 中看见过 post P，整场模拟结束后，能否用 P 的 summary 从 A 的长期记忆中找回 A 与 P 相关的动作事件。
 
 核心字段：
 
 - `post_probe_count`：本轮从所有 official step 的 prompt-visible snapshot 中生成的 post query 总数。
 - `post_probe_with_ground_truth_count`：存在结构化正确答案的 post query 数。
 - `post_probe_without_ground_truth_count`：没有历史相关 episode 的 post query 数；这类不算 miss。
-- `runtime_first_post_with_ground_truth_count`：第一个可见 post 中有正确答案的 query 数，更接近当前真实 runtime query 覆盖范围。
-- `non_first_post_with_ground_truth_count`：非第一个可见 post 中有正确答案的 query 数，用于暴露当前 runtime 只查第一个 post 的覆盖缺陷。
 - `hit_at_1` / `hit_at_3` / `mrr`：只在有 ground truth 的 post query 上计算。
-- `runtime_first_post_hit_at_3`：第一个 post 子集的 Hit@3。
-- `non_first_post_hit_at_3`：非第一个 post 子集的 Hit@3。
 - `self_authored_post_hit_at_3`：可见帖子作者就是当前 agent，且有对应 `create_post` 历史 episode 时的 Hit@3。
 - `diagnosis_counts`：按 `hit`、`no_ground_truth`、`same_agent_wrong_target`、`cross_agent` 等诊断分类计数。
 - `ground_truth_action_distribution`：正确答案 episode 的动作类型分布。
@@ -197,7 +195,7 @@ query_text = visible_post.summary
 
 - `episode.target_type == "post"` 且 `episode.target_id == source_post_id`；
 - 或 `episode.local_context.parent_post.post_id == source_post_id`；
-- 或 self-authored 可见 post 对应历史 `create_post` 的 `created_post:{source_post_id}`。
+- 或 self-authored 可见 post 对应 `create_post` 的 `created_post:{source_post_id}`。
 
 不纳入第一版硬正确答案：
 
@@ -212,7 +210,7 @@ query_text = visible_post.summary
 当前 `VAL-LTM-05 real_self_action_retrievability` 会输出：
 
 - `real_probe_candidate_count`：从 Chroma 全量枚举并排除 warm-up 后得到的候选 episode 数；
-- `probe_attempt_limit`：本轮最多拿多少候选出题，当前默认 25，可通过 `--scenario-probe-limit` 调整；
+- `probe_attempt_limit`：本轮最多拿多少候选出题；当前默认 `0`，表示全量候选，可通过 `--scenario-probe-limit <N>` 手动限制；
 - `usable_probe_count`：实际能构造 query 的 probe 数；
 - `skipped_probe_count`：没有进入 probe 的候选数；
 - `skipped_probe_reason_counts`：跳过原因，例如 `missing_query_text` 或 `outside_probe_limit`；
@@ -223,7 +221,7 @@ query_text = visible_post.summary
 
 这些字段不直接等于记忆能力得分，但决定本轮结果是否有解释价值。
 
-提高 `probe_attempt_limit` 后，`like_post` / `repost` 等弱语义动作可能显著拉低 exact episode hit。原因是当前 real-run replay 的 query 通常来自目标内容或 episode 摘要；对点赞、转发这类动作来说，目标正文可能与同一步的 quote/create 或同主题历史高度相似，但缺少“我点赞/我转发了它”的动作语义。因此这类掉分需要拆开解释：
+从抽样改为全量候选后，`like_post` / `repost` 等弱语义动作可能显著拉低 exact episode hit。原因是当前 real-run replay 的 query 通常来自目标内容或 episode 摘要；对点赞、转发这类动作来说，目标正文可能与同一步的 quote/create 或同主题历史高度相似，但缺少“我点赞/我转发了它”的动作语义。因此这类掉分需要拆开解释：
 
 - 如果目标 episode 的 `agent_id` 被过滤正确，`cross_agent_contamination_rate` 仍为 0，说明 agent 隔离没有坏；
 - 如果 miss 集中在 `like_post` / `repost`，优先视为 probe query 构造或弱动作 episode 语义不足问题；
@@ -253,7 +251,7 @@ query_text = visible_post.summary
 
 - `memory_kpi_sources`：记录每个 KPI 对应的 event name；
 - `unavailable_metrics`：记录不可用指标、原因、所需 event 和所需 metric；
-- run 目录下的 `README.md`：输出中文 KPI 摘要、指标解释、样本覆盖、按动作类型命中率、未命中样例、不可用指标和 retrieve-only / injection 口径说明。
+- run 目录下的 `README.md`：输出中文运行概览、指标解释、样本覆盖、Episode Self-Retrievability、Post-Linked Final Lookup、未命中/诊断样例、不可用指标和 retrieve-only / injection 口径说明。
 
 当前 `events.jsonl` 的 `VAL-LTM-05.evidence.per_query` 会保留逐条 probe 的关键过程证据：
 

@@ -61,9 +61,9 @@ def test_run_memory_evaluation_writes_summary_and_events() -> None:
         )
 
         readme = (run_dir / "README.md").read_text(encoding="utf-8")
-        assert "## 2. 核心指标" in readme
-        assert "## 3. 不可用指标" in readme
-        assert "## 10. 原始文件说明" in readme
+        assert "## 2. 总览指标" in readme
+        assert "## 3. 指标缺失说明" in readme
+        assert "## 9. 原始文件说明" in readme
 
         events = [
             json.loads(line)
@@ -175,7 +175,7 @@ def test_parser_accepts_real_scenarios_phase() -> None:
     assert config.phases == ["real-scenarios"]
     assert config.scenario_agent_count == 3
     assert config.scenario_steps == 4
-    assert config.scenario_probe_limit == 25
+    assert config.scenario_probe_limit == 0
 
 
 def test_parser_accepts_b_level_scenario_pack() -> None:
@@ -470,6 +470,21 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
             "authored_content": "other post",
             "action_significance": "medium",
         },
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 5,
+            "action_index": 0,
+            "action_name": "like_post",
+            "action_fact": "like_post(post_id=1)",
+            "topic": "memory topic",
+            "query_source": "distilled_topic",
+            "target_type": "post",
+            "target_id": 1,
+            "target_snapshot": {"summary": "hello there", "post_id": 1},
+            "state_changes": ["liked_post:1"],
+            "action_significance": "medium",
+        },
     ]
 
     fake_agent = SimpleNamespace(
@@ -477,7 +492,7 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
         _observation_policy=_FakeObservationPolicy(),
         _recall_planner=_FakeRecallPlanner(),
         _memory_state=object(),
-        _persisted_action_episode_ids={(3, 0)},
+        _persisted_action_episode_ids={(3, 0), (5, 0)},
     )
     manager = SimpleNamespace(
         get_all_agents=lambda: [fake_agent],
@@ -520,7 +535,7 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
     event_names = [event.name for event in events]
     assert event_names == [
         "VAL-LTM-05 real_self_action_retrievability",
-        "VAL-RCL-11 post_based_runtime_replay",
+        "VAL-RCL-11 post_linked_final_lookup",
         "VAL-RCL-08 real_continuity_recall_probe",
         "VAL-RCL-09 real_empty_observation_recall_suppression",
     ]
@@ -528,20 +543,26 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
     assert events[1].status == "pass"
     assert events[2].status == "pass"
     assert events[3].status == "pass"
-    assert events[0].metrics["real_probe_candidate_count"] == 2
-    assert events[0].metrics["usable_probe_count"] == 2
+    assert events[0].metrics["real_probe_candidate_count"] == 3
+    assert events[0].metrics["usable_probe_count"] == 3
     assert events[0].metrics["skipped_probe_count"] == 0
     assert events[0].metrics["candidate_action_name_distribution"] == {
         "create_comment": 1,
         "create_post": 1,
+        "like_post": 1,
     }
     assert events[0].metrics["candidate_agent_distribution"] == {
-        "agent-1": 1,
+        "agent-1": 2,
         "agent-2": 1,
     }
     assert events[1].metrics["post_probe_count"] == 1
     assert events[1].metrics["post_probe_with_ground_truth_count"] == 1
     assert events[1].metrics["hit_at_3"] == 1.0
+    assert len(events[1].evidence["per_probe"][0]["expected_keys"]) == 2
+    assert events[1].evidence["per_probe"][0]["expected_action_names"] == [
+        "create_comment",
+        "like_post",
+    ]
 
 
 def test_build_real_scenario_events_reports_probe_skips() -> None:
@@ -694,6 +715,57 @@ def test_build_real_scenario_events_honors_probe_limit() -> None:
     assert event.metrics["usable_probe_count"] == 1
     assert event.metrics["skipped_probe_reason_counts"] == {"outside_probe_limit": 1}
     assert len(event.evidence["per_query"]) == 1
+
+
+def test_build_real_scenario_events_uses_all_probes_by_default() -> None:
+    episodes = [
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 1,
+            "action_index": 0,
+            "action_name": "create_post",
+            "authored_content": "first post",
+        },
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 2,
+            "action_index": 0,
+            "action_name": "create_post",
+            "authored_content": "second post",
+        },
+    ]
+
+    class _FakeStore:
+        def list_episodes(self):
+            return list(episodes)
+
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text, limit, agent_id
+            return episodes
+
+    fake_agent = SimpleNamespace(
+        agent_id="agent-1",
+        _persisted_action_episode_ids={(1, 0), (2, 0)},
+    )
+    manager = SimpleNamespace(
+        get_all_agents=lambda: [fake_agent],
+        get_state_info=lambda: {"current_step": 2},
+        _action_v1_longterm_store=_FakeStore(),
+    )
+
+    events = _build_real_scenario_events(
+        manager=cast(Any, manager),
+        init_result={"agent_count": 1},
+        config=EvaluationConfig(phases=["real-scenarios"], embedding_url=""),
+    )
+
+    event = events[0]
+    assert event.metrics["probe_attempt_limit"] == 0
+    assert event.metrics["usable_probe_count"] == 2
+    assert event.metrics["skipped_probe_reason_counts"] == {}
+    assert len(event.evidence["per_query"]) == 2
 
 
 def test_build_real_scenario_events_excludes_warmup_candidates() -> None:
