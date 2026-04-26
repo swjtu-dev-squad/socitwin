@@ -111,8 +111,10 @@ def test_chroma_longterm_store_roundtrip_and_agent_filter(tmp_path: Path) -> Non
     assert isinstance(store, ChromaLongtermStore)
     store.write_episodes([_episode(7, "agent-a"), _episode(8, "agent-b")])
 
+    listed = store.list_episodes()
     results = store.retrieve_relevant("follow user:7", limit=3, agent_id="agent-a")
 
+    assert {item["step_id"] for item in listed} == {7, 8}
     assert len(results) == 1
     assert results[0]["agent_id"] == "agent-a"
     assert results[0]["step_id"] == 7

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence, cast
 
 from camel.memories import MemoryRecord
 from camel.messages import BaseMessage
@@ -398,7 +398,7 @@ def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
             "",
             "说明：",
             "",
-            "- `ltm_exact_hit_at_3` 可以对外解释为 LTM Retrieval Recall@3，但这里是单目标 exact episode hit，不是传统多相关文档 Recall@K。",
+            "- `ltm_exact_hit_at_3` 可以对外解释为 Episode Self-Retrievability Recall@3，但这里是 episode-derived query 下的单目标 exact episode hit，不是 runtime recall，也不是传统多相关文档 Recall@K。",
             "- 当前 ground truth 是精确的 `(agent_id, step_id, action_index)`，所以同一步另一个动作被召回也不算 exact hit。",
             "- `recall_injection_trace_rate` 是 trace 级注入痕迹，能说明记忆进入 prompt，但不能证明模型最终行为一定使用了该记忆。",
             "- `real-scenarios` 中的 `VAL-RCL-08/09` 是 retrieve-only probe，只验证 gate + retrieval，不执行完整 prompt assembly。",
@@ -420,7 +420,7 @@ def _memory_kpi_readme_lines(summary: dict[str, Any]) -> list[str]:
 def _memory_kpi_descriptions() -> dict[str, str]:
     return {
         "ltm_exact_hit_at_1": "目标历史动作是否排在 top-1；越高说明排序越尖锐。",
-        "ltm_exact_hit_at_3": "目标历史动作是否进入 top-3；当前主检索召回指标。",
+        "ltm_exact_hit_at_3": "给目标 episode 自身线索时，目标历史动作是否进入 top-3；不是 runtime query 召回率。",
         "ltm_mrr": "目标首次命中的倒数排名均值；越高说明目标越靠前。",
         "cross_agent_contamination_rate": "top-3 中错误 agent 的比例；正常应接近 0。",
         "recall_gate_success_rate": "正例 recall probe 中 gate 是否打开。",
@@ -1134,7 +1134,7 @@ def _build_real_scenario_step_audit_entry(
                 {
                     "key": list(_real_episode_key(payload)),
                     "persisted": persisted,
-                    "probe_query_text": _query_from_real_episode(payload),
+                    "probe_query_text": _self_retrieval_query_from_episode(payload),
                     "longterm_document": _episode_document(payload),
                     "payload": payload,
                 }
@@ -1942,7 +1942,7 @@ def _build_real_self_action_retrievability_event(
     )
     per_query: list[dict[str, Any]] = []
     for candidate in probe_candidates:
-        query_text = _query_from_real_episode(candidate)
+        query_text = _self_retrieval_query_from_episode(candidate)
         expected_agent_id = str(candidate.get("agent_id", "") or "")
         retrieved = store.retrieve_relevant(
             query_text,
@@ -2029,7 +2029,7 @@ def _build_real_continuity_recall_probe_event(
         )
 
     snapshot = _related_snapshot_from_episode(target)
-    query_text = _query_from_real_episode(target)
+    query_text = _self_retrieval_query_from_episode(target)
     perception = agent._observation_policy.build_perception_envelope(  # noqa: SLF001
         prompt_visible_snapshot=snapshot,
         observation_prompt=query_text,
@@ -2171,32 +2171,30 @@ def _build_real_empty_observation_suppression_event(
 def _collect_real_longterm_probe_candidates(store: Any) -> list[dict[str, Any]]:
     if store is None:
         return []
-    queries = [
-        "create_post create_comment authored content state changes",
-        "created_post created_comment followed_user sent_group_message",
-        "discussion post comment follow group message",
-    ]
+    list_episodes_attr = getattr(store, "list_episodes", None)
+    if not callable(list_episodes_attr):
+        return []
+    list_episodes = cast(Callable[[], Sequence[Mapping[str, Any]]], list_episodes_attr)
     by_key: dict[tuple[str, int | None, int | None], dict[str, Any]] = {}
-    for query in queries:
-        try:
-            retrieved = store.retrieve_relevant(query, limit=10)
-        except Exception:
+    try:
+        episodes = list(list_episodes())
+    except Exception:
+        return []
+    for raw_item in episodes:
+        item = dict(raw_item)
+        if str(item.get("memory_kind", "") or "") != "action_episode":
             continue
-        for item in retrieved:
-            if str(item.get("memory_kind", "") or "") != "action_episode":
-                continue
-            key = _real_episode_key(item)
-            if key[1] is None or key[2] is None:
-                continue
-            by_key[key] = dict(item)
+        key = _real_episode_key(item)
+        if key[1] is None or key[2] is None:
+            continue
+        by_key[key] = dict(item)
     return sorted(
         by_key.values(),
         key=lambda item: (
-            bool(str(item.get("authored_content", "") or "").strip()),
-            str(item.get("action_significance", "") or "") == "high",
             int(item.get("step_id", 0) or 0),
+            int(item.get("action_index", 0) or 0),
+            str(item.get("agent_id", "") or ""),
         ),
-        reverse=True,
     )
 
 
@@ -2208,7 +2206,7 @@ def _summarize_real_probe_candidate_pool(
     considered = candidates[:probe_limit]
     usable = _usable_real_probe_candidates(candidates, probe_limit=probe_limit)
     missing_query_count = sum(
-        1 for candidate in considered if not _query_from_real_episode(candidate)
+        1 for candidate in considered if not _self_retrieval_query_from_episode(candidate)
     )
     outside_limit_count = max(0, len(candidates) - probe_limit)
     skipped_reason_counts: dict[str, int] = {}
@@ -2249,7 +2247,7 @@ def _usable_real_probe_candidates(
     return [
         candidate
         for candidate in candidates[:probe_limit]
-        if _query_from_real_episode(candidate)
+        if _self_retrieval_query_from_episode(candidate)
     ]
 
 
@@ -2274,18 +2272,151 @@ def _count_persisted_action_episodes(agents: list[Any]) -> int:
     return total
 
 
-def _query_from_real_episode(episode: dict[str, Any]) -> str:
-    for key in ("authored_content", "summary_text", "topic", "action_fact"):
-        value = str(episode.get(key, "") or "").strip()
-        if value:
-            return value[:240]
+def _self_retrieval_query_from_episode(episode: dict[str, Any]) -> str:
+    action_name = str(episode.get("action_name", "") or "").strip()
+    action_category = str(episode.get("action_category", "") or "").strip()
+    authored_content = str(episode.get("authored_content", "") or "").strip()
+    topic = str(episode.get("topic", "") or "").strip()
+    action_fact = str(episode.get("action_fact", "") or "").strip()
+    state_changes = _string_list_query_text(episode.get("state_changes", []) or [])
+    target_text = _target_query_text(episode)
+    context_text = _local_context_query_text(episode)
+
+    if action_name == "create_post":
+        return _join_probe_query_parts(
+            action_name,
+            action_category,
+            "created post",
+            state_changes,
+            target_text,
+            authored_content,
+            topic,
+        )
+    if action_name == "create_comment":
+        return _join_probe_query_parts(
+            action_name,
+            action_category,
+            "created comment",
+            state_changes,
+            target_text,
+            context_text,
+            authored_content,
+            topic,
+        )
+    if action_name in {
+        "like_post",
+        "unlike_post",
+        "dislike_post",
+        "undo_dislike_post",
+        "report_post",
+        "repost",
+        "quote_post",
+        "like_comment",
+        "unlike_comment",
+        "dislike_comment",
+        "undo_dislike_comment",
+    }:
+        return _join_probe_query_parts(
+            action_name,
+            action_category,
+            state_changes,
+            target_text,
+            context_text,
+            authored_content,
+            topic,
+        )
+    if action_name in {"follow", "unfollow", "mute", "unmute"}:
+        return _join_probe_query_parts(
+            action_name,
+            action_category,
+            state_changes,
+            target_text,
+            action_fact,
+        )
+    if action_name in {"join_group", "leave_group", "send_to_group", "create_group"}:
+        return _join_probe_query_parts(
+            action_name,
+            action_category,
+            state_changes,
+            target_text,
+            authored_content,
+            context_text,
+            topic,
+        )
+    return _join_probe_query_parts(
+        action_name,
+        action_category,
+        state_changes,
+        target_text,
+        authored_content,
+        context_text,
+        topic,
+        action_fact,
+    )
+
+
+def _target_query_text(episode: dict[str, Any]) -> str:
+    target_parts: list[str] = []
+    target_type = str(episode.get("target_type", "") or "").strip()
+    target_id = episode.get("target_id")
+    if target_type or target_id is not None:
+        target_parts.append(f"{target_type}:{target_id}")
     target_snapshot = episode.get("target_snapshot", {}) or {}
     if isinstance(target_snapshot, dict):
-        for key in ("summary", "content", "group_name"):
+        for key in ("summary", "content", "group_name", "user_name", "name"):
             value = str(target_snapshot.get(key, "") or "").strip()
             if value:
-                return value[:240]
-    return ""
+                target_parts.append(value)
+                break
+        for key, label in (
+            ("post_id", "post"),
+            ("comment_id", "comment"),
+            ("group_id", "group"),
+            ("user_id", "user"),
+        ):
+            value = target_snapshot.get(key)
+            if value is not None:
+                target_parts.append(f"{label}:{value}")
+    return _join_probe_query_parts(*target_parts, max_chars=160)
+
+
+def _local_context_query_text(episode: dict[str, Any]) -> str:
+    local_context = episode.get("local_context", {}) or {}
+    if not isinstance(local_context, dict):
+        return str(local_context or "").strip()[:160]
+    parts: list[str] = []
+    parent_post = local_context.get("parent_post", {}) or {}
+    if isinstance(parent_post, dict):
+        parent_summary = str(parent_post.get("summary", "") or "").strip()
+        if parent_summary:
+            parts.append(f"parent post {parent_summary}")
+    group = local_context.get("group", {}) or {}
+    if isinstance(group, dict):
+        group_summary = str(group.get("summary", "") or "").strip()
+        if group_summary:
+            parts.append(f"group {group_summary}")
+    return _join_probe_query_parts(*parts, max_chars=160)
+
+
+def _string_list_query_text(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        return " ".join(str(item) for item in value if str(item or "").strip())[:160]
+    return str(value or "").strip()[:160]
+
+
+def _join_probe_query_parts(*parts: Any, max_chars: int = 240) -> str:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        text = str(part or "").strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(text)
+    return " ".join(deduped).strip()[:max_chars]
 
 
 def _score_real_episode_retrieval_probe(
@@ -2477,7 +2608,7 @@ def _context_agent_for_episode(
 
 
 def _related_snapshot_from_episode(episode: dict[str, Any]) -> dict[str, Any]:
-    summary = _query_from_real_episode(episode) or "related remembered social content"
+    summary = _self_retrieval_query_from_episode(episode) or "related remembered social content"
     target_snapshot = episode.get("target_snapshot", {}) or {}
     target_id = episode.get("target_id")
     if isinstance(target_snapshot, dict):

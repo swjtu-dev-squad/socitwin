@@ -16,6 +16,7 @@ from app.memory.evaluation_harness import (
     _build_real_scenario_events,
     _load_b_level_scenario_pack,
     _run_comparison,
+    _self_retrieval_query_from_episode,
     _summarize_comparison_run,
     build_parser,
     parse_args,
@@ -373,6 +374,9 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
         def __init__(self, episodes):
             self.episodes = list(episodes)
 
+        def list_episodes(self):
+            return list(self.episodes)
+
         def retrieve_relevant(self, query_text, limit, agent_id=None):
             del query_text
             items = self.episodes
@@ -508,17 +512,20 @@ def test_build_real_scenario_events_includes_recall_probe_events() -> None:
 
 def test_build_real_scenario_events_reports_probe_skips() -> None:
     class _FakeStore:
-        def retrieve_relevant(self, query_text, limit, agent_id=None):
-            del query_text, limit, agent_id
+        def list_episodes(self):
             return [
                 {
                     "memory_kind": "action_episode",
                     "agent_id": "agent-1",
                     "step_id": 4,
                     "action_index": 0,
-                    "action_name": "like",
+                    "action_name": "",
                 }
             ]
+
+        def retrieve_relevant(self, query_text, limit, agent_id=None):
+            del query_text, limit, agent_id
+            return self.list_episodes()
 
     fake_agent = SimpleNamespace(
         agent_id="agent-1",
@@ -565,6 +572,9 @@ def test_build_real_scenario_events_honors_probe_limit() -> None:
     ]
 
     class _FakeStore:
+        def list_episodes(self):
+            return list(episodes)
+
         def retrieve_relevant(self, query_text, limit, agent_id=None):
             del query_text, limit, agent_id
             return episodes
@@ -652,33 +662,38 @@ def test_build_real_scenario_events_honors_probe_limit() -> None:
 
 
 def test_build_real_scenario_events_excludes_warmup_candidates() -> None:
+    episodes = [
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 1,
+            "action_index": 0,
+            "action_name": "create_post",
+            "action_fact": "create_post(content=seed)",
+            "topic": "seed topic",
+            "authored_content": "seed topic",
+            "target_snapshot": {"summary": "seed topic"},
+        },
+        {
+            "memory_kind": "action_episode",
+            "agent_id": "agent-1",
+            "step_id": 2,
+            "action_index": 0,
+            "action_name": "create_comment",
+            "action_fact": "create_comment(content=follow-up)",
+            "topic": "follow-up topic",
+            "authored_content": "follow-up topic",
+            "target_snapshot": {"summary": "follow-up topic"},
+        },
+    ]
+
     class _FakeStore:
+        def list_episodes(self):
+            return list(episodes)
+
         def retrieve_relevant(self, query_text, limit, agent_id=None):
             del query_text, limit, agent_id
-            return [
-                {
-                    "memory_kind": "action_episode",
-                    "agent_id": "agent-1",
-                    "step_id": 1,
-                    "action_index": 0,
-                    "action_name": "create_post",
-                    "action_fact": "create_post(content=seed)",
-                    "topic": "seed topic",
-                    "authored_content": "seed topic",
-                    "target_snapshot": {"summary": "seed topic"},
-                },
-                {
-                    "memory_kind": "action_episode",
-                    "agent_id": "agent-1",
-                    "step_id": 2,
-                    "action_index": 0,
-                    "action_name": "create_comment",
-                    "action_fact": "create_comment(content=follow-up)",
-                    "topic": "follow-up topic",
-                    "authored_content": "follow-up topic",
-                    "target_snapshot": {"summary": "follow-up topic"},
-                },
-            ]
+            return list(episodes)
 
     fake_agent = SimpleNamespace(
         agent_id="agent-1",
@@ -704,6 +719,51 @@ def test_build_real_scenario_events_excludes_warmup_candidates() -> None:
     assert event.metrics["warmup_excluded_probe_candidate_count"] == 1
     assert event.metrics["real_probe_candidate_count"] == 1
     assert event.evidence["per_query"][0]["expected_key"] == ("agent-1", 2, 0)
+
+
+def test_self_retrieval_query_uses_action_specific_memory_shape() -> None:
+    comment_episode = {
+        "memory_kind": "action_episode",
+        "agent_id": "agent-1",
+        "step_id": 5,
+        "action_index": 0,
+        "action_name": "create_comment",
+        "action_category": "authored_content",
+        "authored_content": "A clear implementation detail matters more than slogans.",
+        "topic": "state capacity reform",
+        "target_type": "post",
+        "target_id": 42,
+        "target_snapshot": {"summary": "An essay about national renewal", "post_id": 42},
+        "local_context": {
+            "parent_post": {"summary": "Debate about state capacity and reform labels"}
+        },
+        "state_changes": ["created_comment:77"],
+        "summary_text": "unused placeholder summary",
+    }
+    like_episode = {
+        "memory_kind": "action_episode",
+        "agent_id": "agent-1",
+        "step_id": 6,
+        "action_index": 0,
+        "action_name": "like_post",
+        "action_category": "content_preference",
+        "target_type": "post",
+        "target_id": 42,
+        "target_snapshot": {"summary": "An essay about national renewal", "post_id": 42},
+        "state_changes": ["liked_post:42"],
+        "summary_text": "unused placeholder summary",
+    }
+
+    comment_query = _self_retrieval_query_from_episode(comment_episode)
+    like_query = _self_retrieval_query_from_episode(like_episode)
+
+    assert "create_comment" in comment_query
+    assert "created_comment:77" in comment_query
+    assert "Debate about state capacity" in comment_query
+    assert "unused placeholder summary" not in comment_query
+    assert "like_post" in like_query
+    assert "liked_post:42" in like_query
+    assert "An essay about national renewal" in like_query
 
 
 def test_build_real_longwindow_events_uses_runtime_snapshots() -> None:

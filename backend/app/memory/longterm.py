@@ -107,6 +107,9 @@ class LongtermStore(Protocol):
     ) -> list[ActionEpisodeLike]:
         ...
 
+    def list_episodes(self) -> list[ActionEpisodeLike]:
+        ...
+
     def clear(self) -> None:
         ...
 
@@ -275,6 +278,21 @@ class ChromaLongtermStore:
         )
         payloads = [payload_to_episode(result.record.payload or {}) for result in results]
         return _rerank_retrieved_payloads(payloads, query=normalized_query, limit=limit)
+
+    def list_episodes(self) -> list[ActionEpisodeLike]:
+        try:
+            results = self.storage.collection.get(include=["metadatas"])
+        except Exception as exc:
+            raise RuntimeError("Failed to list Chroma long-term episodes") from exc
+
+        episodes: list[ActionEpisodeLike] = []
+        for metadata in results.get("metadatas", []) or []:
+            if not isinstance(metadata, Mapping):
+                continue
+            payload = payload_to_episode(_deserialize_payload(metadata))
+            if str(payload.get("memory_kind", "") or "") == "action_episode":
+                episodes.append(payload)
+        return episodes
 
     def clear(self) -> None:
         self.storage.clear()

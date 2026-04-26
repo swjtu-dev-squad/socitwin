@@ -204,7 +204,8 @@ Status: implemented for fixed-input self-retrievability; runtime-query replay pe
 - agent source: fixture agents -> `manual_config`
 - seed post: `ManualAction(CREATE_POST)` warm-up，`count_towards_budget=False`
 - refresh: seed 后对全部 agent 执行 `REFRESH` warm-up，`count_towards_budget=False`
-- replay candidate 排除：warm-up 后已存在的 persisted episode keys 会从 real-run replay candidates 中排除，避免 seed 环境污染正式长期记忆检索 KPI。
+- replay candidate 来源：从 Chroma collection 全量枚举已存 `ActionEpisode` payload，再排除 warm-up 后已存在的 persisted episode keys，避免 seed 环境污染正式长期记忆检索 KPI。
+- self-retrieval query：按动作类型和 `_episode_document()` 的实际字段构造，不再使用旧的通用字段顺序，也不把空置的 `summary_text` 当作优先 query 来源。
 
 已内置两个 v0 packs：
 
