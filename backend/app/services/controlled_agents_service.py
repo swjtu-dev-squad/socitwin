@@ -2,6 +2,7 @@
 受控Agent服务 - 管理受控agents的业务逻辑
 """
 import logging
+from typing import Optional
 
 from app.core.oasis_manager import OASISManager
 from app.models.controlled_agents import (
@@ -9,6 +10,16 @@ from app.models.controlled_agents import (
     AddControlledAgentsResponse,
     AgentAddResult,
     ControlledAgentConfig,
+)
+from app.models.behavior import (
+    BehaviorStrategy,
+    create_default_behavior_config,
+    create_probabilistic_config,
+    create_rule_based_config,
+    create_scheduled_config,
+    AgentBehaviorConfig,
+    MixedStrategyConfig,
+    StrategyWeight,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,10 +173,15 @@ class ControlledAgentsService:
         )
         agent_id = max_id + 1
 
-        # 构建profile字典，包含interests
-        profile = config.profile.copy()
+        # 构建profile字典，包含interests和behavior配置
+        profile = config.profile.copy() if config.profile else {}
         if config.interests:
             profile['interests'] = config.interests
+
+        # 根据behavior_strategy创建行为配置
+        behavior_config = self._create_behavior_config(config.behavior_strategy)
+        if behavior_config:
+            profile['behavior_config'] = behavior_config.dict()
 
         # 创建UserInfo
         user_info = UserInfo(
@@ -230,3 +246,48 @@ class ControlledAgentsService:
         except Exception as e:
             logger.error(f"Failed to get polarization: {e}")
             return 0.0
+
+    def _create_behavior_config(self, strategy: Optional[BehaviorStrategy] = None) -> Optional[AgentBehaviorConfig]:
+        """
+        根据策略类型创建行为配置
+
+        Args:
+            strategy: 行为策略类型
+
+        Returns:
+            行为配置对象，如果strategy为None则返回None
+        """
+        if not strategy:
+            return None
+
+        platform = self.oasis_manager._platform_type
+
+        try:
+            if strategy == BehaviorStrategy.PROBABILISTIC:
+                return create_probabilistic_config(platform=platform)
+            elif strategy == BehaviorStrategy.RULE_BASED:
+                return create_rule_based_config(platform=platform)
+            elif strategy == BehaviorStrategy.SCHEDULED:
+                return create_scheduled_config(platform=platform)
+            elif strategy == BehaviorStrategy.MIXED:
+                # 对于混合策略，创建一个默认的混合配置
+                mixed_config = MixedStrategyConfig(
+                    name="default_mixed",
+                    description="Default mixed strategy with equal weights",
+                    strategy_weights=[
+                        StrategyWeight(strategy=BehaviorStrategy.PROBABILISTIC, weight=0.5),
+                        StrategyWeight(strategy=BehaviorStrategy.RULE_BASED, weight=0.5),
+                    ],
+                    selection_mode="weighted_random"
+                )
+                return AgentBehaviorConfig(
+                    strategy=BehaviorStrategy.MIXED,
+                    mixed_strategy=mixed_config,
+                    enabled=True
+                )
+            else:
+                # LLM_AUTONOMOUS 或其他策略使用默认配置
+                return create_default_behavior_config()
+        except Exception as e:
+            logger.error(f"Failed to create behavior config for strategy {strategy}: {e}")
+            return create_default_behavior_config()

@@ -336,6 +336,8 @@ export interface ChartDataPoint {
 
 // ========== Controlled Agent Types ==========
 
+import { BehaviorStrategy } from './behaviorTypes'
+
 export interface ControlledAgentConfig {
   user_name: string
   name: string
@@ -343,6 +345,7 @@ export interface ControlledAgentConfig {
   bio?: string
   profile?: Record<string, any>
   interests?: string[]
+  behavior_strategy?: BehaviorStrategy
 }
 
 export interface AgentAddResult {
