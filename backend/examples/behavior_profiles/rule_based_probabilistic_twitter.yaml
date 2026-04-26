@@ -1,0 +1,135 @@
+# 规则引擎行为配置示例 - 基于概率分布的Twitter行为
+# 此配置文件展示了如何将概率分布转换为规则引擎配置
+# 动作分布：20%发帖，30%点赞，25%评论，15%刷新，10%休息
+
+name: "probabilistic_twitter_rules"
+description: "基于概率分布的Twitter行为规则集 - 模拟概率分布"
+strategy: "rule_based"
+enabled: true
+platform_filter: "twitter"
+
+# 规则集配置
+rule_set:
+  name: "probabilistic_twitter_rules"
+  description: "基于概率分布的Twitter行为规则集 - 使用概率桶模拟分布"
+  platform: "twitter"
+  rules:
+    # 规则1：发帖（CREATE_POST）- 20%概率
+    - rule_id: "create_post_probability"
+      name: "概率发帖"
+      description: "当概率桶在0-19范围内时发帖（20%概率）"
+      priority: 1  # 相同优先级，按顺序评估
+      enabled: true
+      conditions:
+        - field: "probability_bucket"
+          operator: "greater_than_or_equal"
+          value: 0
+        - field: "probability_bucket"
+          operator: "less_than"
+          value: 20
+      action: "CREATE_POST"
+      action_args:
+        content_templates:
+          - "今天天气真好！ #心情"
+          - "分享一个有趣的想法..."
+          - "大家怎么看这个问题？"
+        topic_categories: ["technology", "politics", "entertainment"]
+        probability_weight: 0.20
+
+    # 规则2：点赞（LIKE_POST）- 30%概率
+    - rule_id: "like_post_probability"
+      name: "概率点赞"
+      description: "当概率桶在20-49范围内时点赞（30%概率）"
+      priority: 1
+      enabled: true
+      conditions:
+        - field: "probability_bucket"
+          operator: "greater_than_or_equal"
+          value: 20
+        - field: "probability_bucket"
+          operator: "less_than"
+          value: 50
+      action: "LIKE_POST"
+      action_args:
+        max_likes_per_step: 3
+        preference_topics: ["technology", "science"]
+        probability_weight: 0.30
+
+    # 规则3：评论（CREATE_COMMENT）- 25%概率
+    - rule_id: "create_comment_probability"
+      name: "概率评论"
+      description: "当概率桶在50-74范围内时评论（25%概率）"
+      priority: 1
+      enabled: true
+      conditions:
+        - field: "probability_bucket"
+          operator: "greater_than_or_equal"
+          value: 50
+        - field: "probability_bucket"
+          operator: "less_than"
+          value: 75
+      action: "CREATE_COMMENT"
+      action_args:
+        comment_templates:
+          - "有意思的观点！"
+          - "我同意这个看法。"
+          - "从另一个角度来说..."
+        min_post_age: 1  # 帖子至少存在1步
+        probability_weight: 0.25
+
+    # 规则4：刷新（REFRESH）- 15%概率
+    - rule_id: "refresh_probability"
+      name: "概率刷新"
+      description: "当概率桶在75-89范围内时刷新（15%概率）"
+      priority: 1
+      enabled: true
+      conditions:
+        - field: "probability_bucket"
+          operator: "greater_than_or_equal"
+          value: 75
+        - field: "probability_bucket"
+          operator: "less_than"
+          value: 90
+      action: "REFRESH"
+      action_args:
+        fetch_limit: 20
+        probability_weight: 0.15
+
+    # 规则5：休息（DO_NOTHING）- 10%概率
+    - rule_id: "do_nothing_probability"
+      name: "概率休息"
+      description: "当概率桶在90-99范围内时休息（10%概率）"
+      priority: 1
+      enabled: true
+      conditions:
+        - field: "probability_bucket"
+          operator: "greater_than_or_equal"
+          value: 90
+        - field: "probability_bucket"
+          operator: "less_than"
+          value: 100
+      action: "DO_NOTHING"
+      action_args:
+        observation_mode: true
+        probability_weight: 0.10
+
+# 上下文要求
+conditions:
+  simulation_phase: "normal"
+  agent_type: "regular"
+
+# 执行约束
+step_range: [0, 100]  # 在步骤0-100之间有效
+
+# 元数据
+metadata:
+  created: "2026-04-12T00:00:00Z"
+  author: "Socitwin Admin"
+  tags: ["rule_based", "probabilistic", "twitter", "balanced", "oasis"]
+  version: "1.0.0"
+  probability_distribution:
+    CREATE_POST: 0.20
+    LIKE_POST: 0.30
+    CREATE_COMMENT: 0.25
+    REFRESH: 0.15
+    DO_NOTHING: 0.10

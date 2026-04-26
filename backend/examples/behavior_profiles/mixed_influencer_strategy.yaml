@@ -1,0 +1,192 @@
+# 混合策略行为配置示例 - 社交媒体影响者
+# 此配置文件展示了如何配置混合策略用于社交媒体影响者
+
+name: "social_media_influencer"
+description: "社交媒体影响者策略 - 混合概率、规则和调度"
+strategy: "mixed"
+enabled: true
+platform_filter: "twitter"
+
+# 混合策略配置
+mixed_strategy:
+  name: "influencer_hybrid_strategy"
+  description: "影响者混合策略 - 70%概率模型 + 20%规则引擎 + 10%调度"
+  selection_mode: "weighted_random"
+  strategy_weights:
+    - strategy: "probabilistic"
+      weight: 0.70
+    - strategy: "rule_based"
+      weight: 0.20
+    - strategy: "scheduled"
+      weight: 0.10
+
+# 概率分布子配置
+probability_distribution:
+  name: "influencer_content_mix"
+  description: "影响者内容混合 - 多样化内容策略"
+  platform: "twitter"
+  actions:
+    - action_type: "CREATE_POST"
+      probability: 0.35
+      description: "原创内容创作"
+      action_args:
+        content_types: ["opinion", "experience", "tutorial"]
+        media_required: true
+        quality_threshold: "high"
+
+    - action_type: "CREATE_COMMENT"
+      probability: 0.25
+      description: "社区互动"
+      conditions:
+        engagement_opportunity: true
+      action_args:
+        engagement_style: "authentic"
+        min_response_length: 20
+
+    - action_type: "QUOTE_POST"
+      probability: 0.15
+      description: "内容策展"
+      conditions:
+        trending_topic: true
+      action_args:
+        curation_criteria: ["relevance", "quality", "virality"]
+        add_commentary: true
+
+    - action_type: "LIKE_POST"
+      probability: 0.15
+      description: "社交认可"
+      action_args:
+        like_strategy: "strategic"  # 战略点赞（关注行业领袖等）
+        daily_limit: 50
+
+    - action_type: "REFRESH"
+      probability: 0.05
+      description: "信息收集"
+      action_args:
+        feed_types: ["following", "trending", "notifications"]
+        analysis_depth: "medium"
+
+    - action_type: "DO_NOTHING"
+      probability: 0.05
+      description: "战略观察"
+      conditions:
+        learning_period: true
+      action_args:
+        observation_focus: ["trends", "competitors", "audience"]
+
+# 规则集子配置
+rule_set:
+  name: "influencer_business_rules"
+  description: "影响者商业规则 - 品牌合作、危机管理等"
+  platform: "twitter"
+  rules:
+    - rule_id: "respond_to_brand_mention"
+      name: "回应品牌提及"
+      description: "当被合作品牌提及时，积极回应"
+      priority: 1
+      conditions:
+        - field: "event_type"
+          operator: "equals"
+          value: "mentioned"
+        - field: "source_type"
+          operator: "equals"
+          value: "brand_partner"
+      action: "CREATE_COMMENT"
+      action_args:
+        content: "感谢@[brand]的提及！很荣幸与你们合作。 #品牌合作 #合作伙伴"
+        include_partnership_hashtag: true
+
+    - rule_id: "handle_controversy"
+      name: "处理争议"
+      description: "谨慎处理争议性话题"
+      priority: 2
+      conditions:
+        - field: "topic_sensitivity"
+          operator: "equals"
+          value: "high"
+        - field: "audience_reaction"
+          operator: "equals"
+          value: "divided"
+      action: "CREATE_POST"
+      action_args:
+        content: "这是一个复杂的话题，我理解不同观点。让我们保持尊重和建设性的讨论。"
+        tone: "neutral"
+        avoid_polarization: true
+
+    - rule_id: "promote_owned_content"
+      name: "推广自有内容"
+      description: "当其他平台有新内容时，在Twitter上推广"
+      priority: 3
+      conditions:
+        - field: "new_content_published"
+          operator: "equals"
+          value: true
+        - field: "content_platform"
+          operator: "not_equals"
+          value: "twitter"
+      action: "CREATE_POST"
+      action_args:
+        content: "🎬 我在[平台]上发布了新内容！主题：[主题]。点击查看：example.com/link #内容更新 #跨平台"
+        cross_promotion: true
+        track_clicks: true
+
+# 调度子配置
+schedule:
+  name: "influencer_daily_routine"
+  description: "影响者每日例行活动"
+  loop: true  # 每日循环
+  timeline:
+    - step: 0   # 早上
+      action: "CREATE_POST"
+      description: "早安问候"
+      repeat_interval: 24  # 每天重复
+      action_args:
+        content_templates:
+          - "🌞 大家早上好！今天有什么计划？ #早安 #清晨问候"
+          - "☕️ 新的一天，新的开始。喝杯咖啡，开始工作！ #早晨 #工作日"
+        time_sensitive: true
+
+    - step: 6   # 中午
+      action: "CREATE_POST"
+      description: "午间更新"
+      repeat_interval: 24
+      action_args:
+        content: "📱 午间休息，分享一下今天的进展... #午间更新 #工作进展"
+        engagement_goal: "lunchtime_engagement"
+
+    - step: 12  # 傍晚
+      action: "CREATE_POST"
+      description: "每日总结"
+      repeat_interval: 24
+      action_args:
+        content: "📊 今天完成的工作总结：1. [任务1] 2. [任务2] 3. [任务3]。明天继续！ #每日总结 #进度报告"
+        include_accomplishments: true
+
+# 影响者特定配置
+influencer_profile:
+  niche: "technology"
+  audience_size: "100k_500k"
+  content_themes: ["AI", "productivity", "tech_reviews"]
+  monetization: ["brand_deals", "affiliate", "own_products"]
+  engagement_goals:
+    daily_interactions: 1000
+    growth_rate: "5%_monthly"
+    audience_retention: "80%"
+
+# 高级配置
+advanced:
+  strategy_adaptation: true  # 根据表现调整策略权重
+  performance_tracking:
+    metrics: ["engagement_rate", "follower_growth", "content_virality"]
+    review_interval: "weekly"
+  content_calendar_integration: true
+  competitor_monitoring: true
+
+# 元数据
+metadata:
+  created: "2024-01-01T12:00:00Z"
+  author: "Socitwin Strategy Team"
+  tags: ["mixed", "influencer", "twitter", "advanced", "hybrid"]
+  version: "1.0.0"
+  complexity_level: "advanced"
+  recommended_for: "experienced_users"
