@@ -34,9 +34,11 @@ class Config:
 
 def load_config() -> Config:
     """从.env文件加载配置"""
-    env_paths = [
+    env_paths = []
+    if env_file_env := os.environ.get("ENV_FILE"):
+        env_paths.append(Path(env_file_env))
+    env_paths += [
         Path(__file__).parent.parent / ".env",
-        Path("/home/liz/socitwin/backend/.env"),
         Path.cwd() / ".env",
         Path(__file__).parent.parent.parent / "backend" / ".env",
     ]

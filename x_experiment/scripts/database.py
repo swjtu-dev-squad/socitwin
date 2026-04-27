@@ -41,7 +41,13 @@ class DatabaseClient:
             self.logger.debug("Database connection closed")
 
     def _ensure_connection(self) -> None:
-        """确保数据库连接已建立"""
+        """确保数据库连接已建立且健康"""
+        if self.connection:
+            try:
+                self.connection.execute("SELECT 1")
+            except sqlite3.Error:
+                self.logger.warning("数据库连接已失效，重新连接")
+                self.connection = None
         if not self.connection:
             self.connect()
 
