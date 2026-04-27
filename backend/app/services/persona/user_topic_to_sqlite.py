@@ -25,8 +25,10 @@ def _int0(v: Any) -> int:
 
 
 def _build_profile_json(user_doc: Dict[str, Any]) -> Dict[str, Any]:
-    prof = user_doc.get("profile") if isinstance(user_doc.get("profile"), dict) else {}
-    oi = prof.get("other_info") if isinstance(prof.get("other_info"), dict) else {}
+    profile_raw = user_doc.get("profile")
+    prof: Dict[str, Any] = profile_raw if isinstance(profile_raw, dict) else {}
+    other_raw = prof.get("other_info")
+    oi: Dict[str, Any] = other_raw if isinstance(other_raw, dict) else {}
 
     topics_raw = oi.get("topics")
     topics_list = (
@@ -89,6 +91,56 @@ def persist_topics_users_to_sqlite(
 
     conn = sqlite3.connect(str(p))
     try:
+        # 兜底：首次写入时确保表存在，避免 OperationalError: no such table。
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS topics (
+                platform TEXT NOT NULL,
+                topic_key TEXT NOT NULL,
+                topic_label TEXT,
+                topic_type TEXT,
+                trend_rank INTEGER,
+                post_count INTEGER,
+                reply_count INTEGER,
+                user_count INTEGER,
+                first_seen_at TEXT,
+                last_seen_at TEXT,
+                news_external_id TEXT,
+                raw_json TEXT,
+                type TEXT,
+                PRIMARY KEY (platform, topic_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS users (
+                platform TEXT NOT NULL,
+                external_user_id TEXT NOT NULL,
+                username TEXT,
+                display_name TEXT,
+                bio TEXT,
+                location TEXT,
+                verified INTEGER,
+                follower_count INTEGER,
+                following_count INTEGER,
+                tweet_count INTEGER,
+                user_type TEXT,
+                profile_json TEXT,
+                raw_json TEXT,
+                type TEXT,
+                PRIMARY KEY (platform, external_user_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_topics (
+                platform TEXT NOT NULL,
+                topic_key TEXT NOT NULL,
+                external_user_id TEXT NOT NULL,
+                role TEXT,
+                content_count INTEGER,
+                news_external_id TEXT,
+                type TEXT,
+                PRIMARY KEY (platform, topic_key, external_user_id)
+            );
+            """
+        )
         conn.execute("BEGIN")
 
         # topics(platform, topic_key) PK
@@ -174,8 +226,10 @@ def persist_topics_users_to_sqlite(
             if not ext_id:
                 continue
             prof_json = _build_profile_json(u)
-            oi = prof_json.get("other_info") if isinstance(prof_json.get("other_info"), dict) else {}
-            topics_arr = oi.get("topics") if isinstance(oi.get("topics"), list) else []
+            other_info_raw = prof_json.get("other_info")
+            oi: Dict[str, Any] = other_info_raw if isinstance(other_info_raw, dict) else {}
+            topics_raw = oi.get("topics")
+            topics_arr: List[Any] = topics_raw if isinstance(topics_raw, list) else []
             for raw_title in topics_arr:
                 title = _norm(raw_title)
                 if not title:

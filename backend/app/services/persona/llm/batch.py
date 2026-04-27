@@ -509,7 +509,6 @@ def _json_array_candidates(text: str) -> list[str]:
         if chunk not in seen:
             seen.add(chunk)
             found.append(chunk)
-        return found
     # 没有找到闭合的 []：尝试保留 fence 段落的前缀（用于“截断数组”解析）
     for m in re.finditer(r"```(?:json)?\s*", stripped, re.IGNORECASE):
         seg = stripped[m.end() :]
@@ -825,9 +824,11 @@ def generate_llm_persona_users(
 
         picked: list[dict[str, Any]] = []
         last_pick_err: Exception | None = None
+        # 外层重试负责“挑选不足”等逻辑失败；内层最多 2 次（原始 prompt + 严格后缀），避免与外层叠乘成 max_retries^2。
+        inner_llm_retries = min(2, max(1, int(max_retries)))
         for _pick_attempt in range(max(1, int(max_retries))):
             try:
-                batch = run_llm_batch(model, prompt, max_retries, expected_min_items=this_batch)
+                batch = run_llm_batch(model, prompt, inner_llm_retries, expected_min_items=this_batch)
                 # 本次挑选不立刻消耗 kol_need/normal_need，只有成功凑够 this_batch 才提交扣减
                 tmp_kol_need = kol_need
                 tmp_normal_need = normal_need
