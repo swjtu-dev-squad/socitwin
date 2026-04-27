@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.behavior import router as behavior_router
 from app.api.controlled_agents import router as controlled_agents_router
 from app.api.metrics import router as metrics_router
 from app.api.person_dataset import router as person_dataset_router
@@ -46,6 +47,7 @@ app.add_middleware(
 app.include_router(simulation_router, prefix="/api")
 app.include_router(topics_router, prefix="/api")
 app.include_router(metrics_router, prefix="/api")
+app.include_router(behavior_router, prefix="/api")
 app.include_router(controlled_agents_router, prefix="/api")
 app.include_router(persona_router, prefix="/api")
 app.include_router(person_dataset_router, prefix="/api")

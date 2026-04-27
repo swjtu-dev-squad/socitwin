@@ -15,6 +15,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import { simulationApi } from '@/lib/api'
 import type { ControlledAgentConfig } from '@/lib/types'
+import { BehaviorStrategy } from '@/lib/behaviorTypes'
 import {
   useSimulationStatusLightweight,
   useTopics,
@@ -174,7 +175,13 @@ export default function Overview() {
   const [isStarting, setIsStarting] = useState(false)
   // Controlled agent addition state
   const [controlledAgents, setControlledAgents] = useState<ControlledAgentConfig[]>([
-    { user_name: '', name: '', description: '', interests: [] },
+    {
+      user_name: '',
+      name: '',
+      description: '',
+      interests: [],
+      behavior_strategy: BehaviorStrategy.RULE_BASED,
+    },
   ])
   const [checkPolarization, setCheckPolarization] = useState(false)
   const [polarizationThreshold, setPolarizationThreshold] = useState(0.6)
@@ -194,6 +201,13 @@ export default function Overview() {
     instagram: 'Instagram',
     facebook: 'Facebook',
   }
+  const strategyLabelMap: Record<BehaviorStrategy, string> = {
+    [BehaviorStrategy.RULE_BASED]: '规则模型 — 基于预设规则决策',
+    [BehaviorStrategy.PROBABILISTIC]: '概率模型 — 基于概率分布采样',
+    [BehaviorStrategy.MIXED]: '混合模型 — 规则+概率融合',
+    [BehaviorStrategy.LLM_AUTONOMOUS]: 'LLM自主决策 — 原始AI模型控制',
+    [BehaviorStrategy.SCHEDULED]: '时间调度 — 按时间线执行动作',
+  }
   const [selectedUserSource, setSelectedUserSource] = useState<'topic-original'>('topic-original')
   const maxUserCount = availableOriginalUserCount
   const isSupportedSimulationPlatform =
@@ -203,7 +217,13 @@ export default function Overview() {
   const addAgentRow = () => {
     setControlledAgents([
       ...controlledAgents,
-      { user_name: '', name: '', description: '', interests: [] },
+      {
+        user_name: '',
+        name: '',
+        description: '',
+        interests: [],
+        behavior_strategy: BehaviorStrategy.RULE_BASED,
+      },
     ])
   }
 
@@ -212,7 +232,15 @@ export default function Overview() {
     newAgents.splice(index, 1)
     if (newAgents.length === 0) {
       // 如果删除了所有行，添加一个空行
-      setControlledAgents([{ user_name: '', name: '', description: '', interests: [] }])
+      setControlledAgents([
+        {
+          user_name: '',
+          name: '',
+          description: '',
+          interests: [],
+          behavior_strategy: BehaviorStrategy.RULE_BASED,
+        },
+      ])
     } else {
       setControlledAgents(newAgents)
     }
@@ -245,7 +273,15 @@ export default function Overview() {
       if (response.data.success) {
         toast.success(`成功添加 ${response.data.added_count} 个受控agent`)
         // Reset form or keep for further additions
-        setControlledAgents([{ user_name: '', name: '', description: '', interests: [] }])
+        setControlledAgents([
+          {
+            user_name: '',
+            name: '',
+            description: '',
+            interests: [],
+            behavior_strategy: BehaviorStrategy.RULE_BASED,
+          },
+        ])
       } else {
         toast.error(`添加失败: ${response.data.message}`)
       }
@@ -1103,6 +1139,45 @@ export default function Overview() {
                         onChange={e => updateAgentRow(index, 'name', e.target.value)}
                         placeholder="极化警察"
                       />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        智能体行为策略
+                      </label>
+                      <Select
+                        value={agent.behavior_strategy || BehaviorStrategy.RULE_BASED}
+                        onValueChange={(value: string) =>
+                          updateAgentRow(index, 'behavior_strategy', value as BehaviorStrategy)
+                        }
+                      >
+                        <SelectTrigger className="bg-bg-secondary border-accent/20 text-text-primary">
+                          <SelectValue
+                            placeholder="选择策略"
+                            value={
+                              strategyLabelMap[
+                                agent.behavior_strategy || BehaviorStrategy.RULE_BASED
+                              ]
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={BehaviorStrategy.RULE_BASED}>
+                            规则模型 — 基于预设规则决策
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.PROBABILISTIC}>
+                            概率模型 — 基于概率分布采样
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.MIXED}>
+                            混合模型 — 规则+概率融合
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.LLM_AUTONOMOUS}>
+                            LLM自主决策 — 原始AI模型控制
+                          </SelectItem>
+                          <SelectItem value={BehaviorStrategy.SCHEDULED}>
+                            时间调度 — 按时间线执行动作
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="md:col-span-2 space-y-2">
                       <label className="text-xs font-bold text-text-tertiary uppercase">

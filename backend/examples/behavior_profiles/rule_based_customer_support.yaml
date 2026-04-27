@@ -1,0 +1,128 @@
+# 规则引擎行为配置示例 - 客户支持角色
+# 此配置文件展示了如何配置规则引擎用于客户支持场景
+
+name: "customer_support_agent"
+description: "客户支持智能体 - 基于规则响应客户互动"
+strategy: "rule_based"
+enabled: true
+platform_filter: "twitter"
+
+# 规则集配置
+rule_set:
+  name: "customer_support_rules"
+  description: "客户支持规则集 - 处理提及、投诉和反馈"
+  platform: "twitter"
+  rules:
+    - rule_id: "respond_to_positive_mention"
+      name: "响应正面提及"
+      description: "当被正面提及时，感谢用户"
+      priority: 1
+      enabled: true
+      conditions:
+        - field: "event_type"
+          operator: "equals"
+          value: "mentioned"
+        - field: "sentiment"
+          operator: "equals"
+          value: "positive"
+      action: "CREATE_COMMENT"
+      action_args:
+        content: "感谢您的提及！很高兴您喜欢我们的产品。"
+        response_time: "within_1_hour"
+        add_hashtags: ["#感谢", "#客户支持"]
+
+    - rule_id: "handle_complaint"
+      name: "处理投诉"
+      description: "当收到负面反馈时道歉并提供帮助"
+      priority: 2
+      enabled: true
+      conditions:
+        - field: "event_type"
+          operator: "equals"
+          value: "mentioned"
+        - field: "sentiment"
+          operator: "equals"
+          value: "negative"
+        - field: "issue_type"
+          operator: "in"
+          value: ["technical", "service", "billing"]
+      action: "CREATE_COMMENT"
+      action_args:
+        content: "非常抱歉给您带来不便！请私信我们您的账号信息，我们会尽快处理。"
+        escalate_to: "support_team"
+        require_follow_up: true
+
+    - rule_id: "share_positive_testimonial"
+      name: "分享正面评价"
+      description: "分享高影响力用户的正面评价"
+      priority: 3
+      enabled: true
+      conditions:
+        - field: "event_type"
+          operator: "equals"
+          value: "mentioned"
+        - field: "sentiment"
+          operator: "equals"
+          value: "very_positive"
+        - field: "user_influence"
+          operator: "greater_than"
+          value: 10000
+      action: "QUOTE_POST"
+      action_args:
+        content: "感谢我们的忠实用户分享如此正面的体验！🎉 #用户评价 #客户满意"
+        add_hashtags: true
+        notify_team: true
+
+    - rule_id: "answer_faq"
+      name: "回答常见问题"
+      description: "识别常见问题并提供标准答案"
+      priority: 4
+      enabled: true
+      conditions:
+        - field: "event_type"
+          operator: "equals"
+          value: "question"
+        - field: "question_topic"
+          operator: "in"
+          value: ["pricing", "features", "support"]
+      action: "CREATE_COMMENT"
+      action_args:
+        content_templates:
+          pricing: "我们的定价信息请查看官网：example.com/pricing"
+          features: "产品功能详情：example.com/features"
+          support: "技术支持联系方式：support@example.com"
+        include_links: true
+
+    - rule_id: "escalate_critical_issue"
+      name: "升级关键问题"
+      description: "将关键问题升级给高级支持团队"
+      priority: 5  # 最高优先级
+      enabled: true
+      conditions:
+        - field: "issue_severity"
+          operator: "equals"
+          value: "critical"
+        - field: "affected_users"
+          operator: "greater_than"
+          value: 100
+      action: "CREATE_COMMENT"
+      action_args:
+        content: "我们已经注意到此问题，技术团队正在紧急处理中。我们会及时更新进展。"
+        internal_alert: true
+        priority: "high"
+
+# 上下文要求
+conditions:
+  agent_role: "customer_support"
+  business_hours: true  # 仅在营业时间生效
+
+# 执行约束
+step_range: [0, 500]  # 长期有效的规则
+
+# 元数据
+metadata:
+  created: "2024-01-01T12:00:00Z"
+  author: "Socitwin Admin"
+  tags: ["rule_based", "customer_support", "twitter", "business", "oasis", "information_propagation", "group_polarization", "herd_effect"]
+  version: "1.1.0"
+  last_updated: "2026-04-12T00:00:00Z"

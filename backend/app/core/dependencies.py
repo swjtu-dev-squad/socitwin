@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _simulation_service = None
 _topic_service = None
 _metrics_manager = None
+_behavior_controller = None
 _controlled_agents_service = None
 
 
@@ -50,6 +51,7 @@ async def get_simulation_service():
 # OASIS 管理器依赖
 # ============================================================================
 
+
 async def get_oasis_manager_dependency() -> AsyncGenerator[OASISManager, None]:
     """
     OASIS 管理器依赖注入
@@ -73,6 +75,7 @@ async def get_oasis_manager_dependency() -> AsyncGenerator[OASISManager, None]:
 # ============================================================================
 # 模拟服务依赖
 # ============================================================================
+
 
 async def get_simulation_service_dependency():
     """
@@ -98,8 +101,55 @@ async def get_simulation_service_dependency():
 
 
 # ============================================================================
+# Behavior Controller
+# ============================================================================
+
+
+async def get_behavior_controller():
+    """
+    获取行为控制器单例
+
+    Returns:
+        BehaviorController: 行为控制器实例
+    """
+    from app.core.behavior_controller import get_behavior_controller as get_bc
+
+    global _behavior_controller
+
+    if _behavior_controller is None:
+        _behavior_controller = await get_bc()
+        logger.info("Behavior Controller singleton created")
+
+    return _behavior_controller
+
+
+async def get_behavior_controller_dependency():
+    """
+    行为控制器依赖注入
+
+    Yields:
+        BehaviorController: 行为控制器实例
+
+    Example:
+        @router.post("/behavior/config")
+        async def update_behavior_config(
+            config: BehaviorConfigRequest,
+            controller: BehaviorController = Depends(get_behavior_controller_dependency)
+        ):
+            return await controller.update_agent_behavior(config.agent_id, config.behavior_config)
+    """
+    controller = await get_behavior_controller()
+    try:
+        yield controller
+    except Exception as e:
+        logger.error(f"Error in behavior controller dependency: {e}")
+        raise
+
+
+# ============================================================================
 # Topic Service
 # ============================================================================
+
 
 async def get_topic_service():
     """
@@ -146,6 +196,7 @@ async def get_topic_service_dependency():
 # Metrics Manager
 # ============================================================================
 
+
 async def get_metrics_manager():
     """
     获取指标管理器单例
@@ -168,8 +219,7 @@ async def get_metrics_manager():
         if db_path:
             settings = get_settings()
             _metrics_manager = MetricsManager(
-                db_path,
-                enable_db_persistence=settings.METRICS_ENABLE_DB_PERSISTENCE
+                db_path, enable_db_persistence=settings.METRICS_ENABLE_DB_PERSISTENCE
             )
             logger.info("Metrics Manager singleton created")
         else:
@@ -212,10 +262,8 @@ async def get_metrics_manager_dependency():
 
     if manager is None:
         from fastapi import HTTPException
-        raise HTTPException(
-            status_code=503,
-            detail="Metrics manager not available"
-        )
+
+        raise HTTPException(status_code=503, detail="Metrics manager not available")
 
     try:
         yield manager
@@ -227,6 +275,7 @@ async def get_metrics_manager_dependency():
 # ============================================================================
 # 生命周期管理
 # ============================================================================
+
 
 async def startup_event():
     """
@@ -284,6 +333,17 @@ async def shutdown_event():
         finally:
             _metrics_manager = None
 
+    # 清理行为控制器
+    global _behavior_controller
+    if _behavior_controller:
+        try:
+            # BehaviorController doesn't have cleanup method
+            logger.info("Behavior Controller reference cleared")
+        except Exception as e:
+            logger.error(f"Error cleaning up behavior controller: {e}")
+        finally:
+            _behavior_controller = None
+
     # 清理 OASIS 管理器
     try:
         manager = await get_oasis_manager()
@@ -299,6 +359,7 @@ async def shutdown_event():
 # 配置依赖
 # ============================================================================
 
+
 @lru_cache()
 def get_settings_cached():
     """
@@ -313,6 +374,7 @@ def get_settings_cached():
 # ============================================================================
 # 验证和授权依赖（占位符）
 # ============================================================================
+
 
 async def verify_api_key(api_key: Optional[str] = None) -> bool:
     """
@@ -351,6 +413,7 @@ async def get_current_user(token: Optional[str] = None):
 # ============================================================================
 # Controlled Agents Service
 # ============================================================================
+
 
 async def get_controlled_agents_service():
     """
@@ -398,6 +461,7 @@ async def get_controlled_agents_service_dependency():
 # 辅助函数
 # ============================================================================
 
+
 def setup_dependencies(app):
     """
     设置应用依赖和生命周期事件
@@ -409,6 +473,7 @@ def setup_dependencies(app):
         生命周期事件在 main.py 的 lifespan 上下文管理器中处理
         这里只返回一个包含生命周期方法的对象
     """
+
     class LifecycleHandlers:
         async def startup_event(self):
             await startup_event()
