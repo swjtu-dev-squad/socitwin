@@ -132,7 +132,8 @@ const _rawTimeout = import.meta.env.VITE_PERSONA_GENERATE_TIMEOUT_MS
 const _parsedTimeout =
   _rawTimeout != null && String(_rawTimeout).trim() !== '' ? Number(_rawTimeout) : NaN
 export const PERSONA_GENERATE_FETCH_TIMEOUT_MS =
-  Number.isFinite(_parsedTimeout) && _parsedTimeout > 0 ? _parsedTimeout : 1_200_000
+  // 默认 2 小时：2000 用户 + 多批重试 + 写 SQLite 可能很久
+  Number.isFinite(_parsedTimeout) && _parsedTimeout > 0 ? _parsedTimeout : 7_200_000
 
 export async function generateDatasetArtifacts(
   datasetId: string,

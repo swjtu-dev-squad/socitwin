@@ -648,7 +648,29 @@ SUBREDDITS_DIRECTORY_URL = "https://www.reddit.com/subreddits/popular/"
 DEFAULT_SEARCH_TERMS_COMMUNITIES = ["technology", "gaming", "science", "news", "worldnews"]
 
 # communities-hot：未传 --community 时使用（可直接改列表）
-DEFAULT_COMMUNITIES_HOT = ["worldnews"]
+DEFAULT_COMMUNITIES_HOT = [
+  "worldnews",
+  "ArtificialInteligence",
+  "technology",
+  "science",
+  "entertainment",
+  "politics",
+  "business",
+  "health",
+  "education",
+  "environment",
+  "sports",
+  "music",
+  "art",
+  "literature",
+  "history",
+  "religion",
+  "culture",
+  "travel",
+  "fashion",
+  "beauty"
+]
+
 
 
 def normalize_subreddit_slug(name: str) -> str:

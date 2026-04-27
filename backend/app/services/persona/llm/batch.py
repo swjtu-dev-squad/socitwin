@@ -451,6 +451,41 @@ def _parse_json_array_incremental(array_text: str) -> list[Any]:
     return items
 
 
+def _parse_json_array_prefix(text: str) -> list[Any] | None:
+    """尽量从“可能被截断”的数组前缀中解析出若干元素。
+
+    适用场景：模型输出很长，末尾丢失了闭合的 ] 或 ``` fence。
+    策略：定位第一个 '['，然后用 JSONDecoder.raw_decode 逐个解码元素，遇到错误即停止。
+    """
+    s = text.strip()
+    if not s:
+        return None
+    lb = s.find("[")
+    if lb < 0:
+        return None
+    inner = s[lb + 1 :]
+    dec = json.JSONDecoder()
+    i = 0
+    n = len(inner)
+    items: list[Any] = []
+    while i < n:
+        # 跳过空白、逗号
+        while i < n and inner[i] in " \t\r\n,":
+            i += 1
+        if i >= n:
+            break
+        # 若提前遇到 ']' 说明完整结束
+        if inner[i] == "]":
+            break
+        try:
+            obj, consumed = dec.raw_decode(inner[i:])
+        except json.JSONDecodeError:
+            break
+        items.append(obj)
+        i += consumed
+    return items or None
+
+
 def _json_array_candidates(text: str) -> list[str]:
     stripped = text.strip()
     found: list[str] = []
@@ -474,6 +509,24 @@ def _json_array_candidates(text: str) -> list[str]:
         if chunk not in seen:
             seen.add(chunk)
             found.append(chunk)
+        return found
+    # 没有找到闭合的 []：尝试保留 fence 段落的前缀（用于“截断数组”解析）
+    for m in re.finditer(r"```(?:json)?\s*", stripped, re.IGNORECASE):
+        seg = stripped[m.end() :]
+        fence = seg.find("```")
+        if fence >= 0:
+            seg = seg[:fence]
+        if "[" in seg:
+            prefix = seg[seg.find("[") :].strip()
+            if prefix and prefix not in seen:
+                seen.add(prefix)
+                found.append(prefix)
+            break
+    if "[" in stripped:
+        prefix = stripped[stripped.find("[") :].strip()
+        if prefix and prefix not in seen:
+            seen.add(prefix)
+            found.append(prefix)
     return found
 
 
@@ -494,6 +547,10 @@ def _parse_json_array(text: str) -> list[Any]:
         single = _try_single_object_slice(text)
         if single is not None:
             return single
+        prefix = _parse_json_array_prefix(text)
+        if prefix is not None:
+            # 方案一：要求“数据完整”，因此一旦判定截断就直接失败，让上层重试补齐。
+            raise ValueError(f"模型输出疑似截断：仅从数组前缀解析到 {len(prefix)} 条元素。")
         preview = text[:480] + ("..." if len(text) > 480 else "")
         raise ValueError("无法在模型输出中定位 JSON 数组（未找到合法的 [] 或用户对象）。" f" 输出开头: {preview!r}")
     for raw in candidates:
@@ -509,6 +566,9 @@ def _parse_json_array(text: str) -> list[Any]:
                     return _parse_json_array_incremental(variant)
                 except ValueError as e2:
                     last_err = e2
+        prefix = _parse_json_array_prefix(raw)
+        if prefix is not None:
+            raise ValueError(f"模型输出疑似截断：仅从数组前缀解析到 {len(prefix)} 条元素。")
     nd = _parse_ndjson_object_sequence(text)
     if nd:
         return nd
@@ -623,7 +683,9 @@ def _build_prompt(
 _JSON_STRICT_RETRY_SUFFIX = "\n\n【再次强调】只输出一个合法 JSON 数组，不要有其它文字。"
 
 
-def run_llm_batch(model: Any, prompt: str, max_retries: int) -> list[dict[str, Any]]:
+def run_llm_batch(
+    model: Any, prompt: str, max_retries: int, *, expected_min_items: int | None = None
+) -> list[dict[str, Any]]:
     last_err: Exception | None = None
     for attempt in range(max_retries):
         content = prompt if attempt == 0 else prompt + _JSON_STRICT_RETRY_SUFFIX
@@ -638,6 +700,10 @@ def run_llm_batch(model: Any, prompt: str, max_retries: int) -> list[dict[str, A
             out = [item for item in arr if isinstance(item, dict)]
             if not out:
                 raise ValueError("数组内无有效对象")
+            if expected_min_items is not None and len(out) < int(expected_min_items):
+                raise ValueError(
+                    f"数组元素不足：期望至少 {int(expected_min_items)} 条对象，实际仅 {len(out)} 条。"
+                )
             return out
         except Exception as e:
             last_err = e
@@ -679,14 +745,15 @@ def map_llm_row_to_raw_user(row: dict[str, Any], *, dataset_id: str, recsys_type
 
 
 def generate_synthetic_topics(model: Any, *, selected_topics: list[dict[str, Any]], topic_count: int, max_retries: int = 3) -> list[dict[str, Any]]:
-    n = max(1, min(64, int(topic_count)))
+    # 单次模型调用最多生成 20 条；若输入要求更少，则按输入数量生成
+    n = max(1, min(20, int(topic_count)))
     sel = [t for t in selected_topics if isinstance(t, dict)][:80]
     prompt = (
         "你是社交媒体趋势分析专家。请基于下面话题生成新的仿真讨论话题。"
         f" 输出 {n} 条，仅输出 JSON 数组，每项包含 title, summary。\n\n"
         f"{json.dumps(sel, ensure_ascii=False, indent=2)}"
     )
-    batch = run_llm_batch(model, prompt, max_retries)
+    batch = run_llm_batch(model, prompt, max_retries, expected_min_items=n)
     out: list[dict[str, Any]] = []
     for item in batch:
         title = str(item.get("title") or item.get("name") or "").strip()
@@ -697,9 +764,7 @@ def generate_synthetic_topics(model: Any, *, selected_topics: list[dict[str, Any
             break
     if len(out) < 1:
         raise RuntimeError("未能从模型输出中解析到任何仿真话题")
-    result = out[:n]
-    _write_json_to_datasets_data("topics_get.json", result)
-    return result
+    return out[:n]
 
 
 def generate_llm_persona_users(
@@ -757,23 +822,51 @@ def generate_llm_persona_users(
             allowed_synthetic_topic_titles=titles_norm,
         )
         before_len = len(mapped)
-        batch = run_llm_batch(model, prompt, max_retries)
+
         picked: list[dict[str, Any]] = []
-        for row in batch:
-            ut = str(row.get("user_type") or row.get("type") or row.get("role") or "").strip().lower()
-            if ut not in ("kol", "normal"):
-                ut = "normal"
-            if ut == "kol":
-                if kol_need <= 0:
-                    continue
-                kol_need -= 1
-            else:
-                if normal_need <= 0:
-                    continue
-                normal_need -= 1
-            picked.append(row)
-            if len(picked) >= this_batch:
+        last_pick_err: Exception | None = None
+        for _pick_attempt in range(max(1, int(max_retries))):
+            try:
+                batch = run_llm_batch(model, prompt, max_retries, expected_min_items=this_batch)
+                # 本次挑选不立刻消耗 kol_need/normal_need，只有成功凑够 this_batch 才提交扣减
+                tmp_kol_need = kol_need
+                tmp_normal_need = normal_need
+                tmp_picked: list[dict[str, Any]] = []
+                for row in batch:
+                    ut = str(row.get("user_type") or row.get("type") or row.get("role") or "").strip().lower()
+                    if ut not in ("kol", "normal"):
+                        ut = "normal"
+                    if ut == "kol":
+                        if tmp_kol_need <= 0:
+                            continue
+                        tmp_kol_need -= 1
+                    else:
+                        if tmp_normal_need <= 0:
+                            continue
+                        tmp_normal_need -= 1
+                    tmp_picked.append(row)
+                    if len(tmp_picked) >= this_batch:
+                        break
+                if len(tmp_picked) < this_batch:
+                    raise ValueError(f"本批挑选到的用户不足：{len(tmp_picked)}/{this_batch}")
+                picked = tmp_picked
+                kol_need = tmp_kol_need
+                normal_need = tmp_normal_need
+                last_pick_err = None
                 break
+            except Exception as e:
+                last_pick_err = e
+                logger.warning(
+                    "本批用户生成/挑选失败，将重试 (%s/%s): %s",
+                    _pick_attempt + 1,
+                    max(1, int(max_retries)),
+                    e,
+                )
+
+        if not picked:
+            raise RuntimeError(
+                f"LLM 本批在 {max(1, int(max_retries))} 次尝试后仍无法生成足量用户（目标 {this_batch}）。最后错误: {last_pick_err}"
+            )
         base_idx = len(mapped)
         for i, row in enumerate(picked):
             if titles_norm:
@@ -795,5 +888,4 @@ def generate_llm_persona_users(
         "interests_locked_to_synthetic_topic_titles": bool(titles_norm),
         "synthetic_topic_title_count": len(titles_norm) if titles_norm else 0,
     }
-    _write_json_to_datasets_data("users_get.json", mapped)
     return mapped, meta
