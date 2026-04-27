@@ -16,9 +16,9 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.services.dataset_service import DatasetService, DatasetServiceError
 from app.services.persona import sqlite_seed as seed
-from app.services.persona.legacy_pipeline.runner import persist_topics_users_get
 from app.services.persona.llm.runners import run_persona_llm_only, run_topics_users_llm
 from app.services.persona.social_graph_sqlite import build_social_graph_bundle
+from app.services.persona.user_topic_to_sqlite import persist_topics_users_to_sqlite
 
 logger = logging.getLogger(__name__)
 
@@ -280,10 +280,19 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
         raise HTTPException(status_code=502, detail=llm_out.get("error") or str(llm_out))
     topics_out = llm_out.get("topics") or []
     users_out = llm_out.get("users") or []
-    persist_meta = persist_topics_users_get(
-        [x for x in topics_out if isinstance(x, dict)],
-        [x for x in users_out if isinstance(x, dict)],
-    )
+
+    try:
+        sqlite_persist = await asyncio.to_thread(
+            persist_topics_users_to_sqlite,
+            db_path=_db_path(),
+            platform=f"{rtype}_llm",
+            dataset_id=dataset_id,
+            topics=[x for x in topics_out if isinstance(x, dict)],
+            users=[x for x in users_out if isinstance(x, dict)],
+        )
+    except Exception as e:
+        logger.exception("persist_topics_users_to_sqlite failed")
+        raise HTTPException(status_code=502, detail=f"SQLite 写入失败: {e}") from e
     return {
         "status": "ok",
         "dataset_id": dataset_id,
@@ -293,7 +302,7 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
         "topics": topics_out,
         "users": users_out,
         "meta": llm_out.get("meta"),
-        "sqlite_persist": {"ok": True, **persist_meta},
+        "sqlite_persist": sqlite_persist,
     }
 
 
