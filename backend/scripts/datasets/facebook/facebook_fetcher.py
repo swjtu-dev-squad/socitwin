@@ -4,16 +4,17 @@ Facebook Apify 抓取与字段归一。
 
 import hashlib
 import json
-import os
 import re
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
+
+try:
+    from utils.apify_utils import run_apify_actor
+except ModuleNotFoundError:
+    from datasets.utils.apify_utils import run_apify_actor
 
 PLATFORM = "facebook"
 POSTS_SEARCH_ACTOR = "scraper_one/facebook-posts-search"
@@ -21,44 +22,11 @@ PAGE_POSTS_ACTOR = "apify/facebook-posts-scraper"
 COMMENTS_ACTOR = "scraper_one/facebook-comments-scraper"
 PAGE_DETAILS_ACTOR = "apify/facebook-pages-scraper"
 PAGE_SEARCH_ACTOR = "apify/facebook-search-scraper"
-ENV_FILE = Path(__file__).parents[3] / ".env"
 KOL_FOLLOWER_THRESHOLD = 20000
 
 
 def log(message: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}", file=sys.stderr, flush=True)
-
-
-def get_apify_key() -> str:
-    key = os.getenv("APIFY_KEY", "").strip()
-    if key:
-        return key
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-            if line.startswith("APIFY_KEY="):
-                key = line.split("=", 1)[1].strip()
-                if key and key != "your-apify-api-key-here":
-                    return key
-    return ""
-
-
-def run_apify_actor(token: str, actor: str, payload: dict[str, Any], timeout: int = 35) -> list[dict[str, Any]]:
-    query = urllib.parse.urlencode({"token": token, "clean": "true"})
-    actor_id = actor.replace("/", "~")
-    url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items?{query}"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            parsed = json.loads(response.read().decode("utf-8"))
-            return parsed if isinstance(parsed, list) else []
-    except urllib.error.HTTPError as exc:
-        log(f"Apify request failed with HTTP {exc.code}")
-        raise RuntimeError(f"Apify error: HTTP {exc.code}") from exc
 
 
 def clean_str(value: Any) -> str:

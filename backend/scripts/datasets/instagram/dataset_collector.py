@@ -11,7 +11,6 @@ try:
     from instagram.instagram_fetcher import (
         InstagramFetcher,
         clean_str,
-        get_apify_key,
         log,
         media_code_from_record,
         media_code_from_url,
@@ -22,13 +21,17 @@ except ModuleNotFoundError:
     from backend.scripts.datasets.instagram.instagram_fetcher import (
         InstagramFetcher,
         clean_str,
-        get_apify_key,
         log,
         media_code_from_record,
         media_code_from_url,
         normalize_topic_key,
         now_iso,
     )
+
+try:
+    from utils.apify_utils import get_apify_key
+except ModuleNotFoundError:
+    from datasets.utils.apify_utils import get_apify_key
 
 PLATFORM = "instagram"
 DEFAULT_TOPICS = [

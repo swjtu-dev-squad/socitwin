@@ -13,7 +13,6 @@ try:
         FacebookFetcher,
         clean_str,
         facebook_url_id,
-        get_apify_key,
         log,
         normalize_facebook_url,
         normalize_topic_key,
@@ -26,7 +25,6 @@ except ModuleNotFoundError:
         FacebookFetcher,
         clean_str,
         facebook_url_id,
-        get_apify_key,
         log,
         normalize_facebook_url,
         normalize_topic_key,
@@ -34,6 +32,11 @@ except ModuleNotFoundError:
         profile_id_from_url,
         raw_profile_url,
     )
+
+try:
+    from utils.apify_utils import get_apify_key
+except ModuleNotFoundError:
+    from datasets.utils.apify_utils import get_apify_key
 
 DEFAULT_TOPICS = [
     "climate change",

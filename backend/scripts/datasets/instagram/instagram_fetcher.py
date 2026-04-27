@@ -6,62 +6,26 @@ Instagram 爬取工具类
 
 import hashlib
 import json
-import os
 import re
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
+
+try:
+    from utils.apify_utils import run_apify_actor
+except ModuleNotFoundError:
+    from datasets.utils.apify_utils import run_apify_actor
 
 # 配置
 PLATFORM = "instagram"
 ACTOR = "apify/instagram-scraper"
 HASHTAG_ACTOR = "apify/instagram-hashtag-scraper"
-ENV_FILE = Path(__file__).parents[3] / ".env"
 KOL_FOLLOWER_THRESHOLD = 20000
 
 def log(msg: str) -> None:
     print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
-
-
-def get_apify_key() -> str:
-    """获取 APIFY_KEY"""
-    key = os.getenv("APIFY_KEY", "").strip()
-    if key:
-        return key
-    if ENV_FILE.exists():
-        for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
-            if line.startswith("APIFY_KEY="):
-                key = line.split("=", 1)[1].strip()
-                if key and key != "your-apify-api-key-here":
-                    return key
-    return ""
-
-
-def run_apify_actor(token: str, payload: dict, actor: str = ACTOR, timeout: int = 45) -> list[dict]:
-    """调用 Apify Actor"""
-    query = urllib.parse.urlencode({"token": token, "clean": "true"})
-    actor_id = actor.replace("/", "~")
-    url = f"https://api.apify.com/v2/acts/{actor_id}/run-sync-get-dataset-items?{query}"
-
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode(),
-        method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode()) or []
-    except urllib.error.HTTPError as e:
-        log(f"Apify request failed with HTTP {e.code}")
-        raise RuntimeError(f"Apify error: HTTP {e.code}") from e
 
 
 def clean_str(v: Any) -> str:
@@ -535,7 +499,7 @@ class InstagramFetcher:
                 "resultsType": "posts",
                 "resultsLimit": min(50, max(1, limit * 2)),
             }
-            results = run_apify_actor(self.token, payload, actor=HASHTAG_ACTOR, timeout=35)
+            results = run_apify_actor(self.token, HASHTAG_ACTOR, payload, timeout=35)
             append_results(results)
         except Exception as e:
             log(f"  警告: hashtag 帖子抓取失败 '#{normalized_topic}' - {e}")
@@ -562,6 +526,7 @@ class InstagramFetcher:
         try:
             results = run_apify_actor(
                 self.token,
+                ACTOR,
                 {
                     "directUrls": [f"https://www.instagram.com/{username}/" for username in clean_usernames],
                     "resultsType": "details",
@@ -593,7 +558,7 @@ class InstagramFetcher:
         if not post_urls or limit <= 0:
             return {}
         try:
-            results = run_apify_actor(self.token, {
+            results = run_apify_actor(self.token, ACTOR, {
                 "directUrls": post_urls,
                 "resultsType": "comments",
                 "resultsLimit": min(limit, 50),
@@ -621,7 +586,7 @@ class InstagramFetcher:
         if not post_url or limit <= 0:
             return []
         try:
-            return run_apify_actor(self.token, {
+            return run_apify_actor(self.token, ACTOR, {
                 "directUrls": [post_url],
                 "resultsType": "comments",
                 "resultsLimit": min(limit, 50),
