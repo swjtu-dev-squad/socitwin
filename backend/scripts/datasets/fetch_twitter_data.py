@@ -43,6 +43,91 @@ def _twitter_bearer_token() -> str:
             return raw
     return (os.getenv("TWITTER_BEARER_TOKEN") or "").strip()
 
+
+# ============== OAuth 2.0 Token 自动刷新 ==============
+
+def _oauth2_client_credentials() -> tuple[str, str, str]:
+    """从 .env 读取 OAuth 2.0 Client 凭证。返回 (client_id, client_secret, refresh_token)。"""
+    env = dotenv_values(_ENV_FILE) if _ENV_FILE.is_file() else {}
+    cid = (env.get("X_OAUTH2_CLIENT_ID") or "").strip()
+    sec = (env.get("X_OAUTH2_CLIENT_SECRET") or "").strip()
+    ref = (env.get("X_OAUTH2_REFRESH_TOKEN") or "").strip()
+    if not (cid and sec and ref):
+        raise RuntimeError("缺少 OAuth 2.0 凭证：请在 .env 中设置 X_OAUTH2_CLIENT_ID / _CLIENT_SECRET / _REFRESH_TOKEN")
+    return cid, sec, ref
+
+
+def _refresh_bearer_token() -> tuple[str, str]:
+    """用 Refresh Token 换新的 Bearer Token 和新的 Refresh Token。"""
+    import base64
+
+    cid, sec, ref = _oauth2_client_credentials()
+    basic = base64.b64encode(f"{cid}:{sec}".encode()).decode()
+
+    # 复用 session 的代理设置
+    sess = _get_session()
+    proxy = sess.proxies.get("https") or sess.proxies.get("http")
+    req_kw = {"timeout": 30}
+    if proxy:
+        req_kw["proxies"] = {"https": proxy, "http": proxy}
+
+    resp = requests.post(
+        "https://api.x.com/2/oauth2/token",
+        headers={
+            "Authorization": f"Basic {basic}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": ref,
+        },
+        **req_kw,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Token 刷新失败 (HTTP {resp.status_code}): {resp.text[:200]}")
+
+    body = resp.json()
+    new_token = body.get("access_token", "")
+    new_refresh = body.get("refresh_token", "")
+    if not new_token:
+        raise RuntimeError(f"Token 刷新响应缺少 access_token: {body}")
+    if not new_refresh:
+        new_refresh = ref  # 保底：用旧的 refresh_token
+
+    # 写入 .env 文件，持久化新 token
+    _update_env_file(new_token, new_refresh)
+
+    # 同时更新当前进程的 session
+    sess.headers.update({"Authorization": f"Bearer {new_token}"})
+
+    return new_token, new_refresh
+
+
+def _update_env_file(new_token: str, new_refresh: str) -> None:
+    """更新 .env 中的 TWITTER_BEARER_TOKEN 和 X_OAUTH2_REFRESH_TOKEN。"""
+    if not _ENV_FILE.is_file():
+        return
+    lines = _ENV_FILE.read_text(encoding="utf-8").splitlines()
+    new_lines: list[str] = []
+    token_done = False
+    refresh_done = False
+    for line in lines:
+        if line.startswith("TWITTER_BEARER_TOKEN="):
+            new_lines.append(f"TWITTER_BEARER_TOKEN={new_token}")
+            token_done = True
+        elif line.startswith("X_OAUTH2_REFRESH_TOKEN="):
+            new_lines.append(f"X_OAUTH2_REFRESH_TOKEN={new_refresh}")
+            refresh_done = True
+        else:
+            new_lines.append(line)
+    if not token_done:
+        new_lines.append(f"TWITTER_BEARER_TOKEN={new_token}")
+    if not refresh_done:
+        new_lines.append(f"X_OAUTH2_REFRESH_TOKEN={new_refresh}")
+    _ENV_FILE.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    # 重新加载 dotenv，使后续读取生效
+    load_dotenv(_ENV_FILE, override=True)
+
 # ============== 可配置区域 ==============
 API_BASE_V2 = "https://api.x.com/2"
 WOEID = 23424960  # 保留：News 链路不再使用 WOEID 趋势
@@ -683,6 +768,13 @@ def _get_session() -> requests.Session:
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
         })
+        # 从 dotenv 读取代理设置（如有）
+        env_proxy = (dotenv_values(_ENV_FILE).get("HTTPS_PROXY") or "").strip()
+        if env_proxy:
+            _session.proxies.update({
+                "http": dotenv_values(_ENV_FILE).get("HTTP_PROXY", env_proxy),
+                "https": env_proxy,
+            })
     return _session
 
 
@@ -692,8 +784,20 @@ class APIError(Exception):
     detail: str
 
 
-def _request(method: str, url: str, **kwargs) -> Dict[str, Any]:
-    resp = _get_session().request(method, url, timeout=60, **kwargs)
+def _request(method: str, url: str, *, _retried: bool = False, **kwargs) -> Dict[str, Any]:
+    """发送 HTTP 请求，遇到 401 自动刷新 Bearer Token 后重试一次。"""
+    sess = _get_session()
+    resp = sess.request(method, url, timeout=60, **kwargs)
+    if resp.status_code == 401 and not _retried:
+        try:
+            _log("[Auth] Token 过期，尝试刷新...")
+            new_token, _ = _refresh_bearer_token()
+            _log(f"[Auth] Token 刷新成功，新 token 前 20 位: {new_token[:20]}...")
+        except RuntimeError as e:
+            raise APIError(401, f"Token 刷新失败: {e}")
+        # 重试请求
+        return _request(method, url, _retried=True, **kwargs)
+
     if not resp.ok:
         raw_file = f"error_raw_{int(time.time())}.json"
         try:
