@@ -115,10 +115,10 @@ class DatabaseClient:
     def get_topic_count(self, platform: str = "twitter") -> int:
         """获取指定平台的话题数量"""
         self._ensure_connection()
-        query = "SELECT COUNT(*) as count FROM topics WHERE platform = ? AND type = 'twitter'"
+        query = "SELECT COUNT(*) as count FROM topics WHERE platform = ? AND type = ?"
         try:
             cursor = self.connection.cursor()
-            cursor.execute(query, (platform,))
+            cursor.execute(query, (platform, platform))
             row = cursor.fetchone()
             return row['count'] if row else 0
         except sqlite3.Error as e:

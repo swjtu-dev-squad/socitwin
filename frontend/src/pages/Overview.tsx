@@ -100,47 +100,6 @@ function getRequestErrorMessage(error: unknown): string {
   )
 }
 
-const CONTEXT_BUDGET_OPTIONS = [
-  { value: 'default', label: '默认' },
-  { value: '8192', label: '8K' },
-  { value: '16384', label: '16K' },
-  { value: '32768', label: '32K' },
-  { value: '65536', label: '64K' },
-  { value: 'custom', label: '自定义' },
-] as const
-
-const OUTPUT_LIMIT_OPTIONS = [
-  { value: 'default', label: '默认' },
-  { value: '512', label: '512' },
-  { value: '1024', label: '1024' },
-  { value: '2048', label: '2048' },
-  { value: '4096', label: '4096' },
-  { value: 'custom', label: '自定义' },
-] as const
-
-function getApiErrorMessage(error: unknown, fallback: string): string {
-  const message =
-    (error as any)?.response?.data?.detail ||
-    (error as any)?.response?.data?.message ||
-    (error as any)?.message
-  return typeof message === 'string' && message.trim() ? message : fallback
-}
-
-function resolveOptionalTokenValue(option: string, customValue: string): number | undefined {
-  if (option === 'default') {
-    return undefined
-  }
-  const rawValue = option === 'custom' ? customValue.trim() : option
-  if (!rawValue) {
-    throw new Error('请输入有效的数值。')
-  }
-  const parsed = Number(rawValue)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error('请输入大于 0 的整数。')
-  }
-  return parsed
-}
-
 export default function Overview() {
   const { status, setStatus, isStepping, setIsStepping } = useSimulationStore()
   const navigate = useNavigate()
@@ -211,15 +170,8 @@ export default function Overview() {
   // Local state for UI controls
   const [agentCount, setAgentCount] = useState([10]) // 默认10个agents
   const [selectedTopic, setSelectedTopic] = useState<string>(initialFilters?.selectedTopic ?? '')
-  const [selectedMemoryMode, setSelectedMemoryMode] = useState<'upstream' | 'action_v1'>('upstream')
   const [showAlgorithm, setShowAlgorithm] = useState(false)
-  const [showAdvancedParams, setShowAdvancedParams] = useState(false)
-  const [contextBudgetOption, setContextBudgetOption] = useState<string>('default')
-  const [customContextBudget, setCustomContextBudget] = useState('')
-  const [outputLimitOption, setOutputLimitOption] = useState<string>('default')
-  const [customOutputLimit, setCustomOutputLimit] = useState('')
   const [isStarting, setIsStarting] = useState(false)
-  const [isResetting, setIsResetting] = useState(false)
   // Controlled agent addition state
   const [controlledAgents, setControlledAgents] = useState<ControlledAgentConfig[]>([
     { user_name: '', name: '', description: '', interests: [] },
@@ -232,6 +184,7 @@ export default function Overview() {
     () => topics.find(topic => topic.id === selectedTopic) || null,
     [topics, selectedTopic]
   )
+  const selectedTopicLabel = selectedTopicMeta?.name || ''
   const availableOriginalUserCount = selectedTopicMeta?.user_count ?? 0
   const originalUserSourceLabel = `原始用户 (${availableOriginalUserCount})`
   const platformLabelMap: Record<DatasetPlatform, string> = {
@@ -283,15 +236,8 @@ export default function Overview() {
 
     setIsAddingAgents(true)
     try {
-      // 过滤 interests 中的空字符串
-      const cleanedAgents = controlledAgents.map(agent => ({
-        ...agent,
-        interests: agent.interests
-          ? agent.interests.filter(interest => interest.trim() !== '')
-          : [],
-      }))
       const request = {
-        agents: cleanedAgents,
+        agents: controlledAgents,
         check_polarization: checkPolarization,
         polarization_threshold: checkPolarization ? polarizationThreshold : undefined,
       }
@@ -818,145 +764,33 @@ export default function Overview() {
                   <BookOpen className="w-3 h-3" />
                   话题选择
                 </div>
-                <select
+                <Select
                   value={selectedTopic}
-                  disabled={topicsLoading || isStarting || isResetting}
-                  onChange={event => setSelectedTopic(event.target.value)}
-                  className={cn(
-                    'flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50',
-                    !selectedTopic && 'text-text-muted'
-                  )}
+                  onValueChange={(val: string) => {
+                    if (!topicsLoading) {
+                      setSelectedTopic(val)
+                    }
+                  }}
                 >
-                  <option value="" disabled>
-                    {topicsLoading ? '加载话题中...' : '选择话题'}
-                  </option>
-                  {topics?.map(topic => (
-                    <option key={topic.id} value={topic.id}>
-                      {topic.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedParams(prev => !prev)}
-                  className="flex w-full items-center justify-between rounded-xl border border-accent/20 bg-bg-primary px-4 py-3 text-left transition-all hover:border-accent/40 hover:bg-bg-primary/80"
-                >
-                  <div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-accent">
-                      <Cpu className="w-3 h-3" />
-                      高级参数
-                    </div>
-                    <div className="mt-1 text-xs text-text-tertiary">
-                      记忆路线、上下文预算、输出上限
-                    </div>
-                  </div>
-                  <span
+                  <SelectTrigger
                     className={cn(
-                      'text-xs text-text-tertiary transition-transform',
-                      showAdvancedParams && 'rotate-180'
+                      'bg-bg-primary border-accent/20 text-text-primary',
+                      topicsLoading && 'opacity-50 cursor-not-allowed'
                     )}
                   >
-                    ▼
-                  </span>
-                </button>
-                {showAdvancedParams && (
-                  <div className="space-y-4 rounded-xl border border-accent/20 bg-bg-primary/40 p-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                        记忆路线
-                      </label>
-                      <select
-                        value={selectedMemoryMode}
-                        disabled={isStarting || isResetting}
-                        onChange={event =>
-                          setSelectedMemoryMode(event.target.value as 'upstream' | 'action_v1')
-                        }
-                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="upstream">Upstream 原生 OASIS</option>
-                        <option value="action_v1">Action V1 长短期记忆</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                        上下文预算
-                      </label>
-                      <select
-                        value={contextBudgetOption}
-                        disabled={isStarting || isResetting}
-                        onChange={event => setContextBudgetOption(event.target.value)}
-                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {CONTEXT_BUDGET_OPTIONS.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      {contextBudgetOption === 'custom' && (
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          inputMode="numeric"
-                          value={customContextBudget}
-                          disabled={isStarting || isResetting}
-                          onChange={event => setCustomContextBudget(event.target.value)}
-                          placeholder="输入上下文预算"
-                          className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
-                        输出上限
-                      </label>
-                      <select
-                        value={outputLimitOption}
-                        disabled={isStarting || isResetting}
-                        onChange={event => setOutputLimitOption(event.target.value)}
-                        className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {OUTPUT_LIMIT_OPTIONS.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      {outputLimitOption === 'custom' && (
-                        <input
-                          type="number"
-                          min={1}
-                          step={1}
-                          inputMode="numeric"
-                          value={customOutputLimit}
-                          disabled={isStarting || isResetting}
-                          onChange={event => setCustomOutputLimit(event.target.value)}
-                          placeholder="输入输出上限"
-                          className="flex h-11 w-full rounded-xl border border-accent/20 bg-bg-primary px-4 py-2 text-sm text-text-primary transition-all focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                      )}
-                      <div className="text-[11px] text-text-tertiary">
-                        “默认”表示本次不覆盖。下方徽标展示的是后端当前实际生效值。
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-2 text-[10px]">
-                  <RuntimeBadge label="当前路线" value={currentStatus.memoryMode || '未初始化'} />
-                  <RuntimeBadge
-                    label="上下文预算"
-                    value={formatTokenValue(currentStatus.contextTokenLimit)}
-                  />
-                  <RuntimeBadge
-                    label="输出上限"
-                    value={formatTokenValue(currentStatus.generationMaxTokens)}
-                  />
-                </div>
+                    <SelectValue
+                      placeholder={topicsLoading ? '加载话题中...' : '选择话题'}
+                      value={selectedTopicLabel}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {topics?.map(topic => (
+                      <SelectItem key={topic.id} value={topic.id}>
+                        {topic.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-4">
@@ -1014,7 +848,7 @@ export default function Overview() {
                       ? 'bg-bg-tertiary hover:bg-border-strong text-text-primary'
                       : 'bg-accent hover:bg-accent-hover text-bg-primary shadow-accent/20'
                   )}
-                  disabled={isStarting || isResetting}
+                  disabled={isStarting}
                   onClick={async () => {
                     try {
                       // Use state field if available
@@ -1062,14 +896,8 @@ export default function Overview() {
                       const configResponse = await simulationApi.updateConfig({
                         platform: selectedPlatform,
                         agentCount: manualProfiles.length,
-                        memoryMode: selectedMemoryMode,
                         maxSteps: 100,
                         recsysType: selectedPlatform,
-                        contextTokenLimit: resolveOptionalTokenValue(
-                          contextBudgetOption,
-                          customContextBudget
-                        ),
-                        maxTokens: resolveOptionalTokenValue(outputLimitOption, customOutputLimit),
                         agentSource: {
                           sourceType: 'manual',
                           manualConfig: manualProfiles.map(profile => profile.agent_config),
@@ -1110,7 +938,7 @@ export default function Overview() {
                       }
                     } catch (e) {
                       console.error('启动/暂停失败:', e)
-                      toast.error(`启动失败: ${getApiErrorMessage(e, '操作失败')}`)
+                      toast.error(`启动失败: ${getRequestErrorMessage(e)}`)
                     } finally {
                       setIsStarting(false)
                     }
@@ -1153,12 +981,7 @@ export default function Overview() {
                 <Button
                   variant="secondary"
                   className="h-12 rounded-lg font-bold gap-2 border-accent/30 hover:bg-bg-tertiary transition-all active:scale-95"
-                  disabled={
-                    isStepping ||
-                    isStarting ||
-                    isResetting ||
-                    currentStatus.state === 'uninitialized'
-                  }
+                  disabled={isStepping}
                   onClick={async () => {
                     setIsStepping(true)
                     try {
@@ -1181,10 +1004,8 @@ export default function Overview() {
                 <Button
                   variant="secondary"
                   className="h-12 rounded-lg font-bold gap-2 border-rose-500/30 hover:bg-rose-500/10 transition-all active:scale-95"
-                  disabled={isStarting || isResetting}
                   onClick={async () => {
                     try {
-                      setIsResetting(true)
                       await simulationApi.reset()
                       // 重新获取状态
                       const statusRes = await simulationApi.getStatus()
@@ -1193,9 +1014,7 @@ export default function Overview() {
                       toast.success('仿真已重置')
                     } catch (e) {
                       console.error('重置失败:', e)
-                      toast.error(getApiErrorMessage(e, '重置失败'))
-                    } finally {
-                      setIsResetting(false)
+                      toast.error('重置失败')
                     }
                   }}
                 >
@@ -1203,17 +1022,6 @@ export default function Overview() {
                   重置
                 </Button>
               </div>
-              {currentStatus.errorMessage && (
-                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  <div className="flex items-center gap-2 font-bold">
-                    <AlertCircle className="w-4 h-4" />
-                    启动失败
-                  </div>
-                  <div className="mt-1 text-xs leading-relaxed text-rose-100/90">
-                    {currentStatus.errorMessage}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </Card>
@@ -1250,115 +1058,87 @@ export default function Overview() {
                 </Button>
               </div>
 
-              {/* 滑动链条查看多个Agent配置 */}
-              <div className="relative">
+              {controlledAgents.map((agent, index) => (
                 <div
-                  className="flex space-x-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-accent/30 scrollbar-track-bg-primary scrollbar-thumb-rounded-full"
-                  style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,242,255,0.3) #18181b' }}
+                  key={agent.user_name}
+                  className="p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-3"
                 >
-                  {controlledAgents.map((agent, index) => (
-                    <div
-                      key={index}
-                      className="flex-shrink-0 w-80 p-4 rounded-lg bg-bg-primary/50 border border-accent/20 space-y-3"
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-text-tertiary uppercase">
+                      Agent #{index + 1}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200"
+                      onClick={() => removeAgentRow(index)}
+                      title="删除此行"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-text-tertiary uppercase">
-                          Agent #{index + 1}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 hover:border-rose-200"
-                          onClick={() => removeAgentRow(index)}
-                          title="删除此Agent"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </Button>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-text-tertiary uppercase">
-                            用户名 *
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                            value={agent.user_name}
-                            onChange={e => updateAgentRow(index, 'user_name', e.target.value)}
-                            placeholder="official_responder"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-text-tertiary uppercase">
-                            显示名称 *
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                            value={agent.name}
-                            onChange={e => updateAgentRow(index, 'name', e.target.value)}
-                            placeholder="极化警察"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-text-tertiary uppercase">
-                            描述 *
-                          </label>
-                          <textarea
-                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent min-h-[60px]"
-                            value={agent.description}
-                            onChange={e => updateAgentRow(index, 'description', e.target.value)}
-                            placeholder="应急响应极化事件"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-text-tertiary uppercase">
-                            兴趣标签 (逗号分隔)
-                          </label>
-                          <input
-                            type="text"
-                            className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
-                            value={agent.interests?.join(', ') || ''}
-                            onChange={e =>
-                              updateAgentRow(
-                                index,
-                                'interests',
-                                e.target.value.split(',').map(s => s.trim())
-                              )
-                            }
-                            placeholder="emergency, safety, government"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 滑动指示器 */}
-                {controlledAgents.length > 1 && (
-                  <div className="flex justify-center space-x-2 mt-4">
-                    {controlledAgents.map((_, index) => (
-                      <button
-                        key={index}
-                        className="w-2 h-2 rounded-full bg-accent/30 hover:bg-accent/50 transition-colors"
-                        aria-label={`跳转到Agent ${index + 1}`}
-                        onClick={() => {
-                          const container = document.querySelector('.overflow-x-auto')
-                          if (container) {
-                            const cardWidth = 320 // w-80 = 320px
-                            container.scrollTo({
-                              left: index * cardWidth,
-                              behavior: 'smooth',
-                            })
-                          }
-                        }}
-                      />
-                    ))}
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
                   </div>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        用户名 *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.user_name}
+                        onChange={e => updateAgentRow(index, 'user_name', e.target.value)}
+                        placeholder="official_responder"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        显示名称 *
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.name}
+                        onChange={e => updateAgentRow(index, 'name', e.target.value)}
+                        placeholder="极化警察"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        描述 *
+                      </label>
+                      <textarea
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent min-h-[60px]"
+                        value={agent.description}
+                        onChange={e => updateAgentRow(index, 'description', e.target.value)}
+                        placeholder="应急响应极化事件"
+                      />
+                    </div>
+                    <div className="md:col-span-2 space-y-2">
+                      <label className="text-xs font-bold text-text-tertiary uppercase">
+                        兴趣标签 (逗号分隔)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 bg-bg-secondary border border-accent/20 rounded-md text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+                        value={agent.interests?.join(', ') || ''}
+                        onChange={e =>
+                          updateAgentRow(
+                            index,
+                            'interests',
+                            e.target.value
+                              .split(',')
+                              .map(s => s.trim())
+                              .filter(Boolean)
+                          )
+                        }
+                        placeholder="emergency, safety, government"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Options */}
@@ -1758,21 +1538,6 @@ export default function Overview() {
           </Card>
         </div>
       </div>
-    </div>
-  )
-}
-function formatTokenValue(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    return '-'
-  }
-  return `${value.toLocaleString()}t`
-}
-
-function RuntimeBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-accent/15 bg-bg-primary/70 px-3 py-2">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-text-tertiary">{label}</p>
-      <p className="mt-1 truncate font-mono text-xs font-bold text-text-primary">{value}</p>
     </div>
   )
 }
