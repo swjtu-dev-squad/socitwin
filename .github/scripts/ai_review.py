@@ -34,7 +34,7 @@ PROVIDERS = {
     "deepseek": {
         "api_key_env": "DEEPSEEK_API_KEY",
         "base_url": "https://api.deepseek.com/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-flash",
         "max_tokens": 8192,  # DeepSeek 最大 8192
     },
     "deepseek-v3": {

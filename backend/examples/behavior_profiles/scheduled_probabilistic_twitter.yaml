@@ -1,0 +1,737 @@
+# 调度引擎行为配置示例 - 基于概率分布的Twitter行为
+# 此配置文件展示了如何将概率分布转换为调度时间线配置
+# 动作分布：20%发帖，30%点赞，25%评论，15%刷新，10%休息
+
+name: probabilistic_twitter_schedule
+description: 基于概率分布的Twitter行为时间线 - 100步确定性分布
+strategy: scheduled
+enabled: true
+platform_filter: twitter
+schedule:
+  name: probabilistic_100_step_timeline
+  description: 100步概率分布时间线（20发帖，30点赞，25评论，15刷新，10休息）
+  loop: true
+  timeline:
+  - step: 0
+    action: CREATE_POST
+    description: 发帖 - 步骤0
+    action_args:
+      probability_weight: 0.2
+      step_index: 0
+      total_steps: 100
+  - step: 1
+    action: CREATE_POST
+    description: 发帖 - 步骤1
+    action_args:
+      probability_weight: 0.2
+      step_index: 1
+      total_steps: 100
+  - step: 2
+    action: CREATE_POST
+    description: 发帖 - 步骤2
+    action_args:
+      probability_weight: 0.2
+      step_index: 2
+      total_steps: 100
+  - step: 3
+    action: CREATE_POST
+    description: 发帖 - 步骤3
+    action_args:
+      probability_weight: 0.2
+      step_index: 3
+      total_steps: 100
+  - step: 4
+    action: CREATE_POST
+    description: 发帖 - 步骤4
+    action_args:
+      probability_weight: 0.2
+      step_index: 4
+      total_steps: 100
+  - step: 5
+    action: CREATE_POST
+    description: 发帖 - 步骤5
+    action_args:
+      probability_weight: 0.2
+      step_index: 5
+      total_steps: 100
+  - step: 6
+    action: CREATE_POST
+    description: 发帖 - 步骤6
+    action_args:
+      probability_weight: 0.2
+      step_index: 6
+      total_steps: 100
+  - step: 7
+    action: CREATE_POST
+    description: 发帖 - 步骤7
+    action_args:
+      probability_weight: 0.2
+      step_index: 7
+      total_steps: 100
+  - step: 8
+    action: CREATE_POST
+    description: 发帖 - 步骤8
+    action_args:
+      probability_weight: 0.2
+      step_index: 8
+      total_steps: 100
+  - step: 9
+    action: CREATE_POST
+    description: 发帖 - 步骤9
+    action_args:
+      probability_weight: 0.2
+      step_index: 9
+      total_steps: 100
+  - step: 10
+    action: CREATE_POST
+    description: 发帖 - 步骤10
+    action_args:
+      probability_weight: 0.2
+      step_index: 10
+      total_steps: 100
+  - step: 11
+    action: CREATE_POST
+    description: 发帖 - 步骤11
+    action_args:
+      probability_weight: 0.2
+      step_index: 11
+      total_steps: 100
+  - step: 12
+    action: CREATE_POST
+    description: 发帖 - 步骤12
+    action_args:
+      probability_weight: 0.2
+      step_index: 12
+      total_steps: 100
+  - step: 13
+    action: CREATE_POST
+    description: 发帖 - 步骤13
+    action_args:
+      probability_weight: 0.2
+      step_index: 13
+      total_steps: 100
+  - step: 14
+    action: CREATE_POST
+    description: 发帖 - 步骤14
+    action_args:
+      probability_weight: 0.2
+      step_index: 14
+      total_steps: 100
+  - step: 15
+    action: CREATE_POST
+    description: 发帖 - 步骤15
+    action_args:
+      probability_weight: 0.2
+      step_index: 15
+      total_steps: 100
+  - step: 16
+    action: CREATE_POST
+    description: 发帖 - 步骤16
+    action_args:
+      probability_weight: 0.2
+      step_index: 16
+      total_steps: 100
+  - step: 17
+    action: CREATE_POST
+    description: 发帖 - 步骤17
+    action_args:
+      probability_weight: 0.2
+      step_index: 17
+      total_steps: 100
+  - step: 18
+    action: CREATE_POST
+    description: 发帖 - 步骤18
+    action_args:
+      probability_weight: 0.2
+      step_index: 18
+      total_steps: 100
+  - step: 19
+    action: CREATE_POST
+    description: 发帖 - 步骤19
+    action_args:
+      probability_weight: 0.2
+      step_index: 19
+      total_steps: 100
+  - step: 20
+    action: LIKE_POST
+    description: 点赞 - 步骤20
+    action_args:
+      probability_weight: 0.3
+      step_index: 0
+      total_steps: 100
+  - step: 21
+    action: LIKE_POST
+    description: 点赞 - 步骤21
+    action_args:
+      probability_weight: 0.3
+      step_index: 1
+      total_steps: 100
+  - step: 22
+    action: LIKE_POST
+    description: 点赞 - 步骤22
+    action_args:
+      probability_weight: 0.3
+      step_index: 2
+      total_steps: 100
+  - step: 23
+    action: LIKE_POST
+    description: 点赞 - 步骤23
+    action_args:
+      probability_weight: 0.3
+      step_index: 3
+      total_steps: 100
+  - step: 24
+    action: LIKE_POST
+    description: 点赞 - 步骤24
+    action_args:
+      probability_weight: 0.3
+      step_index: 4
+      total_steps: 100
+  - step: 25
+    action: LIKE_POST
+    description: 点赞 - 步骤25
+    action_args:
+      probability_weight: 0.3
+      step_index: 5
+      total_steps: 100
+  - step: 26
+    action: LIKE_POST
+    description: 点赞 - 步骤26
+    action_args:
+      probability_weight: 0.3
+      step_index: 6
+      total_steps: 100
+  - step: 27
+    action: LIKE_POST
+    description: 点赞 - 步骤27
+    action_args:
+      probability_weight: 0.3
+      step_index: 7
+      total_steps: 100
+  - step: 28
+    action: LIKE_POST
+    description: 点赞 - 步骤28
+    action_args:
+      probability_weight: 0.3
+      step_index: 8
+      total_steps: 100
+  - step: 29
+    action: LIKE_POST
+    description: 点赞 - 步骤29
+    action_args:
+      probability_weight: 0.3
+      step_index: 9
+      total_steps: 100
+  - step: 30
+    action: LIKE_POST
+    description: 点赞 - 步骤30
+    action_args:
+      probability_weight: 0.3
+      step_index: 10
+      total_steps: 100
+  - step: 31
+    action: LIKE_POST
+    description: 点赞 - 步骤31
+    action_args:
+      probability_weight: 0.3
+      step_index: 11
+      total_steps: 100
+  - step: 32
+    action: LIKE_POST
+    description: 点赞 - 步骤32
+    action_args:
+      probability_weight: 0.3
+      step_index: 12
+      total_steps: 100
+  - step: 33
+    action: LIKE_POST
+    description: 点赞 - 步骤33
+    action_args:
+      probability_weight: 0.3
+      step_index: 13
+      total_steps: 100
+  - step: 34
+    action: LIKE_POST
+    description: 点赞 - 步骤34
+    action_args:
+      probability_weight: 0.3
+      step_index: 14
+      total_steps: 100
+  - step: 35
+    action: LIKE_POST
+    description: 点赞 - 步骤35
+    action_args:
+      probability_weight: 0.3
+      step_index: 15
+      total_steps: 100
+  - step: 36
+    action: LIKE_POST
+    description: 点赞 - 步骤36
+    action_args:
+      probability_weight: 0.3
+      step_index: 16
+      total_steps: 100
+  - step: 37
+    action: LIKE_POST
+    description: 点赞 - 步骤37
+    action_args:
+      probability_weight: 0.3
+      step_index: 17
+      total_steps: 100
+  - step: 38
+    action: LIKE_POST
+    description: 点赞 - 步骤38
+    action_args:
+      probability_weight: 0.3
+      step_index: 18
+      total_steps: 100
+  - step: 39
+    action: LIKE_POST
+    description: 点赞 - 步骤39
+    action_args:
+      probability_weight: 0.3
+      step_index: 19
+      total_steps: 100
+  - step: 40
+    action: LIKE_POST
+    description: 点赞 - 步骤40
+    action_args:
+      probability_weight: 0.3
+      step_index: 20
+      total_steps: 100
+  - step: 41
+    action: LIKE_POST
+    description: 点赞 - 步骤41
+    action_args:
+      probability_weight: 0.3
+      step_index: 21
+      total_steps: 100
+  - step: 42
+    action: LIKE_POST
+    description: 点赞 - 步骤42
+    action_args:
+      probability_weight: 0.3
+      step_index: 22
+      total_steps: 100
+  - step: 43
+    action: LIKE_POST
+    description: 点赞 - 步骤43
+    action_args:
+      probability_weight: 0.3
+      step_index: 23
+      total_steps: 100
+  - step: 44
+    action: LIKE_POST
+    description: 点赞 - 步骤44
+    action_args:
+      probability_weight: 0.3
+      step_index: 24
+      total_steps: 100
+  - step: 45
+    action: LIKE_POST
+    description: 点赞 - 步骤45
+    action_args:
+      probability_weight: 0.3
+      step_index: 25
+      total_steps: 100
+  - step: 46
+    action: LIKE_POST
+    description: 点赞 - 步骤46
+    action_args:
+      probability_weight: 0.3
+      step_index: 26
+      total_steps: 100
+  - step: 47
+    action: LIKE_POST
+    description: 点赞 - 步骤47
+    action_args:
+      probability_weight: 0.3
+      step_index: 27
+      total_steps: 100
+  - step: 48
+    action: LIKE_POST
+    description: 点赞 - 步骤48
+    action_args:
+      probability_weight: 0.3
+      step_index: 28
+      total_steps: 100
+  - step: 49
+    action: LIKE_POST
+    description: 点赞 - 步骤49
+    action_args:
+      probability_weight: 0.3
+      step_index: 29
+      total_steps: 100
+  - step: 50
+    action: CREATE_COMMENT
+    description: 评论 - 步骤50
+    action_args:
+      probability_weight: 0.25
+      step_index: 0
+      total_steps: 100
+  - step: 51
+    action: CREATE_COMMENT
+    description: 评论 - 步骤51
+    action_args:
+      probability_weight: 0.25
+      step_index: 1
+      total_steps: 100
+  - step: 52
+    action: CREATE_COMMENT
+    description: 评论 - 步骤52
+    action_args:
+      probability_weight: 0.25
+      step_index: 2
+      total_steps: 100
+  - step: 53
+    action: CREATE_COMMENT
+    description: 评论 - 步骤53
+    action_args:
+      probability_weight: 0.25
+      step_index: 3
+      total_steps: 100
+  - step: 54
+    action: CREATE_COMMENT
+    description: 评论 - 步骤54
+    action_args:
+      probability_weight: 0.25
+      step_index: 4
+      total_steps: 100
+  - step: 55
+    action: CREATE_COMMENT
+    description: 评论 - 步骤55
+    action_args:
+      probability_weight: 0.25
+      step_index: 5
+      total_steps: 100
+  - step: 56
+    action: CREATE_COMMENT
+    description: 评论 - 步骤56
+    action_args:
+      probability_weight: 0.25
+      step_index: 6
+      total_steps: 100
+  - step: 57
+    action: CREATE_COMMENT
+    description: 评论 - 步骤57
+    action_args:
+      probability_weight: 0.25
+      step_index: 7
+      total_steps: 100
+  - step: 58
+    action: CREATE_COMMENT
+    description: 评论 - 步骤58
+    action_args:
+      probability_weight: 0.25
+      step_index: 8
+      total_steps: 100
+  - step: 59
+    action: CREATE_COMMENT
+    description: 评论 - 步骤59
+    action_args:
+      probability_weight: 0.25
+      step_index: 9
+      total_steps: 100
+  - step: 60
+    action: CREATE_COMMENT
+    description: 评论 - 步骤60
+    action_args:
+      probability_weight: 0.25
+      step_index: 10
+      total_steps: 100
+  - step: 61
+    action: CREATE_COMMENT
+    description: 评论 - 步骤61
+    action_args:
+      probability_weight: 0.25
+      step_index: 11
+      total_steps: 100
+  - step: 62
+    action: CREATE_COMMENT
+    description: 评论 - 步骤62
+    action_args:
+      probability_weight: 0.25
+      step_index: 12
+      total_steps: 100
+  - step: 63
+    action: CREATE_COMMENT
+    description: 评论 - 步骤63
+    action_args:
+      probability_weight: 0.25
+      step_index: 13
+      total_steps: 100
+  - step: 64
+    action: CREATE_COMMENT
+    description: 评论 - 步骤64
+    action_args:
+      probability_weight: 0.25
+      step_index: 14
+      total_steps: 100
+  - step: 65
+    action: CREATE_COMMENT
+    description: 评论 - 步骤65
+    action_args:
+      probability_weight: 0.25
+      step_index: 15
+      total_steps: 100
+  - step: 66
+    action: CREATE_COMMENT
+    description: 评论 - 步骤66
+    action_args:
+      probability_weight: 0.25
+      step_index: 16
+      total_steps: 100
+  - step: 67
+    action: CREATE_COMMENT
+    description: 评论 - 步骤67
+    action_args:
+      probability_weight: 0.25
+      step_index: 17
+      total_steps: 100
+  - step: 68
+    action: CREATE_COMMENT
+    description: 评论 - 步骤68
+    action_args:
+      probability_weight: 0.25
+      step_index: 18
+      total_steps: 100
+  - step: 69
+    action: CREATE_COMMENT
+    description: 评论 - 步骤69
+    action_args:
+      probability_weight: 0.25
+      step_index: 19
+      total_steps: 100
+  - step: 70
+    action: CREATE_COMMENT
+    description: 评论 - 步骤70
+    action_args:
+      probability_weight: 0.25
+      step_index: 20
+      total_steps: 100
+  - step: 71
+    action: CREATE_COMMENT
+    description: 评论 - 步骤71
+    action_args:
+      probability_weight: 0.25
+      step_index: 21
+      total_steps: 100
+  - step: 72
+    action: CREATE_COMMENT
+    description: 评论 - 步骤72
+    action_args:
+      probability_weight: 0.25
+      step_index: 22
+      total_steps: 100
+  - step: 73
+    action: CREATE_COMMENT
+    description: 评论 - 步骤73
+    action_args:
+      probability_weight: 0.25
+      step_index: 23
+      total_steps: 100
+  - step: 74
+    action: CREATE_COMMENT
+    description: 评论 - 步骤74
+    action_args:
+      probability_weight: 0.25
+      step_index: 24
+      total_steps: 100
+  - step: 75
+    action: REFRESH
+    description: 刷新 - 步骤75
+    action_args:
+      probability_weight: 0.15
+      step_index: 0
+      total_steps: 100
+  - step: 76
+    action: REFRESH
+    description: 刷新 - 步骤76
+    action_args:
+      probability_weight: 0.15
+      step_index: 1
+      total_steps: 100
+  - step: 77
+    action: REFRESH
+    description: 刷新 - 步骤77
+    action_args:
+      probability_weight: 0.15
+      step_index: 2
+      total_steps: 100
+  - step: 78
+    action: REFRESH
+    description: 刷新 - 步骤78
+    action_args:
+      probability_weight: 0.15
+      step_index: 3
+      total_steps: 100
+  - step: 79
+    action: REFRESH
+    description: 刷新 - 步骤79
+    action_args:
+      probability_weight: 0.15
+      step_index: 4
+      total_steps: 100
+  - step: 80
+    action: REFRESH
+    description: 刷新 - 步骤80
+    action_args:
+      probability_weight: 0.15
+      step_index: 5
+      total_steps: 100
+  - step: 81
+    action: REFRESH
+    description: 刷新 - 步骤81
+    action_args:
+      probability_weight: 0.15
+      step_index: 6
+      total_steps: 100
+  - step: 82
+    action: REFRESH
+    description: 刷新 - 步骤82
+    action_args:
+      probability_weight: 0.15
+      step_index: 7
+      total_steps: 100
+  - step: 83
+    action: REFRESH
+    description: 刷新 - 步骤83
+    action_args:
+      probability_weight: 0.15
+      step_index: 8
+      total_steps: 100
+  - step: 84
+    action: REFRESH
+    description: 刷新 - 步骤84
+    action_args:
+      probability_weight: 0.15
+      step_index: 9
+      total_steps: 100
+  - step: 85
+    action: REFRESH
+    description: 刷新 - 步骤85
+    action_args:
+      probability_weight: 0.15
+      step_index: 10
+      total_steps: 100
+  - step: 86
+    action: REFRESH
+    description: 刷新 - 步骤86
+    action_args:
+      probability_weight: 0.15
+      step_index: 11
+      total_steps: 100
+  - step: 87
+    action: REFRESH
+    description: 刷新 - 步骤87
+    action_args:
+      probability_weight: 0.15
+      step_index: 12
+      total_steps: 100
+  - step: 88
+    action: REFRESH
+    description: 刷新 - 步骤88
+    action_args:
+      probability_weight: 0.15
+      step_index: 13
+      total_steps: 100
+  - step: 89
+    action: REFRESH
+    description: 刷新 - 步骤89
+    action_args:
+      probability_weight: 0.15
+      step_index: 14
+      total_steps: 100
+  - step: 90
+    action: DO_NOTHING
+    description: 休息 - 步骤90
+    action_args:
+      probability_weight: 0.1
+      step_index: 0
+      total_steps: 100
+  - step: 91
+    action: DO_NOTHING
+    description: 休息 - 步骤91
+    action_args:
+      probability_weight: 0.1
+      step_index: 1
+      total_steps: 100
+  - step: 92
+    action: DO_NOTHING
+    description: 休息 - 步骤92
+    action_args:
+      probability_weight: 0.1
+      step_index: 2
+      total_steps: 100
+  - step: 93
+    action: DO_NOTHING
+    description: 休息 - 步骤93
+    action_args:
+      probability_weight: 0.1
+      step_index: 3
+      total_steps: 100
+  - step: 94
+    action: DO_NOTHING
+    description: 休息 - 步骤94
+    action_args:
+      probability_weight: 0.1
+      step_index: 4
+      total_steps: 100
+  - step: 95
+    action: DO_NOTHING
+    description: 休息 - 步骤95
+    action_args:
+      probability_weight: 0.1
+      step_index: 5
+      total_steps: 100
+  - step: 96
+    action: DO_NOTHING
+    description: 休息 - 步骤96
+    action_args:
+      probability_weight: 0.1
+      step_index: 6
+      total_steps: 100
+  - step: 97
+    action: DO_NOTHING
+    description: 休息 - 步骤97
+    action_args:
+      probability_weight: 0.1
+      step_index: 7
+      total_steps: 100
+  - step: 98
+    action: DO_NOTHING
+    description: 休息 - 步骤98
+    action_args:
+      probability_weight: 0.1
+      step_index: 8
+      total_steps: 100
+  - step: 99
+    action: DO_NOTHING
+    description: 休息 - 步骤99
+    action_args:
+      probability_weight: 0.1
+      step_index: 9
+      total_steps: 100
+conditions:
+  simulation_phase: normal
+  agent_type: regular
+step_range:
+- 0
+- 100
+metadata:
+  created: '2026-04-12T00:00:00Z'
+  author: Socitwin Admin
+  tags:
+  - scheduled
+  - probabilistic
+  - twitter
+  - balanced
+  - oasis
+  version: 1.0.0
+  probability_distribution:
+    CREATE_POST: 0.2
+    LIKE_POST: 0.3
+    CREATE_COMMENT: 0.25
+    REFRESH: 0.15
+    DO_NOTHING: 0.1
+

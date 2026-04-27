@@ -570,9 +570,9 @@ export default function Profiles() {
         synthetic_topic_count: syntheticTopicCountParsed,
         user_target_count: llmUserTargetParsed,
         platform: selectedPlatform,
-        llmBatchSize: 4,
+        llmBatchSize: 15,
         llmSeedSample: 10,
-        llmMaxRetries: 1,
+        llmMaxRetries: 5,
         llmKolNormalRatio: '1:10',
       })
       setSqlitePreviewAgents(
@@ -804,9 +804,9 @@ export default function Profiles() {
       agentCount: Math.max(1, llmUserTargetParsed || selectedDataset?.counts.users || 1),
       useLlmPersonas,
       // 默认更稳的参数：减小单次返回 JSON 的长度，降低网关/模型超时概率
-      llmBatchSize: 4,
+      llmBatchSize: 15,
       llmSeedSample: 10,
-      llmMaxRetries: 1,
+      llmMaxRetries: 5,
       llmKolNormalRatio: '1:10',
     })
     setGeneratedGraph(result.graph)
