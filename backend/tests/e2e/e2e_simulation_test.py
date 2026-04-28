@@ -855,7 +855,7 @@ class ResultExporter:
 
         filename = f"propagation-metrics-{timestamp}.png"
         filepath = output_dir / filename
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.savefig(filepath, dpi=80, bbox_inches='tight')
         plt.close()
 
         return str(filepath)
@@ -909,7 +909,7 @@ class ResultExporter:
 
         filename = f"polarization-metrics-{timestamp}.png"
         filepath = output_dir / filename
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.savefig(filepath, dpi=80, bbox_inches='tight')
         plt.close()
 
         return str(filepath)
@@ -979,7 +979,7 @@ class ResultExporter:
 
         filename = f"herd-effect-metrics-{timestamp}.png"
         filepath = output_dir / filename
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.savefig(filepath, dpi=80, bbox_inches='tight')
         plt.close()
 
         return str(filepath)
