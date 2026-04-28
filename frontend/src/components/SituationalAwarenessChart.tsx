@@ -27,6 +27,7 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
     const data = chartHistory.map(h => ({
       step: h.step,
       极化: h.polarization || 0,
+      情感倾向: h.sentimentTendency ?? 0,
       从众: h.herdEffect || 0,
       传播: Math.min((h.propagation || 0) / Math.max(status.activeAgents || 1, 1), 1),
     }))
@@ -104,6 +105,16 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
             >
               <div className="w-1.5 h-1.5" style={{ background: '#00f2ff' }} /> 从众
             </span>
+            <span
+              className="flex items-center gap-2 text-[10px] font-semibold"
+              style={{
+                fontFamily: '"JetBrains Mono", monospace',
+                color: '#f59e0b',
+                letterSpacing: '0.05em',
+              }}
+            >
+              <div className="w-1.5 h-1.5" style={{ background: '#f59e0b' }} /> 情感倾向
+            </span>
           </div>
         </div>
 
@@ -123,6 +134,10 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
                 <linearGradient id="colorHerd" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#00f2ff" stopOpacity={0.3} />
                   <stop offset="100%" stopColor="#00f2ff" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorSentiment" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.24} />
+                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
 
@@ -149,7 +164,7 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
                 stroke="rgba(113, 113, 122, 0.5)"
                 fontSize={10}
                 fontFamily='"JetBrains Mono", monospace'
-                domain={[0, 1]}
+                domain={[-1, 1]}
                 tickCount={5}
                 tickFormatter={value => `${(value * 100).toFixed(0)}%`}
                 tick={{ fill: '#71717a' }}
@@ -211,6 +226,17 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
                 strokeWidth={1.5}
                 dot={false}
               />
+
+              {/* 情感倾向 - 琥珀黄（-1 到 1） */}
+              <Area
+                type="monotone"
+                dataKey="情感倾向"
+                stroke="#f59e0b"
+                fillOpacity={1}
+                fill="url(#colorSentiment)"
+                strokeWidth={1.5}
+                dot={false}
+              />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -224,7 +250,7 @@ export const SituationalAwarenessChart = ({ currentStep }: SituationalAwarenessC
             letterSpacing: '0.02em',
           }}
         >
-          * 基于数据库历史数据绘制 · X轴为模拟步数 · 指标已归一化处理
+          * 基于数据库历史数据绘制 · X轴为模拟步数 · 情感倾向范围为 -100% 到 100%
         </p>
 
         {/* 装饰性角标 */}

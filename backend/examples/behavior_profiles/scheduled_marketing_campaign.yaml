@@ -1,0 +1,126 @@
+# 调度引擎行为配置示例 - 营销活动
+# 此配置文件展示了如何配置时间线调度用于营销活动
+
+name: "product_launch_campaign"
+description: "产品发布营销活动 - 按时间线执行营销动作"
+strategy: "scheduled"
+enabled: true
+platform_filter: "twitter"
+
+# 调度配置
+schedule:
+  name: "product_launch_timeline"
+  description: "为期7天的产品发布营销时间线"
+  loop: false  # 不循环，一次性活动
+  timeline:
+    # 第0天：活动启动
+    - step: 0
+      action: "CREATE_POST"
+      description: "活动预告 - 神秘预告"
+      action_args:
+        content: "🚀 重大消息即将公布！关注我们获取最新动态。 #神秘预告 #新品即将发布"
+        media_url: "https://example.com/teaser.jpg"
+        hashtags: ["#神秘预告", "#新品即将发布"]
+
+    # 第1天：正式发布
+    - step: 1
+      action: "CREATE_POST"
+      description: "产品正式发布"
+      action_args:
+        content: "🎉 正式发布我们的新产品！革命性的功能，超值的价格。立即了解：example.com/product #产品发布 #创新科技"
+        media_url: "https://example.com/launch.jpg"
+        hashtags: ["#产品发布", "#创新科技", "#新品上市"]
+
+    # 第2-4天：每日功能展示（重复事件）
+    - step: 2
+      action: "CREATE_POST"
+      description: "功能展示 - 核心功能1"
+      repeat_interval: 1  # 每天重复
+      repeat_count: 3    # 共3次（第2,3,4天）
+      action_args:
+        content_templates:
+          - "✨ 产品亮点：智能AI助手，让您的工作效率提升300%！ #功能展示 #AI助手"
+          - "🔧 核心功能：一键自动化，复杂任务简单化。 #自动化 #效率工具"
+          - "📊 数据可视化：实时洞察，决策更明智。 #数据分析 #商业智能"
+        rotate_template: true  # 轮换使用模板
+
+    # 第3天：客户评价分享
+    - step: 3
+      action: "QUOTE_POST"
+      description: "分享早期用户正面评价"
+      action_args:
+        content: "听听我们的早期用户怎么说！👏 #用户评价 #真实反馈"
+        source_type: "customer_testimonial"
+        min_influence: 5000  # 最低影响力要求
+
+    # 第5天：限时优惠
+    - step: 5
+      action: "CREATE_POST"
+      description: "限时优惠公告"
+      action_args:
+        content: "⏰ 限时优惠：前100名用户享受5折优惠！优惠码：LAUNCH50。立即行动：example.com/promo #限时优惠 #早鸟特惠"
+        urgency_level: "high"
+        countdown_timer: true
+
+    # 第6天：互动问答
+    - step: 6
+      action: "CREATE_POST"
+      description: "产品问答互动"
+      action_args:
+        content: "❓ 对我们的新产品有任何疑问吗？在评论区提问，我们的团队会为您解答！ #产品问答 #客户支持"
+        engagement_goal: "answer_questions"
+        response_time: "within_2_hours"
+
+    # 第7天：活动总结
+    - step: 7
+      action: "CREATE_POST"
+      description: "活动成果总结"
+      action_args:
+        content: "📈 产品发布周圆满结束！感谢所有参与和支持的用户。活动成果：10,000+ 次曝光，500+ 次互动，100+ 新用户。 #活动总结 #感谢支持"
+        include_stats: true
+        thank_community: true
+
+    # 持续互动：每小时点赞/评论（重复事件）
+    - step: 8
+      action: "LIKE_POST"
+      description: "持续社区互动"
+      repeat_interval: 1  # 每小时重复
+      repeat_count: 24    # 持续24小时
+      action_args:
+        target_type: "relevant_content"
+        max_per_hour: 5
+        engagement_strategy: "community_building"
+
+    - step: 8  # 同一步骤，不同动作
+      action: "CREATE_COMMENT"
+      description: "积极回应评论"
+      repeat_interval: 1
+      repeat_count: 12    # 每2小时一次
+      action_args:
+        response_templates:
+          - "感谢您的反馈！"
+          - "很好的问题，我们已经记录下来了。"
+          - "很高兴您喜欢这个功能！"
+        positivity_score: 0.8  # 积极回应的概率
+
+# 活动条件
+conditions:
+  campaign_type: "product_launch"
+  target_audience: "tech_enthusiasts"
+  budget_approved: true
+
+# 监控指标
+monitoring:
+  track_metrics: ["engagement_rate", "conversion_rate", "reach"]
+  alert_thresholds:
+    engagement_rate: 0.05  # 低于5%时告警
+    negative_sentiment: 0.2  # 负面情绪超过20%时告警
+
+# 元数据
+metadata:
+  created: "2024-01-01T12:00:00Z"
+  author: "Socitwin Marketing Team"
+  tags: ["scheduled", "marketing", "campaign", "twitter", "product_launch"]
+  version: "1.0.0"
+  estimated_reach: "10,000+"
+  target_conversion: "5%"

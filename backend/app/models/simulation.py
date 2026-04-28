@@ -7,6 +7,19 @@ from pydantic import BaseModel, Field, field_validator
 from app.memory.config import MemoryMode
 from app.models.metrics import MetricsSummary
 
+try:
+    from app.models.behavior import (
+        AgentBehaviorConfig,  # pyright: ignore[reportAssignmentType]
+        create_default_behavior_config,  # pyright: ignore[reportAssignmentType]
+    )
+except ImportError:  # pragma: no cover
+    class AgentBehaviorConfig(BaseModel):
+        strategy: str = "llm_autonomous"
+        enabled: bool = True
+
+    def create_default_behavior_config() -> AgentBehaviorConfig:
+        return AgentBehaviorConfig()
+
 # ============================================================================
 # 平台和状态枚举
 # ============================================================================
@@ -130,6 +143,10 @@ class AgentConfig(BaseModel):
     gender: Optional[str] = None
     mbti: Optional[str] = None
     country: Optional[str] = None
+    behavior_config: AgentBehaviorConfig = Field(
+        default_factory=create_default_behavior_config,
+        description="Behavior control configuration for this agent"
+    )
 
 
 # ============================================================================
@@ -205,6 +222,10 @@ class Agent(BaseModel):
     influence: float = 0.0
     activity: float = 0.0
     interests: List[str] = Field(default_factory=list)
+    behavior_config: Optional[AgentBehaviorConfig] = Field(
+        default=None,
+        description="Behavior control configuration (if available)"
+    )
     following: List[str] = Field(default_factory=list)  # 新增：关注列表
 
 

@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from app.models.behavior import BehaviorStrategy
+
 # ============================================================================
 # 受控Agent配置模型
 # ============================================================================
@@ -41,6 +43,10 @@ class ControlledAgentConfig(BaseModel):
     interests: List[str] = Field(
         default_factory=list,
         description="兴趣标签列表"
+    )
+    behavior_strategy: Optional[BehaviorStrategy] = Field(
+        default=BehaviorStrategy.RULE_BASED,
+        description="智能体行为策略：规则模型、概率模型或混合模型"
     )
 
 
