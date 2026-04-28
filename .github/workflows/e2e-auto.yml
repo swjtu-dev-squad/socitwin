@@ -1,0 +1,115 @@
+name: E2E Test (Auto)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      # 实验室 LLM API 配置（从 secrets 读取）
+      OASIS_MODEL_PLATFORM: openai
+      OASIS_MODEL_TYPE: qwen3.6-flash
+      OPENAI_API_KEY: ${{ secrets.LAB_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.LAB_API_BASE_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Setup backend
+        run: |
+          cd backend
+          uv sync --dev
+          mkdir -p data/huggingface
+
+      - name: Start backend server
+        run: |
+          cd backend
+          mkdir -p test-results/e2e
+
+          # 后台启动后端服务
+          nohup uv run uvicorn main:app --host 0.0.0.0 --port 8000 > /tmp/server.log 2>&1 &
+          echo $! > /tmp/server.pid
+
+          # 等待服务就绪
+          echo "Waiting for backend to start..."
+          for i in {1..60}; do
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend started successfully"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Backend failed to start"
+              cat /tmp/server.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Run E2E test
+        run: |
+          cd backend
+          uv run python tests/e2e/e2e_simulation_test.py \
+            --platform twitter \
+            --topic 2042552568010936455 \
+            --agent-count 10 \
+            --max-steps 10 \
+            --model-platform openai \
+            --model-type qwen3.6-flash
+
+      - name: Stop backend server
+        if: always()
+        run: |
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) || true
+          fi
+          pkill -f "uvicorn main:app" || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_id }}
+          path: backend/test-results/e2e/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Test result summary
+        if: always()
+        run: |
+          echo "========================================="
+          echo "E2E Test Summary"
+          echo "========================================="
+
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "Status: PASSED"
+          else
+            echo "Status: FAILED"
+          fi
+
+          echo ""
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "========================================="
