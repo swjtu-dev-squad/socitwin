@@ -432,10 +432,13 @@ export async function runNetworksNeo4jSync(params?: { clear?: boolean }) {
       : undefined
   const query = new URLSearchParams()
   if (params?.clear) query.set('clear', '1')
-  const response = await fetch(`/api/datasets/networks-neo4j-sync${query.toString() ? `?${query}` : ''}`, {
-    method: 'POST',
-    signal,
-  })
+  const response = await fetch(
+    `/api/datasets/networks-neo4j-sync${query.toString() ? `?${query}` : ''}`,
+    {
+      method: 'POST',
+      signal,
+    }
+  )
   return parseJson<{ status: string }>(response)
 }
 

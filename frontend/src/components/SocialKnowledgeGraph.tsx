@@ -66,19 +66,17 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
     const fg = fgRef.current
     if (!fg || graphData.nodes.length === 0) return
     try {
-      const hasHome = graphData.nodes.some((n: any) => Number.isFinite(n?.homeX) && Number.isFinite(n?.homeY))
+      const hasHome = graphData.nodes.some(
+        (n: any) => Number.isFinite(n?.homeX) && Number.isFinite(n?.homeY)
+      )
       if (hasHome) {
         fg.d3Force(
           'homePullX',
-          d3.forceX((node: any) =>
-            Number.isFinite(node?.homeX) ? node.homeX : 0
-          ).strength(0.08)
+          d3.forceX((node: any) => (Number.isFinite(node?.homeX) ? node.homeX : 0)).strength(0.08)
         )
         fg.d3Force(
           'homePullY',
-          d3.forceY((node: any) =>
-            Number.isFinite(node?.homeY) ? node.homeY : 0
-          ).strength(0.08)
+          d3.forceY((node: any) => (Number.isFinite(node?.homeY) ? node.homeY : 0)).strength(0.08)
         )
       } else {
         fg.d3Force('homePullX', null)
