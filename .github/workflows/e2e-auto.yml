@@ -109,12 +109,12 @@ jobs:
           fi
 
           # 使用 Python 生成 Markdown 报告
-          python3 << 'PYTHON_EOF'
+          python3 << PYTHON_EOF
           import json
           import os
           from pathlib import Path
 
-          json_file = r"""${LATEST_JSON}"""
+          json_file = """${LATEST_JSON}"""
           output_file = os.environ.get('GITHUB_STEP_SUMMARY')
 
           with open(json_file, 'r') as f:
