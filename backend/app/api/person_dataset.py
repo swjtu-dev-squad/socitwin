@@ -9,8 +9,8 @@ from app.services.persona.legacy_pipeline.runner import (
     get_social_graph_bundle,
     run_social_local_pipeline,
 )
-from app.services.persona.neo4j_sync import import_from_data_dir
 from app.services.persona.neo4j_sqlite_sync import import_from_sqlite
+from app.services.persona.neo4j_sync import import_from_data_dir
 
 router = APIRouter(prefix="/datasets", tags=["person-dataset"])
 
