@@ -16,23 +16,31 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 # OASIS 框架导入
-import oasis
 from camel.configs import ChatGPTConfig
 
 # CAMEL 框架导入
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
-from oasis import (
-    ActionType,
-    AgentGraph,
-    DefaultPlatformType,
-    LLMAction,
-    ManualAction,
-    SocialAgent,
-    UserInfo,
-    generate_reddit_agent_graph,
-    generate_twitter_agent_graph,
-)
+
+try:
+    import oasis
+    from oasis import (
+        ActionType,
+        AgentGraph,
+        DefaultPlatformType,
+        LLMAction,
+        ManualAction,
+        SocialAgent,
+        UserInfo,
+        generate_reddit_agent_graph,
+        generate_twitter_agent_graph,
+    )
+except ImportError as exc:
+    raise ImportError(
+        "OASIS package is missing or incompatible. Install it in the backend "
+        "environment with `pip install camel-oasis`, then verify with "
+        "`python -c \"import oasis; from oasis import ActionType\"`."
+    ) from exc
 
 # 本地导入
 from app.core.config import get_settings
@@ -114,11 +122,11 @@ class OASISManager:
             return
 
         # OASIS 环境状态
-        self._env: Optional[oasis.Platform] = None
+        self._env: Optional[Any] = None
         self._agent_graph: Optional[AgentGraph] = None
         self._model: Any = None
         self._db_path: Optional[str] = None
-        self._action_v1_longterm_store: Optional[LongtermStore] = None
+        self._action_v1_longterm_store: Optional[LongtermStore] = Nonecd
 
         # 模拟状态
         self._state: SimulationState = SimulationState.UNINITIALIZED
@@ -346,6 +354,7 @@ class OASISManager:
                     settings_mode=settings.OASIS_MEMORY_MODE,
                 )
                 self._memory_mode = runtime_config.mode
+                runtime_config = None
 
                 # 设置数据库路径
                 if not config.db_path:
@@ -532,11 +541,12 @@ class OASISManager:
         agent_graph: AgentGraph,
         config: SimulationConfig,
     ):
+        os.environ["OASIS_DB_PATH"] = os.path.abspath(self._db_path)
         return oasis.make(
             agent_graph=agent_graph,
             platform=self._get_platform_type(config.platform),
             database_path=self._db_path,
-            semaphore=32,  # 并发限制
+            semaphore=32,
         )
 
     def _get_platform_type(self, platform: PlatformType):

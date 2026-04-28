@@ -1,5 +1,5 @@
 import json
-from core.config import OUTPUT_HTML
+from topic_polarization.core.config import OUTPUT_HTML
 
 # 过滤类型与聚类名称/颜色的映射
 FILTER_MAP = {
@@ -120,7 +120,7 @@ def generate_html(topic_results, filter_type="all"):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>话题扩散聚类分析</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -424,7 +424,7 @@ def _generate_filtered_html(topic_results, filter_type):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title}</title>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{

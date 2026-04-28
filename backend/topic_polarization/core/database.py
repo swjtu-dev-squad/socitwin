@@ -2,6 +2,9 @@ import os
 import sqlite3
 from .config import DB_PATH
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(PROJECT_ROOT, "topic_polarization", "oasis_datasets.db")
+
 def get_db_connection():
     """获取数据库连接"""
     if not os.path.exists(DB_PATH):
