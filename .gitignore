@@ -45,6 +45,10 @@ backend/data/**/*
 backend/log/
 backend/log/**/*
 
+# Exception: dataset database for E2E tests
+!backend/data/datasets/
+!backend/data/datasets/oasis_datasets.db
+
 # Downloaded model/cache directories
 backend/data/huggingface/
 backend/data/huggingface/**/*
