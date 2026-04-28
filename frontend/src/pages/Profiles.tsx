@@ -745,7 +745,7 @@ export default function Profiles() {
 
   const runNeo4jSyncBestEffort = async () => {
     try {
-      toast.info('正在将 users/topics/relationships/user_networks 同步到 Neo4j…')
+      toast.info('正在将社交网络同步到 Neo4j…')
       await runNetworksNeo4jSync()
       toast.success('Neo4j 知识图谱已同步')
     } catch (neoErr) {
@@ -771,14 +771,14 @@ export default function Profiles() {
       if (selectedDatasetId) {
         await loadDatasets(selectedDatasetId)
       }
-      toast.success('旧版社交关系已生成：已更新关系边、图密度与社交知识图谱')
+      toast.success('社交关系已生成：已更新关系边、图密度与社交知识图谱')
       await runNeo4jSyncBestEffort()
     } catch (pipeErr) {
       console.error('Social pipeline / graph bundle:', pipeErr)
       toast.warning(
         (pipeErr as Error)?.message?.includes('501')
-          ? '后端未接入旧版 datasets 流水线（501），已跳过关系图生成；左侧拟合用户与 LLM 结果仍可用。'
-          : (pipeErr as Error)?.message || '关系图生成失败（可能未部署本地流水线）'
+          ? '后端未接入datasets，已跳过关系图生成；左侧拟合用户与 LLM 结果仍可用。'
+          : (pipeErr as Error)?.message || '关系图生成失败'
       )
     }
   }
