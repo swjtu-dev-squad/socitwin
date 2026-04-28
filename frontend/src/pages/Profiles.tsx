@@ -32,8 +32,6 @@ import { SubscriptionPanel, type SubscriptionPlatformCard } from '@/components/S
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import {
-  generateDatasetArtifacts,
-  getGeneratedAgents,
   getPersonaDataset,
   getSocialGraphBundle,
   getTwitterSqliteTopicsList,
@@ -178,7 +176,7 @@ export default function Profiles() {
   const [currentGenerationId, setCurrentGenerationId] = useState<string | null>(null)
   /** 本次生成写入 Mongo 的拟合用户（与图谱节点一一对应，列表展示用） */
   const [generatedAgentsList, setGeneratedAgentsList] = useState<GeneratedAgentRecord[]>([])
-  const [agentsListLoading, setAgentsListLoading] = useState(false)
+  const [agentsListLoading] = useState(false)
   const [datasetDetailLoading, setDatasetDetailLoading] = useState(false)
   const [generationLoading, setGenerationLoading] = useState(false)
   const [generationElapsedSec, setGenerationElapsedSec] = useState(0)
@@ -206,9 +204,6 @@ export default function Profiles() {
   })
   const [algorithm, setAlgorithm] = useState('community-homophily')
   const [agentCount, setAgentCount] = useState('0')
-  /** 为 true 时走 Python 子进程 + 大模型批量生成模拟 users，再构建图谱 */
-  // 默认使用 LLM 生成模拟画像（不再提供开关）
-  const useLlmPersonas = true
 
   /** SQLite 话题多选 + 合并种子统计（按当前 platform） */
   const [sqliteTopicsLoading, setSqliteTopicsLoading] = useState(false)
@@ -743,11 +738,6 @@ export default function Profiles() {
     setGeneratedAgentsList([])
   }
 
-  const clearLocalGraphState = () => {
-    setLocalDiskGraph(null)
-    setLocalDiskMetrics(null)
-  }
-
   const isAbortLikeError = (err: Error & { name?: string }) =>
     err?.name === 'AbortError' ||
     (typeof err?.message === 'string' &&
@@ -791,41 +781,6 @@ export default function Profiles() {
           : (pipeErr as Error)?.message || '关系图生成失败（可能未部署本地流水线）'
       )
     }
-  }
-
-  const generateDatasetGraph = async () => {
-    clearLocalGraphState()
-    const minWait = Math.ceil(PERSONA_GENERATE_FETCH_TIMEOUT_MS / 60_000)
-    toast.info(
-      `将使用大模型生成模拟画像：需多次调用模型，人数较多时可能需数分钟；按钮上会显示已等待时间。若超过约 ${minWait} 分钟仍无结果，前端会主动超时并提示。`
-    )
-    const result = await generateDatasetArtifacts(selectedDatasetId, {
-      algorithm,
-      agentCount: Math.max(1, llmUserTargetParsed || selectedDataset?.counts.users || 1),
-      useLlmPersonas,
-      // 默认更稳的参数：减小单次返回 JSON 的长度，降低网关/模型超时概率
-      llmBatchSize: 15,
-      llmSeedSample: 10,
-      llmMaxRetries: 5,
-      llmKolNormalRatio: '1:10',
-    })
-    setGeneratedGraph(result.graph)
-    setCurrentGenerationId(result.generation_id)
-    setSqlitePreviewAgents([])
-    setSqlitePreviewTopics([])
-    setAgentsListLoading(true)
-    try {
-      const agentsRes = await getGeneratedAgents(result.generation_id)
-      setGeneratedAgentsList(agentsRes.agents)
-    } catch (e) {
-      console.error('Load generated agents list:', e)
-      setGeneratedAgentsList([])
-      toast.message('图谱已生成，但拟合用户列表加载失败，可在图谱悬停节点查看单点信息。')
-    } finally {
-      setAgentsListLoading(false)
-    }
-    await loadDatasets(selectedDatasetId)
-    toast.success(`已基于 ${selectedDatasetId} 生成社交网络`)
   }
 
   const handleGenerate = async () => {
