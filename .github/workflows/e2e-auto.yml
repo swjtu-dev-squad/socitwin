@@ -93,23 +93,143 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Test result summary
+      - name: Generate test report
         if: always()
         run: |
-          echo "========================================="
-          echo "E2E Test Summary"
-          echo "========================================="
+          cd backend
 
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "Status: PASSED"
-          else
-            echo "Status: FAILED"
+          # 查找最新的测试结果 JSON
+          LATEST_JSON=$(find test-results/e2e -name "test-result-*.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2)
+
+          if [ -z "$LATEST_JSON" ]; then
+            echo "# ❌ E2E Test Report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** FAILED - No test results found" >> $GITHUB_STEP_SUMMARY
+            exit 0
           fi
 
-          echo ""
-          echo "Workflow: ${{ github.workflow }}"
-          echo "Run ID: ${{ github.run_id }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Triggered by: ${{ github.event_name }}"
-          echo "========================================="
+          # 使用 Python 生成 Markdown 报告
+          python3 << 'PYTHON_EOF'
+          import json
+          import os
+          from pathlib import Path
+
+          json_file = os.environ.get('LATEST_JSON')
+          output_file = os.environ.get('GITHUB_STEP_SUMMARY')
+
+          with open(json_file, 'r') as f:
+              data = json.load(f)
+
+          # 构建报告
+          report = []
+          report.append("# 📊 E2E Test Report\n")
+
+          # 测试状态
+          summary = data.get('summary', {})
+          successful_steps = summary.get('successful_steps', 0)
+          failed_steps = summary.get('failed_steps', 0)
+          total_steps = summary.get('total_steps_executed', 0)
+
+          if failed_steps == 0 and total_steps > 0:
+              report.append("## ✅ Status: PASSED\n")
+          else:
+              report.append("## ❌ Status: FAILED\n")
+
+          # 测试配置
+          config = data.get('test_config', {})
+          report.append("## 📋 Test Configuration\n")
+          report.append(f"| Parameter | Value |")
+          report.append(f"|-----------|-------|")
+          report.append(f"| Platform | {config.get('platform', 'N/A')} |")
+          report.append(f"| Agent Count | {config.get('agent_count', 'N/A')} |")
+          report.append(f"| Max Steps | {config.get('max_steps', 'N/A')} |")
+          report.append(f"| Topic | {config.get('topic_id', 'N/A')} |")
+          report.append(f"| Model | {config.get('model_platform', 'N/A')}/{config.get('model_type', 'N/A')} |")
+          report.append("")
+
+          # 测试摘要
+          report.append("## 📈 Test Summary\n")
+          report.append(f"| Metric | Value |")
+          report.append(f"|--------|-------|")
+          report.append(f"| Steps Executed | {total_steps} |")
+          report.append(f"| ✅ Successful | {successful_steps} |")
+          report.append(f"| ❌ Failed | {failed_steps} |")
+          report.append(f"| Total Time | {summary.get('total_execution_time', 0):.2f}s |")
+          report.append(f"| Avg Step Time | {summary.get('average_step_time', 0):.2f}s |")
+          report.append(f"| Posts Created | {summary.get('total_posts_added', 0)} |")
+          report.append(f"| Interactions | {summary.get('total_interactions_added', 0)} |")
+          report.append("")
+
+          # OASIS 指标
+          if 'final_oasis_metrics' in summary:
+              metrics = summary['final_oasis_metrics']
+              report.append("## 🎯 OASIS Metrics\n")
+
+              if metrics.get('propagation'):
+                  prop = metrics['propagation']
+                  report.append("### Information Propagation\n")
+                  report.append(f"- **Scale:** {prop.get('scale', 0)} users")
+                  report.append(f"- **Depth:** {prop.get('depth', 0)} levels")
+                  report.append(f"- **Max Breadth:** {prop.get('max_breadth', 0)} users")
+                  report.append("")
+
+              if metrics.get('polarization'):
+                  pol = metrics['polarization']
+                  report.append("### Group Polarization\n")
+                  report.append(f"- **Magnitude:** {pol.get('average_magnitude', 0):.3f}")
+                  report.append(f"- **Direction:** {pol.get('average_direction', 'N/A')}")
+                  report.append(f"- **Agents Evaluated:** {pol.get('total_agents_evaluated', 0)}")
+                  report.append("")
+
+              if metrics.get('herd_effect'):
+                  herd = metrics['herd_effect']
+                  report.append("### Herd Effect\n")
+                  report.append(f"- **Conformity Index:** {herd.get('conformity_index', 0):.3f}")
+                  report.append(f"- **Avg Post Score:** {herd.get('average_post_score', 0):.3f}")
+                  report.append(f"- **Disagree Score:** {herd.get('disagree_score', 0):.3f}")
+                  report.append("")
+
+          # 指标验证
+          if 'metrics_validation' in summary:
+              validation = summary['metrics_validation']
+              report.append("## ✅ Metrics Validation\n")
+              for metric_name, results in validation.items():
+                  if results.get('checks'):
+                      passed = len([c for c in results['checks'] if c['passed']])
+                      total = len(results['checks'])
+                      status = "✅" if results['valid'] else "⚠️"
+                      report.append(f"{status} **{metric_name.capitalize()}**: {passed}/{total} checks passed")
+
+                      # 显示失败的检查
+                      failed = [c for c in results['checks'] if not c['passed']]
+                      if failed:
+                          report.append(f"  - Failed checks:")
+                          for check in failed:
+                              report.append(f"    - {check['check']}: `{check['value']}`")
+              report.append("")
+
+          # 元信息
+          report.append("## ℹ️ Run Information\n")
+          report.append(f"| Field | Value |")
+          report.append(f"|-------|-------|")
+          report.append(f"| Workflow | {os.environ.get('GITHUB_WORKFLOW')} |")
+          report.append(f"| Run ID | {os.environ.get('GITHUB_RUN_ID')} |")
+          report.append(f"| Commit | `{os.environ.get('GITHUB_SHA')[:7]}` |")
+          report.append(f"| Branch | {os.environ.get('GITHUB_REF_NAME')} |")
+          report.append(f"| Triggered by | {os.environ.get('GITHUB_EVENT_NAME')} |")
+          report.append("")
+
+          # 写入 summary
+          with open(output_file, 'a') as f:
+              f.write('\n'.join(report))
+
+          print("Report generated successfully!")
+          PYTHON_EOF
+
+        env:
+          GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
