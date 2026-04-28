@@ -219,6 +219,31 @@ jobs:
           report.append(f"| Triggered by | {os.environ.get('GITHUB_EVENT_NAME')} |")
           report.append("")
 
+          # 图表 - 使用 base64 嵌入
+          result_dir = Path(json_file).parent
+          png_files = sorted(result_dir.glob("*.png"))
+
+          if png_files:
+              report.append("## 📊 Charts\n")
+              import base64
+
+              for png_file in png_files:
+                  try:
+                      with open(png_file, 'rb') as img:
+                          img_data = base64.b64encode(img.read()).decode('utf-8')
+                          img_name = png_file.stem.replace('-', ' ').title()
+                          report.append(f"### {img_name}\n")
+                          report.append(f'<img src="data:image/png;base64,{img_data}" alt="{png_file.name}" width="600"/>')
+                          report.append("")
+                  except Exception as e:
+                      report.append(f"*Error loading {png_file.name}: {e}*\n")
+
+              # 同时提供 artifact 下载链接
+              run_id = os.environ.get('GITHUB_RUN_ID')
+              repo = os.environ.get('GITHUB_REPOSITORY')
+              artifact_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+              report.append(f"\n📦 [Download all artifacts]({artifact_url}) - Includes JSON data and high-resolution charts\n")
+
           # 写入 summary
           with open(output_file, 'a') as f:
               f.write('\n'.join(report))
