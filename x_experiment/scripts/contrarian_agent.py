@@ -53,15 +53,19 @@ def load_config() -> Config:
     if not env_file:
         raise FileNotFoundError("未找到.env文件，请确保配置文件存在")
 
-    config_dict = {}
-    with open(env_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' in line:
-                key, value = line.split('=', 1)
-                config_dict[key.strip()] = value.strip()
+    try:
+        from dotenv import dotenv_values
+        config_dict = dotenv_values(env_file)
+    except ImportError:
+        config_dict = {}
+        with open(env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    config_dict[key.strip()] = value.strip().strip('"').strip("'")
 
     required_keys = [
         'DEEPSEEK_API_KEY', 'X_API_KEY', 'X_API_KEY_SECRET',

@@ -134,7 +134,7 @@ class DatabaseClient:
 
 if __name__ == "__main__":
     import sys
-    db_path = "/home/liz/socitwin/backend/data/datasets/oasis_datasets.db"
+    db_path = "./data/datasets/oasis_datasets.db"
     if len(sys.argv) > 1:
         db_path = sys.argv[1]
     client = DatabaseClient(db_path)
