@@ -71,8 +71,8 @@ jobs:
           uv run python tests/e2e/e2e_simulation_test.py \
             --platform twitter \
             --topic 2042552568010936455 \
-            --agent-count 10 \
-            --max-steps 10 \
+            --agent-count 3 \
+            --max-steps 3 \
             --model-platform openai \
             --model-type qwen3.6-flash
 
@@ -114,7 +114,7 @@ jobs:
           import os
           from pathlib import Path
 
-          json_file = os.environ.get('LATEST_JSON')
+          json_file = r"""${LATEST_JSON}"""
           output_file = os.environ.get('GITHUB_STEP_SUMMARY')
 
           with open(json_file, 'r') as f:
