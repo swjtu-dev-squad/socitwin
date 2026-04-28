@@ -25,20 +25,33 @@ class LLMEvaluator:
     """
 
     def __init__(self):
-        """Initialize LLM evaluator with DeepSeek configuration"""
+        """Initialize LLM evaluator with configured API"""
         settings = get_settings()
 
-        # Initialize async client
+        # Use configured OpenAI API settings (for lab proxy or other providers)
+        # Fall back to DeepSeek specific settings if OpenAI settings not configured
+        api_key = settings.OPENAI_API_KEY or settings.DEEPSEEK_API_KEY
+        base_url = settings.OPENAI_BASE_URL or "https://api.deepseek.com"
+
+        if not api_key:
+            logger.warning("No API key configured (OPENAI_API_KEY or DEEPSEEK_API_KEY). LLM evaluation will fail.")
+
+        # Initialize async client with configured settings
         self.client = AsyncOpenAI(
-            api_key=settings.DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com"
+            api_key=api_key,
+            base_url=base_url
         )
 
-        self.model = getattr(settings, 'POLARIZATION_LLM_MODEL', 'deepseek-chat')
+        # Smart fallback: POLARIZATION_LLM_MODEL → OASIS_MODEL_TYPE → error
+        self.model = (
+            settings.POLARIZATION_LLM_MODEL or
+            settings.OASIS_MODEL_TYPE or
+            "deepseek-chat"  # Last resort fallback
+        )
         self.temperature = getattr(settings, 'POLARIZATION_LLM_TEMPERATURE', 0.3)
         self.timeout = 30  # seconds
 
-        logger.info(f"LLM Evaluator initialized with model: {self.model}")
+        logger.info(f"LLM Evaluator initialized with model: {self.model}, base_url: {base_url}")
 
     async def evaluate_polarization(
         self,
@@ -79,7 +92,7 @@ class LLMEvaluator:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a neutral political analyst evaluating opinion shifts."
+                            "content": "You are a neutral political analyst evaluating opinion shifts. You must respond with valid JSON only."
                         },
                         {
                             "role": "user",
@@ -87,7 +100,8 @@ class LLMEvaluator:
                         }
                     ],
                     temperature=self.temperature,
-                    max_tokens=200
+                    max_tokens=200,
+                    response_format={"type": "json_object"}
                 ),
                 timeout=self.timeout
             )
