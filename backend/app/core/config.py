@@ -144,8 +144,8 @@ class Settings(BaseSettings):
     METRICS_CALCULATION_TIMEOUT: int = 60  # seconds
     METRICS_ENABLE_DB_PERSISTENCE: bool = True  # Enable/disable database persistence
 
-    # Polarization LLM Settings
-    POLARIZATION_LLM_MODEL: str = "deepseek-chat"
+    # Polarization LLM Settings (defaults to OASIS_MODEL_TYPE if not set)
+    POLARIZATION_LLM_MODEL: str | None = None
     POLARIZATION_LLM_TEMPERATURE: float = 0.3
     POLARIZATION_BATCH_SIZE: int = 10  # agents per LLM batch
     POLARIZATION_CALCULATION_INTERVAL: int = 2  # Calculate every N steps

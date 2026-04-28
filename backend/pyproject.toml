@@ -32,6 +32,7 @@ dev = [
     "httpx>=0.27.0",
     "ruff>=0.1.0",
     "pyright>=1.1.300",
+    "taskipy>=1.14.0",
 ]
 
 [tool.ruff]
@@ -52,3 +53,10 @@ typeCheckingMode = "standard"
 pythonVersion = "3.11"
 stubPath = ""
 ignore = ["**/oasis*"]
+
+[tool.taskipy.tasks]
+dev = "mkdir -p dev-logs && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 2>&1 | tee \"dev-logs/dev-$(date +%Y%m%d-%H%M%S).log\""
+dev-simple = "uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+test = "uv run pytest"
+lint = "uv run ruff check ."
+logs = "ls -lt dev-logs/"
