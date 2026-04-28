@@ -97,6 +97,8 @@ def _upsert_users(tx, rows: List[Dict[str, Any]]) -> None:
             u.external_user_id = row.external_user_id,
             u.username = row.username,
             u.display_name = row.display_name,
+            u.bio = row.bio,
+            u.location = row.location,
             u.user_type = row.user_type
         """,
         rows=rows,
@@ -162,7 +164,7 @@ def import_from_sqlite(
         if plat:
             users_rows = cur.execute(
                 """
-                SELECT platform, external_user_id, username, display_name, user_type
+                SELECT platform, external_user_id, username, display_name, bio, location, user_type
                 FROM users
                 WHERE lower(trim(platform)) = ?
                 """,
@@ -184,7 +186,7 @@ def import_from_sqlite(
             params: Tuple[Any, ...] = (plat,)
         else:
             users_rows = cur.execute(
-                "SELECT platform, external_user_id, username, display_name, user_type FROM users"
+                "SELECT platform, external_user_id, username, display_name, bio, location, user_type FROM users"
             ).fetchall()
             topics_rows = cur.execute(
                 "SELECT platform, topic_key, topic_label, topic_type, news_external_id FROM topics"
@@ -212,6 +214,8 @@ def import_from_sqlite(
                     "external_user_id": ext,
                     "username": r["username"],
                     "display_name": r["display_name"],
+                    "bio": r["bio"],
+                    "location": r["location"],
                     "user_type": r["user_type"],
                 }
             )
