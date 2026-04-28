@@ -829,25 +829,12 @@ export default function Profiles() {
   }
 
   const handleGenerate = async () => {
-    const useSqlitePreviewGraph = sqlitePreviewAgents.length > 0
-    if (!selectedDatasetId && !useSqlitePreviewGraph) {
-      toast.error(
-        '请先订阅当前平台；或先完成「生成仿真话题与用户画像」以使用本地 SQLite 关系图流程'
-      )
-      return
-    }
-    if (useSqlitePreviewGraph && sqliteSelectedTopicKeys.length === 0) {
-      toast.error('请先勾选至少一个话题（用于从 SQLite 抽取真实互动边）')
-      return
-    }
-
     setGenerationLoading(true)
     try {
-      if (useSqlitePreviewGraph) {
-        await generateTwitterLocalGraph()
-        return
-      }
-      await generateDatasetGraph()
+      // 默认：点击即执行旧版本地流水线（topics_classify → users_format_convert → relations_generate）
+      // 输出 relationships.json / user_networks.json / users.json / topics.json / graph_metrics.json，
+      // 前端再读取并生成「话题盘 + 话题内用户盘」社交知识图谱。
+      await generateTwitterLocalGraph()
     } catch (error) {
       console.error('Generation error:', error)
       const err = error as Error & { name?: string }

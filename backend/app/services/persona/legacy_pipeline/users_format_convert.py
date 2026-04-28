@@ -5,7 +5,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from app.services.persona.legacy_pipeline.common import data_dir
+from app.services.persona.legacy_pipeline.common import backend_root, data_dir
 
 
 def _load_title_to_category(topics_path: Path) -> dict[str, str]:
@@ -82,20 +82,36 @@ def _convert_user(row: dict[str, Any], *, agent_id: int, title_to_cat: dict[str,
     return out
 
 
-def convert_users_get_to_users_json() -> dict[str, Any]:
-    dd = data_dir()
-    src = dd / "users_get.json"
-    topics_path = dd / "topics.json"
+def convert_users_get_to_users_json(
+    *,
+    users_get_path: str | Path | None = None,
+    topics_path: str | Path | None = None,
+    output_path: str | Path | None = None,
+) -> dict[str, Any]:
+    default_dir = (backend_root() / "data" / "datasets" / "data").resolve()
+    dd_write = default_dir
+    try:
+        # 兼容旧逻辑：允许通过环境变量覆写读取目录；但默认写入固定目录（除非显式传 output_path）。
+        dd_read = data_dir().resolve()
+    except Exception:
+        dd_read = dd_write
+    dd_write.mkdir(parents=True, exist_ok=True)
+
+    src = Path(users_get_path).expanduser().resolve() if users_get_path is not None else (dd_read / "users_get.json")
+    t_path = Path(topics_path).expanduser().resolve() if topics_path is not None else (dd_read / "topics.json")
     if not src.is_file():
         raise FileNotFoundError(f"未找到 {src}")
-    if not topics_path.is_file():
-        raise FileNotFoundError(f"未找到 {topics_path}")
+    if not t_path.is_file():
+        raise FileNotFoundError(f"未找到 {t_path}")
     raw = json.loads(src.read_text(encoding="utf-8"))
     if not isinstance(raw, list):
         raise ValueError("users_get.json 顶层应为数组")
     users_get = [x for x in raw if isinstance(x, dict)]
-    title_to_cat = _load_title_to_category(topics_path)
+    title_to_cat = _load_title_to_category(t_path)
     data_out = [_convert_user(row, agent_id=idx, title_to_cat=title_to_cat) for idx, row in enumerate(users_get)]
     doc = {"recsys_type": "twitter", "type": "users", "stats": {"count": len(data_out)}, "data": data_out}
-    (dd / "users.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    out = Path(output_path).expanduser().resolve() if output_path is not None else (dd_write / "users.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return doc

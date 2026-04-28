@@ -425,12 +425,17 @@ export async function postTwitterSqlitePersonasLlm(params: {
 }
 
 /** 调用服务端执行 networks_neo4j.py，将 datasets/data 下 JSON 写入 Neo4j */
-export async function runNetworksNeo4jSync() {
+export async function runNetworksNeo4jSync(params?: { clear?: boolean }) {
   const signal =
     typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
       ? AbortSignal.timeout(NEO4J_NETWORKS_SYNC_FETCH_MS)
       : undefined
-  const response = await fetch('/api/datasets/networks-neo4j-sync', { method: 'POST', signal })
+  const query = new URLSearchParams()
+  if (params?.clear) query.set('clear', '1')
+  const response = await fetch(`/api/datasets/networks-neo4j-sync${query.toString() ? `?${query}` : ''}`, {
+    method: 'POST',
+    signal,
+  })
   return parseJson<{ status: string }>(response)
 }
 

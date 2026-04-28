@@ -23,7 +23,7 @@ function resolveIsKol(node: any): boolean {
 
 export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
   const fgRef = useRef<any>(null)
-  const fixedLayout = false
+  const fixedLayout = Boolean(data?.fixedLayout)
 
   const graphData = useMemo(() => {
     if (!data) return { nodes: [], links: [] }
@@ -66,8 +66,24 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
     const fg = fgRef.current
     if (!fg || graphData.nodes.length === 0) return
     try {
-      fg.d3Force('homePullX', null)
-      fg.d3Force('homePullY', null)
+      const hasHome = graphData.nodes.some((n: any) => Number.isFinite(n?.homeX) && Number.isFinite(n?.homeY))
+      if (hasHome) {
+        fg.d3Force(
+          'homePullX',
+          d3.forceX((node: any) =>
+            Number.isFinite(node?.homeX) ? node.homeX : 0
+          ).strength(0.08)
+        )
+        fg.d3Force(
+          'homePullY',
+          d3.forceY((node: any) =>
+            Number.isFinite(node?.homeY) ? node.homeY : 0
+          ).strength(0.08)
+        )
+      } else {
+        fg.d3Force('homePullX', null)
+        fg.d3Force('homePullY', null)
+      }
       fg.d3Force('center', d3.forceCenter(0, 0))
       if (typeof fg.d3VelocityDecay === 'function') {
         fg.d3VelocityDecay(0.35)
@@ -109,7 +125,12 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
           const px = typeof node.x === 'number' && Number.isFinite(node.x) ? node.x : 0
           const py = typeof node.y === 'number' && Number.isFinite(node.y) ? node.y : 0
           ctx.beginPath()
-          ctx.arc(px, py, r, 0, 2 * Math.PI, false)
+          if (node.type === 'topic') {
+            const side = r * 1.9
+            ctx.rect(px - side / 2, py - side / 2, side, side)
+          } else {
+            ctx.arc(px, py, r, 0, 2 * Math.PI, false)
+          }
           ctx.fillStyle = color
           ctx.fill()
         }}
@@ -164,9 +185,16 @@ export const SocialKnowledgeGraph = ({ data }: SocialKnowledgeGraphProps) => {
           const ny = typeof node.y === 'number' && Number.isFinite(node.y) ? node.y : 0
 
           ctx.beginPath()
-          ctx.arc(nx, ny, r, 0, 2 * Math.PI, false)
-          ctx.fillStyle = node.type === 'topic' ? '#f43f5e' : '#38bdf8'
-          ctx.fill()
+          if (node.type === 'topic') {
+            const side = r * 1.9
+            ctx.rect(nx - side / 2, ny - side / 2, side, side)
+            ctx.fillStyle = '#f43f5e'
+            ctx.fill()
+          } else {
+            ctx.arc(nx, ny, r, 0, 2 * Math.PI, false)
+            ctx.fillStyle = '#38bdf8'
+            ctx.fill()
+          }
           ctx.strokeStyle = '#0f172a'
           ctx.lineWidth = 1.2 / globalScale
           ctx.stroke()

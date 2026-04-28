@@ -380,7 +380,25 @@ class RelationshipGenerator:
         self.generate_peer_relationships()
 
 
-def generate_relationship_and_network_files(data_dir: Path) -> dict[str, Any]:
+def _default_data_dir() -> Path:
+    """
+    Resolve default dataset directory as:
+    socitwin/backend/data/datasets/data
+
+    Works regardless of current working directory.
+    """
+    here = Path(__file__).resolve()
+    for p in here.parents:
+        if p.name == "backend":
+            return p / "data" / "datasets" / "data"
+    # Fallback: relative to current working directory
+    return Path.cwd() / "socitwin" / "backend" / "data" / "datasets" / "data"
+
+
+def generate_relationship_and_network_files(data_dir: Path | None = None) -> dict[str, Any]:
+    data_dir = _default_data_dir() if data_dir is None else data_dir
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     users_file = data_dir / "users.json"
     topics_file = data_dir / "topics.json"
     if not users_file.is_file():
@@ -407,3 +425,9 @@ def generate_relationship_and_network_files(data_dir: Path) -> dict[str, Any]:
     }
     (data_dir / "graph_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return metrics
+
+
+if __name__ == "__main__":
+    # Default: read/write under socitwin/backend/data/datasets/data
+    m = generate_relationship_and_network_files()
+    print(json.dumps(m, ensure_ascii=False, indent=2))

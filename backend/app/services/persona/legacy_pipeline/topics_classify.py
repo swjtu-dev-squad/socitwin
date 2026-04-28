@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any, Final
 
 import requests
 
-from app.services.persona.legacy_pipeline.common import data_dir, load_backend_env
+from app.services.persona.legacy_pipeline.common import backend_root, data_dir, load_backend_env
 
 CATEGORIES: Final[tuple[str, ...]] = ("Politics", "Economics", "Society")
 _DEFAULT_BASE_BY_PLATFORM: Final[dict[str, str]] = {
@@ -95,6 +96,41 @@ def _strip_json_fence(text: str) -> str:
     return t
 
 
+def _extract_outer_json_object(text: str) -> str:
+    """从模型输出中尽量提取最外层 JSON object（允许前后夹带解释文本）。"""
+    s = _strip_json_fence(text).strip()
+    if not s:
+        return s
+    start = s.find("{")
+    if start < 0:
+        return s
+    depth = 0
+    in_string = False
+    escape = False
+    i = start
+    while i < len(s):
+        c = s[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif c == "\\":
+                escape = True
+            elif c == '"':
+                in_string = False
+            i += 1
+            continue
+        if c == '"':
+            in_string = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return s[start : i + 1].strip()
+        i += 1
+    return s
+
+
 def _classify_once(items: list[dict[str, Any]]) -> dict[str, list[str]]:
     slim = [
         {"title": str(it.get("title") or "").strip(), "summary": str(it.get("summary") or "").strip()[:400]}
@@ -106,7 +142,7 @@ def _classify_once(items: list[dict[str, Any]]) -> dict[str, list[str]]:
         "只输出 JSON 对象，键名固定为 Politics、Economics、Society，值为标题字符串数组。\n\n"
         f"{json.dumps(slim, ensure_ascii=False, indent=2)}"
     )
-    raw = _strip_json_fence(_run_llm_chat(prompt))
+    raw = _extract_outer_json_object(_run_llm_chat(prompt))
     obj = json.loads(raw)
     if not isinstance(obj, dict):
         raise ValueError("分类返回不是 JSON 对象")
@@ -124,11 +160,24 @@ def _classify_once(items: list[dict[str, Any]]) -> dict[str, list[str]]:
     return out
 
 
-def classify_topics_to_topics_json(batch_size: int = 24, max_retries: int = 3) -> dict[str, Any]:
+def classify_topics_to_topics_json(
+    batch_size: int = 24,
+    max_retries: int = 3,
+    *,
+    input_path: str | Path | None = None,
+    output_path: str | Path | None = None,
+) -> dict[str, Any]:
     load_backend_env()
-    dd = data_dir()
+    default_dir = (backend_root() / "data" / "datasets" / "data").resolve()
+    dd = default_dir
+    try:
+        # 兼容旧逻辑：如果外部设置了覆写目录，仍允许读取；但写入默认固定目录（除非显式传 output_path）。
+        dd_read = data_dir().resolve()
+    except Exception:
+        dd_read = dd
     dd.mkdir(parents=True, exist_ok=True)
-    src = dd / "topics_get.json"
+
+    src = Path(input_path).expanduser().resolve() if input_path is not None else (dd_read / "topics_get.json")
     if not src.is_file():
         raise FileNotFoundError(f"未找到 {src}")
     raw = json.loads(src.read_text(encoding="utf-8"))
@@ -152,11 +201,30 @@ def classify_topics_to_topics_json(batch_size: int = 24, max_retries: int = 3) -
             raise RuntimeError(f"话题分类失败: {last_err}")
         for c in CATEGORIES:
             merged[c].extend(part[c])
+
+    # 去重并保持稳定顺序
+    for c in CATEGORIES:
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for t in merged[c]:
+            s = str(t).strip()
+            if not s or s in seen:
+                continue
+            seen.add(s)
+            deduped.append(s)
+        merged[c] = deduped
     doc = {
         "recsys_type": "twitter",
         "type": "topics",
         "stats": {"count": len(CATEGORIES)},
         "data": [{"recsys_type": "twitter", "category": c, "topics": merged[c]} for c in CATEGORIES],
     }
-    (dd / "topics.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    out = Path(output_path).expanduser().resolve() if output_path is not None else (dd / "topics.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return doc
+
+
+if __name__ == "__main__":
+    # 需要从 backend 根目录用 `python -m ...` 运行，以便正确解析 `app.*` 包导入。
+    classify_topics_to_topics_json()

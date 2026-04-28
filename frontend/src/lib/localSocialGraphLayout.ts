@@ -74,6 +74,7 @@ export function buildLocalSocialGraphLayout(bundle: SocialGraphBundle, seed = 42
   const rels = Array.isArray(bundle.relationships) ? bundle.relationships : []
   const topicTitles = collectTopicTitles(bundle.topics)
 
+  // 话题节点落在中心「小圆盘」内；用户落在「以话题为圆心的小圆盘」内
   const topicDiskR = 52
   const userDiskR = 138
   const topicClusterR = 72
@@ -118,6 +119,9 @@ export function buildLocalSocialGraphLayout(bundle: SocialGraphBundle, seed = 42
     return topicTitles[0] ?? null
   }
 
+  const topicIndexByTitle = new Map<string, number>()
+  topicTitles.forEach((t, idx) => topicIndexByTitle.set(t, idx))
+
   for (const u of users) {
     const aid = Number(u.agent_id)
     if (!Number.isFinite(aid)) continue
@@ -146,8 +150,8 @@ export function buildLocalSocialGraphLayout(bundle: SocialGraphBundle, seed = 42
       homeY: pos.y,
     })
     if (pt) {
-      const ti = topicTitles.indexOf(pt)
-      const tid = topicNodeId(pt, ti >= 0 ? ti : 0)
+      const ti = topicIndexByTitle.get(pt) ?? 0
+      const tid = topicNodeId(pt, ti)
       edges.push({
         source: uid,
         target: tid,

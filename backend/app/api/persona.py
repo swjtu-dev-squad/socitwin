@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -27,6 +29,33 @@ router = APIRouter(prefix="/persona", tags=["persona"])
 
 def _db_path() -> Any:
     return DatasetService().db_path
+
+
+def _frontend_dump_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "data" / "datasets" / "data"
+
+
+def _persist_frontend_topics_users_dump(
+    topics: List[Dict[str, Any]], users: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    out_dir = _frontend_dump_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    topics_get = out_dir / "topics_get.json"
+    users_get = out_dir / "users_get.json"
+    topics_get.write_text(
+        json.dumps(topics, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    users_get.write_text(
+        json.dumps(users, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "topics_get": str(topics_get),
+        "users_get": str(users_get),
+        "topics_count": len(topics),
+        "users_count": len(users),
+    }
 
 
 class TopicSeedBody(BaseModel):
@@ -223,6 +252,11 @@ async def sqlite_personas_llm(body: SqlitePersonasLlmBody):
     if llm_out.get("status") != "ok":
         raise HTTPException(status_code=502, detail=llm_out.get("error") or str(llm_out))
     users = llm_out.get("users") or []
+    frontend_dump = await asyncio.to_thread(
+        _persist_frontend_topics_users_dump,
+        [],
+        [x for x in users if isinstance(x, dict)],
+    )
     return {
         "status": "ok",
         "dataset_id": dataset_id,
@@ -230,6 +264,7 @@ async def sqlite_personas_llm(body: SqlitePersonasLlmBody):
         "seed_sample_counts": sample["counts"],
         "users": users,
         "meta": llm_out.get("meta"),
+        "frontend_dump": frontend_dump,
         "sqlite_persist": {"ok": True, "note": "未写入 SQLite（Mongo 已移除；持久化逻辑可后续接入）"},
     }
 
@@ -280,6 +315,11 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
         raise HTTPException(status_code=502, detail=llm_out.get("error") or str(llm_out))
     topics_out = llm_out.get("topics") or []
     users_out = llm_out.get("users") or []
+    frontend_dump = await asyncio.to_thread(
+        _persist_frontend_topics_users_dump,
+        [x for x in topics_out if isinstance(x, dict)],
+        [x for x in users_out if isinstance(x, dict)],
+    )
 
     try:
         sqlite_persist = await asyncio.to_thread(
@@ -302,6 +342,7 @@ async def sqlite_topics_personas_llm(body: SqliteTopicsPersonasLlmBody):
         "topics": topics_out,
         "users": users_out,
         "meta": llm_out.get("meta"),
+        "frontend_dump": frontend_dump,
         "sqlite_persist": sqlite_persist,
     }
 
