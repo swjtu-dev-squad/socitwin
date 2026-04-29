@@ -16,7 +16,13 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+try:
+    import yaml
+    YAML_AVAILABLE = True
+except ImportError:
+    YAML_AVAILABLE = False
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
@@ -67,6 +73,129 @@ class Colors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+# ============================================================================
+# Configuration File Loaders
+# ============================================================================
+
+def load_yaml_config(file_path: str) -> Dict[str, Any]:
+    """
+    加载YAML/JSON配置文件
+
+    Args:
+        file_path: 配置文件路径
+
+    Returns:
+        配置字典
+
+    Raises:
+        FileNotFoundError: 文件不存在
+        ValueError: 文件格式不支持或解析失败
+    """
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {file_path}")
+
+    with open(path, 'r', encoding='utf-8') as f:
+        if path.suffix in ['.yaml', '.yml']:
+            if not YAML_AVAILABLE:
+                raise ImportError("PyYAML is required to load .yaml files. Install with: pip install pyyaml")
+            try:
+                return yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                raise ValueError(f"Failed to parse YAML file: {e}")
+        elif path.suffix == '.json':
+            try:
+                return json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Failed to parse JSON file: {e}")
+        else:
+            raise ValueError(f"Unsupported file format: {path.suffix}. Supported: .yaml, .yml, .json")
+
+
+def validate_controlled_agents_config(config: Dict[str, Any]) -> None:
+    """
+    验证受控agents配置文件格式
+
+    Args:
+        config: 配置字典
+
+    Raises:
+        ValueError: 配置格式无效
+    """
+    if "agents" not in config:
+        raise ValueError("Missing required field: 'agents'")
+
+    agents = config["agents"]
+    if not isinstance(agents, list) or len(agents) == 0:
+        raise ValueError("'agents' must be a non-empty list")
+
+    for i, agent in enumerate(agents):
+        required_fields = ["user_name", "name", "description"]
+        for field in required_fields:
+            if field not in agent:
+                raise ValueError(f"Agent {i}: missing required field: '{field}'")
+
+        # 验证 behavior_strategy (如果提供)
+        if "behavior_strategy" in agent:
+            valid_strategies = ["llm_autonomous", "probabilistic", "rule_based", "scheduled", "mixed"]
+            if agent["behavior_strategy"] not in valid_strategies:
+                raise ValueError(
+                    f"Agent {i}: invalid behavior_strategy '{agent['behavior_strategy']}'. "
+                    f"Valid options: {valid_strategies}"
+                )
+
+    # 验证极化率阈值 (如果提供)
+    if "polarization_threshold" in config:
+        threshold = config["polarization_threshold"]
+        if not isinstance(threshold, (int, float)) or not (0.0 <= threshold <= 1.0):
+            raise ValueError("'polarization_threshold' must be a number between 0.0 and 1.0")
+
+
+def validate_behavior_config(config: Dict[str, Any]) -> None:
+    """
+    验证行为策略配置文件格式
+
+    Args:
+        config: 配置字典
+
+    Raises:
+        ValueError: 配置格式无效
+    """
+    # 检查是否使用预设配置或自定义配置
+    has_preset = "preset" in config and config["preset"] is not None
+    has_custom = "custom_config" in config and config["custom_config"] is not None
+
+    if not has_preset and not has_custom:
+        raise ValueError("Behavior config must contain either 'preset' or 'custom_config'")
+
+    if has_preset:
+        valid_presets = ["default", "probabilistic", "rule_based", "scheduled"]
+        if config["preset"] not in valid_presets:
+            raise ValueError(
+                f"Invalid preset '{config['preset']}'. Valid options: {valid_presets}"
+            )
+
+    if "platform" in config:
+        valid_platforms = ["twitter", "reddit"]
+        if config["platform"] not in valid_platforms:
+            raise ValueError(
+                f"Invalid platform '{config['platform']}'. Valid options: {valid_platforms}"
+            )
+
+    if "target_agents" in config:
+        target = config["target_agents"]
+        if target != "controlled" and target != "all":
+            # 尝试解析为逗号分隔的ID列表
+            try:
+                agent_ids = [int(x.strip()) for x in str(target).split(",")]
+                config["target_agent_ids"] = agent_ids
+            except ValueError:
+                raise ValueError(
+                    f"Invalid target_agents '{target}'. "
+                    "Must be 'controlled', 'all', or comma-separated agent IDs"
+                )
 
 
 # ============================================================================
@@ -162,6 +291,45 @@ class SimulationAPIClient:
         """Get herd effect metrics"""
         return self._request("GET", "/api/metrics/herd-effect")
 
+    # ============================================================================
+    # Controlled Agents API methods
+    # ============================================================================
+
+    def add_controlled_agents(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Add controlled agents to simulation"""
+        return self._request("POST", "/api/sim/agents/controlled", json=request)
+
+    # ============================================================================
+    # Behavior Control API methods
+    # ============================================================================
+
+    def update_agent_behavior(self, agent_id: int, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Update behavior configuration for a specific agent"""
+        return self._request("POST", "/api/behavior/config", json={
+            "agent_id": agent_id,
+            "behavior_config": config
+        })
+
+    def get_agent_behavior(self, agent_id: int) -> Dict[str, Any]:
+        """Get behavior configuration for a specific agent"""
+        return self._request("GET", f"/api/behavior/config/{agent_id}")
+
+    def apply_behavior_preset(self, agent_id: int, preset: str, platform: str) -> Dict[str, Any]:
+        """Apply a preset behavior configuration to an agent"""
+        return self._request(
+            "POST",
+            f"/api/behavior/config/preset/{agent_id}",
+            params={"preset": preset, "platform": platform}
+        )
+
+    def get_behavior_statistics(self) -> Dict[str, Any]:
+        """Get behavior control statistics"""
+        return self._request("GET", "/api/behavior/stats")
+
+    def get_behavior_status(self) -> Dict[str, Any]:
+        """Get behavior controller status"""
+        return self._request("GET", "/api/behavior/status")
+
 
 # ============================================================================
 # Test Runner
@@ -200,6 +368,8 @@ class SimulationTestRunner:
         temperature: float,
         max_tokens: int,
         memory_mode: str,
+        controlled_agents_file: Optional[str] = None,
+        behavior_config_file: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Run the complete test"""
 
@@ -214,6 +384,8 @@ class SimulationTestRunner:
             "temperature": temperature,
             "max_tokens": max_tokens,
             "memory_mode": memory_mode,
+            "controlled_agents_file": controlled_agents_file,
+            "behavior_config_file": behavior_config_file,
             "test_start_time": datetime.now().isoformat(),
         }
 
@@ -254,7 +426,7 @@ class SimulationTestRunner:
             self._print(f"  - Agents created: {config_result.get('agents_created')}", Colors.OKCYAN)
             self._print(f"  - Platform: {platform}", Colors.OKCYAN)
 
-            # Step 3: Activate topic
+            # Step 2: Activate topic
             self._print("\n" + "="*60, Colors.HEADER)
             self._print("Step 2: Activate Topic", Colors.HEADER)
             self._print("="*60, Colors.HEADER)
@@ -272,18 +444,33 @@ class SimulationTestRunner:
             self._print(f"  - Agents refreshed: {topic_result.get('agents_refreshed')}", Colors.OKCYAN)
             self._print(f"  - Execution time: {topic_result.get('execution_time', 0):.2f}s", Colors.OKCYAN)
 
-            # Step 4: Execute simulation steps
+            # Step 3: Add controlled agents (if config provided)
+            controlled_agents_result = self._add_controlled_agents_step(
+                controlled_agents_file, platform
+            )
+
+            # Step 4: Apply behavior configurations (if config provided)
+            controlled_agent_ids = controlled_agents_result.get("agent_ids", [])
+            all_agent_count = agent_count + len(controlled_agent_ids)
+            behavior_config_result = self._apply_behavior_configurations_step(
+                behavior_config_file,
+                controlled_agent_ids,
+                all_agent_count,
+                platform
+            )
+
+            # Step 5: Execute simulation steps
             self._print("\n" + "="*60, Colors.HEADER)
-            self._print(f"Step 3: Execute {max_steps} Simulation Steps", Colors.HEADER)
+            self._print(f"Step 5: Execute {max_steps} Simulation Steps", Colors.HEADER)
             self._print("="*60, Colors.HEADER)
 
             for step_num in range(1, max_steps + 1):
                 step_result = self._execute_single_step(step_num, max_steps)
                 self.results["steps"].append(step_result)
 
-            # Step 5: Collect final status
+            # Step 6: Collect final status
             self._print("\n" + "="*60, Colors.HEADER)
-            self._print("Step 4: Collect Final Status", Colors.HEADER)
+            self._print("Step 6: Collect Final Status", Colors.HEADER)
             self._print("="*60, Colors.HEADER)
 
             final_status = self.client.get_simulation_status()
@@ -300,9 +487,44 @@ class SimulationTestRunner:
             if final_memory_debug:
                 self.results["summary"]["final_memory_debug"] = final_memory_debug
 
-            # Collect final OASIS metrics
+            # Add controlled agents and behavior config results to summary
+            self.results["summary"]["controlled_agents_result"] = controlled_agents_result
+            self.results["summary"]["behavior_config_result"] = behavior_config_result
+
+            # Step 7: Collect behavior statistics (if controlled agents were added)
+            if controlled_agents_result.get("success"):
+                self._print("\n" + "="*60, Colors.HEADER)
+                self._print("Step 7: Collect Behavior Statistics", Colors.HEADER)
+                self._print("="*60, Colors.HEADER)
+
+                behavior_stats = self._collect_behavior_statistics()
+                if behavior_stats:
+                    self.results["summary"]["behavior_statistics"] = behavior_stats
+
+                    # Print behavior statistics
+                    if behavior_stats.get("statistics"):
+                        stats = behavior_stats["statistics"]
+                        strategy_stats = stats.get("strategy_statistics", {})
+                        self._print("✓ Behavior Statistics:", Colors.OKGREEN)
+                        self._print(f"  - Agents configured: {stats.get('agent_config_count', 0)}", Colors.OKCYAN)
+
+                        for strategy, data in strategy_stats.items():
+                            if data.get("count", 0) > 0:
+                                self._print(f"  - {strategy}: {data.get('count', 0)} agents ({data.get('percentage', 0):.1f}%)", Colors.OKCYAN)
+
+                    if behavior_stats.get("controller_status"):
+                        status = behavior_stats["controller_status"]
+                        engines = status.get("engines", {})
+                        self._print("✓ Engine Status:", Colors.OKGREEN)
+                        self._print(f"  - Probabilistic: {'available' if engines.get('probabilistic') else 'unavailable'}", Colors.OKCYAN)
+                        self._print(f"  - Rule Engine: {'available' if engines.get('rule') else 'unavailable'}", Colors.OKCYAN)
+                        self._print(f"  - Scheduling: {'available' if engines.get('scheduling') else 'unavailable'}", Colors.OKCYAN)
+                else:
+                    self._print("⚠ Could not collect behavior statistics", Colors.WARNING)
+
+            # Step 8: Collect final OASIS metrics
             self._print("\n" + "="*60, Colors.HEADER)
-            self._print("Step 5: Collect Final OASIS Metrics", Colors.HEADER)
+            self._print("Step 8: Collect Final OASIS Metrics", Colors.HEADER)
             self._print("="*60, Colors.HEADER)
 
             final_metrics = self._collect_oasis_metrics()
@@ -335,7 +557,7 @@ class SimulationTestRunner:
 
             # Validate metrics
             self._print("\n" + "="*60, Colors.HEADER)
-            self._print("Step 6: Validate Metrics", Colors.HEADER)
+            self._print("Step 9: Validate Metrics", Colors.HEADER)
             self._print("="*60, Colors.HEADER)
 
             validation_results = self._validate_metrics(final_metrics)
@@ -543,6 +765,203 @@ class SimulationTestRunner:
             }
         except Exception as e:
             self._print(f"  ⚠ Failed to collect memory debug: {str(e)}", Colors.WARNING)
+            return None
+
+    # ============================================================================
+    # Controlled Agents and Behavior Control Steps
+    # ============================================================================
+
+    def _add_controlled_agents_step(
+        self,
+        config_file: Optional[str],
+        platform: str
+    ) -> Dict[str, Any]:
+        """
+        步骤: 添加受控agents
+
+        Args:
+            config_file: 受控agents配置文件路径
+            platform: 平台类型
+
+        Returns:
+            添加结果字典
+        """
+        if not config_file:
+            return {"skipped": True, "reason": "No config file provided"}
+
+        result = {
+            "success": False,
+            "added_count": 0,
+            "agent_ids": [],
+            "agents_results": [],
+            "initial_polarization": None,
+        }
+
+        try:
+            # 加载并验证配置
+            self._print(f"\nLoading controlled agents config: {config_file}", Colors.OKCYAN)
+            config = load_yaml_config(config_file)
+            validate_controlled_agents_config(config)
+
+            self._print(f"✓ Config loaded: {len(config['agents'])} agent(s) defined", Colors.OKGREEN)
+
+            # 构建API请求
+            request_data = {
+                "agents": config["agents"],
+                "check_polarization": config.get("check_polarization", False),
+                "polarization_threshold": config.get("polarization_threshold", 0.6),
+            }
+
+            # 调用API添加受控agents
+            self._print("Adding controlled agents...", Colors.OKCYAN)
+            api_result = self.client.add_controlled_agents(request_data)
+
+            result["success"] = api_result.get("success", False)
+            result["added_count"] = api_result.get("added_count", 0)
+            result["agent_ids"] = api_result.get("added_agent_ids", [])
+            result["agents_results"] = api_result.get("results", [])
+            result["initial_polarization"] = api_result.get("current_polarization")
+
+            if result["success"]:
+                self._print(f"✓ Successfully added {result['added_count']} controlled agent(s)", Colors.OKGREEN)
+                self._print(f"  - Agent IDs: {result['agent_ids']}", Colors.OKCYAN)
+                if result["initial_polarization"] is not None:
+                    self._print(f"  - Current polarization: {result['initial_polarization']:.3f}", Colors.OKCYAN)
+            else:
+                self._print(f"✗ Failed to add controlled agents: {api_result.get('message')}", Colors.FAIL)
+
+        except FileNotFoundError as e:
+            self._print(f"✗ Config file not found: {e}", Colors.FAIL)
+            result["error"] = str(e)
+        except ValueError as e:
+            self._print(f"✗ Invalid config: {e}", Colors.FAIL)
+            result["error"] = str(e)
+        except Exception as e:
+            self._print(f"✗ Failed to add controlled agents: {e}", Colors.FAIL)
+            result["error"] = str(e)
+
+        return result
+
+    def _apply_behavior_configurations_step(
+        self,
+        config_file: Optional[str],
+        controlled_agent_ids: List[int],
+        all_agent_count: int,
+        platform: str
+    ) -> Dict[str, Any]:
+        """
+        步骤: 应用行为策略配置
+
+        Args:
+            config_file: 行为配置文件路径
+            controlled_agent_ids: 受控agent ID列表
+            all_agent_count: 所有agent数量
+            platform: 平台类型
+
+        Returns:
+            应用结果字典
+        """
+        if not config_file or not controlled_agent_ids:
+            return {"skipped": True, "reason": "No config file or no controlled agents"}
+
+        result = {
+            "success": False,
+            "applied_count": 0,
+            "target_agents": [],
+            "results": [],
+        }
+
+        try:
+            # 加载并验证配置
+            self._print(f"\nLoading behavior config: {config_file}", Colors.OKCYAN)
+            config = load_yaml_config(config_file)
+            validate_behavior_config(config)
+
+            preset = config.get("preset")
+            behavior_platform = config.get("platform", platform)
+            target_agents = config.get("target_agents", "controlled")
+
+            # 确定目标agents
+            if target_agents == "controlled":
+                target_agent_ids = controlled_agent_ids
+            elif target_agents == "all":
+                target_agent_ids = list(range(all_agent_count))
+            elif "target_agent_ids" in config:
+                target_agent_ids = config["target_agent_ids"]
+            else:
+                target_agent_ids = controlled_agent_ids
+
+            result["target_agents"] = target_agent_ids
+
+            if not target_agent_ids:
+                self._print("⚠ No target agents to apply behavior config", Colors.WARNING)
+                return {"skipped": True, "reason": "No target agents"}
+
+            self._print(f"✓ Config loaded: preset={preset}, platform={behavior_platform}", Colors.OKGREEN)
+            self._print(f"  - Target agents: {len(target_agent_ids)} agent(s)", Colors.OKCYAN)
+
+            # 应用配置
+            if preset:
+                self._print(f"Applying preset '{preset}' to agents...", Colors.OKCYAN)
+
+                applied_results = []
+                for agent_id in target_agent_ids:
+                    try:
+                        api_result = self.client.apply_behavior_preset(
+                            agent_id, preset, behavior_platform
+                        )
+                        applied_results.append({
+                            "agent_id": agent_id,
+                            "success": api_result.get("success", False),
+                            "message": api_result.get("message", ""),
+                        })
+                        if api_result.get("success"):
+                            result["applied_count"] += 1
+                    except Exception as e:
+                        applied_results.append({
+                            "agent_id": agent_id,
+                            "success": False,
+                            "message": str(e),
+                        })
+
+                result["results"] = applied_results
+                result["success"] = result["applied_count"] > 0
+
+                if result["success"]:
+                    self._print(f"✓ Successfully applied behavior config to {result['applied_count']} agent(s)", Colors.OKGREEN)
+                else:
+                    self._print("⚠ Failed to apply behavior config to any agent", Colors.WARNING)
+
+        except FileNotFoundError as e:
+            self._print(f"✗ Config file not found: {e}", Colors.FAIL)
+            result["error"] = str(e)
+        except ValueError as e:
+            self._print(f"✗ Invalid config: {e}", Colors.FAIL)
+            result["error"] = str(e)
+        except Exception as e:
+            self._print(f"✗ Failed to apply behavior config: {e}", Colors.FAIL)
+            result["error"] = str(e)
+
+        return result
+
+    def _collect_behavior_statistics(self) -> Optional[Dict[str, Any]]:
+        """
+        收集行为控制统计信息
+
+        Returns:
+            行为统计信息字典
+        """
+        try:
+            status = self.client.get_behavior_status()
+            stats = self.client.get_behavior_statistics()
+
+            return {
+                "controller_status": status,
+                "statistics": stats,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            self._print(f"  ⚠ Failed to collect behavior statistics: {str(e)}", Colors.WARNING)
             return None
 
     def _validate_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -1110,6 +1529,21 @@ Examples:
         help="Disable verbose output"
     )
 
+    # Controlled agents and behavior control options
+    parser.add_argument(
+        "--controlled-agents-file",
+        type=str,
+        default=None,
+        help="Path to YAML/JSON file defining controlled agents (optional)"
+    )
+
+    parser.add_argument(
+        "--behavior-config-file",
+        type=str,
+        default=None,
+        help="Path to YAML/JSON file for behavior configuration (optional)"
+    )
+
     return parser.parse_args()
 
 
@@ -1135,6 +1569,10 @@ def main():
     print(f"  Max Tokens: {args.max_tokens}")
     print(f"  Base URL: {args.base_url}")
     print(f"  Output Dir: {args.output_dir}")
+    if args.controlled_agents_file:
+        print(f"  Controlled Agents: {args.controlled_agents_file}")
+    if args.behavior_config_file:
+        print(f"  Behavior Config: {args.behavior_config_file}")
 
     try:
         # Initialize client and runner
@@ -1152,6 +1590,8 @@ def main():
             temperature=args.temperature,
             max_tokens=args.max_tokens,
             memory_mode=args.memory_mode,
+            controlled_agents_file=args.controlled_agents_file,
+            behavior_config_file=args.behavior_config_file,
         )
 
         # Export results

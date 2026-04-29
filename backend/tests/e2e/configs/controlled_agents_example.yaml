@@ -1,0 +1,83 @@
+# 受控Agents配置示例
+# Controlled Agents Configuration Example
+#
+# 此文件定义了要添加到模拟中的受控agents
+# This file defines controlled agents to be added to the simulation
+
+# 是否在添加前检查极化率阈值
+# Whether to check polarization threshold before adding
+check_polarization: false
+
+# 极化率阈值 (0.0-1.0)
+# Polarization threshold (0.0-1.0)
+# 只有当当前极化率 >= 此值时才允许添加受控agents
+# Controlled agents will only be added if current polarization >= this value
+polarization_threshold: 0.6
+
+# 受控agents列表
+# List of controlled agents
+agents:
+  # Agent 1: 调解者 - 规则引擎行为
+  - user_name: "moderator_alice"
+    name: "Alice Moderator"
+    description: "平衡观点的调解者，促进理性对话"
+    bio: "专注于促进理解和对话，减少极化"
+    profile:
+      political_leaning: "center"
+      mbti: "INFJ"
+      personality: "diplomatic"
+    interests:
+      - "dialogue"
+      - "understanding"
+      - "compromise"
+      - "moderation"
+    # 可选的行为策略: llm_autonomous, probabilistic, rule_based, scheduled, mixed
+    # Optional behavior strategy
+    behavior_strategy: "rule_based"
+
+  # Agent 2: 科技博主 - 概率分布行为
+  - user_name: "tech_bob"
+    name: "Bob Tech"
+    description: "科技领域意见领袖，分享创新见解"
+    bio: "热爱科技，关注人工智能和创业生态"
+    profile:
+      political_leaning: "progressive"
+      mbti: "ENTP"
+      personality: "innovative"
+    interests:
+      - "technology"
+      - "innovation"
+      - "startups"
+      - "AI"
+    behavior_strategy: "probabilistic"
+
+  # Agent 3: 社区管理员 - 调度行为
+  - user_name: "admin_charlie"
+    name: "Charlie Admin"
+    description: "社区管理员，定期发布公告"
+    bio: "维护社区秩序，及时传达重要信息"
+    profile:
+      political_leaning: "center"
+      mbti: "ISTJ"
+      personality: "organized"
+    interests:
+      - "community"
+      - "management"
+      - "announcements"
+    behavior_strategy: "scheduled"
+
+  # Agent 4: 内容创作者 - LLM自主行为
+  - user_name: "creator_diana"
+    name: "Diana Creator"
+    description: "多领域内容创作者"
+    bio: "创作各类内容，与粉丝积极互动"
+    profile:
+      political_leaning: "moderate"
+      mbti: "ENFP"
+      personality: "creative"
+    interests:
+      - "content"
+      - "engagement"
+      - "creativity"
+    # 不指定behavior_strategy，默认使用llm_autonomous
+    # behavior_strategy not specified, defaults to llm_autonomous
