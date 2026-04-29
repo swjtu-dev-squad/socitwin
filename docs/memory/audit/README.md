@@ -51,6 +51,8 @@
   - 沿 `summary -> topic -> recall query -> ActionEpisode.topic -> long-term document` 链路，审查 display excerpt 被复用为语义索引和检索意图的结构性问题。
 - [runtime-query-trace-replay-20260429.md](./runtime-query-trace-replay-20260429.md)
   - 基于真实 `last_recall_query_text` 复盘 query 来源对象与本步 action target 的对齐情况，确认 first-visible-post query 与 later-rank action target 的结构性错位。
+- [action-episode-field-audit-20260429.md](./action-episode-field-audit-20260429.md)
+  - 审查 `ActionEpisode` 字段职责、生命周期边界、long-term/working-memory 消费方式和 S1 字段分布，区分行为事实、target evidence、recall trace 与检索索引信号。
 
 验证场景目录在：
 
