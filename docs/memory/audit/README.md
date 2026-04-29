@@ -47,6 +47,8 @@
 
 - [prompt-trace-audit-20260429.md](./prompt-trace-audit-20260429.md)
   - 基于 B-level S1 真实运行 trace，审查模型输入、runtime query、recall injection、action target 和 `ActionEpisode` 写入之间的事实边界。
+- [summary-topic-audit-20260429.md](./summary-topic-audit-20260429.md)
+  - 沿 `summary -> topic -> recall query -> ActionEpisode.topic -> long-term document` 链路，审查 display excerpt 被复用为语义索引和检索意图的结构性问题。
 
 验证场景目录在：
 
