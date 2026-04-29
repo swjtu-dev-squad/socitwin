@@ -17,6 +17,7 @@ dependencies = [
     "aiofiles>=24.0.0",
     "matplotlib>=3.7.0",
     "cachetools>=7.0.6",
+    "tweepy>=4.15.0",
 ]
 
 [build-system]
