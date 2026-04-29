@@ -8,6 +8,44 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Social platform'
+        required: false
+        default: 'twitter'
+        type: choice
+        options:
+          - twitter
+          - weibo
+          - reddit
+      topic:
+        description: 'Topic ID to simulate'
+        required: false
+        default: '2042552568010936455'
+        type: string
+      agent-count:
+        description: 'Number of agents'
+        required: false
+        default: '10'
+        type: string
+      max-steps:
+        description: 'Maximum simulation steps'
+        required: false
+        default: '10'
+        type: string
+      model-platform:
+        description: 'Model platform'
+        required: false
+        default: 'openai'
+        type: choice
+        options:
+          - openai
+          - ollama
+      model-type:
+        description: 'Model type'
+        required: false
+        default: 'qwen3.6-flash'
+        type: string
 
 jobs:
   e2e-test:
@@ -69,12 +107,12 @@ jobs:
         run: |
           cd backend
           uv run python tests/e2e/e2e_simulation_test.py \
-            --platform twitter \
-            --topic 2042552568010936455 \
-            --agent-count 10 \
-            --max-steps 10 \
-            --model-platform openai \
-            --model-type qwen3.6-flash
+            --platform ${{ inputs.platform || 'twitter' }} \
+            --topic ${{ inputs.topic || '2042552568010936455' }} \
+            --agent-count ${{ inputs.agent-count || '10' }} \
+            --max-steps ${{ inputs.max-steps || '10' }} \
+            --model-platform ${{ inputs.model-platform || 'openai' }} \
+            --model-type ${{ inputs.model-type || 'qwen3.6-flash' }}
 
       - name: Stop backend server
         if: always()
