@@ -1,0 +1,148 @@
+# 行为策略配置示例
+# Behavior Control Configuration Example
+#
+# 此文件定义了如何为智能体应用行为策略配置
+# This file defines how to apply behavior strategy configurations to agents
+
+# 选项A: 使用预设配置
+# Option A: Use preset configuration
+# 可选预设: default, probabilistic, rule_based, scheduled
+# Available presets: default, probabilistic, rule_based, scheduled
+preset: "rule_based"
+
+# 平台类型: twitter, reddit
+# Platform type: twitter, reddit
+platform: "twitter"
+
+# 目标agents
+# Target agents:
+# - "controlled": 仅应用于受控agents (controlled agents only)
+# - "all": 应用于所有agents (all agents)
+# - 逗号分隔的ID列表: 应用于指定IDs的agents (comma-separated agent IDs)
+target_agents: "controlled"
+
+# ========================================
+# 选项B: 自定义配置 (高级用法)
+# Option B: Custom Configuration (Advanced)
+# ========================================
+# 如果使用自定义配置，将preset设置为null并定义custom_config
+# To use custom configuration, set preset to null and define custom_config
+
+# preset: null
+# custom_config:
+#   strategy: "probabilistic"
+#
+#   probability_distribution:
+#     name: "engaged_user"
+#     description: "高活跃度用户行为分布"
+#     actions:
+#       - action_type: "CREATE_POST"
+#         probability: 0.25
+#         description: "创建新帖子"
+#       - action_type: "LIKE_POST"
+#         probability: 0.35
+#         description: "点赞帖子"
+#       - action_type: "CREATE_COMMENT"
+#         probability: 0.25
+#         description: "评论帖子"
+#       - action_type: "REFRESH"
+#         probability: 0.10
+#         description: "刷新时间线"
+#       - action_type: "DO_NOTHING"
+#         probability: 0.05
+#         description: "休息观察"
+#     platform: "twitter"
+
+# ========================================
+# 规则引擎配置示例
+# Rule-Based Configuration Example
+# ========================================
+# preset: null
+# custom_config:
+#   strategy: "rule_based"
+#
+#   rule_set:
+#     name: "community_moderator"
+#     description: "社区管理员规则"
+#     rules:
+#       - rule_id: "respond_to_questions"
+#         name: "回应问题"
+#         priority: 1
+#         conditions:
+#           - field: "event_type"
+#             operator: "equals"
+#             value: "post"
+#           - field: "content"
+#             operator: "contains"
+#             value: "?"
+#         action: "CREATE_COMMENT"
+#         action_args:
+#           content: "我可以帮助你解答这个问题！"
+#         enabled: true
+#
+#       - rule_id: "promote_civility"
+#         name: "促进文明讨论"
+#         priority: 2
+#         conditions:
+#           - field: "sentiment"
+#             operator: "equals"
+#             value: "negative"
+#         action: "CREATE_COMMENT"
+#         action_args:
+#           content: "让我们以更理性的方式讨论这个话题。"
+#         enabled: true
+
+# ========================================
+# 调度配置示例
+# Scheduled Configuration Example
+# ========================================
+# preset: null
+# custom_config:
+#   strategy: "scheduled"
+#
+#   schedule:
+#     name: "daily_announcements"
+#     description: "每日公告时间表"
+#     loop: false
+#     timeline:
+#       - step: 0
+#         action: "CREATE_POST"
+#         action_args:
+#           content: "早上好！今天开始新的讨论。"
+#         description: "早间公告"
+#
+#       - step: 5
+#         action: "REFRESH"
+#         description: "刷新查看回应"
+#
+#       - step: 10
+#         action: "CREATE_POST"
+#         action_args:
+#           content: "中午提醒：保持理性讨论，尊重不同观点。"
+#         description: "午间提醒"
+#
+#       - step: 20
+#         action: "CREATE_POST"
+#         action_args:
+#           content: "今天讨论很精彩，晚安！"
+#         description: "晚间结语"
+
+# ========================================
+# 混合策略配置示例
+# Mixed Strategy Configuration Example
+# ========================================
+# preset: null
+# custom_config:
+#   strategy: "mixed"
+#
+#   mixed_strategy:
+#     name: "adaptive_behavior"
+#     description: "自适应混合行为策略"
+#     selection_mode: "weighted_random"
+#     strategy_weights:
+#       - strategy: "probabilistic"
+#         weight: 0.5
+#       - strategy: "rule_based"
+#         weight: 0.3
+#       - strategy: "llm_autonomous"
+#         weight: 0.2

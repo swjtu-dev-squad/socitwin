@@ -196,6 +196,12 @@ class ControlledAgentsService:
 
         # 在平台上注册
         if self.oasis_manager._env is not None:  # type: ignore
+            # 将受控agent的channel替换为env的共享channel
+            # 否则agent的action请求会发到无人监听的独立channel上，导致永久阻塞
+            shared_channel = self.oasis_manager._env.channel  # type: ignore
+            agent.channel = shared_channel
+            agent.env.action.channel = shared_channel
+
             platform = self.oasis_manager._env.platform  # type: ignore
             if platform is not None:
                 await platform.sign_up(  # type: ignore
