@@ -43,6 +43,11 @@
 3. [implementation-audit-checklist-20260428.md](./implementation-audit-checklist-20260428.md)
    - 实现级检查清单：问题簇依赖图、逐文件模块 checklist、字段使用率和验证回路。
 
+当前阶段 A 审查记录：
+
+- [prompt-trace-audit-20260429.md](./prompt-trace-audit-20260429.md)
+  - 基于 B-level S1 真实运行 trace，审查模型输入、runtime query、recall injection、action target 和 `ActionEpisode` 写入之间的事实边界。
+
 验证场景目录在：
 
 - [../evaluation/runtime/validation-scenarios.md](../evaluation/runtime/validation-scenarios.md)
