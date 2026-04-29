@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>话题扩散聚类分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #0c0e1a 0%, #151930 50%, #1a1f3a 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #e0e0e0;
+        }
+        .page-title {
+            text-align: center;
+            font-size: 34px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 10px;
+            letter-spacing: 3px;
+        }
+        .page-subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #7a8bb5;
+            margin-bottom: 40px;
+            line-height: 1.6;
+        }
+        .chart-container {
+            max-width: 1200px;
+            margin: 0 auto 40px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(12px);
+        }
+        .chart-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 20px;
+            padding-left: 14px;
+            border-left: 4px solid #5b8def;
+        }
+        #chart1 { width: 100%; height: 520px; }
+        #chart2 { width: 100%; height: 380px; }
+        .legend-bar {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 16px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 13px;
+            color: #b0b8d0;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-title">话题扩散聚类分析</div>
+    <div class="page-subtitle">
+        基于话题内容交叉关系 · 扩散指数 = 跨话题内容比例 × log<sub>2</sub>(1 + 涉及其他话题数)
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">所有话题的扩散指数</div>
+        <div class="legend-bar">
+            <div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div>高扩散（容易分化）</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f39c12"></div>中等扩散</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#27ae60"></div>低扩散（不易分化）</div>
+        </div>
+        <div id="chart1"></div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-title">各聚类类别的话题数量</div>
+        <div id="chart2"></div>
+    </div>
+
+    <script>
+        var chart1 = echarts.init(document.getElementById('chart1'));
+        var isLowExpanded = false; // 低扩散是否展开状态
+        var mainLabels = ["Canada Services Sect...", "Ben Judah publishes ...", "Ben Judah Proposes A...", "Canada's Services Se...", "One Year After Trump...", "U.S. Adds 178,000 Jo...", "Markets Brace for Bu...", "低扩散话题（点击展开）"];
+        var mainBarData = [{"value": 1.1921, "itemStyle": {"color": "#e74c3c"}, "topic_label": "Canada Services Sector Contracts Fifth Month Amid Middle East Uncertainty", "cluster": "高扩散（容易分化）", "content_count": 117, "multi_topic_count": 88, "multi_topic_ratio": 75.2, "unique_other_topics": 2, "avg_topics_per_content": 1.75}, {"value": 0.8493, "itemStyle": {"color": "#e74c3c"}, "topic_label": "Ben Judah publishes essay in The Spectator outlining his shift from Atlanticist to British Gaullist", "cluster": "高扩散（容易分化）", "content_count": 73, "multi_topic_count": 62, "multi_topic_ratio": 84.9, "unique_other_topics": 1, "avg_topics_per_content": 1.85}, {"value": 0.8493, "itemStyle": {"color": "#e74c3c"}, "topic_label": "Ben Judah Proposes Anglo-Gaullist Overhaul for Britain", "cluster": "高扩散（容易分化）", "content_count": 73, "multi_topic_count": 62, "multi_topic_ratio": 84.9, "unique_other_topics": 1, "avg_topics_per_content": 1.85}, {"value": 0.8182, "itemStyle": {"color": "#e74c3c"}, "topic_label": "Canada's Services Sector Contracts for Fifth Month Amid Rising Costs", "cluster": "高扩散（容易分化）", "content_count": 88, "multi_topic_count": 72, "multi_topic_ratio": 81.8, "unique_other_topics": 1, "avg_topics_per_content": 1.82}, {"value": 0.2712, "itemStyle": {"color": "#e74c3c"}, "topic_label": "One Year After Trump's Liberation Day Tariffs: Gains and Trade-Offs", "cluster": "高扩散（容易分化）", "content_count": 59, "multi_topic_count": 16, "multi_topic_ratio": 27.1, "unique_other_topics": 1, "avg_topics_per_content": 1.27}, {"value": 0.1429, "itemStyle": {"color": "#e74c3c"}, "topic_label": "U.S. Adds 178,000 Jobs in March, Exceeding Forecasts Amid Mixed Signals", "cluster": "高扩散（容易分化）", "content_count": 112, "multi_topic_count": 16, "multi_topic_ratio": 14.3, "unique_other_topics": 1, "avg_topics_per_content": 1.14}, {"value": 0.1404, "itemStyle": {"color": "#e74c3c"}, "topic_label": "Markets Brace for Busy Week of U.S. Data and Trump Iran Deadline", "cluster": "高扩散（容易分化）", "content_count": 114, "multi_topic_count": 16, "multi_topic_ratio": 14.0, "unique_other_topics": 1, "avg_topics_per_content": 1.14}, {"value": 0, "itemStyle": {"color": "#27ae60"}, "topic_label": "低扩散话题（点击展开）", "cluster": "低扩散（不易分化）", "content_count": 1531, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0, "isLowDiffusionGroup": true}];
+        var lowLabels = ["Singapore's Elite Le...", "Social Media Critici...", "Major Iraqi Blocs Bo...", "Poll shows Republica...", "Senator Mike Lee que...", "Shekhar Gupta Shares...", "Nigeria's Digital Go...", "U.S. Foreign Aid Rea...", "Markets Await Key U....", "World Bank Chief War...", "Florida Unemployment...", "Gold Prices Drop Bel...", "British Columbia Pre...", "Social Democrats in ...", "Texas Implements New...", "Canada Proposes Majo...", "DIGNIDAD Act Draws G...", "Texas Tightens Rules...", "X user @xwanyex crit...", "Viral post by John (...", "NYC Mayor Mamdani Un...", "Harvard Study on Div...", "Scottish Police Give...", "U.S. Inflation Hits ..."];
+        var lowBarData = [{"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Singapore's Elite Leader Path vs UK's Political Rise", "cluster": "低扩散（不易分化）", "content_count": 56, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Social Media Criticism of Democrats for Ineffectiveness as Opposition Party Under Republican Control", "cluster": "低扩散（不易分化）", "content_count": 24, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Major Iraqi Blocs Boycott Presidential Election Session Amid Deadlock", "cluster": "低扩散（不易分化）", "content_count": 37, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Poll shows Republicans trusted more than Democrats on foreign policy, trade, immigration, and debt", "cluster": "低扩散（不易分化）", "content_count": 56, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Senator Mike Lee questions Democrats' use of 'our democracy' on X", "cluster": "低扩散（不易分化）", "content_count": 15, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Shekhar Gupta Shares Ashutosh Varshney's The Print Article Claiming West Bengal's Political Outcome Affects Global Democracy", "cluster": "低扩散（不易分化）", "content_count": 77, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Nigeria's Digital Governance Push Gains Online Support", "cluster": "低扩散（不易分化）", "content_count": 26, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "U.S. Foreign Aid Reaches 177 Countries, Fuels Taxpayer Backlash", "cluster": "低扩散（不易分化）", "content_count": 96, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Markets Await Key U.S. Inflation and Fed Data Thursday", "cluster": "低扩散（不易分化）", "content_count": 102, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "World Bank Chief Warns Middle East War Will Scar Global Economy", "cluster": "低扩散（不易分化）", "content_count": 69, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Florida Unemployment Hits 4.5% as Job Market Cools", "cluster": "低扩散（不易分化）", "content_count": 123, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Gold Prices Drop Below $4,700 After Strong U.S. Jobs Report", "cluster": "低扩散（不易分化）", "content_count": 44, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "British Columbia Premier David Eby Claims Province's Economy is Growing Exponentially Amid 39,400 Job Losses in February and March", "cluster": "低扩散（不易分化）", "content_count": 64, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Social Democrats in Ireland Advocate Taxpayer-Funded Housing and Free Healthcare for Migrants and Disabled Amid Housing Shortages", "cluster": "低扩散（不易分化）", "content_count": 43, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Texas Implements New Policy Requiring Schools to Collect Immigration Status Information on Students", "cluster": "低扩散（不易分化）", "content_count": 12, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Canada Proposes Major Express Entry Overhaul with New High-Skilled Class", "cluster": "低扩散（不易分化）", "content_count": 115, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "DIGNIDAD Act Draws GOP Backlash Over Immigration Reforms", "cluster": "低扩散（不易分化）", "content_count": 145, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Texas Tightens Rules on Tuition, Licenses for Undocumented Immigrants", "cluster": "低扩散（不易分化）", "content_count": 34, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "X user @xwanyex criticizes 'They Come Here for Better Lives' immigration argument as tautological, sparking heated debate and deportation calls", "cluster": "低扩散（不易分化）", "content_count": 25, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Viral post by John (@MagaGrunt1) sparks debate on U.S. government prioritizing immigrants over seniors' welfare", "cluster": "低扩散（不易分化）", "content_count": 28, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "NYC Mayor Mamdani Unveils Racial Equity Plan Amid Backlash", "cluster": "低扩散（不易分化）", "content_count": 88, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Harvard Study on Diversity's Trust Impact Resurfaces", "cluster": "低扩散（不易分化）", "content_count": 28, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "Scottish Police Give Rape Alarms to Girls After Asylum Seekers Photographed Them Near School", "cluster": "低扩散（不易分化）", "content_count": 96, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}, {"value": 0.0, "itemStyle": {"color": "#27ae60"}, "topic_label": "U.S. Inflation Hits 3.3% in March as Gas Prices Surge from Iran War", "cluster": "低扩散（不易分化）", "content_count": 128, "multi_topic_count": 0, "multi_topic_ratio": 0.0, "unique_other_topics": 0, "avg_topics_per_content": 1.0}];
+
+        // 初始化渲染主数据
+        renderChart(mainLabels, mainBarData);
+
+        function renderChart(labels, data) {
+            chart1.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    backgroundColor: 'rgba(15,18,35,0.95)',
+                    borderColor: 'rgba(91,139,239,0.3)',
+                    textStyle: { color: '#ddd', fontSize: 13 },
+                    formatter: function(params) {
+                        var d = data[params[0].dataIndex];
+                        return '<b style="font-size:14px">' + d.topic_label + '</b><br/>'
+                            + '<span style="color:#888">聚类类别：</span>' + d.cluster + '<br/>'
+                            + '<span style="color:#888">扩散指数：</span><b style="color:#5b8def">' + d.value + '</b><br/>'
+                            + '<span style="color:#888">内容总数：</span>' + d.content_count + '<br/>'
+                            + '<span style="color:#888">跨话题内容数：</span>' + d.multi_topic_count + '<br/>'
+                            + '<span style="color:#888">跨话题比例：</span>' + d.multi_topic_ratio + '%<br/>'
+                            + '<span style="color:#888">涉及其他话题数：</span>' + d.unique_other_topics + '<br/>'
+                            + '<span style="color:#888">平均关联话题数：</span>' + d.avg_topics_per_content;
+                    }
+                },
+                grid: { left: 60, right: 30, bottom: 130, top: 20 },
+                xAxis: {
+                    type: 'category',
+                    data: labels,
+                    axisLabel: {
+                        rotate: 40,
+                        color: '#8a95b5',
+                        fontSize: 11,
+                        interval: 0
+                    },
+                    axisLine: { lineStyle: { color: '#2a3050' } },
+                    axisTick: { lineStyle: { color: '#2a3050' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '扩散指数',
+                    nameTextStyle: { color: '#8a95b5', fontSize: 13 },
+                    axisLabel: { color: '#8a95b5' },
+                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+                    axisLine: { lineStyle: { color: '#2a3050' } }
+                },
+                series: [{
+                    type: 'bar',
+                    data: data,
+                    barMaxWidth: 38,
+                    itemStyle: { borderRadius: [4, 4, 0, 0] }
+                }]
+            }, true);
+        }
+
+        // 点击事件：展开/收起低扩散
+        chart1.on('click', function(params) {
+            var item = params.data;
+            if (!item.isLowDiffusionGroup) return;
+
+            isLowExpanded = !isLowExpanded;
+            if (isLowExpanded) {
+                // 展开：替换为低扩散子列表
+                var newLabels = mainLabels.slice(0, -1).concat(lowLabels);
+                var newData = mainBarData.slice(0, -1).concat(lowBarData);
+                renderChart(newLabels, newData);
+            } else {
+                // 收起：恢复合并状态
+                renderChart(mainLabels, mainBarData);
+            }
+        });
+
+        // 第二个图表不变
+        var chart2 = echarts.init(document.getElementById('chart2'));
+        var clusterLabels = ["高扩散（容易分化）", "中等扩散", "低扩散（不易分化）"];
+        var clusterValues = [{"value": 7, "itemStyle": {"color": "#e74c3c"}}, {"value": 0, "itemStyle": {"color": "#f39c12"}}, {"value": 24, "itemStyle": {"color": "#27ae60"}}];
+
+        chart2.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                backgroundColor: 'rgba(15,18,35,0.95)',
+                borderColor: 'rgba(91,139,239,0.3)',
+                textStyle: { color: '#ddd', fontSize: 13 }
+            },
+            grid: { left: 80, right: 80, bottom: 50, top: 20 },
+            xAxis: {
+                type: 'category',
+                data: clusterLabels,
+                axisLabel: { color: '#8a95b5', fontSize: 13 },
+                axisLine: { lineStyle: { color: '#2a3050' } },
+                axisTick: { lineStyle: { color: '#2a3050' } }
+            },
+            yAxis: {
+                type: 'value',
+                name: '话题数量',
+                nameTextStyle: { color: '#8a95b5', fontSize: 13 },
+                axisLabel: { color: '#8a95b5' },
+                splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+                axisLine: { lineStyle: { color: '#2a3050' } },
+                minInterval: 1
+            },
+            series: [{
+                type: 'bar',
+                data: clusterValues,
+                barWidth: 90,
+                itemStyle: { borderRadius: [6, 6, 0, 0] },
+                label: {
+                    show: true,
+                    position: 'top',
+                    color: '#fff',
+                    fontSize: 16,
+                    fontWeight: 'bold'
+                }
+            }]
+        });
+
+        window.addEventListener('resize', function() {
+            chart1.resize();
+            chart2.resize();
+        });
+    </script>
+</body>
+</html>
