@@ -1,12 +1,28 @@
-# 记忆架构审查概况与计划
+# 记忆架构审查总计划
 
 - 日期：2026-04-28
 - 分支：`eval/memory-performance-evaluation`
 - 范围：`action_v1` 记忆主链、当前 B-level 评估结果、后续分模块审查计划
+- 文档角色：audit master plan / source of truth
 - 参考结果：
   - `docs/memory/evaluation/results/b-level-post-linked-results-20260426.md`
   - `backend/test-results/memory-eval/b-level-v05-s1-post-linked-final-20260426`
   - `backend/test-results/memory-eval/b-level-v05-s2-post-linked-final-20260426`
+- 实现级检查清单：
+  - [implementation-audit-checklist-20260428.md](./implementation-audit-checklist-20260428.md)
+
+## 0. Plan Contract
+
+本文档是 memory audit 的唯一总计划。它负责定义：
+
+- 为什么审查；
+- 按什么顺序审查；
+- 每个阶段要回答什么架构问题；
+- 后续实现审查、测试补强和行为级 benchmark 应该服务于什么 memory contract。
+
+[implementation-audit-checklist-20260428.md](./implementation-audit-checklist-20260428.md) 是本文档的从属检查清单。它可以补充代码锚点、字段使用率检查、问题簇依赖和验证回路，但不能单独改变本计划里的阶段顺序、优先级、memory object taxonomy、retrieval task taxonomy 或行为闭环目标。
+
+如果后续实现审查发现本文档的阶段顺序或架构判断需要调整，应先修改本文档，再同步更新 checklist。避免两份文档各自演进，导致后续实现偏移。
 
 ## 1. 本轮审查目标
 
@@ -239,6 +255,8 @@ B-level 的 `VAL-RCL-11` 是最终长期库检索，不复现 runtime step。`VA
 - 是否在群组场景中保持 membership 和上下文连续。
 
 ## 6. 建议的审查顺序
+
+本节是总审查顺序，优先从模型实际输入和行为闭环反推记忆 contract。更细的逐文件检查表、问题簇依赖图和模块级输出格式见 [implementation-audit-checklist-20260428.md](./implementation-audit-checklist-20260428.md)。两者的关系是：先用本计划确定审查问题和优先级，再用实现检查清单逐模块落到代码。
 
 ### 阶段 A：模型交互与 prompt 事实边界
 

@@ -11,7 +11,7 @@
 这里的文档不替代：
 
 - [../audit/audit-and-validation.md](../audit/audit-and-validation.md)
-- [../audit/architecture-audit-plan-20260428.md](../audit/architecture-audit-plan-20260428.md)
+- [../audit/audit-master-plan-20260428.md](../audit/audit-master-plan-20260428.md)
 
 它的职责是把记忆测试、验证场景和长期记忆能力测评收拢到同一工作区，拆成可汇报、可复测、可调试的指标和场景。
 
