@@ -48,7 +48,7 @@
 - memory 大文件和宽 facade 属于后续工程清理项
   - 已写入 [current-architecture.md](../../current-architecture.md)
 - 测试代码主链已恢复，剩余工作主要是口径细化、结果沉淀和场景扩充
-  - 已写入 [testing-and-evaluation.md](../../evaluation/testing-and-evaluation.md)
+  - 已写入 [testing-and-evaluation.md](../../evaluation/runtime/testing-and-evaluation.md)
 
 ## 4. Per-Document Judgment
 

@@ -4,7 +4,7 @@
 - 分支：`eval/memory-performance-evaluation`
 - 范围：`action_v1` 记忆主链、当前 B-level 评估结果、后续分模块审查计划
 - 参考结果：
-  - `docs/memory/evaluation/b-level-post-linked-results-20260426.md`
+  - `docs/memory/evaluation/results/b-level-post-linked-results-20260426.md`
   - `backend/test-results/memory-eval/b-level-v05-s1-post-linked-final-20260426`
   - `backend/test-results/memory-eval/b-level-v05-s2-post-linked-final-20260426`
 

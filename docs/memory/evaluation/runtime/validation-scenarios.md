@@ -18,7 +18,7 @@
 
 当前建议按下面顺序使用：
 
-1. 先在 [audit-and-validation.md](../audit/audit-and-validation.md) 找目标 `AUD-*`
+1. 先在 [audit-and-validation.md](../../audit/audit-and-validation.md) 找目标 `AUD-*`
 2. 再在本页找对应 `VAL-*` 场景
 3. 修代码后至少补一条场景级验证记录
 4. 系统级自动化运行入口再回到 [testing-and-evaluation.md](./testing-and-evaluation.md)
@@ -367,6 +367,6 @@
 - 系统级运行入口和结果读取：
   - [testing-and-evaluation.md](./testing-and-evaluation.md)
 - 长期记忆测评指标与场景：
-  - [README.md](./README.md)
+  - [benchmark-overview.md](../design/benchmark-overview.md)
 - 当前审查台账：
-  - [audit-and-validation.md](../audit/audit-and-validation.md)
+  - [audit-and-validation.md](../../audit/audit-and-validation.md)

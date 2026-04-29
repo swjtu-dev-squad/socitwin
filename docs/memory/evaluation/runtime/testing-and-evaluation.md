@@ -253,12 +253,12 @@ uv run python -m app.memory.evaluation_harness \
 ## 11. Related Docs
 
 - 当前整体实现：
-  - [current-architecture.md](../current-architecture.md)
+  - [current-architecture.md](../../current-architecture.md)
 - 模式与边界：
-  - [principles-and-modes.md](../principles-and-modes.md)
+  - [principles-and-modes.md](../../principles-and-modes.md)
 - 长期记忆测评方案：
-  - [README.md](./README.md)
+  - [README.md](../README.md)
 - 文档迁移计划：
-  - [migration-documentation-plan.md](../archived/migration/migration-documentation-plan.md)
+  - [migration-documentation-plan.md](../../archived/migration/migration-documentation-plan.md)
 - 迁移期测试/配置记录：
-  - [migration-config-and-testing.md](../archived/migration/migration-config-and-testing.md)
+  - [migration-config-and-testing.md](../../archived/migration/migration-config-and-testing.md)

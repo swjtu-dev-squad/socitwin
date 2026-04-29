@@ -32,8 +32,8 @@
 
 验证场景目录在：
 
-- [../evaluation/validation-scenarios.md](../evaluation/validation-scenarios.md)
+- [../evaluation/runtime/validation-scenarios.md](../evaluation/runtime/validation-scenarios.md)
 
 系统级测试与 harness 入口在：
 
-- [../evaluation/testing-and-evaluation.md](../evaluation/testing-and-evaluation.md)
+- [../evaluation/runtime/testing-and-evaluation.md](../evaluation/runtime/testing-and-evaluation.md)

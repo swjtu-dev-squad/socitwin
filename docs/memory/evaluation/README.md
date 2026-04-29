@@ -51,28 +51,39 @@
 
 换句话说，评测必须贴合当前实现，否则结果无法解释当前系统；但评测不能迁就当前实现，否则只会把粗糙实现包装成“指标正常”。
 
-## 5. Reading Order
+## 5. Directory Layout
+
+当前目录按职责分成四块：
+
+| Path | Role |
+| --- | --- |
+| [design/](./design/README.md) | 评估设计、KPI、scenario group、数据集可靠性 |
+| [runtime/](./runtime/README.md) | harness 运行、`VAL-*` 场景目录、`action_v1` 白盒流程 |
+| [results/](./results/README.md) | 具体评测运行结果和阶段性报告 |
+| [implementation-plan.md](./implementation-plan.md) | 已实施能力、后续 phase 和未决项 |
+
+原先分散的 `longterm-memory-evaluation-plan.md`、`metrics.md`、`scenarios.md` 已合并进：
+
+- [design/benchmark-overview.md](./design/benchmark-overview.md)
+
+## 6. Reading Order
 
 建议按下面顺序读：
 
-1. [testing-and-evaluation.md](./testing-and-evaluation.md)
+1. [runtime/testing-and-evaluation.md](./runtime/testing-and-evaluation.md)
    - 测试层级、evaluation harness、常用命令和结果读取方式。
-2. [longterm-memory-evaluation-plan.md](./longterm-memory-evaluation-plan.md)
-   - 总体评测目标、分层思路和第一阶段落地范围。
-3. [metrics.md](./metrics.md)
-   - 指标定义、当前代码字段映射、summary KPI 输出和不可用指标口径。
-4. [action-v1-memory-whitebox-flow.md](./action-v1-memory-whitebox-flow.md)
+2. [design/benchmark-overview.md](./design/benchmark-overview.md)
+   - 总体评测目标、KPI、query 边界、scenario group 和 B-level 演进。
+3. [runtime/action-v1-memory-whitebox-flow.md](./runtime/action-v1-memory-whitebox-flow.md)
    - `action_v1` 从 observation、tool call、ActionEvidence、ActionEpisode、长期写入、检索、rerank、过滤到 prompt 注入的白盒流程。
-5. [scenarios.md](./scenarios.md)
-   - 真实运行回查、受控 episode benchmark、行为级场景的设计。
-6. [validation-scenarios.md](./validation-scenarios.md)
+4. [runtime/validation-scenarios.md](./runtime/validation-scenarios.md)
    - `VAL-*` 回归和保真验证场景目录，对应审查台账里的 `AUD-*` 条目。
-7. [dataset-and-reliability.md](./dataset-and-reliability.md)
+5. [design/dataset-and-reliability.md](./design/dataset-and-reliability.md)
    - 测评数据集、ground truth、随机性控制和结果可靠性口径。
-8. [implementation-plan.md](./implementation-plan.md)
+6. [implementation-plan.md](./implementation-plan.md)
    - 已完成的 Phase 1 KPI 聚合、B-level v0、B-level v0.5 post-linked final lookup，以及后续 trace replay / controlled benchmark 的实施顺序。
 
-## 6. First-Phase Position
+## 7. First-Phase Position
 
 第一阶段不要追求“大而全”的评测系统。
 

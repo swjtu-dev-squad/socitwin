@@ -35,11 +35,11 @@
 
 系统级运行入口见：
 
-- [testing-and-evaluation.md](../evaluation/testing-and-evaluation.md)
+- [testing-and-evaluation.md](../evaluation/runtime/testing-and-evaluation.md)
 
 场景目录见：
 
-- [validation-scenarios.md](../evaluation/validation-scenarios.md)
+- [validation-scenarios.md](../evaluation/runtime/validation-scenarios.md)
 
 ## 4. Status Model
 
@@ -260,6 +260,6 @@
 - 当前架构：
   - [current-architecture.md](../current-architecture.md)
 - 场景目录：
-  - [validation-scenarios.md](../evaluation/validation-scenarios.md)
+  - [validation-scenarios.md](../evaluation/runtime/validation-scenarios.md)
 - 测试与 harness：
-  - [testing-and-evaluation.md](../evaluation/testing-and-evaluation.md)
+  - [testing-and-evaluation.md](../evaluation/runtime/testing-and-evaluation.md)

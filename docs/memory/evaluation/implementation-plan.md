@@ -43,7 +43,7 @@
 
 测试可靠性原则见：
 
-- [dataset-and-reliability.md](./dataset-and-reliability.md)
+- [design/dataset-and-reliability.md](./design/dataset-and-reliability.md)
 
 ## 2. Phase 1: Summary KPI Aggregation
 
