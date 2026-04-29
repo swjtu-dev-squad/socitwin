@@ -53,6 +53,8 @@
   - 基于真实 `last_recall_query_text` 复盘 query 来源对象与本步 action target 的对齐情况，确认 first-visible-post query 与 later-rank action target 的结构性错位。
 - [action-episode-field-audit-20260429.md](./action-episode-field-audit-20260429.md)
   - 审查 `ActionEpisode` 字段职责、生命周期边界、long-term/working-memory 消费方式和 S1 字段分布，区分行为事实、target evidence、recall trace 与检索索引信号。
+- [minimal-instrumentation-design-20260429.md](./minimal-instrumentation-design-20260429.md)
+  - 定义不改变记忆行为的最小 trace 补强方案，补齐 query source object、target visible rank、query-target alignment 和 mismatch-with-injection 等审计字段。
 
 验证场景目录在：
 
