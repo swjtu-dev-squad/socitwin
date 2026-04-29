@@ -10,11 +10,10 @@
 
 这里的文档不替代：
 
-- [../testing-and-evaluation.md](../testing-and-evaluation.md)
-- [../validation-scenarios.md](../validation-scenarios.md)
-- [../audit-and-validation.md](../audit-and-validation.md)
+- [../audit/audit-and-validation.md](../audit/audit-and-validation.md)
+- [../audit/architecture-audit-plan-20260428.md](../audit/architecture-audit-plan-20260428.md)
 
-它的职责更窄：把长期记忆能力拆成可汇报、可复测、可调试的指标和场景。
+它的职责是把记忆测试、验证场景和长期记忆能力测评收拢到同一工作区，拆成可汇报、可复测、可调试的指标和场景。
 
 ## 2. Current Scope
 
@@ -56,17 +55,21 @@
 
 建议按下面顺序读：
 
-1. [longterm-memory-evaluation-plan.md](./longterm-memory-evaluation-plan.md)
+1. [testing-and-evaluation.md](./testing-and-evaluation.md)
+   - 测试层级、evaluation harness、常用命令和结果读取方式。
+2. [longterm-memory-evaluation-plan.md](./longterm-memory-evaluation-plan.md)
    - 总体评测目标、分层思路和第一阶段落地范围。
-2. [metrics.md](./metrics.md)
+3. [metrics.md](./metrics.md)
    - 指标定义、当前代码字段映射、summary KPI 输出和不可用指标口径。
-3. [action-v1-memory-whitebox-flow.md](./action-v1-memory-whitebox-flow.md)
+4. [action-v1-memory-whitebox-flow.md](./action-v1-memory-whitebox-flow.md)
    - `action_v1` 从 observation、tool call、ActionEvidence、ActionEpisode、长期写入、检索、rerank、过滤到 prompt 注入的白盒流程。
-4. [scenarios.md](./scenarios.md)
+5. [scenarios.md](./scenarios.md)
    - 真实运行回查、受控 episode benchmark、行为级场景的设计。
-5. [dataset-and-reliability.md](./dataset-and-reliability.md)
+6. [validation-scenarios.md](./validation-scenarios.md)
+   - `VAL-*` 回归和保真验证场景目录，对应审查台账里的 `AUD-*` 条目。
+7. [dataset-and-reliability.md](./dataset-and-reliability.md)
    - 测评数据集、ground truth、随机性控制和结果可靠性口径。
-6. [implementation-plan.md](./implementation-plan.md)
+8. [implementation-plan.md](./implementation-plan.md)
    - 已完成的 Phase 1 KPI 聚合、B-level v0、B-level v0.5 post-linked final lookup，以及后续 trace replay / controlled benchmark 的实施顺序。
 
 ## 6. First-Phase Position

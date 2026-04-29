@@ -21,12 +21,14 @@
    - 当前新仓库里的代码事实、模块布局、两模式 wiring、主运行链。
 2. [principles-and-modes.md](./principles-and-modes.md)
    - 这条路线为什么存在、`upstream` / `action_v1` 的职责边界、哪些是硬约束。
+3. [audit/architecture-audit-plan-20260428.md](./audit/architecture-audit-plan-20260428.md)
+   - 当前 `action_v1` 粗糙实现点、B-level 结果边界和后续分模块审查顺序。
 
 如果你是要继续做迁移或整理正式文档，再看：
 
-3. [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
+4. [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
    - 旧仓库记忆文档结构盘点、新仓库正式文档骨架、逐页迁移去向。
-4. [migration-archive-readiness.md](./archived/migration/migration-archive-readiness.md)
+5. [migration-archive-readiness.md](./archived/migration/migration-archive-readiness.md)
    - 当前迁移文档是否还保留独占信息、哪些可以归档、哪些应继续作为实施记录保留。
 
 ## 正式文档
@@ -40,9 +42,11 @@
 - [longterm-and-recall.md](./longterm-and-recall.md)
 - [evaluation/README.md](./evaluation/README.md)
 - [config-and-runtime.md](./config-and-runtime.md)
-- [testing-and-evaluation.md](./testing-and-evaluation.md)
-- [validation-scenarios.md](./validation-scenarios.md)
-- [audit-and-validation.md](./audit-and-validation.md)
+- [evaluation/testing-and-evaluation.md](./evaluation/testing-and-evaluation.md)
+- [evaluation/validation-scenarios.md](./evaluation/validation-scenarios.md)
+- [audit/README.md](./audit/README.md)
+- [audit/audit-and-validation.md](./audit/audit-and-validation.md)
+- [audit/architecture-audit-plan-20260428.md](./audit/architecture-audit-plan-20260428.md)
 
 当前正式文档主线已经闭合。
 

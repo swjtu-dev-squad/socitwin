@@ -24,7 +24,7 @@
 这三层之外，真实 provider 级长跑和更重的 E2E 结果会落到：
 
 - `backend/test-results/memory-eval/`
-- `docs/memory/` 下的专项测试记录文档
+- `docs/memory/evaluation/` 下的专项测试记录文档
 
 ## 3. Layer A: Unit Tests
 
@@ -253,12 +253,12 @@ uv run python -m app.memory.evaluation_harness \
 ## 11. Related Docs
 
 - 当前整体实现：
-  - [current-architecture.md](./current-architecture.md)
+  - [current-architecture.md](../current-architecture.md)
 - 模式与边界：
-  - [principles-and-modes.md](./principles-and-modes.md)
+  - [principles-and-modes.md](../principles-and-modes.md)
 - 长期记忆测评方案：
-  - [evaluation/README.md](./evaluation/README.md)
+  - [README.md](./README.md)
 - 文档迁移计划：
-  - [migration-documentation-plan.md](./archived/migration/migration-documentation-plan.md)
+  - [migration-documentation-plan.md](../archived/migration/migration-documentation-plan.md)
 - 迁移期测试/配置记录：
-  - [migration-config-and-testing.md](./archived/migration/migration-config-and-testing.md)
+  - [migration-config-and-testing.md](../archived/migration/migration-config-and-testing.md)

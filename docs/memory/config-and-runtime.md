@@ -462,4 +462,4 @@ provider runtime 相关 env 包括：
 - long-term 与 recall：
   - [longterm-and-recall.md](./longterm-and-recall.md)
 - testing 与评测：
-  - [testing-and-evaluation.md](./testing-and-evaluation.md)
+  - [testing-and-evaluation.md](./evaluation/testing-and-evaluation.md)

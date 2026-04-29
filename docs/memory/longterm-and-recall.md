@@ -361,4 +361,4 @@ adapter 当前负责：
 - prompt 与 short-term：
   - [prompt-and-shortterm.md](./prompt-and-shortterm.md)
 - testing 与评测：
-  - [testing-and-evaluation.md](./testing-and-evaluation.md)
+  - [testing-and-evaluation.md](./evaluation/testing-and-evaluation.md)
