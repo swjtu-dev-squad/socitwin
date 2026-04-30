@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""主CLI入口 - 集成DatabaseClient、LLMAnalyzer、XPublisher完成对抗性观点生成和发布流程"""
+"""主CLI入口 - 集成DatabaseClient、LLMAnalyzer、XPublisher完成多角度观点生成和发布流程"""
 
 import argparse
 import logging
-import sys
 import os
-from pathlib import Path
-from typing import Dict, Any, Optional
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 try:
     from database import DatabaseClient
     from llm_analyzer import LLMAnalyzer
+    from prompt_loader import PromptLoader
     from x_publisher import XPublisher
 except ImportError as e:
     print(f"导入模块失败: {e}")
     print("请确保以下模块在相同目录下:")
-    print("  - database.py\n  - llm_analyzer.py\n  - x_publisher.py")
-    print("\n请安装所需依赖:\n  pip install openai tweepy")
+    print("  - database.py\n  - llm_analyzer.py\n  - x_publisher.py\n  - prompt_loader.py")
+    print("\n请安装所需依赖:\n  pip install openai tweepy pyyaml")
     sys.exit(1)
 
 
@@ -104,35 +104,68 @@ def setup_logging(verbose: bool = False) -> None:
 
 def parse_arguments() -> argparse.Namespace:
     """解析命令行参数"""
+    prompt_loader = PromptLoader()
+    perspectives = prompt_loader.list_perspectives()
+    perspective_keys = [p["key"] for p in perspectives]
+
     parser = argparse.ArgumentParser(
-        description='对抗性观点Agent - 分析Twitter话题多数观点并生成反驳论点',
+        description='多角度观点Agent - 分析话题多数观点并以选定角度生成内容',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""示例:
   %(prog)s --topic "climate_change" --sample-size 20
-  %(prog)s --topic "ai_ethics" --dry-run --verbose
-  %(prog)s --topic "data_privacy" --db-path /custom/path/to/database.db"""
+  %(prog)s --topic "ai_ethics" --perspective neutral_analysis --dry-run
+  %(prog)s --topic "data_privacy" --db-path /custom/path/to/database.db
+  %(prog)s --list-perspectives"""
     )
 
-    parser.add_argument('--topic', required=True, help='话题key（数据库中的话题关键词）')
+    parser.add_argument('--topic', help='话题key（数据库中的话题关键词）')
     parser.add_argument('--sample-size', type=int, default=20, help='样本大小（默认: 20）')
     parser.add_argument('--dry-run', action='store_true', help='干运行模式，不实际发布推文')
     parser.add_argument('--db-path', help='自定义数据库路径（覆盖配置中的路径）')
     parser.add_argument('--verbose', '-v', action='store_true', help='详细输出模式')
-    parser.add_argument('--platform', default='twitter', choices=['twitter', 'reddit'], help='平台类型（默认: twitter）')
+    parser.add_argument('--platform', default='twitter', choices=['twitter', 'reddit'],
+                        help='平台类型（默认: twitter）')
+    keys_str = ", ".join(perspective_keys)
+    parser.add_argument('--perspective', default='counterargument', choices=perspective_keys,
+                        help=f'观点角度（默认: counterargument）。可选: {keys_str}')
+    parser.add_argument('--list-perspectives', action='store_true',
+                        help='列出所有可用观点角度并退出')
 
     return parser.parse_args()
+
+
+def display_perspectives():
+    """显示所有可用观点角度"""
+    prompt_loader = PromptLoader()
+    perspectives = prompt_loader.list_perspectives()
+    print(f"\n可用观点角度 ({len(perspectives)}):")
+    print("-" * 50)
+    for p in perspectives:
+        print(f"  [{p['key']}] {p['label']}")
+        print(f"       {p['description']}")
+    print()
 
 
 def main() -> None:
     """主入口点"""
     args = parse_arguments()
+
+    if args.list_perspectives:
+        display_perspectives()
+        return
+
+    if not args.topic:
+        print("错误: 需要指定 --topic 参数（或使用 --list-perspectives 查看可用角度）")
+        sys.exit(1)
+
     setup_logging(args.verbose)
     logger = logging.getLogger(__name__)
 
     logger.info("=" * 60)
-    logger.info("对抗性观点Agent启动")
+    logger.info("多角度观点Agent启动")
     logger.info("=" * 60)
-    logger.info(f"话题: {args.topic} | 样本大小: {args.sample_size} | 平台: {args.platform} | Dry-run: {args.dry_run}")
+    logger.info("话题: %s | 样本: %d | 平台: %s | 角度: %s | Dry-run: %s",
+                args.topic, args.sample_size, args.platform, args.perspective, args.dry_run)
 
     try:
         logger.info("步骤1: 加载配置...")
@@ -140,13 +173,14 @@ def main() -> None:
         logger.info("✓ 配置加载成功")
 
         db_path = args.db_path or config.oasis_db_path
-        logger.info(f"数据库路径: {db_path}")
+        logger.info("数据库路径: %s", db_path)
 
         logger.info("步骤2: 初始化模块客户端...")
+        prompt_loader = PromptLoader()
         db_client = DatabaseClient(db_path)
         logger.info("✓ DatabaseClient初始化成功")
 
-        llm_analyzer = LLMAnalyzer(config.deepseek_api_key)
+        llm_analyzer = LLMAnalyzer(config.deepseek_api_key, prompt_loader=prompt_loader)
         logger.info("✓ LLMAnalyzer初始化成功")
 
         x_publisher = XPublisher(
@@ -174,9 +208,12 @@ def main() -> None:
         logger.info("步骤4: 获取话题信息...")
         topic_info = db_client.get_topic_info(args.topic, args.platform)
         if not topic_info:
-            logger.error(f"✗ 未找到话题: {args.topic}")
+            logger.error("✗ 未找到话题: %s", args.topic)
             sys.exit(1)
-        logger.info(f"✓ 话题: {topic_info.get('topic_label', 'N/A')} | 帖子: {topic_info.get('post_count', 0)} | 回复: {topic_info.get('reply_count', 0)}")
+        logger.info("✓ 话题: %s | 帖子: %d | 回复: %d",
+                    topic_info.get('topic_label', 'N/A'),
+                    topic_info.get('post_count', 0),
+                    topic_info.get('reply_count', 0))
 
         logger.info("步骤5: 抽样帖子样本...")
         samples = db_client.get_majority_opinion_samples(
@@ -185,24 +222,27 @@ def main() -> None:
         if not samples:
             logger.error("✗ 未找到有效的帖子样本")
             sys.exit(1)
-        logger.info(f"✓ 成功抽取 {len(samples)} 个样本")
+        logger.info("✓ 成功抽取 %d 个样本", len(samples))
 
         logger.info("步骤6: 分析多数观点...")
         majority_opinion = llm_analyzer.analyze_majority_opinion(samples)
-        logger.info(f"✓ {majority_opinion}")
+        logger.info("✓ %s", majority_opinion)
 
-        logger.info("步骤7: 生成反驳论点...")
+        logger.info("步骤7: 生成观点（角度: %s）...", args.perspective)
         topic_label = topic_info.get('topic_label', args.topic)
-        counterargument = llm_analyzer.generate_counterargument(majority_opinion, topic_label)
-        logger.info(f"✓ 反驳论点 ({len(counterargument)} 字符): {counterargument}")
+        content = llm_analyzer.generate_perspective(
+            majority_opinion, topic_label, perspective=args.perspective
+        )
+        logger.info("✓ 生成内容 (%d 字符): %s", len(content), content)
 
         logger.info("步骤8: 发布推文...")
-        result = x_publisher.post_tweet(counterargument)
+        result = x_publisher.post_tweet(content)
         if result['success']:
             if args.dry_run:
-                logger.info(f"✓ Dry-run: {result['text']}")
+                logger.info("✓ Dry-run: %s", result['text'])
             else:
-                logger.info(f"✓ 推文发布成功 ID={result['id']} https://x.com/user/status/{result['id']}")
+                logger.info("✓ 推文发布成功 ID=%s https://x.com/user/status/%s",
+                            result['id'], result['id'])
 
         logger.info("=" * 60)
         logger.info("✓ 执行完成!")
@@ -212,7 +252,7 @@ def main() -> None:
         logger.info("\n⚠ 用户中断执行")
         sys.exit(130)
     except Exception as e:
-        logger.error(f"✗ 执行失败: {e}")
+        logger.error("✗ 执行失败: %s", e)
         import traceback
         logger.debug(traceback.format_exc())
         sys.exit(1)

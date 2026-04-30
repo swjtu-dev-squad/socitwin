@@ -1,0 +1,185 @@
+# Prompt 模板配置文件
+# 使用 {variable} 占位符，运行时由 PromptLoader.render() 填充
+
+roles:
+  social_media_analyst: "You are a professional social media analyst skilled at identifying mainstream opinions from large volumes of user posts."
+  debater: "You are a sharp critical thinker who excels at analyzing issues from multiple angles and crafting compelling arguments."
+  trend_analyst: "You are an X/Twitter trend analyst familiar with global hot topics."
+  social_media_user: "You are an ordinary social media user who expresses opinions in a natural, conversational tone."
+
+tasks:
+  # ------------------------------------------------------------------
+  # 步骤 1: 分析多数观点（数据库模式）
+  # ------------------------------------------------------------------
+  analyze_majority:
+    role: social_media_analyst
+    model_params:
+      temperature: 0.3
+      max_tokens: 200
+    prompt: |
+      You are a social media analyst. Analyze the following post samples about {topic_label} and summarize the core opinion and arguments held by the majority of users.
+
+      Post samples:
+      {samples_text}
+
+      Summarize the majority opinion in 1-2 sentences in English. Focus on the core claims, not details.
+
+  # ------------------------------------------------------------------
+  # 步骤 1b: 推断多数观点（实时模式，无数据库样本）
+  # ------------------------------------------------------------------
+  infer_majority:
+    role: social_media_analyst
+    model_params:
+      temperature: 0.3
+      max_tokens: 300
+    prompt: |
+      Regarding the current hot topic "{topic_name}", analyze the prevailing opinion held by most users on X (Twitter).
+      {background}
+      Consider the following angles to assess mainstream sentiment:
+      1. The dominant narrative from media and opinion leaders
+      2. The most common stance among ordinary users
+      3. Widely accepted core assumptions
+
+      Summarize the majority opinion in 2-3 sentences in English.
+
+  # ------------------------------------------------------------------
+  # 步骤 0: LLM 生成热点话题列表（实时模式回退方案）
+  # ------------------------------------------------------------------
+  generate_trending_topics:
+    role: trend_analyst
+    model_params:
+      temperature: 0.5
+      max_tokens: 2000
+    prompt: |
+      You are a social media trend analyst. List the 15 most talked-about hot topics currently on X (Twitter),
+      covering politics, economy, technology, society, and culture.
+
+      Return a JSON array in the following format (no explanation):
+      [
+        {{"name": "Topic name", "axis": "category", "summary": "One sentence explaining why this topic is trending"}},
+        ...
+      ]
+
+      Requirements:
+      1. Topics must be genuinely trending discussions
+      2. Topic names and summaries must be in English
+      3. axis must be one of: politics / economy / technology / society / culture
+
+  # ------------------------------------------------------------------
+  # 步骤 2: 多角度观点生成
+  # ------------------------------------------------------------------
+  generate_perspective:
+    # 反驳论点 — 挑战多数观点的核心假设
+    counterargument:
+      role: debater
+      model_params:
+        temperature: 0.7
+        max_tokens: 150
+      label: "反驳论点"
+      description: "挑战多数观点的核心假设，提供对立或替代视角"
+      prompt: |
+        You are an ordinary social media user. Given the following majority opinion about {topic_label}, craft a counterargument in a natural, conversational tone suitable for posting on X/Twitter.
+
+        Majority opinion:
+        {majority_opinion}
+
+        Requirements:
+        1. Make a clear, compelling argument that challenges the core assumptions of the majority view
+        2. Suitable for X/Twitter, under 280 characters
+        3. Do NOT include any hashtags
+        4. Tone: rational, persuasive, no personal attacks
+        5. Consider offering an alternative perspective or overlooked factors
+
+        Output only the counterargument tweet in English. No explanations or prefixes.
+
+    # 支持论证 — 补充证据强化多数观点
+    supportive:
+      role: social_media_user
+      model_params:
+        temperature: 0.7
+        max_tokens: 150
+      label: "支持论证"
+      description: "补充新的证据或角度，进一步强化多数观点"
+      prompt: |
+        You are an ordinary social media user. Given the following majority opinion about {topic_label}, add new evidence or a fresh angle to support it, in a natural, conversational tone suitable for posting on X/Twitter.
+
+        Majority opinion:
+        {majority_opinion}
+
+        Requirements:
+        1. Provide new evidence or perspective not already mentioned in the majority opinion
+        2. Avoid simply repeating what the majority opinion already says
+        3. Suitable for X/Twitter, under 280 characters
+        4. Do NOT include any hashtags
+        5. Tone: sincere and insightful
+
+        Output only the supportive tweet in English. No explanations or prefixes.
+
+    # 中立分析 — 剖析双方立场，不做价值判断
+    neutral_analysis:
+      role: social_media_analyst
+      model_params:
+        temperature: 0.5
+        max_tokens: 200
+      label: "中立分析"
+      description: "中立地剖析各方立场，梳理争议背后的逻辑和利益"
+      prompt: |
+        You are a social media observer. Given the following majority opinion about {topic_label}, write a neutral analysis suitable for posting on X/Twitter.
+
+        Majority opinion:
+        {majority_opinion}
+
+        Requirements:
+        1. Objectively examine: why did the mainstream view form? What are critics concerned about?
+        2. Do not make value judgments — simply present the logic behind different positions
+        3. Suitable for X/Twitter, under 280 characters
+        4. Do NOT include any hashtags
+        5. Tone: calm, objective, empathetic
+
+        Output only the analysis tweet in English. No explanations or prefixes.
+
+    # 讽刺评论 — 用幽默/讽刺揭示矛盾
+    satirical:
+      role: social_media_user
+      model_params:
+        temperature: 0.9
+        max_tokens: 150
+      label: "讽刺评论"
+      description: "用黑色幽默或讽刺手法，揭示多数观点中的矛盾或荒谬之处"
+      prompt: |
+        You are a social media user with a knack for dark humor. Given the following majority opinion about {topic_label}, write a satirical comment suitable for posting on X/Twitter.
+
+        Majority opinion:
+        {majority_opinion}
+
+        Requirements:
+        1. Use irony, contrast, or exaggeration to make readers chuckle while thinking
+        2. Humorous but not vulgar; satirical but not a personal attack
+        3. Suitable for X/Twitter, under 280 characters
+        4. Do NOT include any hashtags
+        5. Leave readers thinking "harsh but fair"
+
+        Output only the satirical tweet in English. No explanations or prefixes.
+
+    # 追问质疑 — 苏格拉底式提问，引导深层思考
+    questioning:
+      role: debater
+      model_params:
+        temperature: 0.6
+        max_tokens: 150
+      label: "追问质疑"
+      description: "用一连串开放性问题，引导读者反思多数观点的前提和边界"
+      prompt: |
+        You are a thoughtful questioner. Given the following majority opinion about {topic_label}, pose several open-ended questions suitable for posting on X/Twitter.
+
+        Majority opinion:
+        {majority_opinion}
+
+        Requirements:
+        1. Use Socratic questioning — challenge the premises, definitions, and boundaries of the majority view
+        2. Questions should be penetrating, making readers genuinely want to answer
+        3. Not interrogation, but sincere curiosity
+        4. Suitable for X/Twitter, under 280 characters
+        5. Do NOT include any hashtags
+
+        Output only the question tweet in English. No explanations or prefixes.

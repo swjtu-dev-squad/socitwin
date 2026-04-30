@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""实时获取热点话题 → 对抗性观点生成 → 发帖"""
+"""实时获取热点话题 → 多角度观点生成 → 发帖"""
 
 import argparse
+import json
 import logging
 import os
 import sys
-import json
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 SCRIPT_DIR = Path(__file__).parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from llm_analyzer import LLMAnalyzer
-from x_publisher import XPublisher
-from contrarian_agent import load_config
+from contrarian_agent import load_config  # noqa: E402
+from llm_analyzer import LLMAnalyzer  # noqa: E402
+from prompt_loader import PromptLoader  # noqa: E402
+from x_publisher import XPublisher  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -49,25 +50,8 @@ def fetch_trending_from_api(max_per_axis: int = 5, max_age_hours: int = 24) -> l
 
 def generate_trending_from_llm(analyzer: LLMAnalyzer) -> list[dict]:
     """回退方案：让 LLM 生成当前各领域热点话题列表"""
-    prompt = (
-        "你是一个社交媒体趋势分析师。请列出当前 X (Twitter) 上最受关注的 15 个热点话题，"
-        "涵盖政治、经济、科技、社会、文化等领域。\n\n"
-        "请返回 JSON 数组，格式如下（不要加解释）：\n"
-        '[\n'
-        '  {"name": "话题名称", "axis": "所属领域", "summary": "一句话说明为什么这个话题热门"},\n'
-        '  ...\n'
-        ']\n\n'
-        "要求：\n"
-        "1. 话题必须是当前真实存在的热门讨论\n"
-        "2. 每个话题用英文名称，但可以涉及全球任何地区\n"
-        "3. axis 字段从 politics / economy / technology / society / culture 中选择\n"
-        "4. summary 用中文描述热度原因"
-    )
-    messages = [
-        {"role": "system", "content": "你是 X/Twitter 趋势分析师，熟悉全球热点话题。"},
-        {"role": "user", "content": prompt},
-    ]
-    raw = analyzer._call_api_with_retry(messages, temperature=0.5, max_tokens=2000)
+    ctx = analyzer.prompt_loader.render("generate_trending_topics")
+    raw = analyzer._call_api_with_retry(ctx)
     if not raw:
         raise RuntimeError("LLM 未能生成热点话题列表")
 
@@ -117,7 +101,8 @@ def display_topics(topics: list[dict]) -> None:
     print()
 
 
-def select_topic(topics: list[dict], auto: bool = False, topic_name: Optional[str] = None) -> dict:
+def select_topic(topics: list[dict], auto: bool = False,
+                 topic_name: Optional[str] = None) -> dict:
     """选择要处理的话题"""
     if topic_name:
         for t in topics:
@@ -132,10 +117,38 @@ def select_topic(topics: list[dict], auto: bool = False, topic_name: Optional[st
 
     while True:
         try:
-            choice = input("  请输入话题编号 (1-{}): ".format(len(topics))).strip()
+            choice = input(f"  请输入话题编号 (1-{len(topics)}): ").strip()
             idx = int(choice) - 1
             if 0 <= idx < len(topics):
                 return topics[idx]
+        except (ValueError, IndexError):
+            pass
+        print("  输入无效，请重新输入。")
+
+
+def select_perspective(prompt_loader: PromptLoader,
+                       perspective_arg: Optional[str] = None) -> str:
+    """选择观点角度：CLI 参数 > 交互式选择"""
+    perspectives = prompt_loader.list_perspectives()
+
+    if perspective_arg:
+        for p in perspectives:
+            if p["key"] == perspective_arg:
+                print(f"  → 角度: [{p['key']}] {p['label']}")
+                return p["key"]
+        print(f"  ⚠ 未找到角度 '{perspective_arg}'，进入交互选择")
+
+    print("\n  请选择观点角度:")
+    for i, p in enumerate(perspectives, 1):
+        print(f"    [{i}] {p['label']} ({p['key']}) — {p['description']}")
+
+    while True:
+        try:
+            choice = input(f"  请输入编号 (1-{len(perspectives)}): ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(perspectives):
+                chosen = perspectives[idx]
+                return chosen["key"]
         except (ValueError, IndexError):
             pass
         print("  输入无效，请重新输入。")
@@ -146,51 +159,64 @@ def infer_majority_opinion(analyzer: LLMAnalyzer, topic: dict) -> str:
     name = topic.get("name", "this topic")
     summary = topic.get("summary", "")
 
-    prompt = f"关于当前热点话题「{name}」，请分析 X (Twitter) 上大多数用户的普遍看法。\n"
+    background = ""
     if summary:
-        prompt += f"背景：{summary}\n\n"
-    prompt += (
-        "请从以下角度综合判断主流舆论：\n"
-        "1. 媒体和意见领袖的主流叙事\n"
-        "2. 普通用户最常见的立场\n"
-        "3. 被广泛认可的核心假设\n\n"
-        "用 2-3 句话总结多数观点（中文）。"
-    )
+        background = f"背景：{summary}\n"
 
-    messages = [
-        {"role": "system", "content": "你是一名社交媒体分析师，擅长从海量信息中识别主流舆论。"},
-        {"role": "user", "content": prompt},
-    ]
-    result = analyzer._call_api_with_retry(messages, temperature=0.3, max_tokens=300)
+    ctx = analyzer.prompt_loader.render(
+        "infer_majority",
+        topic_name=name,
+        background=background,
+    )
+    result = analyzer._call_api_with_retry(ctx)
     if not result:
         raise RuntimeError("推断多数观点失败")
     return result
 
 
-def generate_contrarian_view(analyzer: LLMAnalyzer, majority_opinion: str, topic_name: str) -> str:
-    """生成对抗性观点"""
-    return analyzer.generate_counterargument(majority_opinion, topic_name)
-
-
 def parse_args():
-    parser = argparse.ArgumentParser(description="Live Contrarian Agent - 实时热点 → 对抗性观点 → 发帖")
+    parser = argparse.ArgumentParser(
+        description="Live Contrarian Agent - 实时热点 → 多角度观点 → 发帖"
+    )
     parser.add_argument("--topic", help="直接指定话题名称（跳过选择）")
     parser.add_argument("--auto", action="store_true", help="自动选择第一个话题")
     parser.add_argument("--dry-run", action="store_true", help="试运行模式，不实际发帖")
     parser.add_argument("--verbose", "-v", action="store_true", help="详细日志")
-    parser.add_argument("--no-api", action="store_true", help="跳过 backend API，直接使用 LLM 生成话题")
+    parser.add_argument("--no-api", action="store_true",
+                        help="跳过 backend API，直接使用 LLM 生成话题")
+
+    prompt_loader = PromptLoader()
+    perspective_keys = [p["key"] for p in prompt_loader.list_perspectives()]
+    keys_str = ", ".join(perspective_keys)
+    parser.add_argument("--perspective", default=None, choices=perspective_keys,
+                        help=f'观点角度（默认：交互选择）。可选: {keys_str}')
+    parser.add_argument("--list-perspectives", action="store_true",
+                        help="列出所有可用观点角度并退出")
+
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
 
+    if args.list_perspectives:
+        prompt_loader = PromptLoader()
+        perspectives = prompt_loader.list_perspectives()
+        print(f"\n可用观点角度 ({len(perspectives)}):")
+        print("-" * 50)
+        for p in perspectives:
+            print(f"  [{p['key']}] {p['label']}")
+            print(f"       {p['description']}")
+        print()
+        return
+
     level = logging.DEBUG if args.verbose else logging.INFO
     logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s",
                         handlers=[logging.StreamHandler(sys.stdout)])
 
     config = load_config()
-    analyzer = LLMAnalyzer(config.deepseek_api_key)
+    prompt_loader = PromptLoader()
+    analyzer = LLMAnalyzer(config.deepseek_api_key, prompt_loader=prompt_loader)
     x_pub = XPublisher(
         api_key=config.x_api_key,
         api_key_secret=config.x_api_key_secret,
@@ -230,7 +256,13 @@ def main():
     print(f"  ✓ 已选择: [{topic.get('trend_rank')}] {topic.get('name')}\n")
 
     print("=" * 60)
-    print("  步骤 3: 推断主流观点")
+    print("  步骤 3: 选择观点角度")
+    print("=" * 60)
+    perspective = select_perspective(prompt_loader, args.perspective)
+    print(f"  ✓ 已选择角度: {perspective}\n")
+
+    print("=" * 60)
+    print("  步骤 4: 推断主流观点")
     print("=" * 60)
     try:
         majority = infer_majority_opinion(analyzer, topic)
@@ -240,21 +272,22 @@ def main():
         sys.exit(1)
 
     print("=" * 60)
-    print("  步骤 4: 生成对抗性观点")
+    print("  步骤 5: 生成观点（角度: {perspective}）")
     print("=" * 60)
     topic_label = topic.get("name", "trending_topic")
     try:
-        counter = generate_contrarian_view(analyzer, majority, topic_label)
-        print(f"  ✓ 对抗性观点 ({(len(counter))} 字符):\n    {counter}\n")
+        content = analyzer.generate_perspective(majority, topic_label,
+                                                perspective=perspective)
+        print(f"  ✓ 生成内容 ({len(content)} 字符):\n    {content}\n")
     except RuntimeError as e:
         logger.error(str(e))
         sys.exit(1)
 
     print("=" * 60)
-    print("  步骤 5: 发布到 X")
+    print("  步骤 6: 发布到 X")
     print("=" * 60)
     try:
-        result = x_pub.post_tweet(counter)
+        result = x_pub.post_tweet(content)
         if result["success"]:
             if args.dry_run:
                 print(f"  ✓ Dry-run 完成，未实际发布\n  内容: {result['text']}")
